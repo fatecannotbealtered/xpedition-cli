@@ -1,0 +1,7 @@
+{
+  "error_codes": {
+    "E_BACKEND_UNAVAILABLE": {"exit": 4, "retryable": false},
+    "E_CHANGESET_INVALID": {"exit": 2, "retryable": false},
+    "E_PROJECT_INVALID": {"exit": 2, "retryable": false}
+  }
+}

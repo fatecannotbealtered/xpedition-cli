@@ -1,0 +1,4 @@
+# Runtime dependencies are intentionally empty in the phase-1 MockBackend.
+# Keep this file for the CI pip-audit contract and add pinned runtime packages
+# here when a NativeBackend adapter is introduced.
+

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xpedition-cli"
+dynamic = ["version"]
+description = "Read, validate, preview, and apply controlled Xpedition design changes with mock-first verification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Sean Guo", email = "guosong6886@gmail.com" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.15",
+  "pyinstaller>=6",
+  "pip-audit>=2.7",
+]
+native = [
+  "pywin32>=306; sys_platform == 'win32'",
+  "pywinauto>=0.6.8; sys_platform == 'win32'",
+  "Pillow>=10",
+]
+
+[project.scripts]
+xpedition-cli = "xpedition_cli.main:main"
+xpedition-native-adapter = "xpedition_cli.native_com_adapter:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "xpedition_cli.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["xpedition_cli*"]
