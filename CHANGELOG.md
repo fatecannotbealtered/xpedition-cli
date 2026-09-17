@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `agent capabilities` no longer loads a project or requires the selected native
+  backend to be operational. Capability discovery now matches its streaming
+  counterpart and remains available when a design path is absent or malformed.
+- `analysis run --backend native_xpedition` explicitly rejects the unsupported
+  combination before native access instead of running Mock checks on a native
+  snapshot. Native stored-result reads remain available. This intentionally
+  tightens backend selection; it does not implement a native analysis engine.
+
 ## [1.0.0] - 2026-09-17
 
 ### Added
