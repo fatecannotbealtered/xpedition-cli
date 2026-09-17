@@ -29,7 +29,17 @@ jobs:
           cat /tmp/hardening-before.txt
           test "$STATUS" -eq 1
       - name: Apply exact pinned-source patch
-        run: python scripts/_agent_hardening_patch.py
+        run: |
+          python scripts/_agent_hardening_patch.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('xpedition_cli/reference_data.py')
+          text = p.read_text(encoding='utf-8')
+          old = '"description": "comma-separated data paths; arrays project per item (items.refdes or items[].refdes); pagination and _untrusted are retained",'
+          new = '"description": (\n                    "Comma-separated data paths, including items.refdes or items[].refdes; "\n                    "pagination and _untrusted are retained."\n                ),'
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
       - name: Format changed Python files and sort their imports
         run: |
           ruff check --select I --fix xpedition_cli/main.py xpedition_cli/output.py xpedition_cli/reference_data.py xpedition_cli/routing_plan.py xpedition_cli/field_projection.py xpedition_cli/native_verification.py tests/test_agent_hardening.py tests/test_field_projection.py tests/test_native_verification.py tests/test_routing_incremental.py scripts/benchmark-routing.py
