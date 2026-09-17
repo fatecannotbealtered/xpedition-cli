@@ -44,7 +44,10 @@ def test_agent_capabilities_does_not_load_or_require_a_project_backend(
     result = json.loads(capsys.readouterr().out)
     assert code == 0 and result["ok"]
     assert "capabilities" in result["data"]
-    assert result["data"] == cli._agent_request({"method": "capabilities"}, {})
+    # Both transports serialize tuples as arrays. Compare the actual wire shape,
+    # not a decoded JSON list with the registry's internal Python tuple.
+    expected = json.loads(json.dumps(cli._agent_request({"method": "capabilities"}, {})))
+    assert result["data"] == expected
 
 
 def test_capability_discovery_ignores_invalid_design_contents(tmp_path):
