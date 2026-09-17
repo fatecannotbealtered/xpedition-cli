@@ -443,13 +443,29 @@ def test_annotation_summary_reads_counts_errors_and_the_verdict(tmp_path) -> Non
 
 
 def test_jobwizard_messages_find_the_copy_count_and_failures(tmp_path) -> None:
+    # JobWizard writes its log in the machine's ANSI code page, and the reader falls
+    # back to UTF-8 where `mbcs` does not exist. The bytes here stay ASCII on purpose:
+    # `"…".encode("mbcs")` raises off Windows, and on a Windows runner whose code page
+    # is not the one this tool was built against it cannot encode the Chinese message
+    # either. The decoding fallback itself is covered below.
     log = tmp_path / "jobwizard.log"
-    log.write_bytes("Job Wizard\r\n\r\nSuccessfully copied 58 file(s).\r\n".encode("mbcs"))
+    log.write_bytes(b"Job Wizard\r\n\r\nSuccessfully copied 58 file(s).\r\n")
     assert native_adapter._jobwizard_messages(log) == ([], 58)
-    log.write_bytes("Job Wizard\r\n未能从通用数据库中获取设计信息。\r\n".encode("mbcs"))
+    log.write_bytes(b"Job Wizard\r\nERROR: unable to read the design information.\r\n")
     errors, copied = native_adapter._jobwizard_messages(log)
-    assert errors == ["未能从通用数据库中获取设计信息。"] and copied is None
+    assert errors == ["ERROR: unable to read the design information."] and copied is None
     assert native_adapter._jobwizard_messages(tmp_path / "none.log") == ([], None)
+
+
+def test_jobwizard_messages_survive_bytes_the_local_code_page_cannot_read(tmp_path) -> None:
+    """The real logs are Chinese. Whatever the running machine's ANSI code page makes of
+    those bytes, the reader must not raise and must still see the lines around them —
+    which is what the `mbcs` / UTF-8 fallback is for."""
+    log = tmp_path / "jobwizard.log"
+    log.write_bytes("未能从通用数据库中获取设计信息。\r\n".encode() + b"ERROR: the run failed.\r\n")
+    errors, copied = native_adapter._jobwizard_messages(log)
+    assert copied is None
+    assert any("ERROR: the run failed." in line for line in errors)
 
 
 _PRJ_TEXT = (

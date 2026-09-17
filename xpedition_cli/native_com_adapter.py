@@ -2590,7 +2590,9 @@ def _layout_board_path(params: dict[str, Any]) -> Path:
             "the design has no board yet",
             {"project": str(path), "design": design.name, "hint": "run pcb create first"},
         )
-    board = Path(design.pcb_path)
+    # the `.prj` is written by Windows tools, so its relative paths carry backslashes;
+    # off Windows those are ordinary filename characters and the board is never found
+    board = Path(str(design.pcb_path).replace("\\", "/"))
     if not board.is_absolute():
         board = path.parent / board
     if not board.is_file():

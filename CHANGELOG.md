@@ -107,6 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Three things the first CI run found, none of which a Windows workstation could
+  show: `_layout_board_path` could not resolve a board off Windows, because a `.prj`
+  stores its relative board path with backslashes and those are ordinary filename
+  characters elsewhere; `pcb render`'s tests were skipped-by-crash wherever Pillow
+  was absent, since Pillow sat only in the `native` extra while the renderer is pure
+  Python (it is now in `dev` too); and a test encoded its fixture with `mbcs`, which
+  does not exist off Windows and cannot represent Chinese on a Windows runner whose
+  code page differs.
 - The contract tests no longer depend on what is installed on the machine that runs
   them. NativeBackend finds its adapter through `XPEDITION_NATIVE_COMMAND` or through
   `xpedition-native-adapter` on PATH, so on a workstation with the native extra the
