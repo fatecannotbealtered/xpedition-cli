@@ -1,0 +1,109 @@
+# Exercise the release artifact transport without building or publishing a release.
+name: Release artifact smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [".github/workflows/**"]
+  push:
+    branches: [main]
+    paths: [".github/workflows/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: artifact-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  roundtrip:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create small synthetic release archives
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import io
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          root = Path("artifact-smoke/upload")
+          content = b"Synthetic fixture only; not an executable or a real release.\n"
+          for platform in ("linux", "windows"):
+              directory = root / platform
+              directory.mkdir(parents=True)
+              filename = "fixture.tar.gz" if platform == "linux" else "fixture.zip"
+              archive = directory / filename
+              if platform == "linux":
+                  with tarfile.open(archive, "w:gz") as handle:
+                      member = tarfile.TarInfo("fixture.txt")
+                      member.size = len(content)
+                      handle.addfile(member, io.BytesIO(content))
+              else:
+                  with zipfile.ZipFile(archive, "w") as handle:
+                      handle.writestr("fixture.txt", content)
+              digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+              (directory / "checksums.txt").write_text(
+                  f"{digest}  {filename}\n", encoding="utf-8"
+              )
+              (directory / "校验说明.txt").write_text("合成测试，不是发布资料。\n", encoding="utf-8")
+          PY
+
+      - name: Upload synthetic Linux archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-linux
+          path: artifact-smoke/upload/linux/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload synthetic Windows archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-windows
+          path: artifact-smoke/upload/windows/*
+          if-no-files-found: error
+          retention-days: 1
+
+      # Like release.yml: download all artifacts into their named directories.
+      # Keep checksum failure fatal; do not replace it with warn/ignore.
+      - name: Download with the upgraded release action
+        uses: actions/download-artifact@v8
+        with:
+          path: artifact-smoke/download
+          digest-mismatch: error
+
+      - name: Verify directory layout, filenames and archive bytes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          root = Path("artifact-smoke")
+          for platform in ("linux", "windows"):
+              source = root / "upload" / platform
+              downloaded = root / "download" / f"smoke-{platform}"
+              expected_names = {path.name for path in source.iterdir()}
+              assert {path.name for path in downloaded.iterdir()} == expected_names
+              for path in source.iterdir():
+                  assert (downloaded / path.name).read_bytes() == path.read_bytes(), path.name
+              digest, filename = (downloaded / "checksums.txt").read_text().strip().split()
+              archive = downloaded / filename
+              assert hashlib.sha256(archive.read_bytes()).hexdigest() == digest
+              if platform == "linux":
+                  with tarfile.open(archive) as handle:
+                      assert handle.getnames() == ["fixture.txt"]
+              else:
+                  with zipfile.ZipFile(archive) as handle:
+                      assert handle.namelist() == ["fixture.txt"]
+          print("PASS: v7 upload / v8 download, named directories, CJK filenames, SHA-256, tar and zip.")
+          PY
