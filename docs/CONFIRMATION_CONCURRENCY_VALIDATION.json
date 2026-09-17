@@ -1,0 +1,33 @@
+{
+  "baseline": "d42b226a5b1812b2937ded096bf618b8692c4f9a",
+  "run_id": "35248354040",
+  "python": "3.12.14 (main, Aug 13 2026, 02:47:42) [GCC 13.3.0]",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "baseline_selected": {
+    "tests": 6,
+    "failures": 6,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "tests": 240,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "native_xpedition_executed": false,
+  "limits": [
+    "healthy local store; cooperating versions",
+    "storage degradation remains permitted",
+    "not a project write lock or exactly-once native execution"
+  ],
+  "source_sha256": {
+    "xpedition_cli/confirm.py": "67cc748364aa7cc5801b33ba6dacfa24f7cb0fce5c8ff9567a6c193eead967d7",
+    "xpedition_cli/confirmation_store.py": "e991a66a8a8d9f97cfa07b59dbff357c90207ba6d70fbb5f88dc9d965fbaa38a",
+    "tests/test_confirm_concurrency.py": "e919a74330dac1380bd1517e094aff45a8464d3d24fe46a5094c922f3cb18d7d",
+    "tests/test_confirm_cli.py": "629421ef7eb224adb233f51f5e600d45e758ef03476495a79982e59a9a78eec0"
+  }
+}

@@ -5,12 +5,14 @@ import binascii
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import time
 from pathlib import Path
 from typing import Any
 
 from .audit import config_dir
+from .confirmation_store import claim, machine_secret
 from .errors import CLIError
 
 TOKEN_TTL_SECONDS = 900
@@ -25,19 +27,14 @@ def _consumed_path() -> Path:
 
 
 def _machine_secret() -> bytes:
-    path = _secret_path()
     try:
-        if path.exists():
-            return path.read_bytes()
-        value = secrets.token_bytes(32)
-        path.write_bytes(value)
-        try:
-            path.chmod(0o600)
-        except OSError:
-            pass
-        return value
+        return machine_secret(_secret_path())
     except OSError as exc:
-        raise CLIError("E_IO", f"cannot initialize local confirmation secret: {exc}") from exc
+        raise CLIError(
+            "E_IO",
+            "cannot initialize local confirmation secret",
+            {"stage": "confirmation_secret", "write_attempted": False},
+        ) from exc
 
 
 def _encode(payload: dict[str, Any]) -> str:
@@ -60,10 +57,14 @@ def _decode(token: str) -> dict[str, Any]:
     try:
         body, signature = token[3:].split(".", 1)
         raw = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
-    except (ValueError, IndexError, binascii.Error) as exc:
+        # compare_digest rejects non-ASCII text with TypeError, not a CLI error.
+        signature_bytes = signature.encode("ascii")
+    except (ValueError, IndexError, binascii.Error, UnicodeError) as exc:
         raise CLIError("E_CONFLICT", "invalid confirmation token") from exc
-    expected = hmac.new(_machine_secret(), raw, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(signature, expected):
+    if body != base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii"):
+        raise CLIError("E_CONFLICT", "non-canonical confirmation token")
+    expected = hmac.new(_machine_secret(), raw, hashlib.sha256).hexdigest().encode("ascii")
+    if not hmac.compare_digest(signature_bytes, expected):
         raise CLIError("E_CONFLICT", "invalid confirmation token")
     try:
         payload = json.loads(raw.decode("utf-8"))
@@ -72,40 +73,6 @@ def _decode(token: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise CLIError("E_CONFLICT", "invalid confirmation token")
     return payload
-
-
-def _prune_consumed() -> dict[str, float]:
-    path = _consumed_path()
-    try:
-        values = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except (OSError, json.JSONDecodeError):
-        values = {}
-    now = time.time()
-    retained: dict[str, float] = {}
-    for key, value in values.items():
-        try:
-            expiry = float(value)
-        except (TypeError, ValueError):
-            continue
-        if expiry > now:
-            retained[str(key)] = expiry
-    return retained
-
-
-def _mark_consumed(fingerprint: str, expires_at: float) -> None:
-    path = _consumed_path()
-    values = _prune_consumed()
-    values[fingerprint] = expires_at
-    try:
-        path.write_text(json.dumps(values, sort_keys=True), encoding="utf-8")
-        try:
-            path.chmod(0o600)
-        except OSError:
-            pass
-    except OSError:
-        # The spec permits graceful degradation when the consumed-token ledger
-        # cannot be written; the operation still remains HMAC protected.
-        return
 
 
 def issue(scope: dict[str, Any]) -> tuple[str, str]:
@@ -125,13 +92,15 @@ def consume(token: str, scope: dict[str, Any]) -> None:
             "E_CONFIRMATION_REQUIRED", "a confirmation token is required; run --dry-run first"
         )
     payload = _decode(token)
-    expires_at = float(payload.get("expires_at", 0))
+    try:
+        expires_at = float(payload.get("expires_at", 0))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise CLIError("E_CONFLICT", "invalid confirmation token expiry") from exc
+    if not math.isfinite(expires_at) or isinstance(payload.get("expires_at"), bool):
+        raise CLIError("E_CONFLICT", "invalid confirmation token expiry")
     if expires_at <= time.time():
         raise CLIError("E_CONFLICT", "confirmation token has expired; run --dry-run again")
     if payload.get("scope_hash") != _scope_hash(scope):
         raise CLIError("E_CONFLICT", "confirmation token does not match this operation")
     fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    consumed = _prune_consumed()
-    if fingerprint in consumed:
-        raise CLIError("E_CONFLICT", "confirmation token already used; run --dry-run again")
-    _mark_consumed(fingerprint, expires_at)
+    claim(_consumed_path(), fingerprint, expires_at)

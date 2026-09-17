@@ -264,7 +264,9 @@ def test_legacy_entries_survive_while_bad_and_expired_entries_are_pruned(config,
     assert "ledger_invalid_entries" in capsys.readouterr().err
 
 
-def test_failed_replacement_preserves_old_ledger_and_warns_without_secrets(config, monkeypatch, capsys):
+def test_failed_replacement_preserves_old_ledger_and_warns_without_secrets(
+    config, monkeypatch, capsys
+):
     consumed, _ = confirm.issue(SCOPE)
     fresh, _ = confirm.issue(SCOPE)
     confirm.consume(consumed, SCOPE)
@@ -285,7 +287,9 @@ def test_failed_replacement_preserves_old_ledger_and_warns_without_secrets(confi
         confirm.consume(consumed, SCOPE)
 
 
-def test_unavailable_lock_does_not_rewrite_ledger_or_ignore_known_replays(config, monkeypatch, capsys):
+def test_unavailable_lock_does_not_rewrite_ledger_or_ignore_known_replays(
+    config, monkeypatch, capsys
+):
     consumed, _ = confirm.issue(SCOPE)
     fresh, _ = confirm.issue(SCOPE)
     confirm.consume(consumed, SCOPE)
@@ -350,5 +354,10 @@ def test_new_ledger_files_are_owner_only_on_posix(config):
     token, _ = confirm.issue(SCOPE)
     confirm.consume(token, SCOPE)
     if os.name == "posix":
-        for name in ("confirm.secret", "confirm.secret.lock", "confirm-consumed.json", "confirm-consumed.json.lock"):
+        for name in (
+            "confirm.secret",
+            "confirm.secret.lock",
+            "confirm-consumed.json",
+            "confirm-consumed.json.lock",
+        ):
             assert (config / name).stat().st_mode & 0o777 == 0o600
