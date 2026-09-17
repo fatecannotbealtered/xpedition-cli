@@ -47,6 +47,11 @@ permission tiers, and error codes. Confirm that `context.data.version` meets
 `metadata.requires.min_version` and that `doctor.data.checks` has no blocking
 failure. Use `--compact` and `--fields` to keep agent context small.
 
+Discover the reference command's own selectors in its live parameter list.
+When supported by the installed binary, request only the needed command
+or domain and its schemas instead of reloading the entire catalog. An
+unknown selector is an argument to fix, not an unavailable native backend.
+
 On Windows, install the optional native bridge with
 `python -m pip install -e ".[native]"`. Set `XPEDITION_SDD_HOME` when the
 release cannot be discovered from the product environment. If `doctor` reports
@@ -63,6 +68,11 @@ registration as Administrator; see `docs/NATIVE_ADAPTER.md`.
 - Keep project paths and ChangeSet targets narrow and explicit.
 
 ## Read recipes
+
+Use a positive page limit for exploratory reads and follow the returned next-page
+marker only when more records are needed. Result counts describe the current
+page, not the whole design. A small local page does not prove that Xpedition read
+only that many objects; do not interpret it as a native-query performance claim.
 
 ```bash
 xpedition-cli project snapshot --backend mock --project ./demo-project.json --compact

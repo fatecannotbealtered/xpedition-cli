@@ -1,0 +1,13 @@
+{
+  "baseline": "d42b226a5b1812b2937ded096bf618b8692c4f9a",
+  "run_id": "35232592598",
+  "tests": 253,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "native_xpedition_executed": false,
+  "note": "No main merge or release; independent PR CI validates the committed tree."
+}

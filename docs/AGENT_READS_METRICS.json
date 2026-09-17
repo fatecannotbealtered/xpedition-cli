@@ -1,0 +1,216 @@
+{
+  "baseline_commit": "d42b226a5b1812b2937ded096bf618b8692c4f9a",
+  "python": "3.12.14 (main, Aug 13 2026, 02:47:42) [GCC 13.3.0]",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "scope": "synthetic in-process query filtering and compact reference data bytes",
+  "query_results": [
+    {
+      "records": 1000,
+      "query": null,
+      "limit": 1,
+      "baseline_median_ms": 0.06990100000336952,
+      "patched_median_ms": 0.003116000002023611,
+      "samples_ms": {
+        "baseline": [
+          0.07317799999384533,
+          0.07083299999521842,
+          0.06983100000468312,
+          0.06917000000328244,
+          0.06990100000336952
+        ],
+        "patched": [
+          0.00770500000157881,
+          0.004088000011392978,
+          0.003116000002023611,
+          0.0029960000063056214,
+          0.002806000011901233
+        ]
+      }
+    },
+    {
+      "records": 1000,
+      "query": "QUERY_MATCH",
+      "limit": 1,
+      "baseline_median_ms": 3.227778000010062,
+      "patched_median_ms": 0.008977000007348579,
+      "samples_ms": {
+        "baseline": [
+          3.3918359999915992,
+          3.207930999991504,
+          3.271079999990434,
+          3.227778000010062,
+          3.204824999997413
+        ],
+        "patched": [
+          0.015089000001466957,
+          0.010489000004554327,
+          0.008977000007348579,
+          0.008596000000693493,
+          0.008695999994756676
+        ]
+      }
+    },
+    {
+      "records": 1000,
+      "query": "NO_MATCH",
+      "limit": 1,
+      "baseline_median_ms": 3.1727550000084648,
+      "patched_median_ms": 3.0601339999947186,
+      "samples_ms": {
+        "baseline": [
+          3.186110000001463,
+          3.1727550000084648,
+          3.168947999995453,
+          3.173777000000655,
+          3.1725550000061276
+        ],
+        "patched": [
+          3.045405999998252,
+          3.575531000009846,
+          3.1490010000112534,
+          3.0369199999995544,
+          3.0601339999947186
+        ]
+      }
+    },
+    {
+      "records": 10000,
+      "query": null,
+      "limit": 1,
+      "baseline_median_ms": 0.6773209999977325,
+      "patched_median_ms": 0.002654999988749296,
+      "samples_ms": {
+        "baseline": [
+          0.7027589999921702,
+          0.6773209999977325,
+          0.6769099999957007,
+          0.6802669999927957,
+          0.6716110000013487
+        ],
+        "patched": [
+          0.005571000002646542,
+          0.003156000005333226,
+          0.0026139999960150817,
+          0.002555000008896968,
+          0.002654999988749296
+        ]
+      }
+    },
+    {
+      "records": 10000,
+      "query": "QUERY_MATCH",
+      "limit": 1,
+      "baseline_median_ms": 32.03500800000825,
+      "patched_median_ms": 0.00893699998982811,
+      "samples_ms": {
+        "baseline": [
+          32.03500800000825,
+          32.766069999993874,
+          32.025230000002125,
+          32.33995000000789,
+          31.7487610000029
+        ],
+        "patched": [
+          0.017533000004732457,
+          0.01039999999363772,
+          0.00893699998982811,
+          0.008575999999038686,
+          0.00823599999932867
+        ]
+      }
+    },
+    {
+      "records": 10000,
+      "query": "NO_MATCH",
+      "limit": 1,
+      "baseline_median_ms": 31.609099000007745,
+      "patched_median_ms": 30.30958000000794,
+      "samples_ms": {
+        "baseline": [
+          31.569094000005293,
+          31.61990899999978,
+          31.551952000000938,
+          31.609099000007745,
+          31.7343840000035
+        ],
+        "patched": [
+          33.327593999999294,
+          30.503722999995375,
+          30.28775900000369,
+          30.30958000000794,
+          30.29793800000391
+        ]
+      }
+    }
+  ],
+  "reference_sizes": [
+    {
+      "selectors": {},
+      "commands": 107,
+      "schemas": 77,
+      "compact_data_bytes": 78823
+    },
+    {
+      "selectors": {
+        "command": "pcb move"
+      },
+      "commands": 1,
+      "schemas": 2,
+      "compact_data_bytes": 5457
+    },
+    {
+      "selectors": {
+        "domain": "schematic"
+      },
+      "commands": 13,
+      "schemas": 7,
+      "compact_data_bytes": 12785
+    },
+    {
+      "selectors": {
+        "schema": "context"
+      },
+      "commands": 0,
+      "schemas": 1,
+      "compact_data_bytes": 4526
+    }
+  ],
+  "tested_source_sha256": {
+    "xpedition_cli/__init__.py": "6ac343f02b3360b714735dff8accb3372ee6a24c188804e98eeef4e065c65997",
+    "xpedition_cli/__main__.py": "7dd03541605ee4b357d1f6ed6895dad7e770121ae0ff8b12ff95278da6a370ca",
+    "xpedition_cli/audit.py": "8a5a85878ad79e7fd80fe77b640440860456aa5059ccc5451a218a47b2ad1fbe",
+    "xpedition_cli/backends/__init__.py": "b0f017612d0636e0079e849c080bac8f1081ae5a713a6bfe4be020e2fa0e067e",
+    "xpedition_cli/backends/base.py": "41381d5d2f7909fa9f9626cba8eaac0b7bebe5d6a291ebb828fa7bc20d395496",
+    "xpedition_cli/backends/exchange_files.py": "0c751ec7cd8906e947e3099c87eecfc63a0082815276587ab59c0ae7bbbae9e6",
+    "xpedition_cli/backends/mock.py": "d01337fb5ba649ace3591d9ca677dfa3bc5dd680b9df5df36dba7b2eaa81587c",
+    "xpedition_cli/backends/native_xpedition.py": "c3c904f7d8895d46c853a1b04b7e61d635d63f4f58a63a2a5a50419a64518ae5",
+    "xpedition_cli/board_layout.py": "1cfbfbaa1b37ff52c4d35e343d71b391b76ab6b10808213ffc8771480418db8d",
+    "xpedition_cli/board_render.py": "c2553a9cd74e7615890bf9afd2c80f59e72439f243cc328ba34efc3808fa3c4d",
+    "xpedition_cli/capabilities.py": "8420a102b301777e430708bfd0a1f46778c00db828d87b46a49955b2a10a0b42",
+    "xpedition_cli/changelog.py": "15e5e0f2d0e689e877d30ca53770b4953947544cb4348601abaa6008d9d19c6d",
+    "xpedition_cli/changeset.py": "39f8403efe109cc56cbe2dcc7269796da1088cc934691d1e8d56cd6128c70a15",
+    "xpedition_cli/confirm.py": "dd76f161f65e084dae10f486cbd1b88abbde5e09c301510433f37b6ad8e57bbd",
+    "xpedition_cli/contract_gen.py": "c061a375f62407913c460e63c6c45c9b9c13c2abfc99a379c1cbd47c56ae3fa7",
+    "xpedition_cli/core/__init__.py": "de27bd061f155dc7b5ff9edb0a347ff579b3249ec64550627e4233bd3671354e",
+    "xpedition_cli/errors.py": "c1476f559c63c4037df9ef86437b80d7a9fcc4828d721eb7a2eb892c53c8adf4",
+    "xpedition_cli/fab_package.py": "46d3a84e63d8f2a8897d8238d7897feb8ae2a066580f062bcc0dc040963a1ded",
+    "xpedition_cli/kicad_footprints.py": "f3541dd015299ca0f5fa3034fc8ce5a7c9b8f9714088edbd284e77bdcb48abcc",
+    "xpedition_cli/kicad_import.py": "05f0191f07980053fa4eaf0c96876ac8f0fd1ceb71701eb46c2dbf415156f7e2",
+    "xpedition_cli/library_hkp.py": "0d190972eac76fb27ca3b505da1d8a6e40f988f6f059f16a5bed5117baeedbb3",
+    "xpedition_cli/main.py": "109500cc346e9e0c2495fed02b2a8898908ea470b0fd9ca61a574851c42eb1c1",
+    "xpedition_cli/mcp_server.py": "b5bba103f65c0e13d5b278e2db38ee284025cf7a526b119133e0de9cc01ef3fd",
+    "xpedition_cli/models.py": "d132f7446c0b06562e29b089d2e15a5c10be355da591d7961cc8957d0122feca",
+    "xpedition_cli/native_com_adapter.py": "60f4bad8ed1978880d300cc9c4c9a9b2448cf10d7f5a660f47e1c41d06c42856",
+    "xpedition_cli/output.py": "3f737fa52c12265915070657e62bb2a661ee3b87bddbb0bc2f5e8d1d5c937fe4",
+    "xpedition_cli/project_file.py": "788b7a2250bc5cb5246a19880fbeac2505031a241c4d1b815f5ea576dea0a127",
+    "xpedition_cli/query_page.py": "8d31e2b9b0f15a6f6ddba0c32a28319158519952f6816a44670d5d0976404d31",
+    "xpedition_cli/reference_data.py": "7fbeb6aee8fe665c5e5318528e85fb783220399da447f8945050db3a36d922b8",
+    "xpedition_cli/reference_query.py": "797532a005146f738cd10049736c2ea9cc8bac3f5a7f21b4abd5703e4ab71bd8",
+    "xpedition_cli/review_engine.py": "2d8b0691ae4bf4431d49194aebd690c953ac72a8cc615fd08254acdab4d8b81a",
+    "xpedition_cli/routing_plan.py": "d709e333ad40fa9e3b3c1acbfc1374eb0ff4124d64a0906c696a25a1c418ab97",
+    "xpedition_cli/schematic_layout.py": "6775c292ed730105590caa6e531e1e3808d2fec58d41a7bb8b920dd2192d2cc9",
+    "xpedition_cli/session.py": "8021cd74bb98d020c22f7dd4c54828599c9b54a8b2b2698ce61a9adb2a4ba4f6",
+    "xpedition_cli/symbols.py": "1ef23630c3c1de24660d0c7b766a36f06ce84aa1c0feeff890ad18dfeb9afd35",
+    "xpedition_cli/win_dialogs.py": "df0724b303b88cd9f0e7bf56320ca660a150eff935d27a3ae31e0647735e1eb8"
+  }
+}

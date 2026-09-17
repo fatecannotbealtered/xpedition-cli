@@ -14,13 +14,21 @@ from .errors import CLIError
 
 
 def _result(rows: list[Any], offset: int, has_more: bool) -> dict[str, Any]:
-    return {"items": rows, "count": len(rows), "offset": offset,
-            "next_offset": offset + len(rows) if has_more else None, "has_more": has_more}
+    return {
+        "items": rows,
+        "count": len(rows),
+        "offset": offset,
+        "next_offset": offset + len(rows) if has_more else None,
+        "has_more": has_more,
+    }
 
 
 def query_page(
-    items: Iterable[Any], *, query: str | None = None,
-    limit: int | None = None, offset: int = 0,
+    items: Iterable[Any],
+    *,
+    query: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> dict[str, Any]:
     for name, value in (("limit", limit), ("offset", offset)):
         if name == "limit" and value is None:
@@ -35,9 +43,10 @@ def query_page(
     rows: list[Any] = []
     skipped = 0
     for item in items:
-        if needle is not None and needle not in json.dumps(
-            item, ensure_ascii=False, sort_keys=True
-        ).casefold():
+        if (
+            needle is not None
+            and needle not in json.dumps(item, ensure_ascii=False, sort_keys=True).casefold()
+        ):
             continue
         if skipped < offset:
             skipped += 1

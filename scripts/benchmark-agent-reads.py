@@ -4,6 +4,7 @@ Run from a full checkout: python scripts/benchmark-agent-reads.py
 Timings exclude process startup, native snapshot acquisition and JSON output.
 Byte counts describe compact reference data, not measured model tokens.
 """
+
 from __future__ import annotations
 
 import ast
@@ -23,8 +24,11 @@ from xpedition_cli.reference_data import reference  # noqa: E402
 
 BASE = "d42b226a5b1812b2937ded096bf618b8692c4f9a"
 raw = subprocess.check_output(["git", "show", f"{BASE}:xpedition_cli/main.py"], encoding="utf-8")
-nodes = [node for node in ast.parse(raw).body if isinstance(node, ast.FunctionDef)
-         and node.name in {"_list_data", "_query_matches"}]
+nodes = [
+    node
+    for node in ast.parse(raw).body
+    if isinstance(node, ast.FunctionDef) and node.name in {"_list_data", "_query_matches"}
+]
 assert len(nodes) == 2
 namespace = dict(vars(cli))
 exec(compile(ast.Module(body=nodes, type_ignores=[]), "pinned_list_data", "exec"), namespace)
@@ -44,21 +48,45 @@ for count in (1000, 10000):
                 function(project, items, options)
                 timings.append((time.perf_counter() - started) * 1000)
             samples[name] = timings
-        results.append({"records": count, "query": query, "limit": 1,
-                        "baseline_median_ms": statistics.median(samples["baseline"]),
-                        "patched_median_ms": statistics.median(samples["patched"]),
-                        "samples_ms": samples})
+        results.append(
+            {
+                "records": count,
+                "query": query,
+                "limit": 1,
+                "baseline_median_ms": statistics.median(samples["baseline"]),
+                "patched_median_ms": statistics.median(samples["patched"]),
+                "samples_ms": samples,
+            }
+        )
 
 sizes = []
 for selectors in ({}, {"command": "pcb move"}, {"domain": "schematic"}, {"schema": "context"}):
     data = reference(**selectors)
-    sizes.append({"selectors": selectors, "commands": len(data["commands"]),
-                  "schemas": len(data["schemas"]),
-                  "compact_data_bytes": len(json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))})
-print(json.dumps({"baseline_commit": BASE, "python": sys.version, "platform": platform.platform(),
-                  "scope": "synthetic in-process query filtering and compact reference data bytes",
-                  "query_results": results, "reference_sizes": sizes,
-                  "tested_source_sha256": {
-                      str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-                      for path in sorted((ROOT / "xpedition_cli").rglob("*.py"))
-                  }}, ensure_ascii=False, indent=2))
+    sizes.append(
+        {
+            "selectors": selectors,
+            "commands": len(data["commands"]),
+            "schemas": len(data["schemas"]),
+            "compact_data_bytes": len(
+                json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+            ),
+        }
+    )
+print(
+    json.dumps(
+        {
+            "baseline_commit": BASE,
+            "python": sys.version,
+            "platform": platform.platform(),
+            "scope": "synthetic in-process query filtering and compact reference data bytes",
+            "query_results": results,
+            "reference_sizes": sizes,
+            "tested_source_sha256": {
+                str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in sorted((ROOT / "xpedition_cli").rglob("*.py"))
+            },
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+)
