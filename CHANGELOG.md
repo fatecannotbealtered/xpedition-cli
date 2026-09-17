@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-17
+
 ### Added
 
 - Hand routing through the CLI — the person's own layout, not the autorouter's:
@@ -509,5 +511,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-[Unreleased]: https://github.com/fatecannotbealtered/xpedition-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fatecannotbealtered/xpedition-cli/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/fatecannotbealtered/xpedition-cli/releases/tag/v1.0.0
 [0.1.0]: https://github.com/fatecannotbealtered/xpedition-cli/releases/tag/v0.1.0

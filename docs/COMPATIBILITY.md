@@ -6,7 +6,7 @@ environment passes the smoke loop described in [`E2E.md`](E2E.md).
 
 | Backend | Version / environment | Status | Notes |
 |---|---|---|---|
-| MockBackend | xpedition-cli 0.1.x, Python 3.10–3.12 | verified | Offline JSON project model, schematic/PCB/constraint/analysis/manufacturing/library reads, ChangeSet validation/preview/apply, snapshot, BOM and review. |
+| MockBackend | xpedition-cli 1.0.x, Python 3.10–3.12 | verified | Offline JSON project model, schematic/PCB/constraint/analysis/manufacturing/library reads, ChangeSet validation/preview/apply, snapshot, BOM and review. |
 | NativeBackend — Designer | Xpedition Standard XPED2604 on Windows 11, `Viewdraw.Application`, pywin32 bridge | reads and writes verified | Attach, schematic snapshot, `AddPartInstance` placement, net creation, labels and coordinate read-back all confirmed against a running Designer session. The R1/C1 smoke loop of [`E2E.md`](E2E.md) is recorded against a hand-built minimal library, not the stock one — see the blocker below. |
 | NativeBackend — Layout | Xpedition Standard XPED2604, `MGCPCB.ExpeditionPCBApplication` | attach verified, reads unverified | COM registration and health probing work. No board document was open during verification, so `Components`/`Nets` reads have not been exercised. |
 | ExchangeBackend | JSON / CSV / BOM / IPC-2581 XML | verified | Import and normalization use the normalized project model with dry-run/confirm writes. |

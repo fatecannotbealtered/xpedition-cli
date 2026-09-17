@@ -1,10 +1,10 @@
 ---
 name: xpedition-cli
-version: "0.1.0"
+version: "1.0.0"
 description: "xpedition-cli provides agent-safe reads, design reviews, BOM exports, and controlled ChangeSet operations for Xpedition projects; triggered when a user needs to inspect or modify a normalized Xpedition project through MockBackend or a verified native adapter."
 license: MIT
 user-invocable: true
-metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"0.1.0"}}
+metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.0"}}
 ---
 
 # xpedition-cli
