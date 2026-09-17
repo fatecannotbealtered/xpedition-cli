@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicit NativeBackend project initialization without a template fails before
+  preview, token consumption or file creation; it never creates a mock project.
+- Native ChangeSet results verify the requested final coordinates, properties,
+  part identities and connectivity against read-back instead of hardcoding
+  verification success. Missing observations or unsupported verification fail
+  closed; post-write read-back failures are non-retryable and report the stage.
+  Read-back is not a durability or electrical-correctness claim.
+- `--fields` projects records inside arrays without changing their order or
+  cardinality. Paging controls and `_untrusted` annotations survive projection;
+  parent/child selectors are order-independent. Missing fields retain legacy
+  omission semantics; no post-write selector error is introduced.
+- `reference` derives confirm/dry-run applicability from write-command metadata;
+  trace validation no longer recommends the globally rejected `--dangerous` flag.
+
+### Changed
+
+- Routing-plan checks skip existing-existing segment and via pairs before
+  iteration and avoid repeated tail-list copies. The geometric predicates and
+  finding order are unchanged. Incremental edits no longer pay a quadratic
+  existing-board pair scan; new-new comparisons still require further indexing.
+
 ## [1.0.0] - 2026-09-17
 
 ### Added

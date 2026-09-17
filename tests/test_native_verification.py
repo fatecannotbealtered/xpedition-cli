@@ -8,10 +8,20 @@ from xpedition_cli.native_verification import verify_native_changes
 
 
 def project():
-    return {"components": [{"refdes": "R1", "internal_part_no": "RES-10K", "x": 10, "y": 20,
-                            "properties": {"value": "10k"}}],
-            "nets": [{"name": "VCC"}], "connections": [{"net": "VCC", "pins": ["R1.1", "C1.1"]}],
-            "pcb": {"components": [{"refdes": "U1", "x": 10, "y": 20}]}}
+    return {
+        "components": [
+            {
+                "refdes": "R1",
+                "internal_part_no": "RES-10K",
+                "x": 10,
+                "y": 20,
+                "properties": {"value": "10k"},
+            }
+        ],
+        "nets": [{"name": "VCC"}],
+        "connections": [{"net": "VCC", "pins": ["R1.1", "C1.1"]}],
+        "pcb": {"components": [{"refdes": "U1", "x": 10, "y": 20}]},
+    }
 
 
 @pytest.mark.parametrize("kind,refdes", [("move_component", "R1"), ("move_pcb_component", "U1")])
@@ -28,8 +38,10 @@ def test_move_verifies_requested_coordinates(kind, refdes):
 
 
 def test_repeated_moves_verify_final_state_not_intermediate_coordinates():
-    ops = [{"type": "move_component", "refdes": "R1", "x": 0, "y": 0},
-           {"type": "move_component", "refdes": "R1", "x": 10, "y": 20}]
+    ops = [
+        {"type": "move_component", "refdes": "R1", "x": 0, "y": 0},
+        {"type": "move_component", "refdes": "R1", "x": 10, "y": 20},
+    ]
     assert verify_native_changes(project(), project(), ops)["valid"]
 
 
@@ -37,13 +49,17 @@ def test_repeated_moves_verify_final_state_not_intermediate_coordinates():
 def test_missing_or_invalid_coordinates_never_verify(wrong):
     observed = project()
     observed["components"][0]["x"] = wrong
-    assert not verify_native_changes(project(), observed, [{"type": "move_component", "refdes": "R1"}])["valid"]
+    assert not verify_native_changes(
+        project(), observed, [{"type": "move_component", "refdes": "R1"}]
+    )["valid"]
 
 
 def test_coordinate_tolerance_is_only_serialization_roundoff():
     observed = project()
     observed["components"][0]["x"] += 1e-8
-    assert verify_native_changes(project(), observed, [{"type": "move_component", "refdes": "R1"}])["valid"]
+    assert verify_native_changes(project(), observed, [{"type": "move_component", "refdes": "R1"}])[
+        "valid"
+    ]
 
 
 def test_part_identity_and_properties_are_checked():
@@ -53,7 +69,9 @@ def test_part_identity_and_properties_are_checked():
     assert not verify_native_changes(project(), observed, ops)["valid"]
     observed = project()
     observed["components"][0]["properties"]["value"] = "20k"
-    assert not verify_native_changes(project(), observed, [{"type": "set_property", "refdes": "R1", "name": "value"}])["valid"]
+    assert not verify_native_changes(
+        project(), observed, [{"type": "set_property", "refdes": "R1", "name": "value"}]
+    )["valid"]
 
 
 def test_deleted_component_must_be_absent_and_disconnected():
@@ -82,9 +100,13 @@ def test_connectivity_accepts_order_changes_but_not_missing_or_cross_net_pins():
 def test_duplicate_targets_and_missing_nets_fail():
     observed = project()
     observed["components"].append(copy.deepcopy(observed["components"][0]))
-    assert not verify_native_changes(project(), observed, [{"type": "move_component", "refdes": "R1"}])["valid"]
+    assert not verify_native_changes(
+        project(), observed, [{"type": "move_component", "refdes": "R1"}]
+    )["valid"]
     observed["nets"] = []
-    assert not verify_native_changes(project(), observed, [{"type": "create_net", "name": "VCC"}])["valid"]
+    assert not verify_native_changes(project(), observed, [{"type": "create_net", "name": "VCC"}])[
+        "valid"
+    ]
 
 
 def test_unsupported_verification_is_not_success():

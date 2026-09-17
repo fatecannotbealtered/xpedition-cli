@@ -11,12 +11,21 @@ from xpedition_cli.field_projection import project_fields
 def page():
     return {
         "items": [
-            {"refdes": "R1", "value": "10k", "pins": [{"number": "1", "net": "VCC"}],
-             "_untrusted": ["value"]},
+            {
+                "refdes": "R1",
+                "value": "10k",
+                "pins": [{"number": "1", "net": "VCC"}],
+                "_untrusted": ["value"],
+            },
             {"refdes": "C1", "value": "100n", "pins": [], "_untrusted": ["value"]},
         ],
-        "count": 2, "offset": 10, "next_offset": 12, "has_more": True,
-        "truncated": True, "_untrusted": ["items"], "unselected": "large payload",
+        "count": 2,
+        "offset": 10,
+        "next_offset": 12,
+        "has_more": True,
+        "truncated": True,
+        "_untrusted": ["items"],
+        "unselected": "large payload",
     }
 
 
@@ -63,11 +72,23 @@ def test_unknown_paths_keep_legacy_omission_semantics(page):
 
 
 def test_nested_paging_and_cursor_metadata():
-    value = {"nested": {"items": [{"x": 1, "y": 2}], "count": 1,
-                        "next_cursor": "page-2", "has_more": True, "_untrusted": ["items"]}}
+    value = {
+        "nested": {
+            "items": [{"x": 1, "y": 2}],
+            "count": 1,
+            "next_cursor": "page-2",
+            "has_more": True,
+            "_untrusted": ["items"],
+        }
+    }
     assert project_fields(value, "nested.items.x") == {
-        "nested": {"items": [{"x": 1}], "count": 1,
-                   "next_cursor": "page-2", "has_more": True, "_untrusted": ["items"]}
+        "nested": {
+            "items": [{"x": 1}],
+            "count": 1,
+            "next_cursor": "page-2",
+            "has_more": True,
+            "_untrusted": ["items"],
+        }
     }
 
 

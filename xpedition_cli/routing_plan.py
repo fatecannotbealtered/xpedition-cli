@@ -143,6 +143,8 @@ def check_plan(
     traces and vias of other nets, a via pad touching any pad."""
     segments = list(board.segments)
     vias = list(board.vias)
+    first_new_segment = len(segments)
+    first_new_via = len(vias)
     for index, item in enumerate(items):
         if item.get("kind") == "via":
             vias.append((tuple(item["at"]), str(item["net"]), index))  # type: ignore[arg-type]
@@ -181,7 +183,10 @@ def check_plan(
                     f"({pad_net or 'no net'})"
                 )
     for i, (a, b, layer, net, width, index) in enumerate(segments):
-        for a2, b2, layer2, net2, width2, index2 in segments[i + 1 :]:
+        # Old-old pairs can never contribute a finding. Start at the first
+        # new segment and index directly: no quadratic traversal or tail copies.
+        for j in range(max(i + 1, first_new_segment), len(segments)):
+            a2, b2, layer2, net2, width2, index2 = segments[j]
             if layer != layer2 or net == net2 or (index < 0 and index2 < 0):
                 continue
             d = _dist_segments(a, b, a2, b2) - width / 2 - width2 / 2
@@ -200,7 +205,9 @@ def check_plan(
                     f"({pad_net or 'no net'})"
                 )
     for p, net, index in vias:
-        for a, b, layer, net2, width, index2 in segments:
+        segment_start = first_new_segment if index < 0 else 0
+        for j in range(segment_start, len(segments)):
+            a, b, layer, net2, width, index2 = segments[j]
             if net2 == net or (index < 0 and index2 < 0):
                 continue
             d = _dist_point_segment(p, a, b) - via_radius - width / 2
@@ -208,7 +215,9 @@ def check_plan(
                 problems.append(
                     f"via {index} {net} at {p} vs item {index2} {net2} L{layer}: {d:.2f} mm"
                 )
-        for p2, net2, index2 in vias:
+        via_start = first_new_via if index < 0 else 0
+        for j in range(via_start, len(vias)):
+            p2, net2, index2 = vias[j]
             if p2 is p or net2 == net or (index < 0 and index2 < 0):
                 continue
             d = math.hypot(p[0] - p2[0], p[1] - p2[1]) - 2 * via_radius

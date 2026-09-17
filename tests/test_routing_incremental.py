@@ -14,7 +14,9 @@ def test_single_trace_does_not_visit_old_old_pairs():
     board = routing.Board({})
     size = 3000
     layer = CountedLayer(1)
-    board.segments = [((0.0, float(i)), (1.0, float(i)), layer, "SAME", 0.254, -1) for i in range(size)]
+    board.segments = [
+        ((0.0, float(i)), (1.0, float(i)), layer, "SAME", 0.254, -1) for i in range(size)
+    ]
     result = routing.check_plan([{"net": "SAME", "layer": 1, "points": [(0, 0), (1, 0)]}], board)
     assert result == []
     # Deterministic complexity guard, not a flaky wall-clock threshold.
@@ -36,8 +38,10 @@ def test_unchanged_board_has_no_old_old_geometry_work(monkeypatch):
 def test_new_old_and_new_new_conflicts_are_still_reported():
     board = routing.Board({})
     board.segments = [((0, 0), (3, 0), 1, "OLD", 0.254, -1)]
-    items = [{"net": "A", "layer": 1, "points": [(1, -1), (1, 1)]},
-             {"net": "B", "layer": 1, "points": [(0, 0.1), (2, 0.1)]}]
+    items = [
+        {"net": "A", "layer": 1, "points": [(1, -1), (1, 1)]},
+        {"net": "B", "layer": 1, "points": [(0, 0.1), (2, 0.1)]},
+    ]
     problems = routing.check_plan(items, board)
     assert any("items -1/0" in item for item in problems)
     assert any("items -1/1" in item for item in problems)
