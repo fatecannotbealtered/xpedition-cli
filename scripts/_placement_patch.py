@@ -73,7 +73,6 @@ path = Path("xpedition_cli/reference_data.py")
 s = path.read_text(encoding="utf-8")
 s = replace(s, 'from .contract_gen import CODES\n', 'from .contract_gen import CODES\nfrom . import placement_contract\n')
 s = replace(s, '\n\ndef _param(\n', '\n\nSCHEMAS.update(placement_contract.SCHEMAS)\n\ndef _param(\n')
-# Locate the exact return in commands, not a similar return in another helper.
 lines = s.splitlines(keepends=True)
 function = next(n for n in ast.parse(s).body if isinstance(n, ast.FunctionDef) and n.name == "commands")
 ret = function.body[-1]
@@ -147,5 +146,35 @@ For small local layout adjustments, use the selected-placement workflow only whe
 it is advertised by the installed binary's reference; read `reference/placement-tasks.md`.
 Its native smoke status and partial-execution boundaries remain explicit.
 ''')
+path.write_text(s, encoding="utf-8")
+
+# Ruff does not split long string literals. Preserve their wire values exactly.
+path = Path("xpedition_cli/placement.py")
+s = path.read_text(encoding="utf-8")
+s = replace(s,
+    '"description": "Origin-based tasks. Selection order defines distribution order; align anchor must be selected. No unplacing during preview, no route repair, flips or DRC simulation.",',
+    '''"description": (
+            "Origin-based tasks. Selection order defines distribution order; "
+            "align anchor must be selected. No unplacing during preview, "
+            "no route repair, flips or DRC simulation."
+        ),''')
+s = replace(s,
+    '"""Deterministic, origin-based placement tasks. No COM, I/O writes or DRC here.',
+    '"""Pure origin-based planning and driver-mediated placement task execution.')
+path.write_text(s, encoding="utf-8")
+path = Path("xpedition_cli/placement_command.py")
+s = path.read_text(encoding="utf-8")
+s = replace(s,
+    '"partial_failure": "previously moved parts may remain changed and the current part may be unplaced",',
+    '''"partial_failure": (
+                "previously moved parts may remain changed "
+                "and the current part may be unplaced"
+            ),''')
+path.write_text(s, encoding="utf-8")
+path = Path("xpedition_cli/native_placement.py")
+s = path.read_text(encoding="utf-8")
+s = replace(s,
+    'turns placement DRC off, edits routing, flips parts, or invokes bulk UnPlace.',
+    'disables placement DRC while editing, edits routing, flips parts, or invokes bulk UnPlace.')
 path.write_text(s, encoding="utf-8")
 print("Integrated selected-placement tasks. No canonical spec, version or release changes.")
