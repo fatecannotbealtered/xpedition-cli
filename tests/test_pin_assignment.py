@@ -10,12 +10,26 @@ from xpedition_cli.pin_assignment import assess, read_assignments, read_snapshot
 
 
 def snapshot():
-    return {"project": "fixture", "revision": "R1", "components": [
-        {"refdes": "J1", "pins": [{"number": "01", "net": "OLD"}, {"number": "1", "net": None},
-                                 {"number": "A1"}, {"number": "B2"}]},
-        {"refdes": "U1", "pins": [{"number": "2", "net": "OLD"}]}],
-        "connections": [{"net": "OLD", "pins": ["J1.01", "U1.2"]},
-                        {"net": "SIG", "pins": ["J1.A1"]}]}
+    return {
+        "project": "fixture",
+        "revision": "R1",
+        "components": [
+            {
+                "refdes": "J1",
+                "pins": [
+                    {"number": "01", "net": "OLD"},
+                    {"number": "1", "net": None},
+                    {"number": "A1"},
+                    {"number": "B2"},
+                ],
+            },
+            {"refdes": "U1", "pins": [{"number": "2", "net": "OLD"}]},
+        ],
+        "connections": [
+            {"net": "OLD", "pins": ["J1.01", "U1.2"]},
+            {"net": "SIG", "pins": ["J1.A1"]},
+        ],
+    }
 
 
 def rows(text="J1,01,NEW\nJ1,1,+3V3\nJ1,A1,SIG\nJ1,B2,X\n"):
@@ -46,26 +60,51 @@ def test_plan_and_post_observation_check_are_separate():
     assert not assess(observed, assignments)["valid"]
 
 
-@pytest.mark.parametrize("text", ["refdes,pin,net\nJ1,01,X\nJ1,01,Y\n", "refdes,pin,net\nJ1,01,\n",
-    "refdes,pin,net\nJ1,01,X,extra\n", "refdes,pin,net,net\nJ1,01,X,Y\n", "refdes,pin\nJ1,01\n",
-    "refdes,pin,net\n", "refdes,pin,net\n J1,01,X\n", 'refdes,pin,net\nJ1,01,"bad\nname"\n',
-    'refdes,pin,net\nJ1,01,"unterminated', 'refdes,pin,net,bogus\nJ1,01,X,Y\n'])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "refdes,pin,net\nJ1,01,X\nJ1,01,Y\n",
+        "refdes,pin,net\nJ1,01,\n",
+        "refdes,pin,net\nJ1,01,X,extra\n",
+        "refdes,pin,net,net\nJ1,01,X,Y\n",
+        "refdes,pin\nJ1,01\n",
+        "refdes,pin,net\n",
+        "refdes,pin,net\n J1,01,X\n",
+        'refdes,pin,net\nJ1,01,"bad\nname"\n',
+        'refdes,pin,net\nJ1,01,"unterminated',
+        "refdes,pin,net,bogus\nJ1,01,X,Y\n",
+    ],
+)
 def test_invalid_csv_never_silently_skips(text):
     with pytest.raises(CLIError):
         read_assignments(text.encode())
 
 
 def test_bom_cjk_power_and_bus_names_are_not_filtered():
-    assignments = read_assignments('\ufeffrefdes,pin,net\nJ1,01,信号[3]\nJ1,1,+3V3\nJ1,A1,$AUTO\n'.encode())
+    assignments = read_assignments(
+        "\ufeffrefdes,pin,net\nJ1,01,信号[3]\nJ1,1,+3V3\nJ1,A1,$AUTO\n".encode()
+    )
     assert [r["net"] for r in assignments] == ["信号[3]", "+3V3", "$AUTO"]
 
 
-@pytest.mark.parametrize("edit,code", [
-    (lambda s: s["components"].append(copy.deepcopy(s["components"][0])), "component_ambiguous"),
-    (lambda s: s["components"][0]["pins"].append({"number": "01", "net": "OLD"}), "pin_ambiguous"),
-    (lambda s: s["connections"].append({"net": "OTHER", "pins": ["J1.01"]}), "conflicting_connectivity"),
-    (lambda s: s["components"][0]["pins"][0].update(net=None), "conflicting_connectivity"),
-])
+@pytest.mark.parametrize(
+    "edit,code",
+    [
+        (
+            lambda s: s["components"].append(copy.deepcopy(s["components"][0])),
+            "component_ambiguous",
+        ),
+        (
+            lambda s: s["components"][0]["pins"].append({"number": "01", "net": "OLD"}),
+            "pin_ambiguous",
+        ),
+        (
+            lambda s: s["connections"].append({"net": "OTHER", "pins": ["J1.01"]}),
+            "conflicting_connectivity",
+        ),
+        (lambda s: s["components"][0]["pins"][0].update(net=None), "conflicting_connectivity"),
+    ],
+)
 def test_ambiguous_or_inconsistent_evidence_blocks(edit, code):
     value = snapshot()
     edit(value)
@@ -106,8 +145,18 @@ def test_peers_are_bounded_without_losing_total():
     assert len(row["peer_sample"]) == 8 and row["peer_sample_truncated"]
 
 
-@pytest.mark.parametrize("data", [b'{}', b'[]', b'{"project":"x","project":"y"}',
-    b'{"x":NaN}', b'{"x":1e999}', b'\xff', b'{"ok":false,"schema_version":"1.0","data":{}}'])
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"{}",
+        b"[]",
+        b'{"project":"x","project":"y"}',
+        b'{"x":NaN}',
+        b'{"x":1e999}',
+        b"\xff",
+        b'{"ok":false,"schema_version":"1.0","data":{}}',
+    ],
+)
 def test_bad_snapshots_rejected(data):
     with pytest.raises(CLIError):
         read_snapshot(data)
@@ -115,26 +164,42 @@ def test_bad_snapshots_rejected(data):
 
 def test_envelope_and_known_partial_snapshots():
     value = snapshot()
-    assert read_snapshot(json.dumps({"ok": True, "schema_version": "1.0", "data": value}).encode()) == value
+    assert (
+        read_snapshot(json.dumps({"ok": True, "schema_version": "1.0", "data": value}).encode())
+        == value
+    )
     for flag in ("has_more", "truncated", "incomplete"):
         with pytest.raises(CLIError):
             read_snapshot(json.dumps({**value, flag: True}).encode())
 
 
-@pytest.mark.parametrize("args", [["--backend", "native_xpedition"], ["--confirm", "secret"],
-    ["--dry-run"], ["--input", "--file", "x"], ["--input=x", "--input=y"],
-    ["--limit", "-1"], ["--output", "x"], ["--json", "--format", "json"]])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--backend", "native_xpedition"],
+        ["--confirm", "secret"],
+        ["--dry-run"],
+        ["--input", "--file", "x"],
+        ["--input=x", "--input=y"],
+        ["--limit", "-1"],
+        ["--output", "x"],
+        ["--json", "--format", "json"],
+    ],
+)
 def test_strict_command_flag_boundary(args):
     with pytest.raises(CLIError):
         validate_argv(["schematic", "pin-plan", *args])
 
 
 def test_inline_dash_path_and_zero_offset():
-    validate_argv(["--compact", "schematic", "pin-plan", "--input=-x", "--file", "y", "--offset", "0"])
+    validate_argv(
+        ["--compact", "schematic", "pin-plan", "--input=-x", "--file", "y", "--offset", "0"]
+    )
 
 
 def test_file_hashes_and_bounded_inputs(tmp_path, monkeypatch):
     import xpedition_cli.pin_assignment as module
+
     path = tmp_path / "snapshot.json"
     csv = tmp_path / "pins.csv"
     path.write_text(json.dumps(snapshot()))

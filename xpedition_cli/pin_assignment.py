@@ -3,6 +3,7 @@
 Identifiers are strings. Missing observations are unknown, not unconnected.
 A plan is NOT an executable ChangeSet: changing an existing net can affect peers.
 """
+
 from __future__ import annotations
 
 import csv
@@ -30,11 +31,17 @@ def _invalid(message: str, **details: Any) -> CLIError:
 
 
 def _identifier(value: Any, field: str, *, pin: bool = False) -> str:
-    if (not isinstance(value, str) or not value or value != value.strip()
-            or len(value) > 256 or any(ord(c) < 32 or ord(c) == 127 for c in value)
-            or (pin and "." in value)):
-        raise _invalid("identifier must be a non-empty, exact string without control characters",
-                       field=field)
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value) > 256
+        or any(ord(c) < 32 or ord(c) == 127 for c in value)
+        or (pin and "." in value)
+    ):
+        raise _invalid(
+            "identifier must be a non-empty, exact string without control characters", field=field
+        )
     return value
 
 
@@ -73,8 +80,12 @@ def _number(value: str) -> float:
 
 def read_snapshot(data: bytes) -> dict[str, Any]:
     try:
-        value = json.loads(data.decode("utf-8-sig"), object_pairs_hook=_object,
-                           parse_constant=_constant, parse_float=_number)
+        value = json.loads(
+            data.decode("utf-8-sig"),
+            object_pairs_hook=_object,
+            parse_constant=_constant,
+            parse_float=_number,
+        )
     except (ValueError, UnicodeError, RecursionError) as error:
         raise _invalid("snapshot must be UTF-8 JSON") from error
     if not isinstance(value, dict):
@@ -99,8 +110,11 @@ def read_assignments(data: bytes) -> list[dict[str, str]]:
     try:
         reader = csv.reader(io.StringIO(data.decode("utf-8-sig"), newline=""), strict=True)
         header = next(reader, [])
-        if (len(set(header)) != len(header) or not {"refdes", "pin", "net"} <= set(header)
-                or set(header) - {"refdes", "pin", "net", "expected_net"}):
+        if (
+            len(set(header)) != len(header)
+            or not {"refdes", "pin", "net"} <= set(header)
+            or set(header) - {"refdes", "pin", "net", "expected_net"}
+        ):
             raise _invalid("CSV needs unique refdes,pin,net columns; expected_net is optional")
         records: list[dict[str, str]] = []
         seen: set[tuple[str, str]] = set()
@@ -161,8 +175,14 @@ def _index(snapshot: dict[str, Any]) -> tuple[dict, dict, dict]:
     return components, memberships, peers
 
 
-def assess(snapshot: dict[str, Any], assignments: list[dict[str, str]], *, check: bool = False,
-           limit: int = DEFAULT_PAGE, offset: int = 0) -> dict[str, Any]:
+def assess(
+    snapshot: dict[str, Any],
+    assignments: list[dict[str, str]],
+    *,
+    check: bool = False,
+    limit: int = DEFAULT_PAGE,
+    offset: int = 0,
+) -> dict[str, Any]:
     """Validate all requested pins before pagination; checks are snapshot-scoped."""
     components, memberships, peers = _index(snapshot)
     issues: list[dict[str, Any]] = []
@@ -204,44 +224,81 @@ def assess(snapshot: dict[str, Any], assignments: list[dict[str, str]], *, check
             expected = assignment["expected_net"] or None
             if expected != observed:
                 problem = "precondition_mismatch"
-                issues.append({"code": problem, "pin": key, "expected": expected,
-                               "observed": observed})
+                issues.append(
+                    {"code": problem, "pin": key, "expected": expected, "observed": observed}
+                )
         known = observed is not _MISSING
-        action = ("blocked" if problem else "noop" if observed == target else
-                  "connect" if observed is None else "reassign")
+        action = (
+            "blocked"
+            if problem
+            else "noop"
+            if observed == target
+            else "connect"
+            if observed is None
+            else "reassign"
+        )
         if check:
             if problem:
                 match = None
             else:
                 match = observed == target
                 if not match:
-                    issues.append({"code": "net_mismatch", "pin": key,
-                                   "expected": target, "observed": observed})
+                    issues.append(
+                        {
+                            "code": "net_mismatch",
+                            "pin": key,
+                            "expected": target,
+                            "observed": observed,
+                        }
+                    )
             action = "unknown" if match is None else "matched" if match else "mismatched"
         old_peers = [p for p in peer_samples.get(observed, []) if p != key] if known else []
-        peer_count = (len(peers.get(observed, set())) - int(key in peers.get(observed, set()))) if known else 0
-        row = {"refdes": refdes, "pin": number, "pin_id": key,
-               "observed_net": observed if known else None, "observed_known": known,
-               "desired_net": target, "action": action,
-               "other_observed_pins_on_net": peer_count,
-               "peer_sample": old_peers[:8], "peer_sample_truncated": peer_count > 8,
-               "requires_isolation_review": action == "reassign" and peer_count > 0}
+        peer_count = (
+            (len(peers.get(observed, set())) - int(key in peers.get(observed, set())))
+            if known
+            else 0
+        )
+        row = {
+            "refdes": refdes,
+            "pin": number,
+            "pin_id": key,
+            "observed_net": observed if known else None,
+            "observed_known": known,
+            "desired_net": target,
+            "action": action,
+            "other_observed_pins_on_net": peer_count,
+            "peer_sample": old_peers[:8],
+            "peer_sample_truncated": peer_count > 8,
+            "requires_isolation_review": action == "reassign" and peer_count > 0,
+        }
         rows.append(row)
     counts = Counter(row["action"] for row in rows)
     start = min(offset, len(rows))
     end = min(start + limit, len(rows))
     unknown = counts["unknown"] if check else counts["blocked"]
     matches = (False if counts["mismatched"] else None if unknown else True) if check else None
-    return {"mode": "check" if check else "plan", "scope": "requested_pins_in_supplied_snapshot",
-            "project": snapshot["project"], "revision": snapshot["revision"],
-            "valid": not issues, "matches": matches, "items": rows[start:end],
-            "count": end - start, "offset": start, "next_offset": end if end < len(rows) else None,
-            "has_more": end < len(rows), "summary": {"requested": len(rows), "actions": dict(counts),
-            "issue_count": len(issues)}, "issues": issues[:DEFAULT_PAGE],
-            "issues_truncated": len(issues) > DEFAULT_PAGE,
-            "execution": {"supported": False, "performed": False,
-                          "reason": "observation_only; not an executable ChangeSet or native verification"},
-            "_untrusted": ["project", "revision", "items", "issues", "source"]}
+    return {
+        "mode": "check" if check else "plan",
+        "scope": "requested_pins_in_supplied_snapshot",
+        "project": snapshot["project"],
+        "revision": snapshot["revision"],
+        "valid": not issues,
+        "matches": matches,
+        "items": rows[start:end],
+        "count": end - start,
+        "offset": start,
+        "next_offset": end if end < len(rows) else None,
+        "has_more": end < len(rows),
+        "summary": {"requested": len(rows), "actions": dict(counts), "issue_count": len(issues)},
+        "issues": issues[:DEFAULT_PAGE],
+        "issues_truncated": len(issues) > DEFAULT_PAGE,
+        "execution": {
+            "supported": False,
+            "performed": False,
+            "reason": "observation_only; not an executable ChangeSet or native verification",
+        },
+        "_untrusted": ["project", "revision", "items", "issues", "source"],
+    }
 
 
 def validate_argv(argv: list[str]) -> None:
@@ -271,23 +328,42 @@ def validate_argv(argv: list[str]) -> None:
 
 
 def run(command: tuple[str, ...], options: dict[str, Any]) -> dict[str, Any]:
-    if (command not in COMMANDS or options.get("backend") not in {None, "mock"}
-            or options.get("project") or options.get("confirm") is not None or options.get("dry_run")):
-        raise CLIError("E_USAGE", "pin workflows only read explicit saved inputs; no backend or write gate")
+    if (
+        command not in COMMANDS
+        or options.get("backend") not in {None, "mock"}
+        or options.get("project")
+        or options.get("confirm") is not None
+        or options.get("dry_run")
+    ):
+        raise CLIError(
+            "E_USAGE", "pin workflows only read explicit saved inputs; no backend or write gate"
+        )
     if not options.get("input") or not options.get("file"):
         raise CLIError("E_USAGE", "pin workflow requires --input SNAPSHOT --file ASSIGNMENTS.csv")
     limit = DEFAULT_PAGE if options.get("limit") is None else options["limit"]
     offset = options.get("offset") or 0
-    if (type(limit) is not int or not 1 <= limit <= MAX_PAGE or
-            type(offset) is not int or offset < 0):
+    if (
+        type(limit) is not int
+        or not 1 <= limit <= MAX_PAGE
+        or type(offset) is not int
+        or offset < 0
+    ):
         raise _invalid("limit must be 1..1000 and offset a nonnegative integer")
     snapshot_bytes = _bytes(str(options["input"]), MAX_SNAPSHOT_BYTES)
     assignment_bytes = _bytes(str(options["file"]), MAX_ASSIGNMENT_BYTES)
-    result = assess(read_snapshot(snapshot_bytes), read_assignments(assignment_bytes),
-                    check=command[1] == "pin-check", limit=limit, offset=offset)
-    result["source"] = {"snapshot_sha256": hashlib.sha256(snapshot_bytes).hexdigest(),
-                        "assignments_sha256": hashlib.sha256(assignment_bytes).hexdigest(),
-                        "freshness": "not_checked", "origin": "caller_supplied"}
+    result = assess(
+        read_snapshot(snapshot_bytes),
+        read_assignments(assignment_bytes),
+        check=command[1] == "pin-check",
+        limit=limit,
+        offset=offset,
+    )
+    result["source"] = {
+        "snapshot_sha256": hashlib.sha256(snapshot_bytes).hexdigest(),
+        "assignments_sha256": hashlib.sha256(assignment_bytes).hexdigest(),
+        "freshness": "not_checked",
+        "origin": "caller_supplied",
+    }
     return result
 
 
@@ -295,4 +371,8 @@ def protected_fields(fields: str | None) -> str | None:
     if not fields:
         return fields
     # Preserve interpretation/security controls even on the pre-PR #4 output layer.
-    return fields + ",valid,matches,summary,execution,source,count,offset,next_offset,has_more,issues_truncated,_untrusted"
+    return fields + (
+        ",valid,matches,summary,execution,source,count,offs"
+        "et,next_offset,has_more,issues_truncated,_untruste"
+        "d"
+    )

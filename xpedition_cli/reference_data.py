@@ -7,6 +7,8 @@ from typing import Any
 
 from . import __version__
 from .contract_gen import CODES
+from .pin_assignment_contract import OUTPUT_SCHEMA as PIN_OUTPUT_SCHEMA
+from .pin_assignment_contract import commands as pin_commands
 
 SCHEMAS: dict[str, dict[str, Any]] = {
     "context": {
@@ -2141,7 +2143,7 @@ def commands() -> list[dict[str, Any]]:
             ),
         ]
     )
-    return result
+    return result + pin_commands()
 
 
 def release_readiness() -> dict[str, Any]:
@@ -2154,7 +2156,8 @@ def release_readiness() -> dict[str, Any]:
         "live_smoke_required_for_stable": True,
         "live_smoke_status": "verified",
         "reason": (
-            "Every public command has a command-level test (107 of 107); the contract "
+            "The original 107-command release recorded command-level and native evidence; "
+            "additional offline pin workflows do not extend that native evidence. The contract "
             "tests cover success, validation, usage, confirmation, conflict, not-found, "
             "backend-unavailable and timeout paths, empty results, paging, the output "
             "envelope, exit codes and the stdout/stderr boundary; and docs/E2E.md "
@@ -2212,7 +2215,12 @@ def reference() -> dict[str, Any]:
             {
                 "name": "input",
                 "type": "path",
-                "applies_to": ["exchange inspect", "exchange import"],
+                "applies_to": [
+                    "exchange inspect",
+                    "exchange import",
+                    "schematic pin-plan",
+                    "schematic pin-check",
+                ],
             },
             {"name": "name", "type": "string", "applies_to": ["project init"]},
             {"name": "query", "type": "string", "applies_to": ["* query"]},
@@ -2261,7 +2269,7 @@ def reference() -> dict[str, Any]:
             },
         ],
         "commands": commands(),
-        "schemas": SCHEMAS,
+        "schemas": {**SCHEMAS, "pin_assignment": PIN_OUTPUT_SCHEMA},
         "exit_codes": contract["exit_codes"]["table"],
         "error_codes": {
             name: {"exit": spec["exit"], "retryable": spec["retryable"]}

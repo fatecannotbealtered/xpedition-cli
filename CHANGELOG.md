@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Read-only `schematic pin-plan` and `schematic pin-check` compare exact CSV
+  pin/net assignments with supplied snapshots. Plans identify noop/connect/reassign
+  and shared-net review needs. Missing or conflicting observations never count as
+  verified. No native calls, automatic ChangeSets, write tokens or modifications.
+- Bounded pages and peer samples, full-input assessment before paging, file hashes,
+  strict CSV/JSON validation and machine-readable input/observation contracts.
+  Source freshness and live electrical correctness are explicitly unverified.
+
 ## [1.0.0] - 2026-09-17
 
 ### Added

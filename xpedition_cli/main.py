@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, pin_assignment
 from .audit import config_dir, record
 from .backends import ExchangeBackend, MockBackend, NativeBackend
 from .capabilities import CapabilityRegistry
@@ -190,6 +190,9 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
                 raise CLIError("E_VALIDATION", f"--{key} must be an integer") from exc
             if options[key] < 0:
                 raise CLIError("E_VALIDATION", f"--{key} must not be negative")
+    if tuple(positionals[:2]) in pin_assignment.COMMANDS:
+        pin_assignment.validate_argv(argv)
+        options["fields"] = pin_assignment.protected_fields(options.get("fields"))
     return positionals, options
 
 
@@ -2459,6 +2462,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         raise CLIError(
             "E_USAGE", "too many positional arguments", {"arguments": positionals[maximum:]}
         )
+    if command in pin_assignment.COMMANDS:
+        return pin_assignment.run(tuple(positionals), options)
     if command == ("context",):
         return _context(options)
     if command == ("doctor",) or command == ("system", "doctor"):
@@ -3341,6 +3346,7 @@ Usage:
   xpedition-cli <command> [options]
 
 Commands:
+  schematic pin-plan|pin-check   plan/check CSV pin assignments against saved snapshots only
   context                         show runtime and credential context
   doctor                         check environment and release readiness
   reference                      show the live machine contract
