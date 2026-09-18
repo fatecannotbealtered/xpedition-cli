@@ -227,6 +227,34 @@ def _configure_environment() -> Path | None:
     return sdd_home
 
 
+# Xpedition reports "the automation code does not contain the licensing call
+# required for authentication" through EXCEPINFO, as product code 10279 with
+# interface-specific scode 0x8004022D. Both numbers are stable; the COM
+# description is not -- on a Chinese installation it reads "自动化代码不包含身份
+# 验证所需的许可调用。", which contains neither "license" nor "token", so a
+# message-only test downgrades a licensing failure to a retryable E_SERVER and
+# an agent retries it forever. Ordinary automation faults do not carry this
+# EXCEPINFO: DISP_E_TYPEMISMATCH, for one, arrives as (hresult, text, None, n).
+_LICENSE_CALL_MISSING_CODE = 10279
+_LICENSE_CALL_MISSING_SCODE = -2147220947
+
+
+def _com_excepinfo(exc: Exception) -> tuple[int | None, int | None]:
+    """Return (product code, scode) from a pywin32 com_error's EXCEPINFO."""
+    args = getattr(exc, "args", ())
+    if len(args) >= 3 and isinstance(args[2], tuple) and len(args[2]) >= 6:
+        info = args[2]
+        code = info[4] if isinstance(info[4], int) else None
+        scode = info[5] if isinstance(info[5], int) else None
+        return code, scode
+    return None, None
+
+
+def _is_license_call_missing(exc: Exception) -> bool:
+    code, scode = _com_excepinfo(exc)
+    return code == _LICENSE_CALL_MISSING_CODE and scode == _LICENSE_CALL_MISSING_SCODE
+
+
 def _com_error(exc: Exception, action: str) -> AdapterError:
     text = str(exc)
     lower = text.lower()
@@ -255,6 +283,16 @@ def _com_error(exc: Exception, action: str) -> AdapterError:
                     "set up by the launcher in common/win64/bin"
                 ),
                 "hint": "start the product through its launcher, then attach instead of activating",
+            },
+        )
+    if _is_license_call_missing(exc):
+        return AdapterError(
+            "E_AUTH",
+            "Xpedition requires the automation licensing call before this operation",
+            {
+                "action": action,
+                "reason": "the session did not hold an automation license for this call",
+                "hint": "acquire the automation license through the adapter, then retry the task",
             },
         )
     if "license" in lower or "token" in lower:

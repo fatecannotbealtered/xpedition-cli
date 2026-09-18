@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A missing Xpedition automation-licensing call is classified from its EXCEPINFO
+  numbers (product code 10279, scode `0x8004022D`) instead of by searching the COM
+  description for "license". On a localised installation the description carries
+  neither that word nor "token" — a Chinese session reports 自动化代码不包含身份验证
+  所需的许可调用 — so the fault was reported as a retryable `E_SERVER` and an agent
+  would retry it indefinitely. It is now the non-retryable `E_AUTH` it always was.
+  Observed on XPED2604; ordinary faults such as `DISP_E_TYPEMISMATCH` arrive without
+  this EXCEPINFO and keep their existing classification.
+- The reference-query test reads `contract/contract.json` as UTF-8 rather than with
+  the locale codec, so the suite no longer fails on a GBK Windows machine. The
+  hosted runners default to UTF-8, so CI could not observe this.
 - Explicit NativeBackend project initialization without a template fails before
   preview, token consumption or file creation; it never creates a mock project.
 - Native ChangeSet results verify the requested final coordinates, properties,
