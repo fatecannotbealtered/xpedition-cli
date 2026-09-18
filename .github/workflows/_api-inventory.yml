@@ -1,0 +1,74 @@
+name: Verify type-library metadata inventory
+on:
+  push:
+    branches: [codex/readonly-api-inventory-20260918]
+permissions:
+  contents: write
+jobs:
+  verify:
+    if: github.repository == 'fatecannotbealtered/xpedition-cli' && github.ref == 'refs/heads/codex/readonly-api-inventory-20260918'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - run: python -m pip install -e '.[dev]'
+      - name: Prove missing inventory entry on the unchanged baseline
+        run: |
+          set +e
+          pytest -q tests/test_api_inventory_cli.py -k uses_only_type_metadata --junitxml=/tmp/inventory-before.xml > /tmp/inventory-before.txt 2>&1
+          STATUS=$?
+          tail -35 /tmp/inventory-before.txt
+          test "$STATUS" -eq 1
+      - name: Apply source-pinned patch and format touched files
+        run: |
+          python scripts/_api_inventory_patch.py
+          ruff check --select I --fix xpedition_cli/main.py xpedition_cli/reference_data.py xpedition_cli/api_inventory.py xpedition_cli/api_inventory_contract.py tests/test_api_inventory.py tests/test_api_inventory_cli.py
+          ruff format xpedition_cli/main.py xpedition_cli/reference_data.py xpedition_cli/api_inventory.py xpedition_cli/api_inventory_contract.py tests/test_api_inventory.py tests/test_api_inventory_cli.py
+      - name: Full tests and existing quality guards
+        run: |
+          set -euo pipefail
+          ruff check xpedition_cli tests
+          ruff format --check xpedition_cli tests
+          pytest -q --junitxml=/tmp/inventory-after.xml | tee /tmp/inventory-after.txt
+          node scripts/check-version.js
+          node scripts/check-spec.js --local-only
+          python - <<'PY'
+          import hashlib, json, os, platform, xml.etree.ElementTree as ET
+          from pathlib import Path
+          def counts(path):
+              rows = list(ET.parse(path).getroot().iter('testsuite'))
+              return {k: sum(int(s.get(k, 0)) for s in rows) for k in ('tests','failures','errors','skipped')}
+          data = {'baseline': 'd42b226a5b1812b2937ded096bf618b8692c4f9a', 'run_id': os.environ['GITHUB_RUN_ID'],
+                  'platform': platform.platform(), 'before': counts('/tmp/inventory-before.xml'),
+                  'full_suite': counts('/tmp/inventory-after.xml'), 'ruff': 'passed', 'version_sync': 'passed',
+                  'contract_local_only': 'passed', 'native_xpedition_executed': False,
+                  'real_type_library_loaded': False, 'scope': 'fake type metadata; real Windows smoke separate',
+                  'source_sha256': {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in
+                    [Path('xpedition_cli/api_inventory.py'), Path('xpedition_cli/api_inventory_contract.py'),
+                     Path('xpedition_cli/main.py'), Path('xpedition_cli/reference_data.py')]}}
+          Path('docs/API_INVENTORY_VALIDATION.json').write_text(json.dumps(data, indent=2) + '\n')
+          PY
+      - name: Retain evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-inventory-unit-evidence
+          path: |
+            /tmp/inventory-*.txt
+            /tmp/inventory-*.xml
+      - name: Commit verified implementation on review branch only
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/codex/readonly-api-inventory-20260918'
+          rm scripts/_api_inventory_patch.py .github/workflows/_api-inventory.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git diff --cached --check
+          git commit -m 'feat: inspect COM type-library metadata without activating applications'
+          git push origin HEAD:refs/heads/codex/readonly-api-inventory-20260918
