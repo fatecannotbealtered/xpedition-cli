@@ -1174,11 +1174,13 @@ def _native_executable(domain: str) -> tuple[Path, Path]:
             "E_CONFIG", "Xpedition SDD_HOME could not be discovered", {"domain": domain}
         )
     # The common launcher establishes the release environment and then starts
-    # the real Layout binary.  Launching wg\win64\bin\ExpeditionPCB.exe
-    # directly bypasses that setup on current Standard releases and exits
-    # with STATUS_DLL_NOT_FOUND (0xC0000135).
+    # the real binary.  Launching wg\win64\bin\ExpeditionPCB.exe or
+    # wv\win64\bin\viewdraw.exe directly bypasses that setup on current
+    # Standard releases and exits with STATUS_DLL_NOT_FOUND (0xC0000135).
+    # Both domains therefore go through common\win64\bin: the launchers are
+    # ~35 KB stubs beside the ~37 MB products they set up and start.
     relative = (
-        Path("wv") / "win64" / "bin" / "viewdraw.exe"
+        Path("common") / "win64" / "bin" / "viewdraw.exe"
         if domain == "schematic"
         else Path("common") / "win64" / "bin" / "ExpeditionPCB.exe"
     )

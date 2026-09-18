@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `session start --kind schematic` starts Designer through `common\win64\bin\viewdraw.exe`
+  rather than the product under `wv`. The common launcher sets up the release environment
+  before starting the product; naming the product directly skipped that and the process
+  exited immediately with STATUS_DLL_NOT_FOUND (0xC0000135), so every native schematic
+  command was unusable unless someone had already started Designer by hand. The pcb domain
+  always went through the launcher and the comment above the code already stated the rule.
 - A missing Xpedition automation-licensing call is classified from its EXCEPINFO
   numbers (product code 10279, scode `0x8004022D`) instead of by searching the COM
   description for "license". On a localised installation the description carries
