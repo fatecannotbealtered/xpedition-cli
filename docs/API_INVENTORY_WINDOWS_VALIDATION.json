@@ -1,0 +1,29 @@
+{
+  "run_id": "35298644634",
+  "platform": "Windows-2025Server-10.0.26100-SP0",
+  "full_suite": {
+    "tests": 257,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "windows_metadata_smoke": {
+    "run_id": "35298644634",
+    "source_sha256": "58c3b3a2c798ec42eaef8155dd22e2c2f49f53d91b1f1f115a6fc5164b8078f9",
+    "system_file_sha256": "815d6c50ad934a42800e52faef5207dd9352ab8c386793422682084c8f604c5d",
+    "resource_only_fixture_extraction": true,
+    "type_count": 42,
+    "interface": "IFont",
+    "interface_members_observed": 22,
+    "variable_type": "GUID",
+    "variables_observed": 4,
+    "status": "passed",
+    "scope": "Windows standard OLE metadata only",
+    "xpedition_executed": false
+  },
+  "xpedition_executed": false,
+  "source_sha256_normalized_lf": "318b7ca470383e7f9928fec6f75bdb9580751bcf1543dc5366c25e3509bf4ab3"
+}

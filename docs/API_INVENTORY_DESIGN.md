@@ -73,3 +73,12 @@ The initial 256-test validation record is historical and did not establish real
 binding compatibility. API_INVENTORY_BINDING_VALIDATION.json records the corrected
 suite; the independent Windows smoke must still pass before claiming that binding
 is tested. System OLE metadata remains distinct from target Xpedition evidence.
+
+
+The remaining metadata calls were checked against the published pywin32 binding.
+GetNames accepts the member ID, not the native C++ output-buffer length argument.
+Both production calls and the strict fake provider now use the one-argument API.
+Reference: https://mhammond.github.io/pywin32/PyITypeInfo__GetNames_meth.html .
+The Windows correction run validates the full suite and the actual standard OLE
+fixture before recording API_INVENTORY_WINDOWS_VALIDATION.json. That is still not
+an Xpedition installation or a call to any discovered application method.

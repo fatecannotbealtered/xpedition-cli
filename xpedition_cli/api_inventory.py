@@ -85,7 +85,7 @@ def _member(info: Any, index: int, function: bool) -> dict[str, Any]:
     if function:
         desc = info.GetFuncDesc(index)
         count = _bounded(len(desc.args), MAX_PARAMETERS)
-        names = info.GetNames(desc.memid, count + 1)
+        names = info.GetNames(desc.memid)
         if not names or len(names) > count + 1:
             raise ValueError("member names missing or oversized")
         params = []
@@ -111,7 +111,7 @@ def _member(info: Any, index: int, function: bool) -> dict[str, Any]:
         }
     desc = info.GetVarDesc(index)
     # No desc.value: constant/default values are not part of this inventory.
-    names = info.GetNames(desc.memid, 1)
+    names = info.GetNames(desc.memid)
     return {
         "index": index,
         "kind": "variable",

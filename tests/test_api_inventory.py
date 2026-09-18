@@ -62,8 +62,8 @@ class TypeInfo:
         self.var_reads.append(index)
         return VarDesc()
 
-    def GetNames(self, memid, count):
-        return ("Value", "first", "second")[:count] if memid == 7 else ("Constant",)
+    def GetNames(self, memid):
+        return ("Value", "first", "second") if memid == 7 else ("Constant",)
 
 
 class Library:
