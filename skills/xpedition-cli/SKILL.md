@@ -70,6 +70,9 @@ is not permission to resend the write; inspect the observed state first.
 - The configured backend is the permission boundary. The agent cannot turn an
   unavailable NativeBackend into an available one.
 - Keep project paths and ChangeSet targets narrow and explicit.
+- Selecting a backend does not mean every command supports it. Treat declared
+  unavailability as a capability boundary; never substitute mock analysis for
+  an upstream check. Capability discovery does not need to open a design.
 
 ## Read recipes
 

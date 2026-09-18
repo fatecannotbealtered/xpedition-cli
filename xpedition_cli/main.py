@@ -2496,6 +2496,10 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
 
     if positionals[0] == "agent":
         verb = positionals[1] if len(positionals) > 1 else ""
+        if verb == "capabilities":
+            # Like the streaming capability method, discovery does not load a
+            # project or require an already-working native session.
+            return CapabilityRegistry().summary()
         backend = _backend(options)
         project, _ = backend.load(_project_path(positionals, options))
         if verb == "snapshot":
@@ -2506,8 +2510,6 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
             )
         if verb == "review":
             return run_review(project, options.get("rules"))
-        if verb == "capabilities":
-            return CapabilityRegistry().summary()
         if verb == "serve":
             raise CLIError("E_USAGE", "agent serve is a streaming command")
         raise CLIError("E_USAGE", f"unknown agent command: {verb}")
@@ -3060,6 +3062,17 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         raise CLIError("E_USAGE", f"unknown constraints command: {verb}")
 
     if positionals[0] == "analysis":
+        if command == ("analysis", "run") and options.get("backend") == "native_xpedition":
+            raise CLIError(
+                "E_BACKEND_UNAVAILABLE",
+                "analysis run is MockBackend-only; no native analysis was executed",
+                {
+                    "backend": "native_xpedition",
+                    "supported_backends": ["mock"],
+                    "native_entry_points": {"drc": "pcb drc", "review": "review run"},
+                    "hint": "consult reference; these checks do not cover every analysis kind",
+                },
+            )
         backend = _backend(options)
         project, _ = backend.load(_project_path(positionals, options))
         verb = positionals[1] if len(positionals) > 1 else "results"
