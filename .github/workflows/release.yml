@@ -73,30 +73,12 @@ jobs:
       - name: Build binary
         run: python build.py
 
+      # Shared with artifact-smoke.yml, which packages a synthetic payload
+      # through this same script so a bump to the artifact actions is tested
+      # against the real packaging rather than a copy of it.
       - name: Package release archive
         shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          $platformMap = @{
-            "Linux" = "linux"
-            "macOS" = "darwin"
-            "Windows" = "windows"
-          }
-          $platform = $platformMap["${{ runner.os }}"]
-          $arch = if ("${{ runner.arch }}" -eq "ARM64") { "arm64" } else { "amd64" }
-          $base = "xpedition-cli-$version-$platform-$arch"
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          if ("${{ runner.os }}" -eq "Windows") {
-            Copy-Item dist/xpedition-cli.exe release/xpedition-cli.exe
-            Compress-Archive -Path release/xpedition-cli.exe -DestinationPath "release/$base.zip" -Force
-            $hash = (Get-FileHash "release/$base.zip" -Algorithm SHA256).Hash.ToLower()
-            "$hash  $base.zip" | Out-File -Encoding utf8 "release/checksums-$platform-$arch.txt"
-          } else {
-            Copy-Item dist/xpedition-cli release/xpedition-cli
-            tar -C release -czf "release/$base.tar.gz" xpedition-cli
-            $hash = (Get-FileHash "release/$base.tar.gz" -Algorithm SHA256).Hash.ToLower()
-            "$hash  $base.tar.gz" | Out-File -Encoding utf8 "release/checksums-$platform-$arch.txt"
-          }
+        run: ./scripts/package-release-archive.ps1 -RunnerOs "${{ runner.os }}" -RunnerArch "${{ runner.arch }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -116,14 +98,11 @@ jobs:
         with:
           path: release-dist
 
+      # Shared with artifact-smoke.yml. Verifies every archive against its
+      # build job's checksum before cosign signs checksums.txt below.
       - name: Prepare release assets
         shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p release
-          find release-dist -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release/ \;
-          find release-dist -type f -name "checksums-*.txt" -exec cat {} \; > release/checksums.txt
-          test -s release/checksums.txt
+        run: bash scripts/prepare-release-assets.sh
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3

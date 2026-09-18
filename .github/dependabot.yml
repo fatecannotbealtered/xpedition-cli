@@ -10,6 +10,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The @fateforge/xpedition-cli-* entries in optionalDependencies are this
+    # repo's own release output, version-locked to package.json by
+    # scripts/sync-version.js. Dependabot cannot resolve them until the first
+    # publish (404 -> dependency_file_not_resolvable, failing the whole npm
+    # update run) and must never bump them on its own.
+    ignore:
+      - dependency-name: "@fateforge/xpedition-cli-*"
 
   # uncomment the entry matching your language
   # - package-ecosystem: gomod

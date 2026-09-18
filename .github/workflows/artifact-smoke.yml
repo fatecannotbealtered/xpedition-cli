@@ -1,13 +1,32 @@
-# Exercise the release artifact transport without building or publishing a release.
+# Exercise the release artifact transport and the checksum contract that
+# release.yml's publish job depends on, without building a binary or
+# publishing anything.
+#
+# Why it is built this way: release.yml runs only on a v*.*.* tag, so nothing
+# else proves the upload/download pairing and the checksum merge still work
+# after a bump to the artifact actions. This workflow therefore reuses
+# release.yml's own packaging and merge scripts, on real runners of both
+# families, with the same artifact name, upload path and download inputs.
+# Only the payload is synthetic: a few bytes instead of a PyInstaller binary.
+#
+# Keep the mirrored bits mirrored. A fixture faked on the wrong runner, or an
+# assertion written against an invented layout, yields a test that passes
+# while the release breaks.
 name: Release artifact smoke
 
 on:
   pull_request:
     branches: [main]
-    paths: [".github/workflows/**"]
+    paths:
+      - ".github/workflows/**"
+      - "scripts/package-release-archive.ps1"
+      - "scripts/prepare-release-assets.sh"
   push:
     branches: [main]
-    paths: [".github/workflows/**"]
+    paths:
+      - ".github/workflows/**"
+      - "scripts/package-release-archive.ps1"
+      - "scripts/prepare-release-assets.sh"
 
 permissions:
   contents: read
@@ -17,93 +36,90 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  roundtrip:
+  package:
+    name: Package synthetic archive (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # One Linux and one real Windows runner. That pair covers what the
+        # transport can actually get wrong -- tar.gz vs zip, the two upload
+        # clients, and the checksum file's line endings. The release matrix's
+        # remaining runners (arm64, macOS) take the same branch of the
+        # packaging script as ubuntu-24.04 does.
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      # Stands in for release.yml's "Build binary" step. Written through
+      # .NET so the payload is byte-identical on both runners.
+      - name: Create synthetic build output
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $name = if ("${{ runner.os }}" -eq "Windows") { "xpedition-cli.exe" } else { "xpedition-cli" }
+          [System.IO.File]::WriteAllText(
+            (Join-Path (Get-Location) "dist/$name"),
+            "Synthetic fixture for the artifact smoke test. Not a release binary.`n"
+          )
+
+      # release.yml's real packaging step.
+      - name: Package release archive
+        shell: pwsh
+        run: ./scripts/package-release-archive.ps1 -RunnerOs "${{ runner.os }}" -RunnerArch "${{ runner.arch }}"
+
+      # Same name and path as release.yml's upload.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: "xpedition-cli-${{ matrix.os }}"
+          path: release/*
+          if-no-files-found: error
+          retention-days: 1
+
+  prepare:
+    name: Merge and verify checksums
+    needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
 
-      - name: Create small synthetic release archives
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import hashlib
-          import io
-          import tarfile
-          import zipfile
-          from pathlib import Path
-
-          root = Path("artifact-smoke/upload")
-          content = b"Synthetic fixture only; not an executable or a real release.\n"
-          for platform in ("linux", "windows"):
-              directory = root / platform
-              directory.mkdir(parents=True)
-              filename = "fixture.tar.gz" if platform == "linux" else "fixture.zip"
-              archive = directory / filename
-              if platform == "linux":
-                  with tarfile.open(archive, "w:gz") as handle:
-                      member = tarfile.TarInfo("fixture.txt")
-                      member.size = len(content)
-                      handle.addfile(member, io.BytesIO(content))
-              else:
-                  with zipfile.ZipFile(archive, "w") as handle:
-                      handle.writestr("fixture.txt", content)
-              digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-              (directory / "checksums.txt").write_text(
-                  f"{digest}  {filename}\n", encoding="utf-8"
-              )
-              (directory / "校验说明.txt").write_text("合成测试，不是发布资料。\n", encoding="utf-8")
-          PY
-
-      - name: Upload synthetic Linux archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: smoke-linux
-          path: artifact-smoke/upload/linux/*
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload synthetic Windows archive
-        uses: actions/upload-artifact@v7
-        with:
-          name: smoke-windows
-          path: artifact-smoke/upload/windows/*
-          if-no-files-found: error
-          retention-days: 1
-
-      # Like release.yml: download all artifacts into their named directories.
-      # Keep checksum failure fatal; do not replace it with warn/ignore.
-      - name: Download with the upgraded release action
+      # Same inputs as release.yml: no name and no merge-multiple, so every
+      # artifact lands in its own named directory. digest-mismatch is left at
+      # the v8 default (error) instead of being set here, so this step keeps
+      # matching the release path even if that default ever changes.
+      - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          path: artifact-smoke/download
-          digest-mismatch: error
+          path: release-dist
 
-      - name: Verify directory layout, filenames and archive bytes
+      # release.yml's real merge step. Its own `sha256sum -c` is what proves
+      # the archives survived the roundtrip byte for byte.
+      - name: Prepare release assets
+        shell: bash
+        run: bash scripts/prepare-release-assets.sh
+
+      - name: Assert the release contract
         shell: bash
         run: |
-          python3 - <<'PY'
-          import hashlib
-          import tarfile
-          import zipfile
-          from pathlib import Path
-
-          root = Path("artifact-smoke")
-          for platform in ("linux", "windows"):
-              source = root / "upload" / platform
-              downloaded = root / "download" / f"smoke-{platform}"
-              expected_names = {path.name for path in source.iterdir()}
-              assert {path.name for path in downloaded.iterdir()} == expected_names
-              for path in source.iterdir():
-                  assert (downloaded / path.name).read_bytes() == path.read_bytes(), path.name
-              digest, filename = (downloaded / "checksums.txt").read_text().strip().split()
-              archive = downloaded / filename
-              assert hashlib.sha256(archive.read_bytes()).hexdigest() == digest
-              if platform == "linux":
-                  with tarfile.open(archive) as handle:
-                      assert handle.getnames() == ["fixture.txt"]
-              else:
-                  with zipfile.ZipFile(archive) as handle:
-                      assert handle.namelist() == ["fixture.txt"]
-          print("PASS: v7 upload / v8 download, named directories, CJK filenames, SHA-256, tar and zip.")
-          PY
+          set -euo pipefail
+          # Per-artifact named directories, i.e. merge-multiple stayed off.
+          test -d "release-dist/xpedition-cli-ubuntu-24.04"
+          test -d "release-dist/xpedition-cli-windows-2022"
+          # Both archive formats reached the publish set.
+          ls release/*.tar.gz >/dev/null
+          ls release/*.zip >/dev/null
+          # One checksum line per packaging job.
+          test "$(grep -c . release/checksums.txt)" -eq 2
+          # No stray CR: a trailing CR makes the filename unmatchable, and
+          # users and self-update run SHA-256 verification against this
+          # merged file. Tested through od so the answer cannot depend on
+          # whether grep happened to open the file in text mode -- `grep -q
+          # $'\r'` silently passes on a CRLF file under MSYS grep.
+          if od -c release/checksums.txt | grep -q '\\r'; then
+            echo "checksums.txt contains CR; packaging must write LF" >&2
+            exit 1
+          fi
+          echo "PASS: real-runner upload (v7) -> download (v8), named dirs, LF checksums verified."
