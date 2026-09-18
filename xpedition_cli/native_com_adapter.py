@@ -316,7 +316,19 @@ def _active_object(client: Any) -> Any:
     raise AdapterError(
         "E_NOT_FOUND",
         "a running Xpedition Layout automation session was not found",
-        {"progids": ["MGCPCB.Application", "MGCPCB.ExpeditionPCBApplication"]},
+        {
+            "progids": ["MGCPCB.Application", "MGCPCB.ExpeditionPCBApplication"],
+            # GetActiveObject only binds a session the user already started, so
+            # say which application that is. Layout and Designer are separate
+            # products with separate COM classes: a running Designer does not
+            # satisfy a `pcb` command, and the reverse is equally true.
+            "application": "Xpedition Layout",
+            "serves_commands": "pcb *",
+            "hint": (
+                "start Xpedition Layout, or run: "
+                "xpedition-cli session start --backend native_xpedition --kind pcb"
+            ),
+        },
     )
 
 
@@ -329,7 +341,15 @@ def _viewdraw_active(client: Any) -> Any:
     raise AdapterError(
         "E_NOT_FOUND",
         "a running Xpedition Designer automation session was not found",
-        {"progids": ["Viewdraw.Application", "Viewdraw.Application.60"]},
+        {
+            "progids": ["Viewdraw.Application", "Viewdraw.Application.60"],
+            "application": "Xpedition Designer (DxDesigner)",
+            "serves_commands": "schematic *, agent snapshot",
+            "hint": (
+                "start Xpedition Designer, or run: "
+                "xpedition-cli session start --backend native_xpedition --kind schematic"
+            ),
+        },
     )
 
 

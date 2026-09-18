@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `doctor` reports a `native_session` check naming which Xpedition application is
+  attached right now. `native_xpedition` passes as soon as an adapter is configured,
+  which says nothing about what is running, and Layout and Designer are separate
+  products with separate COM classes: `pcb *` reaches Layout while `schematic *` and
+  `agent snapshot` reach Designer. Nothing surfaced that split, so the first sign of
+  it was a task command failing. The probe is skipped when the native backend is not
+  ready, and a probe that fails cannot fail `doctor`.
+- Failing to attach to a session now names the application, the commands it serves,
+  and the `session start --kind pcb|schematic` that starts it, instead of reporting
+  only the ProgIDs that were tried.
 - Selected-origin placement tasks: offline `pcb placement-plan` and guarded native
   `pcb placement` for explicit translate, rotation about an origin, alignment to
   an anchor, and equal-origin-spacing distribution. Input JSON Schemas are exposed

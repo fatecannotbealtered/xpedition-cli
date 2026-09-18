@@ -2009,11 +2009,43 @@ def _context(options: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _native_live_applications(native_ready: bool) -> dict[str, Any]:
+    """Ask the adapter which Xpedition applications are attachable right now.
+
+    `native_xpedition` passes as soon as COM is registered and an adapter is
+    configured, which says nothing about whether anything is running: every native
+    command then failed at its first attach, with nothing in `doctor` to predict
+    it. The adapter only binds a session the user already started, so the answer
+    belongs here, where the Skill already sends an agent before a task. Probing is
+    skipped when the backend is not ready, so a machine without Xpedition pays no
+    subprocess for it.
+    """
+    blank = {"probed": False, "layout": False, "designer": False, "reason": None}
+    if not native_ready:
+        return blank
+    try:
+        health = NativeBackend().invoke("health", {}, timeout_seconds=60.0)
+    except Exception as exc:  # a probe must never be the reason doctor fails
+        return {**blank, "reason": str(exc)[:200]}
+    return {
+        "probed": True,
+        "layout": bool(health.get("application_running")),
+        "designer": bool(health.get("designer_application_running")),
+        "reason": None,
+    }
+
+
 def _doctor(options: dict[str, Any]) -> dict[str, Any]:
     native = NativeBackend().status()
     native_session = session_status("native_xpedition")
     native_runtime_failed = native_session.get("state") == "crashed"
     native_ready = bool(native.get("available")) and not native_runtime_failed
+    live = _native_live_applications(native_ready)
+    live_names = [
+        name
+        for name, running in (("Layout", live["layout"]), ("Designer", live["designer"]))
+        if running
+    ]
     checks = [
         {"check": "backend", "status": "pass", "fix": None, "message": "MockBackend is available"},
         {
@@ -2035,6 +2067,46 @@ def _doctor(options: dict[str, Any]) -> dict[str, Any]:
                 native_session.get("reason") if native_runtime_failed else native.get("reason")
             )
             or "native automation entry point configured",
+        },
+        {
+            "check": "native_session",
+            "status": "pass" if live_names else "warn",
+            "fix": None
+            if live_names
+            else (
+                "start the application the task needs, so it is not activated on "
+                "demand: session start --backend native_xpedition --kind pcb "
+                "(pcb commands) or --kind schematic (schematic commands, agent snapshot)"
+            ),
+            "message": (
+                # Layout and Designer are separate products with separate COM
+                # classes, and one running does not serve the other's commands:
+                # pcb * needs Layout, schematic * and agent snapshot need Designer.
+                f"attached: {', '.join(live_names)}"
+                + (
+                    ""
+                    if len(live_names) == 2
+                    else "; "
+                    + (
+                        "Designer is not running, so schematic commands and agent "
+                        "snapshot would have to activate it"
+                        if "Layout" in live_names
+                        else "Layout is not running, so pcb commands would have to activate it"
+                    )
+                )
+                if live_names
+                else (
+                    "nothing is attached; a native command would activate Layout or "
+                    "Designer on demand, which is slow and fails on installations "
+                    "whose COM registration bypasses the product launcher"
+                    if live["probed"]
+                    else (
+                        f"could not probe for a running application: {live['reason']}"
+                        if live["reason"]
+                        else "not probed; the native backend is not ready"
+                    )
+                )
+            ),
         },
         {
             "check": "credentials",

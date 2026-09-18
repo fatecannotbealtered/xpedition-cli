@@ -10,6 +10,11 @@ layout. Do not use whole-board arrangement as a substitute for a small edit: it
 has different effects on placement and routing. Determine the intended order,
 anchor and coordinate origin before planning; origin spacing is not body clearance.
 
+The native path reads a running Xpedition Layout session; `placement-plan` is
+offline and needs none. Check `doctor`'s `native_session` for what is attached
+before previewing, and start Layout explicitly rather than letting the command
+activate it.
+
 Preview, inspect every before/target and the native evidence status, then confirm
 only within the user's authorization. Do not override fixed/locked states. Check
 per-item results as well as the outer envelope. A failed or missing response can

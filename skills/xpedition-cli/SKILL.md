@@ -16,7 +16,9 @@ available only when the optional Windows COM adapter and product registration
 are ready. Production readiness still requires the disposable R1/C1 smoke loop.
 
 ```bash
-# Install the CLI and bundled Skill.
+# Install the CLI and bundled Skill. Until the npm packages are published these
+# fail with a 404; install from a checkout instead:
+#   python -m pip install -e ".[native]"   # [native] is required on Windows
 npm install -g @fateforge/xpedition-cli
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
@@ -25,6 +27,29 @@ xpedition-cli context --compact
 xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
+
+## Native sessions: two separate applications
+
+Layout and Designer are separate products with separate COM classes, and one
+running does not serve the other's commands:
+
+| Commands | Application |
+| --- | --- |
+| `pcb *` | Xpedition Layout |
+| `schematic *`, `agent snapshot` | Xpedition Designer (DxDesigner) |
+
+`doctor`'s `native_session` check reports which of the two is attached right now;
+read it before a native task rather than inferring readiness from
+`native_xpedition`, which only means an adapter is configured. Start one
+explicitly with `session start --backend native_xpedition --kind pcb|schematic`.
+A native command will otherwise activate the application on demand, which is slow
+and fails outright on installations whose COM registration bypasses the product
+launcher.
+
+Never reach for `win32com` or a COM script to work around a missing command. The
+adapter performs the automation-licensing handshake that Xpedition requires, so a
+direct COM call is rejected before it does anything — on a localised installation
+with a message that does not contain the word "license". Report the gap instead.
 
 ## When to use
 
