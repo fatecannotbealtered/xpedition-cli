@@ -1,0 +1,28 @@
+{
+  "baseline": "d42b226a5b1812b2937ded096bf618b8692c4f9a",
+  "run_id": "35296848583",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "before": {
+    "tests": 2,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "tests": 261,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "native_xpedition_executed": false,
+  "scope": "offline comparison of supplied observations; not native execution",
+  "source_sha256": {
+    "xpedition_cli/pin_assignment.py": "39dc1c337897a1c9dc7fc07dc3b9d94c7d2e6b8b12eff16199d319fb790cf7cb",
+    "xpedition_cli/pin_assignment_contract.py": "baacde879cd5b69f2a2802309c67084d87fbd5066d9a372c40556460c8cd0348",
+    "xpedition_cli/main.py": "a799454b993578d0088600fa03f2fedddcc5c925cb9e72fa75608b502f30a1dc",
+    "xpedition_cli/reference_data.py": "0c62f966691c00c8ae79b31e80901bf91353c38bef78e8558bc5243db0465a8e"
+  }
+}

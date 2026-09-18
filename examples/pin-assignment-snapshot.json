@@ -1,0 +1,1 @@
+{"project":"synthetic-pin-fixture","revision":"R1","components":[{"refdes":"J1","pins":[{"number":"01","net":"OLD"},{"number":"1","net":null}]},{"refdes":"U1","pins":[{"number":"A1","net":"OLD"}]}],"connections":[{"net":"OLD","pins":["J1.01","U1.A1"]}],"metadata":{"origin":"synthetic; not an Xpedition observation"}}
