@@ -469,7 +469,7 @@ def choose_combo_item(process_name: str, combo_name: str, item: str) -> dict[str
 
 def answer_prompts(
     rules: tuple[tuple[str, str, str | None], ...], process_name: str = "expeditionpcb.exe"
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Answer the Qt prompts of an Xpedition process by pressing the button a rule names.
 
     Layout's questions (design status, database recovery, forward annotation) are Qt
@@ -479,13 +479,19 @@ def answer_prompts(
     the radio button whose caption contains `option` (if any) is selected and the
     button captioned `button` is pressed. A window with a single OK-style button
     and no matching rule is a notice and is pressed too. Document windows, whose
-    titles are bracketed, are left alone. Returns what was answered.
+    titles are bracketed, are left alone.
+
+    Returns `(answered, blocking)`. A dialog no rule covers is *not* pressed -- an
+    unknown question is not ours to answer -- but it is reported, because it holds
+    the automation call open until a human clicks it and nothing else in the
+    process can see why the call never returned.
     """
     try:
         from pywinauto import Desktop
     except Exception:
-        return []
+        return [], []
     answered: list[dict[str, Any]] = []
+    blocking: list[dict[str, Any]] = []
     for window in top_windows(process_name):
         if window["title"].startswith("["):
             continue
@@ -528,4 +534,12 @@ def answer_prompts(
             answered.append(
                 {"title": window["title"], "text": " ".join(texts)[:300], "pressed": pressed}
             )
-    return answered
+        elif buttons:
+            blocking.append(
+                {
+                    "title": window["title"],
+                    "text": " ".join(texts)[:300],
+                    "buttons": sorted(buttons),
+                }
+            )
+    return answered, blocking

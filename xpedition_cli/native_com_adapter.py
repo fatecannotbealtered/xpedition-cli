@@ -2683,6 +2683,11 @@ class _PromptAnswerer:
         self.interval = interval
         self.process_name = process_name
         self.answered: list[dict[str, Any]] = []
+        # Dialogs no rule covers, keyed by (title, text) so a dialog that sits
+        # there through many polls is reported once. They are never pressed: an
+        # unknown question is not ours to answer. Recording them is what turns
+        # "the COM call never returned" into something an operator can act on.
+        self.blocking: dict[tuple[str, str], dict[str, Any]] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -2704,9 +2709,16 @@ class _PromptAnswerer:
         # during forward annotation and the run fails in its "packaging phase".
         while not self._stop.wait(self.interval):
             try:
-                self.answered.extend(win_dialogs.answer_prompts(self.rules, self.process_name))
+                answered, blocking = win_dialogs.answer_prompts(self.rules, self.process_name)
             except Exception:
-                pass
+                continue
+            self.answered.extend(answered)
+            for dialog in blocking:
+                self.blocking.setdefault((dialog["title"], dialog["text"]), dialog)
+
+    def blocking_dialogs(self) -> list[dict[str, Any]]:
+        """The unanswerable dialogs seen so far, oldest first."""
+        return list(self.blocking.values())
 
 
 def _open_layout_document(
@@ -6210,143 +6222,161 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     counts: dict[str, int] = {}
     warnings: list[dict[str, Any]] = []
     current_sheet: int | None = None
-    for index, op in enumerate(ops):
-        if not isinstance(op, dict):
-            raise AdapterError(
-                "E_CHANGESET_INVALID", "each draw operation must be an object", {"index": index}
-            )
-        kind = str(op.get("op", ""))
-        try:
-            if kind == "open_sheet":
-                _open_sheet(app, int(op["number"]))
-                current_sheet = int(op["number"])
-                counts[kind] = counts.get(kind, 0) + 1
-                continue
-            _ensure_sheet(app, current_sheet)
-            if kind == "wipe_sheet":
-                app.ExecuteCommandByID(_SELECT_ALL_COMMAND)
-                time.sleep(0.5)
-                app.ActiveView.Block.DeleteSelected(False)
-                _settle(0.5)
-            elif kind == "set_sheet":
-                # Size first, border second: the border change alone leaves the page
-                # size untouched, and a size set straight after a border change was
-                # dropped on some sheets.
-                block = app.ActiveView.Block
-                if op.get("size") is not None:
-                    block.SheetSize = int(op["size"])
-                    _settle(1.0)
-                    _ensure_sheet(app, current_sheet)
-                border = str(op.get("border") or "")
-                if border:
-                    app.ActiveView.Block.ChangeBorder(border)
-                    _settle(1.0)
-                    _ensure_sheet(app, current_sheet)
-                if op.get("size") is not None:
-                    for _attempt in range(2):
-                        if int(app.ActiveView.Block.SheetSize) == int(op["size"]):
-                            break
-                        app.ActiveView.Block.SheetSize = int(op["size"])
+    # Designer can stop mid-draw on a modal dialog -- a missing parts database
+    # raises one -- and the call that hit it does not return until someone
+    # clicks. Watch for them here so a hang is attributable: the known ones are
+    # answered, and anything else is recorded for the error envelope.
+    with _PromptAnswerer(DESIGNER_PROMPTS, process_name="viewdraw.exe") as prompts:
+        for index, op in enumerate(ops):
+            if not isinstance(op, dict):
+                raise AdapterError(
+                    "E_CHANGESET_INVALID", "each draw operation must be an object", {"index": index}
+                )
+            kind = str(op.get("op", ""))
+            try:
+                if kind == "open_sheet":
+                    _open_sheet(app, int(op["number"]))
+                    current_sheet = int(op["number"])
+                    counts[kind] = counts.get(kind, 0) + 1
+                    continue
+                _ensure_sheet(app, current_sheet)
+                if kind == "wipe_sheet":
+                    app.ExecuteCommandByID(_SELECT_ALL_COMMAND)
+                    time.sleep(0.5)
+                    app.ActiveView.Block.DeleteSelected(False)
+                    _settle(0.5)
+                elif kind == "set_sheet":
+                    # Size first, border second: the border change alone leaves the page
+                    # size untouched, and a size set straight after a border change was
+                    # dropped on some sheets.
+                    block = app.ActiveView.Block
+                    if op.get("size") is not None:
+                        block.SheetSize = int(op["size"])
                         _settle(1.0)
                         _ensure_sheet(app, current_sheet)
-                    if int(app.ActiveView.Block.SheetSize) != int(op["size"]):
-                        warnings.append(
-                            {
-                                "index": index,
-                                "operation": kind,
-                                "message": "sheet size did not take",
-                                "sheet_size": int(app.ActiveView.Block.SheetSize),
-                            }
-                        )
-            elif kind == "place_part":
-                block = app.ActiveView.Block
-                component = block.AddPartInstance(
-                    str(op.get("library") or library),
-                    str(op.get("part", "")),
-                    str(op["symbol"]),
-                    int(op["x"]),
-                    int(op["y"]),
-                )
-                orientation = int(op.get("orientation", 0))
-                if orientation:
-                    component.Orientation = orientation
-                component.Refdes = str(op["refdes"])
-                components[str(op["refdes"])] = component
-                wanted = {
-                    str(a.get("name")): a for a in op.get("attributes") or [] if a.get("name")
-                }
-                if wanted:
-                    for attribute in _items(_com_member(component, "Attributes")):
-                        spec = wanted.get(str(_value(attribute, "Name", default="")))
-                        if spec is None:
-                            continue
-                        if spec.get("orientation") is not None:
-                            attribute.Orientation = int(spec["orientation"])
-                        if spec.get("x") is not None and spec.get("y") is not None:
-                            attribute.SetLocation(int(spec["x"]), int(spec["y"]))
-            elif kind == "place_symbol":
-                block = app.ActiveView.Block
-                instance = block.AddSymbolInstance(
-                    str(op.get("library") or library), str(op["symbol"]), int(op["x"]), int(op["y"])
-                )
-                orientation = int(op.get("orientation", 0))
-                if orientation:
-                    instance.Orientation = orientation
-            elif kind == "wire":
-                block = app.ActiveView.Block
-                points = [(int(p[0]), int(p[1])) for p in op.get("points", [])]
-                if len(points) < 2:
-                    raise AdapterError(
-                        "E_CHANGESET_INVALID", "a wire needs at least two points", {"index": index}
+                    border = str(op.get("border") or "")
+                    if border:
+                        app.ActiveView.Block.ChangeBorder(border)
+                        _settle(1.0)
+                        _ensure_sheet(app, current_sheet)
+                    if op.get("size") is not None:
+                        for _attempt in range(2):
+                            if int(app.ActiveView.Block.SheetSize) == int(op["size"]):
+                                break
+                            app.ActiveView.Block.SheetSize = int(op["size"])
+                            _settle(1.0)
+                            _ensure_sheet(app, current_sheet)
+                        if int(app.ActiveView.Block.SheetSize) != int(op["size"]):
+                            warnings.append(
+                                {
+                                    "index": index,
+                                    "operation": kind,
+                                    "message": "sheet size did not take",
+                                    "sheet_size": int(app.ActiveView.Block.SheetSize),
+                                }
+                            )
+                elif kind == "place_part":
+                    block = app.ActiveView.Block
+                    component = block.AddPartInstance(
+                        str(op.get("library") or library),
+                        str(op.get("part", "")),
+                        str(op["symbol"]),
+                        int(op["x"]),
+                        int(op["y"]),
                     )
-                start = _draw_pin(app, components, op.get("start"))
-                end = _draw_pin(app, components, op.get("end"))
-                net = None
-                last = len(points) - 2
-                for segment_index, ((ax, ay), (bx, by)) in enumerate(
-                    zip(points, points[1:], strict=False)
-                ):
-                    pin_a = start if segment_index == 0 else None
-                    pin_b = end if segment_index == last else None
-                    created = block.AddNet(ax, ay, bx, by, pin_a, pin_b, wire_kind)
-                    net = net if net is not None else created
-                label = op.get("label")
-                if label and net is not None:
-                    segment = next(iter(_items(_com_member(net, "GetSegments"))), None)
-                    if segment is None:
+                    orientation = int(op.get("orientation", 0))
+                    if orientation:
+                        component.Orientation = orientation
+                    component.Refdes = str(op["refdes"])
+                    components[str(op["refdes"])] = component
+                    wanted = {
+                        str(a.get("name")): a for a in op.get("attributes") or [] if a.get("name")
+                    }
+                    if wanted:
+                        for attribute in _items(_com_member(component, "Attributes")):
+                            spec = wanted.get(str(_value(attribute, "Name", default="")))
+                            if spec is None:
+                                continue
+                            if spec.get("orientation") is not None:
+                                attribute.Orientation = int(spec["orientation"])
+                            if spec.get("x") is not None and spec.get("y") is not None:
+                                attribute.SetLocation(int(spec["x"]), int(spec["y"]))
+                elif kind == "place_symbol":
+                    block = app.ActiveView.Block
+                    instance = block.AddSymbolInstance(
+                        str(op.get("library") or library),
+                        str(op["symbol"]),
+                        int(op["x"]),
+                        int(op["y"]),
+                    )
+                    orientation = int(op.get("orientation", 0))
+                    if orientation:
+                        instance.Orientation = orientation
+                elif kind == "wire":
+                    block = app.ActiveView.Block
+                    points = [(int(p[0]), int(p[1])) for p in op.get("points", [])]
+                    if len(points) < 2:
                         raise AdapterError(
-                            "E_CONFLICT", "the wire has no segment to label", {"index": index}
+                            "E_CHANGESET_INVALID",
+                            "a wire needs at least two points",
+                            {"index": index},
                         )
-                    net.AddLabel(segment, str(label["net"]), int(label["x"]), int(label["y"]))
-            elif kind == "box":
-                app.ActiveView.Block.AddBox(
-                    int(op["x1"]), int(op["y1"]), int(op["x2"]), int(op["y2"])
+                    start = _draw_pin(app, components, op.get("start"))
+                    end = _draw_pin(app, components, op.get("end"))
+                    net = None
+                    last = len(points) - 2
+                    for segment_index, ((ax, ay), (bx, by)) in enumerate(
+                        zip(points, points[1:], strict=False)
+                    ):
+                        pin_a = start if segment_index == 0 else None
+                        pin_b = end if segment_index == last else None
+                        created = block.AddNet(ax, ay, bx, by, pin_a, pin_b, wire_kind)
+                        net = net if net is not None else created
+                    label = op.get("label")
+                    if label and net is not None:
+                        segment = next(iter(_items(_com_member(net, "GetSegments"))), None)
+                        if segment is None:
+                            raise AdapterError(
+                                "E_CONFLICT", "the wire has no segment to label", {"index": index}
+                            )
+                        net.AddLabel(segment, str(label["net"]), int(label["x"]), int(label["y"]))
+                elif kind == "box":
+                    app.ActiveView.Block.AddBox(
+                        int(op["x1"]), int(op["y1"]), int(op["x2"]), int(op["y2"])
+                    )
+                elif kind == "text":
+                    text = app.ActiveView.Block.AddText(str(op["text"]), int(op["x"]), int(op["y"]))
+                    size = int(op.get("size", 0) or 0)
+                    if size:
+                        text.Size = size
+                elif kind == "save":
+                    app.ActiveDocument.Save()
+                else:
+                    raise AdapterError(
+                        "E_CHANGESET_INVALID", f"unknown draw operation {kind!r}", {"index": index}
+                    )
+            except AdapterError:
+                raise
+            except Exception as exc:
+                error = _com_error(exc, f"draw_{kind or 'operation'}")
+                error.details.update(
+                    {
+                        "index": index,
+                        "operation": kind,
+                        "refdes": str(op.get("refdes", "")),
+                        "_untrusted": ["refdes"],
+                    }
                 )
-            elif kind == "text":
-                text = app.ActiveView.Block.AddText(str(op["text"]), int(op["x"]), int(op["y"]))
-                size = int(op.get("size", 0) or 0)
-                if size:
-                    text.Size = size
-            elif kind == "save":
-                app.ActiveDocument.Save()
-            else:
-                raise AdapterError(
-                    "E_CHANGESET_INVALID", f"unknown draw operation {kind!r}", {"index": index}
-                )
-        except AdapterError:
-            raise
-        except Exception as exc:
-            error = _com_error(exc, f"draw_{kind or 'operation'}")
-            error.details.update(
-                {
-                    "index": index,
-                    "operation": kind,
-                    "refdes": str(op.get("refdes", "")),
-                    "_untrusted": ["refdes"],
-                }
-            )
-            raise error from exc
-        counts[kind] = counts.get(kind, 0) + 1
+                # A dialog Designer put up is the likeliest reason a call failed or
+                # sat there, and it is not otherwise visible from the envelope: the
+                # reported action and index name the operation that was interrupted,
+                # not the question that interrupted it.
+                dialogs = prompts.blocking_dialogs()
+                if dialogs:
+                    error.details["blocking_dialogs"] = dialogs
+                    error.details["_untrusted"] = ["refdes", "blocking_dialogs"]
+                raise error from exc
+            counts[kind] = counts.get(kind, 0) + 1
     result: dict[str, Any] = {
         "applied": len(ops),
         "operations": counts,
