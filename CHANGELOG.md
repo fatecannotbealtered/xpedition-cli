@@ -46,6 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `project init --template` gives every user symbol partition a parts database instead of
+  leaving Designer to raise a modal dialog at draw time, which blocks the draw until a
+  human clicks. A missing one is filled by copying an unused stock database out of the
+  project's own library, and only when at least two unused databases are byte-identical --
+  enough to tell an empty database from a populated one rather than guess. A library where
+  that does not hold is reported in `parts_databases.missing` and left alone.
+- `schematic draw` reports `sheets_drawn` and `sheets_not_drawn`. A draw wipes and redraws
+  the sheets its design names; any other sheet keeps what was on it, which for a cloned
+  project is the template's content and used to ship unremarked.
 - A timed-out native call marks the session stale, and the next task command reports that
   instead of failing somewhere unrelated. After a read timed out, `IsProjectOpened()`
   reported false with the project still open, so the next command asked Designer to open a

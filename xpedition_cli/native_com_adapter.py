@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from .contract_gen import CODES, SCHEMA_VERSION
@@ -1667,6 +1667,95 @@ CLONE_IGNORE = (
 )
 
 
+# Designer ships these and they carry no parts database of their own.
+_STOCK_SYMBOL_PARTITIONS = frozenset({"globals", "builtin", "borders"})
+
+
+def _repair_missing_parts_databases(project_path: Path) -> dict[str, Any]:
+    """Give every user symbol partition a parts database, or report the ones without.
+
+    Designer walks a design's symbol partitions when it places a part. A partition
+    whose parts database is missing raises a modal dialog, which holds the draw
+    open until a human clicks -- and a template can carry partitions whose `.pdb`
+    was never copied: one clone listed three.
+
+    An empty parts database is a stock artefact, so a missing one is filled by
+    copying an unused stock database out of the project's own library. It is only
+    copied when at least two unused databases are byte-identical, which is what
+    makes "this file is an empty database" checkable rather than guessed. A
+    library where that does not hold is reported and left alone.
+    """
+    from . import project_file
+
+    report: dict[str, Any] = {"created": [], "registered": [], "missing": []}
+    try:
+        _, root = _central_library(project_path)
+    except AdapterError:
+        return report
+    parts_dir = root / "PartsDBLibs"
+    try:
+        text = project_path.read_text(encoding="utf-8", errors="surrogateescape")
+    except OSError:
+        return report
+    # The project file spells these with backslashes whatever the host is.
+    declared = {
+        PureWindowsPath(entry).name.lower() for entry in project_file.list_entries(text, "PDBs")
+    }
+    wanted: list[str] = []
+    for entry in project_file.list_entries(text, "Symbols"):
+        name = PureWindowsPath(entry).name
+        if name and name.lower() not in _STOCK_SYMBOL_PARTITIONS:
+            wanted.append(name)
+
+    def empty_database() -> bytes | None:
+        """The bytes shared by two or more parts databases this design does not use."""
+        if not parts_dir.is_dir():
+            return None
+        seen: dict[bytes, int] = {}
+        for path in sorted(parts_dir.glob("*.pdb")):
+            if path.name.lower() in declared:
+                continue
+            try:
+                content = path.read_bytes()
+            except OSError:
+                continue
+            seen[content] = seen.get(content, 0) + 1
+        for content, count in seen.items():
+            if count >= 2:
+                return content
+        return None
+
+    donor: bytes | None = None
+    changed = False
+    for name in wanted:
+        target = parts_dir / f"{name}.pdb"
+        if not target.is_file():
+            if donor is None:
+                donor = empty_database()
+            if donor is None:
+                report["missing"].append(name)
+                continue
+            try:
+                parts_dir.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(donor)
+            except OSError:
+                report["missing"].append(name)
+                continue
+            report["created"].append(str(target))
+        if target.name.lower() not in declared:
+            text, added = project_file.add_entry(text, "PDBs", f"PartsDBLibs\\{target.name}")
+            if added:
+                declared.add(target.name.lower())
+                report["registered"].append(target.name)
+                changed = True
+    if changed:
+        try:
+            project_path.write_text(text, encoding="utf-8", errors="surrogateescape")
+        except OSError:
+            pass
+    return report
+
+
 def _clone_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Create a project by copying a template project folder under a new name.
 
@@ -1762,6 +1851,10 @@ def _clone_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
         target_path.write_text("".join(lines), encoding="utf-8", errors="surrogateescape")
     except OSError as exc:
         raise AdapterError("E_IO", f"cannot rewrite the project file: {exc}") from exc
+    # A template can list symbol partitions whose parts database was never copied.
+    # Designer raises a modal dialog for one of those the first time it places a
+    # part, which blocks the draw; fix it now, while nothing is running.
+    parts_databases = _repair_missing_parts_databases(target_path)
     files = 0
     size = 0
     for path in target_dir.rglob("*"):
@@ -1780,9 +1873,10 @@ def _clone_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "files": files,
         "bytes": size,
         "rewritten": rewritten,
+        "parts_databases": parts_databases,
         "template_closed": template_closed,
         "opened": opened,
-        "_untrusted": ["project", "path", "template", "rewritten"],
+        "_untrusted": ["project", "path", "template", "rewritten", "parts_databases"],
     }
 
 
@@ -6433,10 +6527,22 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                     file=sys.stderr,
                     flush=True,
                 )
+    # A draw wipes and redraws the sheets its design names. Any other sheet the
+    # project has keeps whatever was on it -- a cloned template's content, which
+    # would otherwise ship with the deliverable unremarked.
+    drawn = {
+        int(op["number"]) for op in ops if isinstance(op, dict) and op.get("op") == "open_sheet"
+    }
+    try:
+        untouched = sorted(number for number in _sheet_numbers(app) if number not in drawn)
+    except AdapterError:
+        untouched = []
     result: dict[str, Any] = {
         "applied": len(ops),
         "operations": counts,
         "symbols_written": written,
+        "sheets_drawn": sorted(drawn),
+        "sheets_not_drawn": untouched,
         "warnings": warnings,
         "project": str(project_path),
         "_untrusted": ["symbols_written", "warnings", "project", "netlist"],
