@@ -1954,6 +1954,48 @@ def _session_domain(options: dict[str, Any]) -> str:
     return _SESSION_DOMAINS[value]
 
 
+_DOMAIN_APPLICATIONS = {"pcb": "Xpedition Layout", "schematic": "Xpedition Designer"}
+
+
+def _resolve_stop_domain(options: dict[str, Any]) -> str:
+    """Pick the application `session stop` quits, from what is actually attached.
+
+    Quitting discards unsaved design work, so guessing is expensive. `--kind` used
+    to default to pcb: with only Designer running that reported success against an
+    application that was not there and left the one the caller meant still running.
+    Resolve against the live session instead and refuse when the answer is not
+    unique, rather than quitting whichever one the default happened to name.
+    """
+    live = _native_live_applications(True)
+    if not live["probed"]:
+        # No adapter to ask; keep the historical behaviour rather than block.
+        return _session_domain(options)
+    attached = {"pcb": live["layout"], "schematic": live["designer"]}
+    if options.get("kind") is not None or options.get("project") is not None:
+        domain = _session_domain(options)
+        if not attached[domain]:
+            raise CLIError(
+                "E_NOT_FOUND",
+                f"no {_DOMAIN_APPLICATIONS[domain]} session is attached; nothing to stop",
+                {"domain": domain, "attached": [name for name, ok in attached.items() if ok]},
+            )
+        return domain
+    running = [name for name, ok in attached.items() if ok]
+    if len(running) == 1:
+        return running[0]
+    if not running:
+        raise CLIError(
+            "E_NOT_FOUND",
+            "no Xpedition application is attached; nothing to stop",
+            {"attached": []},
+        )
+    raise CLIError(
+        "E_USAGE",
+        "Layout and Designer are both attached; name one with --kind pcb or --kind schematic",
+        {"attached": running},
+    )
+
+
 def _changelog(since: str | None) -> dict[str, Any]:
     text = changelog_markdown()
     entries: list[dict[str, Any]] = []
@@ -2610,7 +2652,14 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         if backend_name != "mock":
             # a malformed --kind is a usage error whether or not an adapter is installed,
             # so it is reported before the backend is asked for
-            domain = _session_domain(options) if verb != "status" else ""
+            if verb == "status":
+                domain = ""
+            elif verb == "stop":
+                # stop discards unsaved work; resolve it against the live session
+                _session_domain(options)  # validate --kind before probing
+                domain = _resolve_stop_domain(options)
+            else:
+                domain = _session_domain(options)
             native = NativeBackend()
             native.require_implemented()
             if verb == "status":
@@ -2659,8 +2708,11 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
                     "changes": [{"action": "quit_xpedition", "domain": domain}],
                     "risk": {
                         "tier": "T1",
+                        # Name the application: "the running Xpedition application"
+                        # read as whatever happened to be attached, which is how a
+                        # pcb-by-default stop got mistaken for stopping Designer.
                         "blast_radius": (
-                            "the running Xpedition application; unsaved design work is lost"
+                            f"{_DOMAIN_APPLICATIONS[domain]}; unsaved design work in it is lost"
                         ),
                     },
                     "_untrusted": ["risk.blast_radius"],

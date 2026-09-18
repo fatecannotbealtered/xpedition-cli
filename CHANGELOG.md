@@ -36,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `session stop` quits the application that is attached rather than defaulting to pcb.
+  Quitting discards unsaved design work, and with only Designer running the old default
+  reported success against an application that was not there while leaving the one the
+  caller meant still running. The domain is resolved from the live session; both attached
+  is a `E_USAGE` asking for `--kind`, an explicitly named application that is not running
+  is `E_NOT_FOUND`, and the preview's blast radius now names the application instead of
+  saying "the running Xpedition application". Machines with no adapter to probe keep the
+  previous behaviour.
 - `session start --kind schematic` starts Designer through `common\win64\bin\viewdraw.exe`
   rather than the product under `wv`. The common launcher sets up the release environment
   before starting the product; naming the product directly skipped that and the process
