@@ -93,7 +93,11 @@ def test_every_observed_protection_blocks_changed_parts(state_key, state_value):
     assert not result["results"][1]["changed"]
 
 
-@pytest.mark.parametrize("bad", [True, "1", None, float("nan"), float("inf"), 10**1000])
+@pytest.mark.parametrize(
+    "bad",
+    [True, "1", None, float("nan"), float("inf"), 10**1000],
+    ids=["boolean", "string", "null", "nan", "infinity", "huge-integer"],
+)
 def test_bad_numbers_are_rejected(bad):
     with pytest.raises(CLIError):
         validate_request(task({"op": "translate", "dx": bad, "dy": 0}))
@@ -171,7 +175,11 @@ def test_schema_is_generated_for_all_operations():
     assert all(choice["additionalProperties"] is False for choice in choices)
 
 
-@pytest.mark.parametrize("content", [b'{"x":1,"x":2}', b"\xff", b"[", b" " * 1048577])
+@pytest.mark.parametrize(
+    "content",
+    [b'{"x":1,"x":2}', b"\xff", b"[", b" " * 1048577],
+    ids=["duplicate-key", "invalid-utf8", "invalid-json", "over-limit"],
+)
 def test_input_file_errors_are_structured(tmp_path, content):
     path = tmp_path / "bad.json"
     path.write_bytes(content)
