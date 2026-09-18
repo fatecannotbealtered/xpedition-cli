@@ -27,6 +27,7 @@ from .contract_gen import SCHEMA_VERSION
 from .errors import CLIError
 from .mcp_server import MCPServer
 from .models import append_history, load_history, restore_backup
+from .native_verification import verify_native_changes
 from .output import emit, failure, redact, success
 from .reference_data import reference, release_readiness
 from .review_engine import run_review
@@ -921,7 +922,7 @@ def _pcb_trace(positionals: list[str], options: dict[str, Any]) -> dict[str, Any
             raise CLIError(
                 "E_VALIDATION",
                 f"{command}: the plan fails the clearance check against the geometry "
-                "(fix it, or pass --dangerous to let Layout judge)",
+                "(fix the plan before confirming)",
                 {"problems": checked[:40], "count": len(checked)},
             )
     pace = _pace_option(options, command)
@@ -2738,6 +2739,15 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         }
 
     if command == ("project", "init"):
+        backend_name = str(options.get("backend") or "mock")
+        if backend_name not in {"mock", "native_xpedition"}:
+            raise CLIError("E_VALIDATION", f"unsupported backend: {backend_name}")
+        if backend_name == "native_xpedition" and not options.get("template"):
+            raise CLIError(
+                "E_USAGE",
+                "native project init requires --template PATH; no MockBackend fallback",
+                {"backend": backend_name, "required": ["template"]},
+            )
         if options.get("dry_run") and options.get("confirm"):
             raise CLIError("E_USAGE", "use either --dry-run or --confirm, not both")
         project_path = _project_path(positionals, options)
@@ -3202,20 +3212,48 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
                     "save": True,
                 },
             )
-            reread, _ = backend.load(str(path), domain=changeset_domain or "pcb")
+            # A successful adapter call or snapshot does not prove the requested
+            # mutation happened. Never offer automatic replay after a post-write
+            # read-back failure: the design may already have changed.
+            try:
+                reread, _ = backend.load(str(path), domain=changeset_domain or "pcb")
+            except CLIError as error:
+                raise CLIError(
+                    "E_PROJECT_INVALID",
+                    "native write returned, but read-back failed; inspect before retrying",
+                    {
+                        "stage": "read_back",
+                        "write_attempted": True,
+                        "reread": False,
+                        "cause": {"code": error.code, "details": error.details or {}},
+                        "applied": native_result.get("applied", []),
+                        "_untrusted": ["cause.details", "applied"],
+                    },
+                ) from error
+            verification = verify_native_changes(projected, reread, changeset["operations"])
+            verification.update(
+                {"reread": True, "save_requested": True, "saved": native_result.get("saved")}
+            )
+            if not verification["valid"]:
+                raise CLIError(
+                    "E_PROJECT_INVALID",
+                    "native postconditions did not verify; inspect before another write",
+                    {
+                        "stage": "verify",
+                        "write_attempted": True,
+                        "project": str(path),
+                        "verification": verification,
+                        "applied": native_result.get("applied", []),
+                        "_untrusted": ["project", "verification.issues", "applied"],
+                    },
+                )
             return {
                 "project": reread["project"],
                 "path": str(path),
                 "revision": reread["revision"],
                 "applied": native_result.get("applied", []),
                 "backend": backend.name,
-                "verification": {
-                    "valid": True,
-                    "saved": True,
-                    "reread": True,
-                    "component_count": len(reread["components"]),
-                    "net_count": len(reread["nets"]),
-                },
+                "verification": verification,
                 "_untrusted": ["project", "path", "applied"],
             }
         saved, backup_path = persist_changes(projected, path, bool(options.get("backup")))

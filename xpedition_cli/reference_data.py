@@ -2199,7 +2199,10 @@ def reference() -> dict[str, Any]:
             {
                 "name": "fields",
                 "type": "string",
-                "description": "comma-separated top-level or dotted paths in data",
+                "description": (
+                    "Comma-separated data paths, including items.refdes or items[].refdes; "
+                    "pagination and _untrusted are retained."
+                ),
             },
             {
                 "name": "backend",
@@ -2234,12 +2237,12 @@ def reference() -> dict[str, Any]:
             {
                 "name": "dry-run",
                 "type": "boolean",
-                "applies_to": ["change apply", "change rollback", "schematic apply"],
+                "applies_to": [item["path"] for item in commands() if item["type"] == "write"],
             },
             {
                 "name": "confirm",
                 "type": "string",
-                "applies_to": ["change apply", "change rollback", "schematic apply"],
+                "applies_to": [item["path"] for item in commands() if item["type"] == "write"],
             },
             {
                 "name": "backup",

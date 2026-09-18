@@ -9,6 +9,7 @@ from typing import Any
 
 from .contract_gen import SCHEMA_VERSION
 from .errors import CLIError
+from .field_projection import project_fields as _project_fields
 
 _SENSITIVE_KEY = re.compile(
     r"(?:password|passwd|token|secret|authorization|cookie|api[_-]?key)", re.I
@@ -44,22 +45,7 @@ def _get_path(value: Any, path: str) -> tuple[bool, Any]:
 
 
 def project_fields(data: Any, fields: str | None) -> Any:
-    if not fields or not isinstance(data, Mapping):
-        return data
-    selected: dict[str, Any] = {}
-    for raw in fields.split(","):
-        path = raw.strip()
-        if not path:
-            continue
-        found, value = _get_path(data, path)
-        if not found:
-            continue
-        cursor = selected
-        parts = path.split(".")
-        for part in parts[:-1]:
-            cursor = cursor.setdefault(part, {})
-        cursor[parts[-1]] = value
-    return selected
+    return _project_fields(data, fields)
 
 
 def success(data: Any, started: float, fields: str | None = None) -> dict[str, Any]:
