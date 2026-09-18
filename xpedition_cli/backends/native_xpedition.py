@@ -10,6 +10,7 @@ from typing import Any
 from ..contract_gen import CODES
 from ..errors import CLIError
 from ..models import normalise_project, snapshot
+from ..session import read_state, record_native_timeout
 
 # `--quiet` is a global flag, and the adapter runs as a subprocess several call
 # layers below where options are parsed, so the setting lives here rather than
@@ -25,6 +26,35 @@ def suppress_progress(suppressed: bool) -> None:
 
 def progress_suppressed() -> bool:
     return _PROGRESS_SUPPRESSED
+
+
+# These have to keep working while the session is stale: they are how a caller
+# inspects it and how it gets restarted.
+_SESSION_RECOVERY_METHODS = frozenset({"health", "start", "close"})
+
+
+def _refuse_a_stale_session(method: str) -> None:
+    """Stop a task command running against a session a timed-out call left mid-operation.
+
+    After a timeout Designer misreports its own state -- `IsProjectOpened()` went
+    false with the project still open -- and the next command failed while asking
+    Designer to open a project it already had, refused with a message about
+    scripts and GUIs that pointed nowhere near the timeout that caused it.
+    """
+    if method in _SESSION_RECOVERY_METHODS:
+        return
+    state = read_state()
+    if state.get("state") != "stale":
+        return
+    raise CLIError(
+        "E_CONFLICT",
+        "the native session is stale after a timed-out call; restart it before continuing",
+        {
+            "timed_out_method": state.get("timed_out_method"),
+            "timed_out_at": state.get("timed_out_at"),
+            "hint": "session stop, then session start",
+        },
+    )
 
 
 class NativeBackend:
@@ -206,6 +236,7 @@ class NativeBackend:
                 {"path": str(command_path)},
             )
         request = {"method": str(method), "params": params or {}}
+        _refuse_a_stale_session(str(method))
         try:
             completed = subprocess.run(
                 [str(command_path)],
@@ -226,8 +257,17 @@ class NativeBackend:
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
+            # The adapter was killed mid-call, so Designer is left mid-operation.
+            # Record that, or the next command fails somewhere unrelated with no
+            # way to connect it back to this timeout.
+            record_native_timeout(str(method))
             raise CLIError(
-                "E_TIMEOUT", "NativeBackend adapter timed out", {"method": str(method)}
+                "E_TIMEOUT",
+                "NativeBackend adapter timed out; the session is now stale",
+                {
+                    "method": str(method),
+                    "hint": "session stop, then session start, before the next native command",
+                },
             ) from exc
         except OSError as exc:
             raise CLIError(

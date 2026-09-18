@@ -10,6 +10,17 @@ from xpedition_cli.backends.native_xpedition import NativeBackend
 from xpedition_cli.errors import CLIError
 
 
+@pytest.fixture(autouse=True)
+def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep these tests off the caller's real session state.
+
+    `invoke` reads the recorded session, and a timing-out call writes one. Without
+    this the suite would clobber the session of whoever ran it, and a stale record
+    left on the machine would decide the result of a test about timeouts.
+    """
+    monkeypatch.setenv("XPEDITION_CLI_CONFIG_DIR", str(tmp_path / "config"))
+
+
 def test_native_adapter_uses_argv_and_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     adapter = tmp_path / "native-adapter.exe"
     adapter.write_bytes(b"placeholder")
@@ -62,4 +73,6 @@ def test_native_adapter_timeout_is_reported_as_retryable(
     with pytest.raises(CLIError) as raised:
         NativeBackend().invoke("snapshot", {}, timeout_seconds=0.01)
     assert raised.value.code == "E_TIMEOUT"
-    assert raised.value.details == {"method": "snapshot"}
+    assert raised.value.details["method"] == "snapshot"
+    # The call was killed mid-operation, so the session it was driving is suspect.
+    assert "session stop" in raised.value.details["hint"]

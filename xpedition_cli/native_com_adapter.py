@@ -255,6 +255,20 @@ def _is_license_call_missing(exc: Exception) -> bool:
     return code == _LICENSE_CALL_MISSING_CODE and scode == _LICENSE_CALL_MISSING_SCODE
 
 
+# Designer refuses an operation it considers already satisfied -- opening the
+# project it already has open, most often -- with product code 64185 and the text
+# "Xpedition supports only scripts without GUI". That text describes neither the
+# request nor the state that refused it, and it is what a stale session surfaces
+# as: after a timed-out call IsProjectOpened() reported false, so the next
+# command asked Designer to open a project it still had, and got this.
+_SCRIPT_WITHOUT_GUI_CODE = 64185
+
+
+def _is_refused_as_already_satisfied(exc: Exception) -> bool:
+    code, _ = _com_excepinfo(exc)
+    return code == _SCRIPT_WITHOUT_GUI_CODE
+
+
 def _com_error(exc: Exception, action: str) -> AdapterError:
     text = str(exc)
     lower = text.lower()
@@ -283,6 +297,19 @@ def _com_error(exc: Exception, action: str) -> AdapterError:
                     "set up by the launcher in common/win64/bin"
                 ),
                 "hint": "start the product through its launcher, then attach instead of activating",
+            },
+        )
+    if _is_refused_as_already_satisfied(exc):
+        return AdapterError(
+            "E_CONFLICT",
+            "Xpedition refused the request against its current state",
+            {
+                "action": action,
+                "reason": (
+                    "the application reports this operation as already satisfied, which is "
+                    "what an open project and a stale session look like from here"
+                ),
+                "hint": "check session status; after a timed-out call, stop and start the session",
             },
         )
     if _is_license_call_missing(exc):
@@ -1577,29 +1604,36 @@ def _ensure_project(app: Any, project_path: Path) -> None:
         opened = bool(app.IsProjectOpened())
     except Exception:
         opened = False
+    # Ask for the open project's path whatever IsProjectOpened() claimed. After a
+    # call times out it reports false with the project still open, and opening a
+    # project Designer already has is refused with 64185 -- whose text is about
+    # scripts and GUIs and points nowhere near the cause. The path is the
+    # trustworthy answer, so read it first and believe it.
     current = ""
-    if opened:
-        try:
-            current = str(
-                _com_member(_com_member(app, "GetProjectData"), "GetProjectFilePath") or ""
-            )
-        except Exception:
-            current = ""
+    try:
+        current = str(_com_member(_com_member(app, "GetProjectData"), "GetProjectFilePath") or "")
+    except Exception:
+        current = ""
     same = False
     if current:
         try:
             same = Path(current).resolve() == project_path
         except OSError:
             same = False
-    if not opened or (current and not same):
+    if not same:
         try:
-            if opened:
+            if opened or current:
                 app.CloseProject()
                 _settle(4.0)
             _open_project_answering(app, str(project_path))
             _settle(6.0)
         except Exception as exc:
-            raise _com_error(exc, "open_project") from exc
+            error = _com_error(exc, "open_project")
+            error.details.setdefault("requested_project", str(project_path))
+            if current:
+                error.details.setdefault("open_project", current)
+                error.details.setdefault("_untrusted", []).append("open_project")
+            raise error from exc
     try:
         if app.ActiveView is None:
             app.Documents.Open(app.GetActiveDesign())

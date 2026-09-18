@@ -61,6 +61,36 @@ def record_native_attach(result: dict[str, Any]) -> None:
     )
 
 
+def read_state() -> dict[str, Any]:
+    """The recorded session, or an empty mapping when there is none to read."""
+    try:
+        value = json.loads(_state_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def record_native_timeout(method: str) -> None:
+    """Mark the session suspect after a native call timed out.
+
+    A timed-out call leaves Designer in a state its own `IsProjectOpened()` then
+    misreports, and the next command fails on something unrelated -- asking
+    Designer to open a project it already has, which it refuses with a message
+    about scripts and GUIs. Recording the timeout lets the next command say what
+    actually happened instead.
+    """
+    state = read_state()
+    _write_state(
+        {
+            **state,
+            "backend": "native_xpedition",
+            "state": "stale",
+            "timed_out_method": str(method),
+            "timed_out_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    )
+
+
 def record_native_failure(error: dict[str, Any]) -> None:
     _write_state(
         {

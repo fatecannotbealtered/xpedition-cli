@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A timed-out native call marks the session stale, and the next task command reports that
+  instead of failing somewhere unrelated. After a read timed out, `IsProjectOpened()`
+  reported false with the project still open, so the next command asked Designer to open a
+  project it already had and was refused with a message about scripts and GUIs. Recovery
+  commands (`session status`, `start`, `stop`) still run against a stale session.
+- `_ensure_project` reads the open project's path whatever `IsProjectOpened()` claims, so
+  a project that is already open is not reopened, and product code 64185 maps to a
+  conflict naming the state that refused the request rather than a retryable server fault.
 - A symbol that displays the same pin name twice is refused when the plan is built,
   naming the repeated names and the pins that share them. Designer names a net after
   the pin a wire meets, so repeated pin names put two wires on one auto-named net and
