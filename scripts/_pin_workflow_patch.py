@@ -50,3 +50,27 @@ For pin-assignment planning, discover the installed binary's capabilities first.
 When it exposes the offline pin workflows, read `reference/pin-assignment.md`.
 A supplied snapshot comparison is not a live read-back or authorization to write.
 """)
+
+# Wrap only the reported long literals; unchanged AST proves this is formatting.
+import ast
+for path, literals in {
+    'xpedition_cli/pin_assignment.py': [
+        ',valid,matches,summary,execution,source,count,offset,next_offset,has_more,issues_truncated,_untrusted'],
+    'xpedition_cli/pin_assignment_contract.py': [
+        'Plan explicit pin/net assignments against a supplied snapshot, without writing a design',
+        'Compare requested pin/net assignments with supplied observations, not live native verification',
+        'Saved snapshot object or successful 1.0 JSON envelope; project, revision, components required. No defaults or native refresh.',
+        'exact strings; no integer conversion or whitespace normalization',
+        'When column exists, blank means require explicit unconnected state for planning; ignored by pin-check, which checks desired net.',
+        'components[].refdes + pins[].number; exact strings, ambiguous targets blocked',
+        'pin.net string and/or positive connections[].net / pins[] evidence',
+        'valid=false is an assessment, not a transport error; check matches=null when only unknowns prevent a decision']
+}.items():
+    before = ast.dump(ast.parse(Path(path).read_text()))
+    for literal in literals:
+        replacement = '(' + '\n'.join(repr(literal[i:i+50]) for i in range(0, len(literal), 50)) + ')'
+        replace(path, '"' + literal + '"', replacement)
+    if path.endswith('_contract.py'):
+        replace(path, 'f"xpedition-cli schematic {verb} --input ./snapshot.json --file ./pins.csv --compact"',
+                '(f"xpedition-cli schematic {verb} "\n"--input ./snapshot.json --file ./pins.csv --compact")')
+    assert ast.dump(ast.parse(Path(path).read_text())) == before
