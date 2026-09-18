@@ -9,9 +9,9 @@ from . import __version__, placement_contract
 from .api_inventory_contract import OUTPUT_SCHEMA as API_OUTPUT_SCHEMA
 from .api_inventory_contract import command as api_command
 from .contract_gen import CODES
-from .reference_query import select_reference, selector_params
 from .pin_assignment_contract import OUTPUT_SCHEMA as PIN_OUTPUT_SCHEMA
 from .pin_assignment_contract import commands as pin_commands
+from .reference_query import select_reference, selector_params
 
 SCHEMAS: dict[str, dict[str, Any]] = {
     "context": {

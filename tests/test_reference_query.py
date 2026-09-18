@@ -91,7 +91,9 @@ def test_reference_selectors_through_cli(tmp_path, args):
     assert len(data["commands"]) < len(reference()["commands"])
     assert result.stderr == ""
     contract = json.loads(
-        (Path(__file__).resolve().parent.parent / "contract/contract.json").read_text()
+        (Path(__file__).resolve().parent.parent / "contract/contract.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert set(payload(result)) == set(contract["envelope"]["success_keys"])
 
