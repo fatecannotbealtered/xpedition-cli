@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .api_inventory_contract import OUTPUT_SCHEMA as API_OUTPUT_SCHEMA
+from .api_inventory_contract import command as api_command
 from .contract_gen import CODES
 
 SCHEMAS: dict[str, dict[str, Any]] = {
@@ -2141,7 +2143,7 @@ def commands() -> list[dict[str, Any]]:
             ),
         ]
     )
-    return result
+    return result + [api_command()]
 
 
 def release_readiness() -> dict[str, Any]:
@@ -2154,7 +2156,8 @@ def release_readiness() -> dict[str, Any]:
         "live_smoke_required_for_stable": True,
         "live_smoke_status": "verified",
         "reason": (
-            "Every public command has a command-level test (107 of 107); the contract "
+            "The original 107-command release recorded native evidence; added metadata "
+            "inventory does not validate target Xpedition behavior. The contract "
             "tests cover success, validation, usage, confirmation, conflict, not-found, "
             "backend-unavailable and timeout paths, empty results, paging, the output "
             "envelope, exit codes and the stdout/stderr boundary; and docs/E2E.md "
@@ -2212,9 +2215,13 @@ def reference() -> dict[str, Any]:
             {
                 "name": "input",
                 "type": "path",
-                "applies_to": ["exchange inspect", "exchange import"],
+                "applies_to": ["exchange inspect", "exchange import", "system api-inventory"],
             },
-            {"name": "name", "type": "string", "applies_to": ["project init"]},
+            {
+                "name": "name",
+                "type": "string",
+                "applies_to": ["project init", "system api-inventory"],
+            },
             {"name": "query", "type": "string", "applies_to": ["* query"]},
             {
                 "name": "kind",
@@ -2261,7 +2268,7 @@ def reference() -> dict[str, Any]:
             },
         ],
         "commands": commands(),
-        "schemas": SCHEMAS,
+        "schemas": {**SCHEMAS, "api_inventory": API_OUTPUT_SCHEMA},
         "exit_codes": contract["exit_codes"]["table"],
         "error_codes": {
             name: {"exit": spec["exit"], "retryable": spec["retryable"]}

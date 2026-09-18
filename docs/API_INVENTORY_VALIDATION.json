@@ -1,0 +1,29 @@
+{
+  "baseline": "d42b226a5b1812b2937ded096bf618b8692c4f9a",
+  "run_id": "35297642883",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "before": {
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "tests": 256,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "native_xpedition_executed": false,
+  "real_type_library_loaded": false,
+  "scope": "fake type metadata; real Windows smoke separate",
+  "source_sha256": {
+    "xpedition_cli/api_inventory.py": "921db8ee335413b79908e27035455fb4904be86807cd5c6d7e8cc68325532864",
+    "xpedition_cli/api_inventory_contract.py": "2f2b1e3c2a6bf5f141035d0c9927780df5c51567b62e34e7231afda08b5f94fc",
+    "xpedition_cli/main.py": "4ee1d74b397723566d6982215e0381edc833cf122b0f7f0868d25c3c38168193",
+    "xpedition_cli/reference_data.py": "83dd6aa55df294cee7723b85336efb5550850ef1e37178a7d7b282bd6bb55433"
+  }
+}

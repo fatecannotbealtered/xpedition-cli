@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `system api-inventory` reads trusted standalone COM type-library metadata on
+  Windows without application activation, method invocation or registration.
+  Type headers and selected member pages report names, identities and raw type
+  descriptors; they do not become callable CLI capabilities or inferred schemas.
+- Exact type selection, bounded pages and descriptor depth, incomplete-read
+  reporting, source hashes and safe projection. DLL/EXE/URL/UNC input, backend
+  selection and write flags are rejected. Xpedition semantics remain untested.
+- A Windows smoke workflow exercises the real pywin32 loader against Windows'
+  standard OLE type library, without Xpedition. It is not a licensed-native test.
+
 ## [1.0.0] - 2026-09-17
 
 ### Added
