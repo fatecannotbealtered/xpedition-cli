@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   combination before native access instead of running Mock checks on a native
   snapshot. Native stored-result reads remain available. This intentionally
   tightens backend selection; it does not implement a native analysis engine.
+- Confirmation consumption now serializes ledger check/update across cooperating
+  processes and threads, atomically replaces the ledger and rechecks expiry after
+  locking. Concurrent first-use secret creation no longer races; corrupt secrets
+  are rejected rather than silently reused or rotated.
+- Reject alternate base64 token representations that could evade a consumed-token
+  fingerprint, non-ASCII signatures and nonfinite or malformed signed expiry data.
+- Preserve the pinned spec's storage-failure degradation, with explicit secret-free
+  stderr warnings. Failed replacement preserves the old ledger; unavailable lock
+  storage never triggers an unlocked ledger rewrite. Lock contention is a conflict,
+  not degradation. This is not a project write lock or exactly-once native execution.
 
 ## [1.0.0] - 2026-09-17
 
