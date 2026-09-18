@@ -246,6 +246,10 @@ class _SheetPlanner:
         self.boxed = boxed
         self.placed: dict[str, _Placed] = {}
         self.symbol_boxes: list[tuple[str, tuple[int, int, int, int]]] = []
+        # For DS-09: the free wire ends Designer finishes nets at, and the
+        # label boxes and symbols that must not land on another net's end.
+        self.endpoints: list[tuple[str, int, int]] = []
+        self.coverage: list[tuple[str, str, tuple[int, int, int, int]]] = []
         # parts wired to each other inside one ladder or chain may sit closer than MIN_GAP
         self.neighbours: set[frozenset[str]] = set()
 
@@ -307,6 +311,7 @@ class _SheetPlanner:
         start: str | None = None,
         end: str | None = None,
         label: dict[str, Any] | None = None,
+        net: str | None = None,
     ) -> None:
         for px, py in points:
             if px % GRID or py % GRID:
@@ -314,6 +319,12 @@ class _SheetPlanner:
         for (ax, ay), (bx, by) in zip(points, points[1:], strict=False):
             if ax != bx and ay != by:
                 raise DesignError(f"wire from ({ax}, {ay}) to ({bx}, {by}) is not orthogonal")
+        # Designer finishes a net at a wire's free end, so those are the points
+        # another net's label box or symbol must not land on. See DS-09.
+        owner = net or (str(label["net"]) if label else None)
+        if owner:
+            for point in (points[0], points[-1]):
+                self.endpoints.append((owner, point[0], point[1]))
         self.op(
             op="wire", points=[[px, py] for px, py in points], start=start, end=end, label=label
         )
@@ -324,10 +335,12 @@ class _SheetPlanner:
             op="place_symbol", library=self.partition, symbol=symbol.name, x=x, y=y, orientation=0
         )
         self.symbol_boxes.append((f"power {net}", (x - 20, y, x + 20, y + 40)))
+        self.coverage.append((net, f"power symbol {net}", (x - 20, y, x + 20, y + 40)))
 
     def ground(self, x: int, y: int) -> None:
         self.op(op="place_symbol", library="Globals", symbol="gnd", x=x, y=y, orientation=0)
         self.symbol_boxes.append(("gnd", (x - 20, y - 40, x + 20, y)))
+        self.coverage.append(("GND", "ground symbol", (x - 20, y - 40, x + 20, y)))
 
     def no_connect(self, x: int, y: int, side: str) -> None:
         self.op(
@@ -350,8 +363,10 @@ class _SheetPlanner:
             lx, ly = x + 4, y + 2
         else:
             lx, ly = x + 4, y - LABEL_HEIGHT - 4
+        box = (lx - 2, ly - 2, lx + width + 2, ly + LABEL_HEIGHT + 2)
         if self.boxed:
-            self.op(op="box", x1=lx - 2, y1=ly - 2, x2=lx + width + 2, y2=ly + LABEL_HEIGHT + 2)
+            self.op(op="box", x1=box[0], y1=box[1], x2=box[2], y2=box[3])
+            self.coverage.append((net, f"label box {net}", box))
         return {"net": net, "x": lx, "y": ly}
 
     def text(self, text: str, x: int, y: int, size: int) -> None:
@@ -408,14 +423,19 @@ class _SheetPlanner:
             if kind == "nc":
                 self.no_connect(px, py, side)
             elif kind == "label":
-                self.wire([(px, py), (ex, ey)], start=ref, label=self.label(name, ex, ey, side))
+                self.wire(
+                    [(px, py), (ex, ey)],
+                    start=ref,
+                    label=self.label(name, ex, ey, side),
+                    net=name,
+                )
                 self.connect(name, ref)
             elif kind == "power":
-                self.wire([(px, py), (ex, ey)], start=ref)
+                self.wire([(px, py), (ex, ey)], start=ref, net=name)
                 self.power(name, ex, ey)
                 self.connect(name, ref)
             elif kind == "gnd":
-                self.wire([(px, py), (ex, ey)], start=ref)
+                self.wire([(px, py), (ex, ey)], start=ref, net="GND")
                 if side == "bottom":
                     ground_ends.append((ex, ey))
                 else:
@@ -431,7 +451,7 @@ class _SheetPlanner:
                 # and a symbol pin on that corner does not connect; so the bar runs one
                 # stub past the last pin and the ground symbol sits on its free end.
                 gx, gy = ground_ends[-1][0] + STUB, ground_ends[-1][1]
-                self.wire([ground_ends[0], (gx, gy)])
+                self.wire([ground_ends[0], (gx, gy)], net="GND")
             self.ground(gx, gy)
 
     def ladder(self, block: dict[str, Any], vertical: bool) -> None:
@@ -491,8 +511,18 @@ class _SheetPlanner:
             nx2, ny2 = node_points[index + 1]
             head_ref, tail_ref = f"{placed.refdes}.{head.number}", f"{placed.refdes}.{tail.number}"
             tail_label = labels.get(index + 1) if index == len(parts) - 1 else None
-            self.wire([(nx, ny), (hx, hy)], end=head_ref, label=labels.get(index))
-            self.wire([(tx, ty), (nx2, ny2)], start=tail_ref, label=tail_label)
+            self.wire(
+                [(nx, ny), (hx, hy)],
+                end=head_ref,
+                label=labels.get(index),
+                net=node_kinds[index][1],
+            )
+            self.wire(
+                [(tx, ty), (nx2, ny2)],
+                start=tail_ref,
+                label=tail_label,
+                net=node_kinds[index + 1][1],
+            )
             pin_at_node[index].append(head_ref)
             pin_at_node[index + 1].append(tail_ref)
             if index:
@@ -556,6 +586,32 @@ class _SheetPlanner:
                             "objects": [a, b],
                             "gap": gap,
                             "message": f"closer than {MIN_GAP} units",
+                        }
+                    )
+        # DS-09. Designer finishes a net at a wire's free end, so anything of
+        # another net sitting on that point changes what the draw means. A ground
+        # symbol reaches 40 units past its own end, four slots at the 10-unit pin
+        # pitch; a boxed label is CHAR_WIDTH per character wide and runs sideways
+        # from a top-edge pin across its neighbours. Either one refuses the draw
+        # (6031, 6035) -- or worse, draws, merging two nets with nothing said.
+        # Touching counts: a box edge that lands exactly on an end is the silent
+        # case. DS-07/DS-08 check symbol extents and spacing, not this.
+        for net, description, (x1, y1, x2, y2) in self.coverage:
+            for owner, px, py in self.endpoints:
+                if owner == net:
+                    continue
+                if x1 <= px <= x2 and y1 <= py <= y2:
+                    self.plan.issues.append(
+                        {
+                            "check": "DS-09",
+                            "sheet": sheet_number,
+                            "object": description,
+                            "net": net,
+                            "covers": {"net": owner, "x": px, "y": py},
+                            "bbox": [x1, y1, x2, y2],
+                            "message": (
+                                f"{description} covers the end of net {owner} at ({px}, {py})"
+                            ),
                         }
                     )
 

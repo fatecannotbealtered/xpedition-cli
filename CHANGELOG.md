@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- DS-09 checks, when the plan is built, that nothing belonging to one net lands on the
+  free end of another net's wire: a ground symbol reaches 40 units past its own end, four
+  slots at the 10-unit pin pitch, and a boxed label runs `CHAR_WIDTH` per character
+  sideways from a top-edge pin across its neighbours. Designer refuses those draws with
+  6031 and 6035, and a box that lands exactly on an end is worse -- it draws, merging two
+  nets, with nothing in the output to say so. DS-07 and DS-08 check symbol extents and
+  spacing; none of this was checked, so three draws failed on plans reported clean.
 - A failed draw operation reports the sheet it fell on, the net or symbol it touched,
   and how many operations had already been applied. An index alone was not locatable:
   resolving "operation 269" meant importing the planner, rebuilding the plan and counting
