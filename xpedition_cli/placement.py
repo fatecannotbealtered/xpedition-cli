@@ -1,8 +1,9 @@
-"""Deterministic, origin-based placement tasks. No COM, I/O writes or DRC here.
+"""Pure origin-based planning and driver-mediated placement task execution.
 
 All geometry is expressed in mm in board coordinates (including bottom parts).
 Plans describe intent, not electrical correctness or automatic routing repair.
 """
+
 from __future__ import annotations
 
 import copy
@@ -143,7 +144,9 @@ def normalize_state(rows: Any, selection: list[str]) -> list[dict[str, Any]]:
         if refdes in by_name:
             fail("selected reference designator is ambiguous", refdes, "E_CONFLICT")
         if row.get("unit") != "mm" or row.get("placed") is not True:
-            fail("only placed components with explicit millimetre observations are supported", refdes)
+            fail(
+                "only placed components with explicit millimetre observations are supported", refdes
+            )
         if row.get("side") not in ("top", "bottom"):
             fail("component side is missing or unknown", refdes)
         # Protection must be observed, never guessed false. Native binding uses
@@ -154,11 +157,16 @@ def normalize_state(rows: Any, selection: list[str]) -> list[dict[str, Any]]:
             fail("component fix_lock state must be explicitly observed", refdes)
         object_id = _name(row.get("object_id"), refdes + ".object_id")
         by_name[refdes] = {
-            "refdes": refdes, "x": number(row.get("x"), refdes + ".x"),
+            "refdes": refdes,
+            "x": number(row.get("x"), refdes + ".x"),
             "y": number(row.get("y"), refdes + ".y"),
             "rotation": number(row.get("rotation"), refdes + ".rotation") % 360,
-            "side": row["side"], "placed": True, "unit": "mm",
-            "anchor": row["anchor"], "fix_lock": row["fix_lock"], "object_id": object_id,
+            "side": row["side"],
+            "placed": True,
+            "unit": "mm",
+            "anchor": row["anchor"],
+            "fix_lock": row["fix_lock"],
+            "object_id": object_id,
         }
     if selected != set(by_name):
         fail("selected components were not all observed", "selection", "E_NOT_FOUND")
@@ -171,18 +179,27 @@ def same_position(expected: dict[str, Any], observed: dict[str, Any]) -> bool:
             if type(expected[key]) is not type(observed[key]) or expected[key] != observed[key]:
                 return False
         for key in ("x", "y"):
-            if not math.isclose(number(expected[key], key), number(observed[key], key),
-                                rel_tol=0, abs_tol=POSITION_TOLERANCE_MM):
+            if not math.isclose(
+                number(expected[key], key),
+                number(observed[key], key),
+                rel_tol=0,
+                abs_tol=POSITION_TOLERANCE_MM,
+            ):
                 return False
-        delta = (number(expected["rotation"], "rotation") -
-                 number(observed["rotation"], "rotation") + 180) % 360 - 180
+        delta = (
+            number(expected["rotation"], "rotation")
+            - number(observed["rotation"], "rotation")
+            + 180
+        ) % 360 - 180
         return abs(delta) <= ANGLE_TOLERANCE_DEG
     except (KeyError, CLIError):
         return False
 
 
 def digest(value: Any) -> str:
-    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    raw = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    )
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -224,12 +241,21 @@ def plan_placement(request: Any, observations: Any) -> dict[str, Any]:
             fail("the task would move a locked or fixed component", old["refdes"], "E_CONFLICT")
         results.append({"id": old["refdes"], "before": old, "target": new, "changed": changed})
     return {
-        "schema_version": "1.0", "unit": "mm", "request": request,
+        "schema_version": "1.0",
+        "unit": "mm",
+        "request": request,
         "state_digest": digest(sorted(before, key=lambda row: row["refdes"])),
         "results": results,
-        "summary": {"selected_count": len(results), "changed_count": sum(r["changed"] for r in results)},
-        "validation": {"input": "validated", "geometry": "origin_math_only", "drc": "not_run",
-                       "native_smoke": "missing"},
+        "summary": {
+            "selected_count": len(results),
+            "changed_count": sum(r["changed"] for r in results),
+        },
+        "validation": {
+            "input": "validated",
+            "geometry": "origin_math_only",
+            "drc": "not_run",
+            "native_smoke": "missing",
+        },
         "_untrusted": ["request", "results"],
     }
 
@@ -242,7 +268,9 @@ class PlacementDriver(Protocol):
     def save(self) -> None: ...
 
 
-def execute_placement(request: Any, expected_digest: str, driver: PlacementDriver) -> dict[str, Any]:
+def execute_placement(
+    request: Any, expected_digest: str, driver: PlacementDriver
+) -> dict[str, Any]:
     """Execute serially under caller's lock; stop at first uncertainty, never undo blindly.
 
     No all-or-none claim: a failed UnPlace/Place can leave this part unplaced.
@@ -251,15 +279,29 @@ def execute_placement(request: Any, expected_digest: str, driver: PlacementDrive
     request = validate_request(request)
     plan = plan_placement(request, driver.observe(request["selection"]))
     if plan["state_digest"] != expected_digest:
-        raise CLIError("E_CONFLICT", "selected placements changed since preview",
-                       {"stage": "precondition", "write_attempted": False})
-    rows = [{**row, "ok": not row["changed"], "status": "not_attempted" if row["changed"] else "unchanged"}
-            for row in plan["results"]]
+        raise CLIError(
+            "E_CONFLICT",
+            "selected placements changed since preview",
+            {"stage": "precondition", "write_attempted": False},
+        )
+    rows = [
+        {
+            **row,
+            "ok": not row["changed"],
+            "status": "not_attempted" if row["changed"] else "unchanged",
+        }
+        for row in plan["results"]
+    ]
     report: dict[str, Any] = {
-        "results": rows, "outcome": "complete", "saved": False, "write_attempted": False,
-        "state_digest_before": expected_digest, "drc_restored": None,
+        "results": rows,
+        "outcome": "complete",
+        "saved": False,
+        "write_attempted": False,
+        "state_digest_before": expected_digest,
+        "drc_restored": None,
         "verification": {"valid": False, "scope": "selected_placements", "drc": "not_run"},
-        "issues": [], "_untrusted": ["results", "issues"],
+        "issues": [],
+        "_untrusted": ["results", "issues"],
     }
     current_stage = "drc_enable"
     previous = None
@@ -296,8 +338,13 @@ def execute_placement(request: Any, expected_digest: str, driver: PlacementDrive
         report["verification"]["valid"] = True
     except Exception as error:
         report["outcome"] = "partial_failure" if report["write_attempted"] else "failed"
-        report["issues"].append({"stage": current_stage, "code": getattr(error, "code", "E_UNKNOWN"),
-                                 "exception_type": type(error).__name__})
+        report["issues"].append(
+            {
+                "stage": current_stage,
+                "code": getattr(error, "code", "E_UNKNOWN"),
+                "exception_type": type(error).__name__,
+            }
+        )
     finally:
         if enabled:
             try:
@@ -306,7 +353,9 @@ def execute_placement(request: Any, expected_digest: str, driver: PlacementDrive
             except Exception as error:
                 report["drc_restored"] = False
                 report["outcome"] = "partial_failure" if report["write_attempted"] else "failed"
-                report["issues"].append({"stage": "drc_restore", "exception_type": type(error).__name__})
+                report["issues"].append(
+                    {"stage": "drc_restore", "exception_type": type(error).__name__}
+                )
     if report["outcome"] == "complete" and report["write_attempted"]:
         try:
             driver.save()
@@ -315,31 +364,65 @@ def execute_placement(request: Any, expected_digest: str, driver: PlacementDrive
             report["outcome"] = "save_unknown"
             report["saved"] = None
             report["issues"].append({"stage": "save", "exception_type": type(error).__name__})
-    report["summary"] = {"ok_count": sum(row["ok"] for row in rows),
-                         "error_count": sum(not row["ok"] for row in rows)}
+    report["summary"] = {
+        "ok_count": sum(row["ok"] for row in rows),
+        "error_count": sum(not row["ok"] for row in rows),
+    }
     return report
 
 
 def input_schema() -> dict[str, Any]:
     numeric = {"type": "number", "minimum": -COORDINATE_LIMIT_MM, "maximum": COORDINATE_LIMIT_MM}
-    name = {"type": "string", "minLength": 1, "maxLength": 128,
-            "pattern": r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$"}
-    types = {"number": numeric, "refdes": name, "axis": {"enum": ["x", "y"]},
-             "point": {"type": "array", "items": numeric, "minItems": 2, "maxItems": 2}}
+    name = {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$",
+    }
+    types = {
+        "number": numeric,
+        "refdes": name,
+        "axis": {"enum": ["x", "y"]},
+        "point": {"type": "array", "items": numeric, "minItems": 2, "maxItems": 2},
+    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object", "additionalProperties": False,
+        "type": "object",
+        "additionalProperties": False,
         "required": ["schema_version", "unit", "selection", "steps"],
         "properties": {
-            "schema_version": {"const": "1.0"}, "unit": {"const": "mm"},
-            "selection": {"type": "array", "items": name, "minItems": 1,
-                          "maxItems": MAX_SELECTION, "uniqueItems": True},
-            "steps": {"type": "array", "minItems": 1, "maxItems": MAX_STEPS,
-                      "items": {"oneOf": [
-                          {"type": "object", "additionalProperties": False,
-                           "required": ["op", *fields],
-                           "properties": {"op": {"const": op}, **{k: types[v] for k, v in fields.items()}}}
-                          for op, fields in STEP_FIELDS.items()]}},
+            "schema_version": {"const": "1.0"},
+            "unit": {"const": "mm"},
+            "selection": {
+                "type": "array",
+                "items": name,
+                "minItems": 1,
+                "maxItems": MAX_SELECTION,
+                "uniqueItems": True,
+            },
+            "steps": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": MAX_STEPS,
+                "items": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["op", *fields],
+                            "properties": {
+                                "op": {"const": op},
+                                **{k: types[v] for k, v in fields.items()},
+                            },
+                        }
+                        for op, fields in STEP_FIELDS.items()
+                    ]
+                },
+            },
         },
-        "description": "Origin-based tasks. Selection order defines distribution order; align anchor must be selected. No unplacing during preview, no route repair, flips or DRC simulation.",
+        "description": (
+            "Origin-based tasks. Selection order defines distribution order; "
+            "align anchor must be selected. No unplacing during preview, "
+            "no route repair, flips or DRC simulation."
+        ),
     }

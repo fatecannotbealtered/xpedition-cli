@@ -6786,6 +6786,14 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             return _hand_route(params, client)
         if method == "unroute_nets":
             return _unroute_nets(params, client)
+        if method == "placement_batch":
+            from .errors import CLIError
+            from .native_placement import run as run_placement
+
+            try:
+                return run_placement(params, client)
+            except CLIError as error:
+                raise AdapterError(error.code, error.message, error.details) from error
         if method == "move_component":
             return _move_component(params, client)
         if method == "board_geometry":

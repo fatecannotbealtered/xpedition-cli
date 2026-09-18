@@ -8,21 +8,40 @@ import pytest
 
 from xpedition_cli.errors import CLIError
 from xpedition_cli.placement import (
-    execute_placement, input_schema, plan_placement, read_json, same_position, validate_request,
+    execute_placement,
+    input_schema,
+    plan_placement,
+    read_json,
+    same_position,
+    validate_request,
 )
 
 
 def observations():
     return [
-        {"refdes": name, "object_id": str(i), "x": x, "y": y, "rotation": 0,
-         "side": "bottom" if i == 1 else "top", "placed": True, "unit": "mm", "anchor": 0, "fix_lock": 0}
+        {
+            "refdes": name,
+            "object_id": str(i),
+            "x": x,
+            "y": y,
+            "rotation": 0,
+            "side": "bottom" if i == 1 else "top",
+            "placed": True,
+            "unit": "mm",
+            "anchor": 0,
+            "fix_lock": 0,
+        }
         for i, (name, x, y) in enumerate((("R1", 0, 0), ("R2", 10, 5), ("R3", 30, 8)))
     ]
 
 
 def task(*steps):
-    return {"schema_version": "1.0", "unit": "mm", "selection": ["R1", "R2", "R3"],
-            "steps": list(steps) or [{"op": "translate", "dx": 1, "dy": -2}]}
+    return {
+        "schema_version": "1.0",
+        "unit": "mm",
+        "selection": ["R1", "R2", "R3"],
+        "steps": list(steps) or [{"op": "translate", "dx": 1, "dy": -2}],
+    }
 
 
 def test_translate_keeps_sides_identities_order_and_source():
@@ -39,14 +58,20 @@ def test_translate_keeps_sides_identities_order_and_source():
 
 def test_rotation_is_about_explicit_origin_in_board_coordinates():
     plan = plan_placement(task({"op": "rotate", "angle": 90, "origin": [10, 5]}), observations())
-    assert [(r["target"]["x"], r["target"]["y"]) for r in plan["results"]] == [(15, -5), (10, 5), (7, 25)]
+    assert [(r["target"]["x"], r["target"]["y"]) for r in plan["results"]] == [
+        (15, -5),
+        (10, 5),
+        (7, 25),
+    ]
     assert all(r["target"]["rotation"] == 90 for r in plan["results"])
     assert plan["results"][1]["target"]["side"] == "bottom"
 
 
 def test_align_and_distribute_follow_explicit_selection_not_refdes_sort():
-    value = task({"op": "align", "axis": "y", "anchor": "R2"},
-                 {"op": "distribute", "axis": "x", "start": 25, "end": 5})
+    value = task(
+        {"op": "align", "axis": "y", "anchor": "R2"},
+        {"op": "distribute", "axis": "x", "start": 25, "end": 5},
+    )
     value["selection"] = ["R3", "R1", "R2"]
     result = plan_placement(value, observations())
     assert [r["id"] for r in result["results"]] == value["selection"]
@@ -54,7 +79,9 @@ def test_align_and_distribute_follow_explicit_selection_not_refdes_sort():
     assert [r["target"]["y"] for r in result["results"]] == [5, 5, 5]
 
 
-@pytest.mark.parametrize("state_key,state_value", [("anchor", 1), ("anchor", 2), ("anchor", 3), ("fix_lock", 4)])
+@pytest.mark.parametrize(
+    "state_key,state_value", [("anchor", 1), ("anchor", 2), ("anchor", 3), ("fix_lock", 4)]
+)
 def test_every_observed_protection_blocks_changed_parts(state_key, state_value):
     source = observations()
     source[1][state_key] = state_value
@@ -72,14 +99,23 @@ def test_bad_numbers_are_rejected(bad):
         validate_request(task({"op": "translate", "dx": bad, "dy": 0}))
 
 
-@pytest.mark.parametrize("mutation", [
-    lambda t: t.update(extra=True), lambda t: t.update(unit="mil"),
-    lambda t: t.update(selection=["R1", "R1"]), lambda t: t.update(selection=[]),
-    lambda t: t.update(selection=[" R1"]), lambda t: t.update(steps=[]),
-    lambda t: t["steps"][0].update(extra=True), lambda t: t["steps"][0].update(op="delete"),
-    lambda t: t.update(steps=[{"op": "align", "axis": "x", "anchor": "missing"}]),
-    lambda t: t.update(selection=["R1"], steps=[{"op": "distribute", "axis": "x", "start": 0, "end": 1}]),
-])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda t: t.update(extra=True),
+        lambda t: t.update(unit="mil"),
+        lambda t: t.update(selection=["R1", "R1"]),
+        lambda t: t.update(selection=[]),
+        lambda t: t.update(selection=[" R1"]),
+        lambda t: t.update(steps=[]),
+        lambda t: t["steps"][0].update(extra=True),
+        lambda t: t["steps"][0].update(op="delete"),
+        lambda t: t.update(steps=[{"op": "align", "axis": "x", "anchor": "missing"}]),
+        lambda t: t.update(
+            selection=["R1"], steps=[{"op": "distribute", "axis": "x", "start": 0, "end": 1}]
+        ),
+    ],
+)
 def test_invalid_requests_fail_without_a_plan(mutation):
     value = task()
     mutation(value)
@@ -87,7 +123,9 @@ def test_invalid_requests_fail_without_a_plan(mutation):
         plan_placement(value, observations())
 
 
-@pytest.mark.parametrize("field", ["x", "y", "rotation", "unit", "side", "placed", "anchor", "fix_lock", "object_id"])
+@pytest.mark.parametrize(
+    "field", ["x", "y", "rotation", "unit", "side", "placed", "anchor", "fix_lock", "object_id"]
+)
 def test_missing_observation_is_not_defaulted(field):
     source = observations()
     del source[1][field]
@@ -106,18 +144,30 @@ def test_roundtrip_transform_for_seeded_coordinates():
     for _ in range(100):
         source = observations()
         for row in source:
-            row.update(x=rng.uniform(-100, 100), y=rng.uniform(-100, 100), rotation=rng.uniform(0, 360))
+            row.update(
+                x=rng.uniform(-100, 100), y=rng.uniform(-100, 100), rotation=rng.uniform(0, 360)
+            )
         angle = rng.uniform(-720, 720)
-        request = task({"op": "rotate", "angle": angle, "origin": [2, -8]},
-                       {"op": "rotate", "angle": -angle, "origin": [2, -8]})
+        request = task(
+            {"op": "rotate", "angle": angle, "origin": [2, -8]},
+            {"op": "rotate", "angle": -angle, "origin": [2, -8]},
+        )
         result = plan_placement(request, source)
-        assert all(same_position(old, row["target"]) for old, row in zip(source, result["results"], strict=True))
+        assert all(
+            same_position(old, row["target"])
+            for old, row in zip(source, result["results"], strict=True)
+        )
         assert result["summary"]["changed_count"] == 0
 
 
 def test_schema_is_generated_for_all_operations():
     choices = input_schema()["properties"]["steps"]["items"]["oneOf"]
-    assert {choice["properties"]["op"]["const"] for choice in choices} == {"translate", "rotate", "align", "distribute"}
+    assert {choice["properties"]["op"]["const"] for choice in choices} == {
+        "translate",
+        "rotate",
+        "align",
+        "distribute",
+    }
     assert all(choice["additionalProperties"] is False for choice in choices)
 
 
@@ -163,7 +213,9 @@ class Driver:
             self.rows[1]["placed"] = False
             raise RuntimeError("private error")
         if self.mode != "swallowed":
-            self.rows[self.rows.index(next(r for r in self.rows if r["refdes"] == target["refdes"]))] = copy.deepcopy(target)
+            self.rows[
+                self.rows.index(next(r for r in self.rows if r["refdes"] == target["refdes"]))
+            ] = copy.deepcopy(target)
 
     def save(self):
         self.calls.append("save")
@@ -181,8 +233,15 @@ def test_execute_verifies_every_target_and_saves_once():
     assert not driver.drc
 
 
-@pytest.mark.parametrize("mode,outcome", [("partial_failure", "partial_failure"), ("swallowed", "partial_failure"),
-                                           ("restore_failure", "partial_failure"), ("save_failure", "save_unknown")])
+@pytest.mark.parametrize(
+    "mode,outcome",
+    [
+        ("partial_failure", "partial_failure"),
+        ("swallowed", "partial_failure"),
+        ("restore_failure", "partial_failure"),
+        ("save_failure", "save_unknown"),
+    ],
+)
 def test_failures_never_fake_complete_or_blindly_rollback(mode, outcome):
     driver = Driver(mode)
     result = execute_placement(task(), plan_placement(task(), driver.rows)["state_digest"], driver)

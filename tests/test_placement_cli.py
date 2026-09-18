@@ -4,12 +4,12 @@ import copy
 import json
 
 import pytest
+from test_placement import Driver, observations, task
 
-from xpedition_cli import main as cli
 from xpedition_cli import backends
+from xpedition_cli import main as cli
 from xpedition_cli.errors import CLIError
 from xpedition_cli.placement import execute_placement, plan_placement
-from test_placement import Driver, observations, task
 
 
 def invoke(capsys, *args):
@@ -24,7 +24,9 @@ def inputs(tmp_path, monkeypatch):
     file = tmp_path / "task.json"
     file.write_text(json.dumps(task()), encoding="utf-8")
     observation = tmp_path / "observations.json"
-    observation.write_text(json.dumps({"schema_version": "1.0", "components": observations()}), encoding="utf-8")
+    observation.write_text(
+        json.dumps({"schema_version": "1.0", "components": observations()}), encoding="utf-8"
+    )
     project = tmp_path / "board.prj"
     project.write_text("synthetic fixture, not an Xpedition project", encoding="utf-8")
     return file, observation, project
@@ -61,16 +63,35 @@ class Native:
 
 def native_args(inputs):
     file, _, project = inputs
-    return ("pcb", "placement", "--backend", "native_xpedition", "--project", str(project), "--file", str(file))
+    return (
+        "pcb",
+        "placement",
+        "--backend",
+        "native_xpedition",
+        "--project",
+        str(project),
+        "--file",
+        str(file),
+    )
 
 
 def test_offline_plan_is_a_read_only_cli_command(inputs, monkeypatch, capsys):
     def unexpected(*args, **kwargs):
         raise AssertionError("offline planner must not construct a native backend")
+
     monkeypatch.setattr(backends, "NativeBackend", unexpected)
     file, observation, project = inputs
     old = project.read_bytes()
-    code, result, _ = invoke(capsys, "pcb", "placement-plan", "--file", str(file), "--input", str(observation), "--compact")
+    code, result, _ = invoke(
+        capsys,
+        "pcb",
+        "placement-plan",
+        "--file",
+        str(file),
+        "--input",
+        str(observation),
+        "--compact",
+    )
     assert code == 0 and result["ok"]
     assert result["data"]["summary"]["changed_count"] == 3
     assert result["data"]["validation"]["native_smoke"] == "missing"
@@ -107,13 +128,17 @@ def test_stale_preview_or_changed_task_never_executes(inputs, monkeypatch, capsy
     elif change == "identity":
         fake.driver.rows[0]["object_id"] = "new-component"
     else:
-        inputs[0].write_text(json.dumps(task({"op": "translate", "dx": 3, "dy": 0})), encoding="utf-8")
+        inputs[0].write_text(
+            json.dumps(task({"op": "translate", "dx": 3, "dy": 0})), encoding="utf-8"
+        )
     code, result, _ = invoke(capsys, *args, "--confirm", preview["data"]["confirm_token"])
     assert code == 6 and result["error"]["code"] == "E_CONFLICT"
     assert not fake.driver.calls and not any(call["apply"] for call in fake.calls)
 
 
-@pytest.mark.parametrize("mode", ["partial_failure", "save_failure", "restore_failure", "swallowed"])
+@pytest.mark.parametrize(
+    "mode", ["partial_failure", "save_failure", "restore_failure", "swallowed"]
+)
 def test_cli_reports_nonretryable_partial_failures(inputs, monkeypatch, capsys, mode):
     fake = Native(inputs[2], mode)
     monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
@@ -157,18 +182,23 @@ def test_inconsistent_preview_cannot_issue_a_confirmation(inputs, monkeypatch, c
     assert not (inputs[2].parent / "config" / "confirm.secret").exists()
 
 
-@pytest.mark.parametrize("args", [
-    ("pcb", "placement", "--file", "--dry-run"),
-    ("pcb", "placement", "--file=a", "--file=b", "--dry-run"),
-    ("pcb", "placement", "--all", "--dry-run"),
-    ("pcb", "placement-plan", "--confirm", "ct_invalid"),
-    ("pcb", "placement-plan", "--file=a", "--input=b", "extra"),
-    ("pcb", "placement-plan", "--file=a", "--input="),
-])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("pcb", "placement", "--file", "--dry-run"),
+        ("pcb", "placement", "--file=a", "--file=b", "--dry-run"),
+        ("pcb", "placement", "--all", "--dry-run"),
+        ("pcb", "placement-plan", "--confirm", "ct_invalid"),
+        ("pcb", "placement-plan", "--file=a", "--input=b", "extra"),
+        ("pcb", "placement-plan", "--file=a", "--input="),
+    ],
+)
 def test_bad_options_fail_before_files_or_backend(inputs, monkeypatch, capsys, args):
     from xpedition_cli import placement_command
+
     def unexpected(*args, **kwargs):
         raise AssertionError("invalid options reached input reading")
+
     monkeypatch.setattr(placement_command, "read_json", unexpected)
     code, result, _ = invoke(capsys, *args)
     assert code == 2 and result["error"]["code"] == "E_USAGE"
@@ -186,7 +216,10 @@ def test_reference_declares_input_output_safety_and_evidence(inputs, capsys):
         assert c["verification"]["native_smoke"] == "missing"
     assert commands["pcb placement"]["dry_run_output_schema"] in data["schemas"]
     for name in ("dry-run", "confirm"):
-        assert "pcb placement" in next(f for f in data["global_flags"] if f["name"] == name)["applies_to"]
+        assert (
+            "pcb placement"
+            in next(f for f in data["global_flags"] if f["name"] == name)["applies_to"]
+        )
 
 
 def test_release_readiness_is_beta_while_new_native_smoke_is_missing(inputs, capsys):

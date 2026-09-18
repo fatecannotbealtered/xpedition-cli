@@ -75,8 +75,12 @@ class Document:
 
 
 def request():
-    return {"schema_version": "1.0", "unit": "mm", "selection": ["R1", "R2"],
-            "steps": [{"op": "translate", "dx": 2, "dy": 3}]}
+    return {
+        "schema_version": "1.0",
+        "unit": "mm",
+        "selection": ["R1", "R2"],
+        "steps": [{"op": "translate", "dx": 2, "dy": 3}],
+    }
 
 
 def test_real_binding_uses_explicit_units_and_preserves_bottom_side_and_unselected():
@@ -94,7 +98,9 @@ def test_real_binding_uses_explicit_units_and_preserves_bottom_side_and_unselect
     assert doc.saved == 1 and doc.RespectComponentPlacementDRC is False
 
 
-@pytest.mark.parametrize("protection,value", [("Anchor", 1), ("Anchor", 2), ("Anchor", 3), ("FixLock", 1)])
+@pytest.mark.parametrize(
+    "protection,value", [("Anchor", 1), ("Anchor", 2), ("Anchor", 3), ("FixLock", 1)]
+)
 def test_actual_anchor_and_fixlock_are_not_overridden(protection, value):
     doc = Document()
     setattr(doc.rows[1], protection, value)
@@ -104,8 +110,17 @@ def test_actual_anchor_and_fixlock_are_not_overridden(protection, value):
     assert not doc.saved and not any(part.calls for part in doc.rows)
 
 
-@pytest.mark.parametrize("attribute,value", [("Side", 0), ("Side", True), ("Anchor", None),
-                                            ("FixLock", "0"), ("UniqueId", None), ("Placed", False)])
+@pytest.mark.parametrize(
+    "attribute,value",
+    [
+        ("Side", 0),
+        ("Side", True),
+        ("Anchor", None),
+        ("FixLock", "0"),
+        ("UniqueId", None),
+        ("Placed", False),
+    ],
+)
 def test_unknown_native_state_fails_closed(attribute, value):
     doc = Document()
     setattr(doc.rows[1], attribute, value)
@@ -140,13 +155,18 @@ def test_unavailable_drc_never_unplaces_a_part():
     doc = Document()
     doc.RespectComponentPlacementDRC = None
     driver = LayoutPlacementDriver(doc, request()["selection"], unit_mm=4)
-    result = execute_placement(request(), plan_placement(request(), driver.observe(request()["selection"]))["state_digest"], driver)
+    result = execute_placement(
+        request(),
+        plan_placement(request(), driver.observe(request()["selection"]))["state_digest"],
+        driver,
+    )
     assert result["outcome"] == "failed" and not result["write_attempted"]
     assert not any(part.calls for part in doc.rows) and not doc.saved
 
 
 def test_adapter_dispatch_wires_preview_apply_and_structured_errors(tmp_path, monkeypatch):
     from xpedition_cli import native_com_adapter as bridge
+
     doc = Document()
     board = tmp_path / "test.pcb"
     board.write_text("fixture only", encoding="utf-8")
@@ -162,9 +182,11 @@ def test_adapter_dispatch_wires_preview_apply_and_structured_errors(tmp_path, mo
 
     monkeypatch.setattr(bridge, "_import_com", lambda: (Com(), None))
     monkeypatch.setattr(bridge, "_layout_board_path", lambda params: board)
+
     def application(client, attach_only=False):
         assert attach_only is True, "do not start or take ownership of a new user session"
         return doc
+
     monkeypatch.setattr(bridge, "_application", application)
     monkeypatch.setattr(bridge, "_open_layout_document", lambda app, path: (doc, []))
     monkeypatch.setattr(bridge, "_licensed_document", lambda app: doc)
@@ -173,9 +195,13 @@ def test_adapter_dispatch_wires_preview_apply_and_structured_errors(tmp_path, mo
     preview = bridge.dispatch("placement_batch", params)
     assert preview["pcb"] == str(board) and not doc.saved
     assert not any(part.calls for part in doc.rows)
-    applied = bridge.dispatch("placement_batch", {**params, "apply": True, "state_digest": preview["state_digest"]})
+    applied = bridge.dispatch(
+        "placement_batch", {**params, "apply": True, "state_digest": preview["state_digest"]}
+    )
     assert applied["saved"] and doc.saved == 1
     with pytest.raises(bridge.AdapterError) as error:
-        bridge.dispatch("placement_batch", {**params, "apply": True, "state_digest": preview["state_digest"]})
+        bridge.dispatch(
+            "placement_batch", {**params, "apply": True, "state_digest": preview["state_digest"]}
+        )
     assert error.value.code == "E_CONFLICT" and error.value.details["write_attempted"] is False
     assert lifecycle == ["init", "uninit"] * 3

@@ -2,8 +2,9 @@
 
 API names/signatures were cross-checked against a published community makepy
 interface. This new path has not been validated on licensed Xpedition. It never
-turns placement DRC off, edits routing, flips parts, or invokes bulk UnPlace.
+disables placement DRC while editing, edits routing, flips parts, or invokes bulk UnPlace.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -37,7 +38,9 @@ class LayoutPlacementDriver:
         except CLIError:
             raise
         except Exception as error:
-            raise CLIError("E_BACKEND_UNAVAILABLE", "cannot enumerate Layout component identities") from error
+            raise CLIError(
+                "E_BACKEND_UNAVAILABLE", "cannot enumerate Layout component identities"
+            ) from error
         if set(self.components) != set(selection):
             raise CLIError("E_NOT_FOUND", "selected components were not all found")
 
@@ -54,17 +57,25 @@ class LayoutPlacementDriver:
                 if type(object_id) not in (int, str) or str(object_id).strip() == "":
                     raise ValueError("unobserved identity")
                 row = {
-                    "refdes": item.RefDes, "object_id": str(object_id), "unit": "mm",
-                    "x": item.GetPositionX(self.unit_mm), "y": item.GetPositionY(self.unit_mm),
-                    "rotation": item.GetOrientation(0), "side": "top" if side == 1 else "bottom",
-                    "placed": item.Placed, "anchor": item.Anchor, "fix_lock": item.FixLock,
+                    "refdes": item.RefDes,
+                    "object_id": str(object_id),
+                    "unit": "mm",
+                    "x": item.GetPositionX(self.unit_mm),
+                    "y": item.GetPositionY(self.unit_mm),
+                    "rotation": item.GetOrientation(0),
+                    "side": "top" if side == 1 else "bottom",
+                    "placed": item.Placed,
+                    "anchor": item.Anchor,
+                    "fix_lock": item.FixLock,
                 }
                 rows.append(row)
             return normalize_state(rows, selection)
         except Exception as error:
             # Fail before mutation when observation/protection support is missing.
             # execute_placement classifies an observation error AFTER a write separately.
-            raise CLIError("E_BACKEND_UNAVAILABLE", "cannot observe exact placement, side or protection state") from error
+            raise CLIError(
+                "E_BACKEND_UNAVAILABLE", "cannot observe exact placement, side or protection state"
+            ) from error
 
     def enable_drc(self) -> bool:
         try:
@@ -84,8 +95,11 @@ class LayoutPlacementDriver:
                 restored = True
             except Exception:
                 pass
-            raise CLIError("E_BACKEND_UNAVAILABLE", "cannot enable placement DRC",
-                           {"drc_restored": restored, "write_attempted": False}) from error
+            raise CLIError(
+                "E_BACKEND_UNAVAILABLE",
+                "cannot enable placement DRC",
+                {"drc_restored": restored, "write_attempted": False},
+            ) from error
         return previous
 
     def restore_drc(self, previous: bool) -> None:
@@ -98,8 +112,15 @@ class LayoutPlacementDriver:
         # Each selected part is moved in explicit order, with native placement DRC
         # enabled. An error can leave it unplaced; do not conceal it with blind undo.
         item.UnPlace()
-        item.Place(target["x"], target["y"], target["rotation"], target["side"] == "top",
-                   0, self.unit_mm, 0)
+        item.Place(
+            target["x"],
+            target["y"],
+            target["rotation"],
+            target["side"] == "top",
+            0,
+            self.unit_mm,
+            0,
+        )
 
     def save(self) -> None:
         self.doc.Save()
@@ -137,11 +158,17 @@ def run(params: dict[str, Any], client: Any) -> dict[str, Any]:
             return result
     except CLIError as error:
         if (error.details or {}).get("stage") == "confirmation_lock":
-            raise CLIError("E_CONFLICT", "placement session is busy; no batch write was started",
-                           {"stage": "placement_lock", "write_attempted": False}) from error
+            raise CLIError(
+                "E_CONFLICT",
+                "placement session is busy; no batch write was started",
+                {"stage": "placement_lock", "write_attempted": False},
+            ) from error
         raise
     except OSError as error:
         # Engineering operation exclusion is not the token ledger's permitted
         # degradation policy. Never run the batch without this lock.
-        raise CLIError("E_IO", "cannot acquire placement session lock",
-                       {"stage": "placement_lock", "write_attempted": False}) from error
+        raise CLIError(
+            "E_IO",
+            "cannot acquire placement session lock",
+            {"stage": "placement_lock", "write_attempted": False},
+        ) from error

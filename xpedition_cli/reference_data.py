@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, placement_contract
 from .contract_gen import CODES
 
 SCHEMAS: dict[str, dict[str, Any]] = {
@@ -908,6 +908,9 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
     },
 }
+
+
+SCHEMAS.update(placement_contract.SCHEMAS)
 
 
 def _param(
@@ -2141,30 +2144,25 @@ def commands() -> list[dict[str, Any]]:
             ),
         ]
     )
+    result.extend(placement_contract.commands())
     return result
 
 
 def release_readiness() -> dict[str, Any]:
     return {
-        "level": "stable",
+        "level": "beta",
         "fcc_required": True,
         "fcc_status": "verified",
         "mock_upstream_required": True,
         "mock_upstream_status": "verified",
         "live_smoke_required_for_stable": True,
-        "live_smoke_status": "verified",
+        "live_smoke_status": "missing",
         "reason": (
-            "Every public command has a command-level test (107 of 107); the contract "
-            "tests cover success, validation, usage, confirmation, conflict, not-found, "
-            "backend-unavailable and timeout paths, empty results, paging, the output "
-            "envelope, exit codes and the stdout/stderr boundary; and docs/E2E.md "
-            "records the whole chain on a licensed installation — a schematic drawn and "
-            "read back pin by pin, a board created, annotated, placed, routed by hand "
-            "and by the router, poured, checked (0 DRC errors) and packaged for "
-            "fabrication. Context for that evidence: it comes from one Windows "
-            "installation of XPED2604, with footprints converted from an open-source "
-            "library and placeholder part numbers, and no second machine has repeated "
-            "it."
+            "Selected placement tasks have command-level and simulated native-object tests, "
+            "but the new native placement path has no licensed smoke record. The older "
+            "docs/E2E.md workflow evidence is retained and does not validate these additions. "
+            "Run disposable-board top/bottom, protected-part, refusal, stale-preview, "
+            "save/close/reopen and DRC checks before marking this implementation stable."
         ),
         "required_evidence": [
             "functional_contract_coverage_100",
@@ -2212,7 +2210,7 @@ def reference() -> dict[str, Any]:
             {
                 "name": "input",
                 "type": "path",
-                "applies_to": ["exchange inspect", "exchange import"],
+                "applies_to": ["exchange inspect", "exchange import", "pcb placement-plan"],
             },
             {"name": "name", "type": "string", "applies_to": ["project init"]},
             {"name": "query", "type": "string", "applies_to": ["* query"]},
@@ -2234,12 +2232,22 @@ def reference() -> dict[str, Any]:
             {
                 "name": "dry-run",
                 "type": "boolean",
-                "applies_to": ["change apply", "change rollback", "schematic apply"],
+                "applies_to": [
+                    "change apply",
+                    "change rollback",
+                    "schematic apply",
+                    "pcb placement",
+                ],
             },
             {
                 "name": "confirm",
                 "type": "string",
-                "applies_to": ["change apply", "change rollback", "schematic apply"],
+                "applies_to": [
+                    "change apply",
+                    "change rollback",
+                    "schematic apply",
+                    "pcb placement",
+                ],
             },
             {
                 "name": "backup",

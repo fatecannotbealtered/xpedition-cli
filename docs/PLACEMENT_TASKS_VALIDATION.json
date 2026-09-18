@@ -1,0 +1,36 @@
+{
+  "baseline": "8e40dc910b09e5f0ca58b975739bc4bba7cef031",
+  "dependency_pr": 7,
+  "run_id": "35298684673",
+  "python": "3.12.14 (main, Aug 13 2026, 02:47:42) [GCC 13.3.0]",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "baseline_selected": {
+    "tests": 3,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full_suite": {
+    "tests": 323,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "linux_pyinstaller_offline_smoke": "passed",
+  "native_xpedition_executed": false,
+  "source_sha256": {
+    "xpedition_cli/native_placement.py": "17e4755448f5b84ace3178d467a80c344712afba76103ba73ca672200348b2ab",
+    "xpedition_cli/placement_contract.py": "9f3e683f4b999813df178d05562632279cadff4a888bf37c632b533dca6ab221",
+    "xpedition_cli/placement_command.py": "8b88867aa2af7ae00e70ab9b88f29430d506ac95ddfb0fa10cc50b052506a8fe",
+    "xpedition_cli/placement.py": "666f319f68c62d59209301f5432ad8db4eb3a46e7cbafae5418bb203151fb6d3",
+    "tests/test_native_placement.py": "6412c5f6e051fdf906585631a6229153f97f90ab5a1bfa75afe9107e1efabbfd",
+    "tests/test_placement.py": "7c682a59d8fe000a650d0c9654e21096e1d4bbbd4d06dd79da8a8aa65d0a4f65",
+    "tests/test_placement_cli.py": "cbbf719774c14fb85df21b142facba88590aace7e5b4925cc4d3bf263e2b75ef",
+    "xpedition_cli/main.py": "a0ed65de3a20c77a547316ce1b472ebdceba98ad982b5a500e559ca20efe9ef0",
+    "xpedition_cli/native_com_adapter.py": "5e5d0694ebc653f2d4da8575aa52a8500014a20b7559760a5f3f7014596a5cf9",
+    "xpedition_cli/reference_data.py": "abe1aed0bb52b875f2050eef33767f2d38cb528cb2dd9fa0c6094594680504af"
+  }
+}

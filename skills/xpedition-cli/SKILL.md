@@ -55,6 +55,10 @@ registration as Administrator; see `docs/NATIVE_ADAPTER.md`.
 
 ## Agent Defaults
 
+For small local layout adjustments, use the selected-placement workflow only when
+it is advertised by the installed binary's reference; read `reference/placement-tasks.md`.
+Its native smoke status and partial-execution boundaries remain explicit.
+
 Read `reference/confirmation-safety.md` for confirmation concurrency boundaries.
 Storage-degradation warnings mean replay protection is not guaranteed; stop
 automatic retries and inspect the environment and observed project state.

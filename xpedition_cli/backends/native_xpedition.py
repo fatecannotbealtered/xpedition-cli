@@ -154,6 +154,7 @@ class NativeBackend:
                 "pcb_create",
                 "forward_annotate",
                 "arrange_components",
+                "placement_batch",
                 "show_board",
                 "board_outline",
                 "mounting_holes",
