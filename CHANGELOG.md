@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A symbol that displays the same pin name twice is refused when the plan is built,
+  naming the repeated names and the pins that share them. Designer names a net after
+  the pin a wire meets, so repeated pin names put two wires on one auto-named net and
+  the second explicit label made the draw stop with 6035 "Net already labeled" minutes
+  in and partway through. Renaming automatically is not available: the pin's `L` record
+  is what the parts database maps to cell pin numbers. Give each pin a distinct name and
+  keep the shared net on the wire's label, which is what the netlist already uses.
 - `session stop` quits the application that is attached rather than defaulting to pcb.
   Quitting discards unsaved design work, and with only Designer running the old default
   reported success against an application that was not there while leaving the one the

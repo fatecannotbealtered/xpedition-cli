@@ -155,16 +155,50 @@ class _Library:
         return symbol
 
 
+def _reject_duplicate_pin_names(name: str, sides: dict[str, list[tuple[str, str]]]) -> None:
+    """Refuse a symbol whose displayed pin names repeat.
+
+    Designer names a net after the pin a wire meets. Two pins of one symbol
+    sharing a displayed name put their wires on the same auto-named net, so the
+    second explicit label lands on an already-labelled net and Designer stops the
+    draw with 6035 "Net already labeled" -- minutes in, partway through. The pin
+    name is what matters, not the net: a pin named after its own net is fine as
+    long as it is the only pin with that name.
+
+    Renaming here is not an option: the `L` record is what the parts database
+    maps to cell pin numbers, so a generated suffix would break that mapping. The
+    working shape is distinct pin names with the shared net on the wire's label,
+    which is also what the netlist already uses.
+    """
+    seen: dict[str, list[str]] = {}
+    for side, pairs in sides.items():
+        for number, text in pairs:
+            if not number or not text:
+                continue  # a gap row, which separates pin groups
+            seen.setdefault(text, []).append(f"{side} pin {number}")
+    duplicates = {text: pins for text, pins in sorted(seen.items()) if len(pins) > 1}
+    if duplicates:
+        detail = "; ".join(f"{text!r} on {', '.join(pins)}" for text, pins in duplicates.items())
+        raise DesignError(
+            f"symbol {name!r} repeats displayed pin names ({detail}). Designer names a net "
+            "after the pin a wire meets, so repeated names collide with the explicit labels "
+            "and the draw fails with 6035. Give each pin a distinct name and keep the shared "
+            "net on the wire's label."
+        )
+
+
 def _symbol_from_spec(name: str, spec: dict[str, Any]) -> S.Symbol:
     kind = str(spec.get("kind", "box"))
     if kind == "box":
         pairs = lambda side: [(str(n), str(t)) for n, t in spec.get(side, [])]  # noqa: E731
+        sides = {side: pairs(side) for side in ("left", "right", "top", "bottom")}
+        _reject_duplicate_pin_names(name, sides)
         return S.box(
             name,
-            left=pairs("left"),
-            right=pairs("right"),
-            top=pairs("top"),
-            bottom=pairs("bottom"),
+            left=sides["left"],
+            right=sides["right"],
+            top=sides["top"],
+            bottom=sides["bottom"],
             pintypes={str(k): str(v) for k, v in spec.get("pintypes", {}).items()},
         )
     if kind in TWO_TERMINAL:
