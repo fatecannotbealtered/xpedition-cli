@@ -1,0 +1,39 @@
+# Real metadata-loader smoke, not an Xpedition or licensed-native run.
+name: Type-library metadata smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'xpedition_cli/**'
+      - 'scripts/smoke-api-inventory.py'
+      - '.github/workflows/api-inventory-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'xpedition_cli/**'
+      - 'scripts/smoke-api-inventory.py'
+      - '.github/workflows/api-inventory-smoke.yml'
+permissions:
+  contents: read
+concurrency:
+  group: api-inventory-smoke-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-metadata:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install package and metadata binding only
+        run: python -m pip install -e . 'pywin32>=306'
+      - name: Inspect standard Windows OLE metadata without activation
+        run: python scripts/smoke-api-inventory.py
+      - name: Retain JSON evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-inventory-windows-smoke
+          path: inventory-smoke/*.json

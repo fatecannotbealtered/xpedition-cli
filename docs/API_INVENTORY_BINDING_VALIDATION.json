@@ -1,0 +1,16 @@
+{
+  "run_id": "35298467970",
+  "full_suite": {
+    "tests": 257,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "loader": "pythoncom.LoadTypeLib with resolved absolute file path; no registration",
+  "ruff": "passed",
+  "version_sync": "passed",
+  "contract_local_only": "passed",
+  "real_windows_smoke": "separate workflow; not claimed by this Linux run",
+  "xpedition_executed": false,
+  "source_sha256": "c1906014c1fd377f66f02eef11c57300773ef951c1ba14a21ad59a1fe7e39a69"
+}

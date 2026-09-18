@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .api_inventory_contract import OUTPUT_SCHEMA as API_OUTPUT_SCHEMA
+from .api_inventory_contract import command as api_command
 from .contract_gen import CODES
 from .reference_query import select_reference, selector_params
 from .pin_assignment_contract import OUTPUT_SCHEMA as PIN_OUTPUT_SCHEMA
@@ -2152,7 +2154,7 @@ def commands() -> list[dict[str, Any]]:
             ),
         ]
     )
-    return result + pin_commands()
+    return result + pin_commands() + [api_command()]
 
 
 def release_readiness() -> dict[str, Any]:
@@ -2166,7 +2168,8 @@ def release_readiness() -> dict[str, Any]:
         "live_smoke_status": "verified",
         "reason": (
             "The original 107-command release recorded command-level and native evidence; "
-            "additional offline pin workflows do not extend that native evidence. The contract "
+            "neither the added offline pin workflows nor the metadata inventory extend that "
+            "native evidence or validate target Xpedition behavior. The contract "
             "tests cover success, validation, usage, confirmation, conflict, not-found, "
             "backend-unavailable and timeout paths, empty results, paging, the output "
             "envelope, exit codes and the stdout/stderr boundary; and docs/E2E.md "
@@ -2232,9 +2235,14 @@ def _full_reference() -> dict[str, Any]:
                     "exchange import",
                     "schematic pin-plan",
                     "schematic pin-check",
+                    "system api-inventory",
                 ],
             },
-            {"name": "name", "type": "string", "applies_to": ["project init"]},
+            {
+                "name": "name",
+                "type": "string",
+                "applies_to": ["project init", "system api-inventory"],
+            },
             {"name": "query", "type": "string", "applies_to": ["* query"]},
             {
                 "name": "kind",
@@ -2281,7 +2289,11 @@ def _full_reference() -> dict[str, Any]:
             },
         ],
         "commands": commands(),
-        "schemas": {**SCHEMAS, "pin_assignment": PIN_OUTPUT_SCHEMA},
+        "schemas": {
+            **SCHEMAS,
+            "pin_assignment": PIN_OUTPUT_SCHEMA,
+            "api_inventory": API_OUTPUT_SCHEMA,
+        },
         "exit_codes": contract["exit_codes"]["table"],
         "error_codes": {
             name: {"exit": spec["exit"], "retryable": spec["retryable"]}

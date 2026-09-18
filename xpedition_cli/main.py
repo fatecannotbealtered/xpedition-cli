@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, pin_assignment
+from . import __version__, api_inventory, pin_assignment
 from .audit import config_dir, record
 from .backends import ExchangeBackend, MockBackend, NativeBackend
 from .capabilities import CapabilityRegistry
@@ -204,6 +204,9 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
     if tuple(positionals[:2]) in pin_assignment.COMMANDS:
         pin_assignment.validate_argv(argv)
         options["fields"] = pin_assignment.protected_fields(options.get("fields"))
+    if tuple(positionals[:2]) == api_inventory.COMMAND:
+        api_inventory.validate_argv(argv)
+        options["fields"] = api_inventory.protected_fields(options.get("fields"))
     return positionals, options
 
 
@@ -2478,6 +2481,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         )
     if command in pin_assignment.COMMANDS:
         return pin_assignment.run(tuple(positionals), options)
+    if command == api_inventory.COMMAND:
+        return api_inventory.run(options)
     if command == ("context",):
         return _context(options)
     if command == ("doctor",) or command == ("system", "doctor"):
@@ -3422,6 +3427,7 @@ Usage:
 
 Commands:
   schematic pin-plan|pin-check   plan/check CSV pin assignments against saved snapshots only
+  system api-inventory           inspect a trusted standalone COM type library
   context                         show runtime and credential context
   doctor                         check environment and release readiness
   reference                      show the live machine contract
