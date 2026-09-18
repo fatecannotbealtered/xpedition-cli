@@ -5,6 +5,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,9 @@ from .mcp_server import MCPServer
 from .models import append_history, load_history, restore_backup
 from .native_verification import verify_native_changes
 from .output import emit, failure, redact, success
+from .query_page import query_page
 from .reference_data import reference, release_readiness
+from .reference_query import SELECTOR_FLAGS, validate_reference_options
 from .review_engine import run_review
 from .session import (
     clear_native,
@@ -45,6 +48,7 @@ from .session import (
 )
 
 VALUE_FLAGS = {
+    *SELECTOR_FLAGS,
     "--format",
     "--fields",
     "--backend",
@@ -174,6 +178,11 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
                     raise CLIError("E_USAGE", f"option {name} requires a value", {"option": name})
                 value = argv[index]
             key = name[2:].replace("-", "_")
+            if name in SELECTOR_FLAGS:
+                if key in options:
+                    raise CLIError("E_USAGE", f"option {name} may only be supplied once")
+                if not separator and str(value).startswith("--"):
+                    raise CLIError("E_USAGE", f"option {name} requires a value")
             options[key] = value
             index += 1
             continue
@@ -191,6 +200,7 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
                 raise CLIError("E_VALIDATION", f"--{key} must be an integer") from exc
             if options[key] < 0:
                 raise CLIError("E_VALIDATION", f"--{key} must not be negative")
+    validate_reference_options(positionals, options)
     return positionals, options
 
 
@@ -2086,26 +2096,20 @@ def _query_matches(item: Any, query: str | None) -> bool:
 
 def _list_data(
     project: dict[str, Any],
-    items: list[Any],
+    items: Iterable[Any],
     options: dict[str, Any],
     untrusted: list[str] | None = None,
 ) -> dict[str, Any]:
-    filtered = [item for item in items if _query_matches(item, options.get("query"))]
-    offset = int(options.get("offset") or 0)
-    if offset > len(filtered):
-        offset = len(filtered)
-    limit = options.get("limit")
-    end = len(filtered) if limit is None else min(len(filtered), offset + int(limit))
-    rows = filtered[offset:end]
-    next_offset = end if end < len(filtered) else None
+    page = query_page(
+        items,
+        query=options.get("query"),
+        limit=options.get("limit"),
+        offset=int(options.get("offset") or 0),
+    )
     return {
         "project": project["project"],
         "revision": project["revision"],
-        "items": rows,
-        "count": len(rows),
-        "offset": offset,
-        "next_offset": next_offset,
-        "has_more": next_offset is not None,
+        **page,
         "_untrusted": untrusted or ["project", "items"],
     }
 
@@ -2303,15 +2307,19 @@ def _project_diff(current: dict[str, Any], backup: dict[str, Any]) -> dict[str, 
     return {"added": added, "removed": removed, "changed": changed}
 
 
-def _agent_query(project: dict[str, Any], query: str | None) -> list[dict[str, Any]]:
+def _agent_query(project: dict[str, Any], query: str | None) -> Iterable[dict[str, Any]]:
     if not query:
         raise CLIError("E_USAGE", "agent query requires --query")
     items = (
-        [{"kind": "component", "value": item} for item in project["components"]]
-        + [{"kind": "net", "value": item} for item in project["nets"]]
-        + [{"kind": "connection", "value": item} for item in project["connections"]]
+        {"kind": kind, "value": item}
+        for kind, key in (
+            ("component", "components"),
+            ("net", "nets"),
+            ("connection", "connections"),
+        )
+        for item in project[key]
     )
-    return [item for item in items if _query_matches(item, query)]
+    return (item for item in items if _query_matches(item, query))
 
 
 def _agent_request(request: dict[str, Any], options: dict[str, Any]) -> dict[str, Any]:
@@ -2330,7 +2338,11 @@ def _agent_request(request: dict[str, Any], options: dict[str, Any]) -> dict[str
         return backend.snapshot(project)
     if method == "query":
         query_options = {**options, "query": params.get("query")}
-        return _list_data(project, _agent_query(project, query_options.get("query")), query_options)
+        return _list_data(
+            project,
+            _agent_query(project, query_options.get("query")),
+            {**query_options, "query": None},
+        )
     if method == "review":
         return _paged_review(project, params.get("rules"), options)
     raise CLIError("E_USAGE", f"unknown agent method: {method}", {"method": method})
@@ -2431,6 +2443,7 @@ def _agent_serve(options: dict[str, Any]) -> int:
 
 
 def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
+    validate_reference_options(positionals, options)
     if not positionals:
         raise CLIError("E_USAGE", "a command is required; use --help to list commands")
     if options.get("dangerous"):
@@ -2465,7 +2478,11 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     if command == ("doctor",) or command == ("system", "doctor"):
         return _doctor(options)
     if command == ("reference",):
-        return reference()
+        return reference(
+            command=options.get("command"),
+            domain=options.get("domain"),
+            schema=options.get("schema"),
+        )
     if command == ("changelog",):
         return _changelog(options.get("since"))
     if command == ("version",) or command == ("system", "version"):
@@ -2484,7 +2501,9 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         if verb == "snapshot":
             return backend.snapshot(project)
         if verb == "query":
-            return _list_data(project, _agent_query(project, options.get("query")), options)
+            return _list_data(
+                project, _agent_query(project, options.get("query")), {**options, "query": None}
+            )
         if verb == "review":
             return run_review(project, options.get("rules"))
         if verb == "capabilities":
@@ -2905,9 +2924,13 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
             if not options.get("query"):
                 raise CLIError("E_USAGE", "schematic query requires --query")
             all_items = (
-                [{"kind": "component", "value": item} for item in project["components"]]
-                + [{"kind": "net", "value": item} for item in project["nets"]]
-                + [{"kind": "connection", "value": item} for item in project["connections"]]
+                {"kind": kind, "value": item}
+                for kind, key in (
+                    ("component", "components"),
+                    ("net", "nets"),
+                    ("connection", "connections"),
+                )
+                for item in project[key]
             )
             return _list_data(project, all_items, options)
         raise CLIError("E_USAGE", f"unknown schematic command: {verb}")
@@ -3007,9 +3030,9 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         if verb == "query":
             if not options.get("query"):
                 raise CLIError("E_USAGE", "pcb query requires --query")
-            all_items = []
-            for kind in sorted(pcb_keys):
-                all_items.extend({"kind": kind, "value": item} for item in pcb[kind])
+            all_items = (
+                {"kind": kind, "value": item} for kind in sorted(pcb_keys) for item in pcb[kind]
+            )
             return _list_data(project, all_items, options)
         raise CLIError("E_USAGE", f"unknown pcb command: {verb}")
 
@@ -3118,11 +3141,12 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
             query = options.get("query")
             if not query:
                 raise CLIError("E_USAGE", "library search requires --query")
-            items = []
-            for kind in sorted(keys):
-                items.extend({"kind": kind, "value": item} for item in project["library"][kind])
-            matches = [item for item in items if _query_matches(item, query)]
-            result = _list_data(project, matches, options, ["project", "items", "query"])
+            items = (
+                {"kind": kind, "value": item}
+                for kind in sorted(keys)
+                for item in project["library"][kind]
+            )
+            result = _list_data(project, items, options, ["project", "items", "query"])
             result["query"] = query
             return result
         if verb in keys:
@@ -3414,6 +3438,9 @@ Common options:
   --format json|text|raw  --compact  --fields a,b  --backend mock
   --project PATH          --changeset PATH  --dry-run  --confirm TOKEN
   --backup                --rules PATH      --limit N  --since VERSION
+
+Reference selectors (choose one):
+  reference --command "pcb trace" | --domain pcb | --schema context
 
 Native Xpedition automation is intentionally unavailable until a licensed,
 audited adapter is configured. Use MockBackend for offline development.

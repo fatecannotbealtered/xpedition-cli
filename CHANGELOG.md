@@ -29,6 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   iteration and avoid repeated tail-list copies. The geometric predicates and
   finding order are unchanged. Incremental edits no longer pay a quadratic
   existing-board pair scan; new-new comparisons still require further indexing.
+### Added
+
+- Scoped reference discovery by exact command, top-level domain or existing
+  output-schema name. A command slice retains its success and dry-run schemas,
+  error tables and permission metadata; the full catalog remains the default.
+  Selectors are declared from one source and rejected on unrelated commands.
+
+### Changed
+
+- Bounded local query pages stop after one matching lookahead record rather than
+  filtering every record. Unfiltered sequence reads slice directly; agent and
+  library queries no longer re-filter a materialized result. Matching and paging
+  semantics remain compatible, including zero limits and clamped offsets.
+  This is not native query pushdown or a COM-session optimization.
 
 ## [1.0.0] - 2026-09-17
 

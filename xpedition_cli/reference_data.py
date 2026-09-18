@@ -7,6 +7,7 @@ from typing import Any
 
 from . import __version__
 from .contract_gen import CODES
+from .reference_query import select_reference, selector_params
 
 SCHEMAS: dict[str, dict[str, Any]] = {
     "context": {
@@ -39,7 +40,9 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "schemas",
             "exit_codes",
             "error_codes",
+            "selection",
         ],
+        "optional_fields": ["selection"],
         "untrusted_fields": [],
     },
     "changelog": {
@@ -973,7 +976,13 @@ def commands() -> list[dict[str, Any]]:
             "reference",
             "Return the live machine-readable command contract",
             "reference",
-            ["xpedition-cli reference --compact"],
+            [
+                "xpedition-cli reference --compact",
+                'xpedition-cli reference --command "pcb trace" --compact',
+                "xpedition-cli reference --domain pcb --compact",
+                "xpedition-cli reference --schema context --compact",
+            ],
+            params=selector_params(),
         ),
         _command(
             "changelog",
@@ -2174,7 +2183,7 @@ def release_readiness() -> dict[str, Any]:
     }
 
 
-def reference() -> dict[str, Any]:
+def _full_reference() -> dict[str, Any]:
     candidates = [
         Path(__file__).resolve().parent.parent / "contract" / "contract.json",
         Path(getattr(sys, "_MEIPASS", "")) / "contract" / "contract.json",
@@ -2271,3 +2280,9 @@ def reference() -> dict[str, Any]:
             for name, spec in CODES.items()
         },
     }
+
+
+def reference(
+    *, command: str | None = None, domain: str | None = None, schema: str | None = None
+) -> dict[str, Any]:
+    return select_reference(_full_reference(), command=command, domain=domain, schema=schema)
