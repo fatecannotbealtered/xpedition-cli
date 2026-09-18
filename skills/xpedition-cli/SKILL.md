@@ -63,6 +63,10 @@ registration as Administrator; see `docs/NATIVE_ADAPTER.md`.
 For query projection and native post-write verification, read
 `reference/agent-hardening.md`. In particular, a failed post-write verification
 is not permission to resend the write; inspect the observed state first.
+For small local layout adjustments, use the selected-placement workflow only when
+it is advertised by the installed binary's reference; read `reference/placement-tasks.md`.
+Its native smoke status and partial-execution boundaries remain explicit.
+
 Read `reference/confirmation-safety.md` for confirmation concurrency boundaries.
 Storage-degradation warnings mean replay protection is not guaranteed; stop
 automatic retries and inspect the environment and observed project state.

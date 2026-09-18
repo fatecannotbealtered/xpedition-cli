@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, placement_contract
 from .api_inventory_contract import OUTPUT_SCHEMA as API_OUTPUT_SCHEMA
 from .api_inventory_contract import command as api_command
 from .contract_gen import CODES
@@ -915,6 +915,9 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
     },
 }
+
+
+SCHEMAS.update(placement_contract.SCHEMAS)
 
 
 def _param(
@@ -2154,18 +2157,19 @@ def commands() -> list[dict[str, Any]]:
             ),
         ]
     )
+    result.extend(placement_contract.commands())
     return result + pin_commands() + [api_command()]
 
 
 def release_readiness() -> dict[str, Any]:
     return {
-        "level": "stable",
+        "level": "beta",
         "fcc_required": True,
         "fcc_status": "verified",
         "mock_upstream_required": True,
         "mock_upstream_status": "verified",
         "live_smoke_required_for_stable": True,
-        "live_smoke_status": "verified",
+        "live_smoke_status": "missing",
         "reason": (
             "The original 107-command release recorded command-level and native evidence; "
             "neither the added offline pin workflows nor the metadata inventory extend that "
@@ -2179,7 +2183,11 @@ def release_readiness() -> dict[str, Any]:
             "fabrication. Context for that evidence: it comes from one Windows "
             "installation of XPED2604, with footprints converted from an open-source "
             "library and placeholder part numbers, and no second machine has repeated "
-            "it."
+            "it. Selected placement tasks have command-level and simulated native-object "
+            "tests, but the new native placement path has no licensed smoke record; the "
+            "retained docs/E2E.md evidence does not validate these additions. Run "
+            "disposable-board top/bottom, protected-part, refusal, stale-preview, "
+            "save/close/reopen and DRC checks before marking it stable."
         ),
         "required_evidence": [
             "functional_contract_coverage_100",
@@ -2236,6 +2244,7 @@ def _full_reference() -> dict[str, Any]:
                     "schematic pin-plan",
                     "schematic pin-check",
                     "system api-inventory",
+                    "pcb placement-plan",
                 ],
             },
             {

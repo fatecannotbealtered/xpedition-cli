@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Selected-origin placement tasks: offline `pcb placement-plan` and guarded native
+  `pcb placement` for explicit translate, rotation about an origin, alignment to
+  an anchor, and equal-origin-spacing distribution. Input JSON Schemas are exposed
+  by reference; native identity, units, side and protection are read, not guessed.
+- One preview/confirmation for a serial batch, per-item and final target read-back,
+  native placement DRC enable/restore checks, stop-on-uncertainty results and one
+  save after verified completion. No routing deletion or unselected placement is
+  requested. This is not route repair, all-or-none rollback or a global write lock.
+
+### Changed
+
+- Runtime readiness is beta: prior live E2E records do not cover the new native
+  placement path. Public interface references, synthetic tests and a native smoke
+  checklist are recorded without claiming licensed execution or release readiness.
+
 ### Fixed
 
 - Explicit NativeBackend project initialization without a template fails before

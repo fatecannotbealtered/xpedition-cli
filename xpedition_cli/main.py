@@ -207,6 +207,10 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
     if tuple(positionals[:2]) == api_inventory.COMMAND:
         api_inventory.validate_argv(argv)
         options["fields"] = api_inventory.protected_fields(options.get("fields"))
+    if positionals[:2] in (["pcb", "placement-plan"], ["pcb", "placement"]):
+        from .placement_command import validate_cli
+
+        validate_cli(argv, positionals)
     return positionals, options
 
 
@@ -2483,6 +2487,10 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         return pin_assignment.run(tuple(positionals), options)
     if command == api_inventory.COMMAND:
         return api_inventory.run(options)
+    if command in {("pcb", "placement-plan"), ("pcb", "placement")}:
+        from .placement_command import dispatch_placement
+
+        return dispatch_placement(positionals, options)
     if command == ("context",):
         return _context(options)
     if command == ("doctor",) or command == ("system", "doctor"):
@@ -3441,6 +3449,8 @@ Commands:
   design snapshot                 alias for project snapshot
   schematic sheets|components|pins|nets|connectivity|power|interfaces|unconnected|query|apply
                                   inspect normalized schematic data
+  pcb placement-plan             plan explicit local origin transforms from observations
+  pcb placement                  preview/confirm selected native placements (native smoke missing)
   pcb info|components|footprints|nets|layers|stackup|tracks|vias|zones|keepouts|query
                                   inspect normalized PCB data
   constraints list|query|validate|export
