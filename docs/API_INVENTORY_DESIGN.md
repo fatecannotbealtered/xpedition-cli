@@ -9,9 +9,10 @@ work, separate from offline pin assignment and native write hardening.
 - [SiemensEDA Python Interface, pinned 54b3c3f](https://github.com/EdgarMerger/SiemensEDA_Python_Interface/tree/54b3c3f85d9fbcf10259705e5a3a11399794c12f):
   motivates inspecting actual installed types rather than guessing API names or
   adopting another version's heuristic annotations. No code or library is copied.
-- [Microsoft LoadTypeLibEx](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-loadtypelibex):
-  REGKIND_NONE disables the registration process. The loader is supplied an explicit
-  standalone local type library; no ProgID or application activation fallback.
+- [Microsoft LoadTypeLib](https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-loadtypelib):
+  supplying a path disables the legacy automatic-registration behavior. pywin32
+  exposes LoadTypeLib, not LoadTypeLibEx; the code explicitly requires the resolved
+  absolute path. No filename-only lookup, ProgID or activation fallback is used.
 - pywin32 published metadata definitions:
   [TYPEATTR](https://mhammond.github.io/pywin32/TYPEATTR.html),
   [FUNCDESC](https://mhammond.github.io/pywin32/FUNCDESC.html),
@@ -55,3 +56,20 @@ Before using a discovered product API in a native command, verify it on the targ
 installation with an explicit disposable project and operation-specific safety,
 state binding, partial-failure and readback tests. Do not promote inventory findings
 automatically into supported/native-verified command metadata.
+
+
+## Real-binding correction
+
+The first Windows smoke revealed that the system stdole2.tlb is a PE resource
+container. The smoke harness now extracts its sole TYPELIB as a data/image resource
+without executable initialization; CLI input restrictions remain unchanged.
+The next run reached a binding error. Upstream PythonCOM.cpp confirms pywin32
+exports LoadTypeLib, not the initially assumed LoadTypeLibEx. The implementation
+and fake provider now use the actual one-argument binding with an absolute-path
+guard. Microsoft explicitly documents non-registration for a supplied path.
+No permissive fallback or ctypes COM-pointer wrapper was introduced.
+
+The initial 256-test validation record is historical and did not establish real
+binding compatibility. API_INVENTORY_BINDING_VALIDATION.json records the corrected
+suite; the independent Windows smoke must still pass before claiming that binding
+is tested. System OLE metadata remains distinct from target Xpedition evidence.

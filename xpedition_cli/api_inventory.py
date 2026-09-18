@@ -235,6 +235,15 @@ def _fingerprint(path: Path) -> dict[str, Any]:
     return {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
 
 
+def _load_metadata(com: Any, path: Path) -> Any:
+    # pywin32 exposes LoadTypeLib, not LoadTypeLibEx. Microsoft documents that
+    # LoadTypeLib does NOT register a type library when a path is supplied.
+    # Keep this absolute-path boundary even if a caller bypasses run().
+    if not path.is_absolute():
+        raise CLIError("E_USAGE", "metadata loading requires an absolute file path")
+    return com.LoadTypeLib(str(path))
+
+
 def _pythoncom() -> Any:
     if sys.platform != "win32":
         raise CLIError("E_BACKEND_UNAVAILABLE", "type library metadata loading requires Windows")
@@ -270,7 +279,7 @@ def run(options: dict[str, Any]) -> dict[str, Any]:
     try:
         com.CoInitializeEx(com.COINIT_APARTMENTTHREADED)
         initialized = True
-        library = com.LoadTypeLibEx(str(path), com.REGKIND_NONE)
+        library = _load_metadata(com, path)
         result = inspect_library(library, name=name, limit=limit, offset=offset)
         if _fingerprint(path) != before:
             raise CLIError("E_CONFLICT", "type library file changed during inventory")

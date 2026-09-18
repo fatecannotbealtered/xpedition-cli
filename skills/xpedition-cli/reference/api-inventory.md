@@ -16,8 +16,9 @@ schemas. A setter flag does not supply confirmation policy, transaction semantic
 units, preconditions, or readback requirements.
 
 No Xpedition process is started, attached or modified. The loader calls
-LoadTypeLibEx with REGKIND_NONE, not Dispatch, GetActiveObject, makepy, registration
-or method invocation. COM initialization is balanced in the calling process.
+the pywin32 LoadTypeLib binding with a resolved absolute path. Microsoft documents
+that supplying the path disables its legacy registration behavior. No filename-only
+lookup, Dispatch, GetActiveObject, makepy or method invocation is used. COM initialization is balanced in the calling process.
 Only ITypeLib/ITypeInfo metadata is read; no generated wrapper cache is written.
 
 ## Inputs and limits

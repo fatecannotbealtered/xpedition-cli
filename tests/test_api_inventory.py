@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
@@ -81,7 +82,6 @@ class Library:
 
 class Com:
     COINIT_APARTMENTTHREADED = 2
-    REGKIND_NONE = 2
 
     def __init__(self, library=None):
         self.calls = []
@@ -91,8 +91,8 @@ class Com:
         assert flags == 2
         self.calls.append("initialize")
 
-    def LoadTypeLibEx(self, path, flags):
-        assert flags == self.REGKIND_NONE
+    def LoadTypeLib(self, path):
+        assert Path(path).is_absolute()
         self.calls.append(("load_no_registration", path))
         return self.library
 
@@ -215,7 +215,7 @@ def test_load_failure_is_sanitized_and_lifecycle_balanced(tmp_path, monkeypatch)
     def fail(*args):
         raise RuntimeError("secret path error")
 
-    com.LoadTypeLibEx = fail
+    com.LoadTypeLib = fail
     monkeypatch.setattr(inventory, "_pythoncom", lambda: com)
     with pytest.raises(CLIError) as error:
         inventory.run({"input": str(path)})
@@ -241,13 +241,13 @@ def test_initialize_failure_does_not_uninitialize_someone_elses_apartment(tmp_pa
 def test_input_change_during_load_is_conflict(tmp_path, monkeypatch):
     path = fixture_file(tmp_path)
     com = Com()
-    original = com.LoadTypeLibEx
+    original = com.LoadTypeLib
 
     def change(*args):
         path.write_bytes(b"MSFTchanged")
         return original(*args)
 
-    com.LoadTypeLibEx = change
+    com.LoadTypeLib = change
     monkeypatch.setattr(inventory, "_pythoncom", lambda: com)
     with pytest.raises(CLIError) as error:
         inventory.run({"input": str(path)})
@@ -315,3 +315,11 @@ def test_overlarge_file_rejected_before_loader(tmp_path, monkeypatch):
     monkeypatch.setattr(inventory, "_pythoncom", lambda: pytest.fail("loader accessed"))
     with pytest.raises(CLIError):
         inventory.run({"input": str(path)})
+
+
+def test_metadata_loader_never_uses_filename_only_registration_semantics():
+    com = Com()
+    with pytest.raises(CLIError) as failure:
+        inventory._load_metadata(com, Path("relative.tlb"))
+    assert failure.value.code == "E_USAGE"
+    assert com.calls == []
