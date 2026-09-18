@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A failed draw operation reports the sheet it fell on, the net or symbol it touched,
+  and how many operations had already been applied. An index alone was not locatable:
+  resolving "operation 269" meant importing the planner, rebuilding the plan and counting
+  `open_sheet` records, once per attempt, at several minutes per attempt.
+- `schematic draw --dry-run` publishes the planned `operations`, each carrying its index
+  and the sheet it lands on, so a reported index can be looked up and a plan inspected
+  without importing the planner. Trim it with `--fields` on a large plan.
+- The native adapter streams draw progress to stderr as it runs, and `--quiet` now does
+  what CLI-SPEC §4 says it does and suppresses it. The adapter's stderr was captured, so
+  a draw of several hundred operations printed nothing at all until it returned.
 - `doctor` reports a `native_session` check naming which Xpedition application is
   attached right now. `native_xpedition` passes as soon as an adapter is configured,
   which says nothing about what is running, and Layout and Designer are separate

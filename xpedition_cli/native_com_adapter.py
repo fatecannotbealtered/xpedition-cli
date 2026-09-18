@@ -6226,6 +6226,7 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     # raises one -- and the call that hit it does not return until someone
     # clicks. Watch for them here so a hang is attributable: the known ones are
     # answered, and anything else is recorded for the error envelope.
+    last_report = time.monotonic()
     with _PromptAnswerer(DESIGNER_PROMPTS, process_name="viewdraw.exe") as prompts:
         for index, op in enumerate(ops):
             if not isinstance(op, dict):
@@ -6359,12 +6360,21 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                 raise
             except Exception as exc:
                 error = _com_error(exc, f"draw_{kind or 'operation'}")
+                # An index alone is not locatable: finding out what operation 269
+                # was meant rebuilding the plan in a REPL and counting open_sheet
+                # records. Say which sheet it fell on, what it touched, and how
+                # much of the draw had already been applied.
                 error.details.update(
                     {
                         "index": index,
                         "operation": kind,
+                        "sheet": current_sheet,
                         "refdes": str(op.get("refdes", "")),
-                        "_untrusted": ["refdes"],
+                        "net": str(op.get("label") or ""),
+                        "symbol": str(op.get("symbol") or ""),
+                        "completed": sum(counts.values()),
+                        "total": len(ops),
+                        "_untrusted": ["refdes", "net", "symbol"],
                     }
                 )
                 # A dialog Designer put up is the likeliest reason a call failed or
@@ -6374,9 +6384,21 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                 dialogs = prompts.blocking_dialogs()
                 if dialogs:
                     error.details["blocking_dialogs"] = dialogs
-                    error.details["_untrusted"] = ["refdes", "blocking_dialogs"]
+                    error.details["_untrusted"].append("blocking_dialogs")
                 raise error from exc
             counts[kind] = counts.get(kind, 0) + 1
+            # Progress on the side channel (CLI-SPEC §4). A few hundred
+            # operations run for minutes, and printing nothing until the call
+            # returns leaves both a slow draw and a partial one unreadable.
+            # `--quiet` suppresses this upstream, by capturing our stderr.
+            now = time.monotonic()
+            if now - last_report >= 2.0:
+                last_report = now
+                print(
+                    f"draw: {sum(counts.values())}/{len(ops)} operations, sheet {current_sheet}",
+                    file=sys.stderr,
+                    flush=True,
+                )
     result: dict[str, Any] = {
         "applied": len(ops),
         "operations": counts,

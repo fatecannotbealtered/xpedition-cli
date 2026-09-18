@@ -11,7 +11,7 @@ from typing import Any
 
 from . import __version__, api_inventory, pin_assignment
 from .audit import config_dir, record
-from .backends import ExchangeBackend, MockBackend, NativeBackend
+from .backends import ExchangeBackend, MockBackend, NativeBackend, suppress_progress
 from .capabilities import CapabilityRegistry
 from .changelog import markdown as changelog_markdown
 from .changeset import (
@@ -1679,6 +1679,26 @@ def _pcb_drc(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     return native.invoke("batch_drc", params, timeout_seconds=900.0)
 
 
+def _annotate_operations(ops: list[Any]) -> list[dict[str, Any]]:
+    """The planned operations, each carrying the index and sheet it lands on.
+
+    A draw failure reports an operation index, and an index is only locatable
+    against the plan it came from: working out what operation 269 was meant
+    importing the planner, rebuilding the plan and counting `open_sheet` records.
+    """
+    annotated: list[dict[str, Any]] = []
+    sheet = 0
+    for index, op in enumerate(ops):
+        entry = dict(op) if isinstance(op, dict) else {"op": op}
+        if entry.get("op") == "open_sheet":
+            try:
+                sheet = int(entry.get("number", sheet))
+            except (TypeError, ValueError):
+                pass
+        annotated.append({"index": index, "sheet": sheet, **entry})
+    return annotated
+
+
 def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     """`schematic draw`: plan a schematic from a design description, then draw it.
 
@@ -1744,9 +1764,13 @@ def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str
         token, expires_at = issue(scope)
         return {
             "preview": preview,
+            # The operations themselves, so a reported index can be looked up and
+            # a plan inspected without importing the planner. Trim with --fields
+            # when the plan is large.
+            "operations": _annotate_operations(params["ops"]),
             "confirm_token": token,
             "expires_at": expires_at,
-            "_untrusted": ["preview"],
+            "_untrusted": ["preview", "operations"],
         }
     if options.get("confirm") is None:
         raise CLIError(
@@ -3622,6 +3646,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         positionals, options = parse_argv(raw_argv)
         command_text = " ".join(positionals) or "xpedition-cli"
+        # CLI-SPEC §4: --quiet suppresses non-error stderr, which is where the
+        # native adapter writes its progress.
+        suppress_progress(bool(options.get("quiet")))
         if options.get("help"):
             sys.stdout.write(HELP)
             return 0

@@ -11,6 +11,21 @@ from ..contract_gen import CODES
 from ..errors import CLIError
 from ..models import normalise_project, snapshot
 
+# `--quiet` is a global flag, and the adapter runs as a subprocess several call
+# layers below where options are parsed, so the setting lives here rather than
+# being threaded through every backend construction.
+_PROGRESS_SUPPRESSED = False
+
+
+def suppress_progress(suppressed: bool) -> None:
+    """Capture the adapter's stderr instead of letting it stream to ours."""
+    global _PROGRESS_SUPPRESSED
+    _PROGRESS_SUPPRESSED = bool(suppressed)
+
+
+def progress_suppressed() -> bool:
+    return _PROGRESS_SUPPRESSED
+
 
 class NativeBackend:
     """Boundary for a licensed Xpedition automation adapter.
@@ -200,7 +215,13 @@ class NativeBackend:
                 # Chinese Windows) is not what either side writes.
                 encoding="utf-8",
                 errors="replace",
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                # stderr is the progress side channel (CLI-SPEC §4). Inheriting
+                # it streams the adapter's progress as it happens, which is the
+                # only way a draw that runs for minutes is observable; capturing
+                # it would hold every line until the call returned. `--quiet`
+                # suppresses non-error stderr, so it captures instead.
+                stderr=subprocess.PIPE if progress_suppressed() else None,
                 timeout=timeout_seconds,
                 check=False,
             )
