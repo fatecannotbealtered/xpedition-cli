@@ -1,4 +1,9 @@
-"""Exercise the public CLI against stdole2.tlb; no application is activated."""
+"""Exercise the CLI with stdole2 metadata; never activate an application.
+
+Some Windows images package stdole2.tlb in a PE resource container. In that
+case only this test harness extracts a standalone TYPELIB resource, using
+non-executable data/resource mapping. The CLI still rejects PE containers.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -12,11 +17,35 @@ if sys.platform != 'win32':
     raise SystemExit('This smoke requires Windows; it must not silently skip.')
 root = Path(os.environ['SystemRoot'])
 candidates = [root / 'System32' / 'stdole2.tlb', root / 'SysWOW64' / 'stdole2.tlb']
-source = next((p for p in candidates if p.is_file()), None)
-if source is None:
+original = next((p for p in candidates if p.is_file()), None)
+if original is None:
     raise SystemExit('Standard Windows OLE type library not found.')
 output = Path('inventory-smoke')
 output.mkdir(exist_ok=True)
+raw = original.read_bytes()
+original_hash = hashlib.sha256(raw).hexdigest()
+print(json.dumps({'system_file_header': raw[:16].hex(), 'system_file_sha256': original_hash}))
+source = original
+extracted = False
+if raw[:2] == b'MZ':
+    import win32api
+
+    # Microsoft resource-only loading guidance: DATAFILE_EXCLUSIVE | IMAGE_RESOURCE.
+    # No imports, DllMain, GetProcAddress or application factory invocation.
+    module = win32api.LoadLibraryEx(str(original), 0, 0x40 | 0x20)
+    try:
+        assert int(module) & 3, 'Module was not mapped as data/resource.'
+        names = win32api.EnumResourceNames(module, 'TYPELIB')
+        assert len(names) == 1, 'Do not guess between multiple TYPELIB resources.'
+        resource = bytes(win32api.LoadResource(module, 'TYPELIB', names[0]))
+    finally:
+        win32api.FreeLibrary(module)
+    assert resource[:4] in {b'MSFT', b'SLTG'}, 'Resource is not a standalone type library.'
+    source = (output / 'standard-ole-resource.tlb').resolve()
+    source.write_bytes(resource)  # Temporary runner fixture; not uploaded or committed.
+    extracted = True
+else:
+    assert raw[:4] in {b'MSFT', b'SLTG'}, 'Unsupported system type-library container.'
 before = hashlib.sha256(source.read_bytes()).hexdigest()
 
 def query(label, *args):
@@ -47,7 +76,9 @@ assert variables, 'No variable descriptors exercised.'
 constants = query('variable-members', '--name', variables[0]['name'])
 assert any(r['kind'] == 'variable' for r in constants['items'])
 assert hashlib.sha256(source.read_bytes()).hexdigest() == before
+assert hashlib.sha256(original.read_bytes()).hexdigest() == original_hash
 summary = {'run_id': os.environ.get('GITHUB_RUN_ID'), 'source_sha256': before,
+           'system_file_sha256': original_hash, 'resource_only_fixture_extraction': extracted,
            'type_count': headers['total'], 'interface': selected['name'],
            'interface_members_observed': members['count'],
            'variable_type': variables[0]['name'], 'variables_observed': constants['count'],
