@@ -2169,7 +2169,12 @@ def release_readiness() -> dict[str, Any]:
         "mock_upstream_required": True,
         "mock_upstream_status": "verified",
         "live_smoke_required_for_stable": True,
-        "live_smoke_status": "missing",
+        # Recorded 2026-09-19 on a disposable board built through the CLI: preview
+        # against real state, a verified top-side apply, protected-part, unknown-
+        # identity and stale-preview refusals, persistence across a close/reopen,
+        # and a DRC with no placement hazard. Not `verified`: bottom-side placement
+        # was not exercised, and one first-run partial apply is unexplained.
+        "live_smoke_status": "recorded_top_side_only",
         "reason": (
             "The original 107-command release recorded command-level and native evidence; "
             "neither the added offline pin workflows nor the metadata inventory extend that "
@@ -2183,11 +2188,14 @@ def release_readiness() -> dict[str, Any]:
             "fabrication. Context for that evidence: it comes from one Windows "
             "installation of XPED2604, with footprints converted from an open-source "
             "library and placeholder part numbers, and no second machine has repeated "
-            "it. Selected placement tasks have command-level and simulated native-object "
-            "tests, but the new native placement path has no licensed smoke record; the "
-            "retained docs/E2E.md evidence does not validate these additions. Run "
-            "disposable-board top/bottom, protected-part, refusal, stale-preview, "
-            "save/close/reopen and DRC checks before marking it stable."
+            "it. Selected placement tasks were smoke-tested on 2026-09-19 against a "
+            "disposable board built through the CLI: a verified top-side apply, the "
+            "protected-part, unknown-identity and stale-preview refusals, persistence "
+            "across a close and reopen, and a DRC with no placement hazard. Two things "
+            "keep it short of stable: bottom-side placement was not exercised, because "
+            "Side is read-only on the component and this tool does not flip sides; and "
+            "one first run applied part of a task and then reported that it had not "
+            "completed, which four later runs did not reproduce. See docs/E2E.md."
         ),
         "required_evidence": [
             "functional_contract_coverage_100",

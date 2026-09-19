@@ -372,6 +372,34 @@ conflict, not-found, backend-unavailable and timeout paths, empty results, pagin
 the output envelope, exit codes and the stdout/stderr boundary, and the live runs
 recorded above. `release_readiness.level` is `stable`.
 
+## Recorded run: selected placement on a disposable board, 2026-09-19
+
+`pcb placement`'s native path had command-level and simulated-object tests but no
+licensed smoke record. A board was built for one from a template clone, all
+through the CLI: `project init --template` (266 files; the clone's `Case`
+partition had no parts database and one was created and registered),
+`schematic draw` (8 parts, 6 nets), `library build --package`, `pcb create`,
+`pcb annotate` (8 components, 6 nets, 16 pins) and `pcb arrange` to place them.
+
+| Check | Evidence |
+|---|---|
+| Preview reads real state | `R1` at 6.0, 45.5 with `object_id` 67, `anchor` 0, `fix_lock` 0, matching an independent `pcb components` read |
+| Top-side placement | align `y` to `R2`, distribute `x` 10→30 applied and read back: `R1` 10.0, `R2` 20.0, `R3` 30.0, each `status: verified` |
+| Bottom-side placement | **not run.** `Side` is read-only on `IMGCPCBComponent`, and this tool does not flip sides, so no bottom-side part could be produced from automation |
+| Protected part | `FixLock = 2` set on `R3`; a task naming it as a moved target is refused `E_CONFLICT` "the task would move a locked or fixed component", `details.field: R3` |
+| Refusal | a task naming components the board does not have is refused `E_NOT_FOUND`, non-retryable, before any write |
+| Stale preview | a token taken before a *selected* component moved is refused `E_CONFLICT` "confirmation token does not match this operation". A token stays valid when an unselected component moves: the digest binds the selection, not the board |
+| Save / close / reopen | Layout stopped (0 processes) and reopened; `R1` 12.0, `R2` 22.5, `R3` 32.0 unchanged |
+| DRC | 6.4 s, 16 hazards, all `PartialNets` "Unrouted Pin" on an unrouted board; no clearance or overlap hazard from the placement |
+
+One thing is unexplained. The first confirmed placement on the freshly annotated
+board returned `E_PROJECT_INVALID` "placement did not complete" after applying
+part of the task — `R1` and `R2` moved and verified, `R3` did not. Repeating the
+task completed it, and four later runs (including the same task shape at other
+coordinates) all completed with every item verified. The failing run's per-item
+report was overwritten before it was read, so what refused `R3` is not known.
+Treat a partial apply as possible and re-read the board rather than replaying.
+
 ## Not claimed by `stable`
 
 - Every recorded run comes from one Windows installation of XPED2604. A second

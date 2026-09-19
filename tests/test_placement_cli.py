@@ -222,12 +222,16 @@ def test_reference_declares_input_output_safety_and_evidence(inputs, capsys):
         )
 
 
-def test_release_readiness_is_beta_while_new_native_smoke_is_missing(inputs, capsys):
+def test_release_readiness_is_beta_while_the_native_smoke_is_incomplete(inputs, capsys):
     code, result, _ = invoke(capsys, "reference", "--compact")
     assert code == 0
     readiness = result["data"]["release_readiness"]
-    assert readiness["level"] == "beta" and readiness["live_smoke_status"] == "missing"
+    # A top-side smoke is recorded; bottom-side is not, and one partial apply is
+    # unexplained, so this stays short of `verified` and the level stays beta.
+    assert readiness["level"] == "beta"
+    assert readiness["live_smoke_status"] == "recorded_top_side_only"
     assert "placement" in readiness["reason"]
+    assert "bottom-side" in readiness["reason"]
     code, result, _ = invoke(capsys, "doctor", "--compact")
     assert code == 0
     check = next(c for c in result["data"]["checks"] if c["check"] == "release_readiness")
