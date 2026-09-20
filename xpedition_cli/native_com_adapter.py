@@ -1613,6 +1613,40 @@ _NEW_SHEET_COMMAND = 34165
 _SELECT_ALL_COMMAND = 57642
 
 
+def _warn_when_the_library_is_missing(
+    warnings: list[dict[str, Any]], project_path: Path, partition: str, ops: list[Any]
+) -> None:
+    """Note a draw that places parts the library has no parts database for.
+
+    Designer draws a part instance's value itself when the library has no part
+    for it -- once rotated beside the body and once horizontally, the horizontal
+    copy landing on the reference designator -- and its own "Text alignment"
+    graphical check then fires on every such part. Building the library clears
+    both. The draw itself is correct, so this is a note, not a failure.
+    """
+    if not any(isinstance(op, dict) and op.get("op") == "place_part" for op in ops):
+        return
+    try:
+        parts_db = _symbol_library_root(project_path).parent / "PartsDBLibs" / f"{partition}.pdb"
+    except AdapterError:
+        return
+    if parts_db.is_file():
+        return
+    warnings.append(
+        {
+            "check": "library_not_built",
+            "partition": partition,
+            "parts_database": str(parts_db),
+            "message": (
+                f"the {partition} parts database does not exist, so Designer draws each "
+                "part's value itself -- twice, the horizontal copy over the reference "
+                "designator -- and its Text alignment check fires on every such part; "
+                "run library build --package"
+            ),
+        }
+    )
+
+
 def _symbol_library_root(project_path: Path) -> Path:
     """`SymbolLibs` beside the central library the project's `.prj` points at."""
     try:
@@ -6577,6 +6611,7 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                     file=sys.stderr,
                     flush=True,
                 )
+    _warn_when_the_library_is_missing(warnings, project_path, library, ops)
     # A draw wipes and redraws the sheets its design names. Any other sheet the
     # project has keeps whatever was on it -- a cloned template's content, which
     # would otherwise ship with the deliverable unremarked.

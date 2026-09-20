@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `schematic draw` notes when the partition's parts database does not exist. Designer
+  draws a part instance's value itself when the library has no part for it -- twice, the
+  horizontal copy landing on the reference designator -- and its own "Text alignment"
+  check then fires on every such part, which was the only thing between a generated
+  schematic and a clean review. `library build --package` clears both, so the draw says
+  so instead of leaving the findings to be chased.
+
 - DS-10 reports a top or bottom edge whose pin names are wider than the pin pitch. Those
   names are drawn horizontally inside the body at the pitch, and at `CHAR_WIDTH` per
   character over 10 units about 1.6 characters fit, so a four-ground bottom edge rendered
