@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- DS-07 checks the area a design may draw in rather than only the border. The sheet
+  title strip and the notes band are placed by the planner itself, so those are computed
+  from `MARGIN` and the note count; the border symbol's own frame and title block are
+  measured per sheet size (A4 and A3 recorded, others fall back to the computed area).
+  A sheet used to pass with `issues: []` while a whole stage was drawn through the notes
+  and two capacitors sat on the title block. The plan publishes the rectangle per sheet,
+  so a caller can lay out against it instead of measuring a rendered export.
+
 - `--dry-run` and `--confirm` are refused on a command that is not a guarded write,
   instead of being accepted and ignored. `schematic export` renders a PDF and has no
   gate, so a dry run wrote the file and the next one failed because it already existed.

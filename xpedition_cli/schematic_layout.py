@@ -94,6 +94,9 @@ class Plan:
     links: list[tuple[str, str]] = field(default_factory=list)
     symbols: dict[str, str] = field(default_factory=dict)
     issues: list[dict[str, Any]] = field(default_factory=list)
+    # sheet number -> the rectangle a design may draw in, so a caller can lay
+    # out against it instead of rediscovering it with a ruler.
+    usable: dict[int, list[int]] = field(default_factory=dict)
     parts: list[dict[str, Any]] = field(default_factory=list)
     sheets: list[dict[str, Any]] = field(default_factory=list)
     partition: str = PARTITION
@@ -109,6 +112,7 @@ class Plan:
             "links": [list(link) for link in self.links],
             "symbols": sorted(self.symbols),
             "issues": self.issues,
+            "usable": {str(n): box for n, box in sorted(self.usable.items())},
         }
 
 
@@ -160,6 +164,41 @@ class _Library:
         self._built[key] = symbol
         self.files[symbol.name] = symbol.render()
         return symbol
+
+
+# What the border symbol itself occupies, as (x1, y1, x2, y2), measured off a
+# rendered export rather than computed: the title block in the lower right and
+# the border's own frame are in the symbol, which the planner does not read. A
+# size with no entry falls back to the part the planner can compute, which is
+# looser -- add the size here once it has been measured.
+SHEET_BORDER_USABLE = {
+    "A4": (60, 150, 1110, 700),
+    "A3": (80, 320, 1560, 1020),
+}
+
+
+def usable_rectangle(
+    width: int, height: int, notes: int, size: str | None = None
+) -> tuple[int, int, int, int]:
+    """The area of a sheet a design may draw in, as (x1, y1, x2, y2).
+
+    `DS-07` checked the border and nothing else, so a sheet passed with a whole
+    stage drawn through the notes band and parts sitting on the title block. Two
+    things take space, and they are known differently. The planner puts the sheet
+    title and the notes itself, from `MARGIN` and the note count, so those are
+    exact. The border symbol's title block is measured per size.
+    """
+    # Title at height - MARGIN - 30 (size 14) and description at -55 (size 9),
+    # both drawn from their baseline.
+    top = height - MARGIN - 70
+    # Notes run up from MARGIN + 40 in 20-unit steps, with the footer below them.
+    bottom = MARGIN + 40 + 20 * max(notes, 0) + 10
+    x1, y1, x2, y2 = MARGIN, bottom, width - MARGIN, top
+    measured = SHEET_BORDER_USABLE.get(str(size or "").upper())
+    if measured:
+        x1, y1 = max(x1, measured[0]), max(y1, measured[1])
+        x2, y2 = min(x2, measured[2]), min(y2, measured[3])
+    return x1, y1, x2, y2
 
 
 def _reject_duplicate_pin_names(name: str, sides: dict[str, list[tuple[str, str]]]) -> None:
@@ -593,16 +632,23 @@ class _SheetPlanner:
         )
 
     # -- checks --------------------------------------------------------------------
-    def check(self, sheet_number: int) -> None:
+    def check(self, sheet_number: int, notes: int = 0, size: str | None = None) -> None:
         boxes = [(p.refdes, p.bbox()) for p in self.placed.values()]
+        # The border is not the drawable area: the sheet title sits along the top
+        # and the notes band along the lower left, both of which the planner puts
+        # there itself. Checking only the border passed a sheet with a whole stage
+        # drawn through the notes.
+        ux1, uy1, ux2, uy2 = usable_rectangle(self.width, self.height, notes, size)
+        self.plan.usable[sheet_number] = [ux1, uy1, ux2, uy2]
         for name, (x1, y1, x2, y2) in boxes + self.symbol_boxes:
-            if x1 < MARGIN or y1 < MARGIN or x2 > self.width - MARGIN or y2 > self.height - MARGIN:
+            if x1 < ux1 or y1 < uy1 or x2 > ux2 or y2 > uy2:
                 self.plan.issues.append(
                     {
                         "check": "DS-07",
                         "sheet": sheet_number,
                         "object": name,
                         "bbox": [x1, y1, x2, y2],
+                        "usable": [ux1, uy1, ux2, uy2],
                         "message": "outside the drawable area",
                     }
                 )
@@ -703,7 +749,7 @@ def plan(design: dict[str, Any]) -> Plan:
         if footer:
             planner.text(footer, MARGIN + 20, MARGIN + 10, 8)
         planner.op(op="save")
-        planner.check(number)
+        planner.check(number, len(sheet.get("notes", [])), size)
         result.sheets.append({"number": number, "title": sheet_title, "parts": len(planner.placed)})
     result.symbols = dict(library.files)
     result.symbol_pins = dict(library.pins)
