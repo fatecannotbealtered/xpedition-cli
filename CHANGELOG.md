@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `--dry-run` and `--confirm` are refused on a command that is not a guarded write,
+  instead of being accepted and ignored. `schematic export` renders a PDF and has no
+  gate, so a dry run wrote the file and the next one failed because it already existed.
+  The reference already declared which commands the gate applies to; now it is enforced,
+  and probing a command that has no gate says so rather than performing the write.
+
 - A design collection that cannot be read names the state that caused it. Two ordinary
   mid-design states both surfaced as a bare `DesignComponents` type mismatch, stopping
   `review run`, `bom export` and `schematic components` at once: a schematic changed

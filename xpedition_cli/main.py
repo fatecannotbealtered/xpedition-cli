@@ -201,6 +201,7 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
             if options[key] < 0:
                 raise CLIError("E_VALIDATION", f"--{key} must not be negative")
     validate_reference_options(positionals, options)
+    _reject_a_guard_flag_that_does_not_apply(positionals, options)
     if tuple(positionals[:2]) in pin_assignment.COMMANDS:
         pin_assignment.validate_argv(argv)
         options["fields"] = pin_assignment.protected_fields(options.get("fields"))
@@ -220,6 +221,44 @@ def _project_path(positionals: list[str], options: dict[str, Any]) -> str | None
     if len(positionals) > 2 and not positionals[2].startswith("-"):
         return positionals[2]
     return None
+
+
+_GUARD_FLAGS = ("dry_run", "confirm")
+
+
+def _reject_a_guard_flag_that_does_not_apply(
+    positionals: list[str], options: dict[str, Any]
+) -> None:
+    """Refuse `--dry-run` / `--confirm` on a command that is not a guarded write.
+
+    The reference already says which commands they apply to -- the writes -- but
+    nothing enforced it, so passing `--dry-run` to a command without a gate was
+    silently ignored and the command ran. `schematic export` writes a PDF that
+    way: the dry run produced the file, and the second one failed on it already
+    existing. An agent that has learned it can probe a guarded command safely has
+    to be told when it is not talking to one.
+    """
+    supplied = [name for name in _GUARD_FLAGS if options.get(name)]
+    if not supplied:
+        return
+    declared = {item["path"]: item for item in reference()["commands"]}
+    for length in (3, 2, 1):
+        path = " ".join(positionals[:length])
+        command = declared.get(path)
+        if command is None:
+            continue
+        if command.get("type") != "write":
+            raise CLIError(
+                "E_USAGE",
+                f"{path} is a {command.get('type')} command and takes no "
+                f"{' or '.join('--' + n.replace('_', '-') for n in supplied)}",
+                {
+                    "command": path,
+                    "options": ["--" + name.replace("_", "-") for name in supplied],
+                    "hint": "run it directly; only write commands take a confirmation gate",
+                },
+            )
+        return
 
 
 def _schematic_export(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
