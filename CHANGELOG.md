@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `library build --dry-run` reports a cell pad that no symbol pin reaches. The pin check
+  ran one way only -- every symbol pin needed a cell pin -- so a cell with *more* pads
+  than the symbol has pins passed clean. A power MOSFET in DFN or PowerPAK carries
+  several pads per electrode and a drain paddle, so its converted cell had seven pads
+  against a three-pin symbol and the preview reported `issues: []`: a library that looks
+  built and is not. The unmapped pads and both counts are named.
+
 - DS-07 checks the area a design may draw in rather than only the border. The sheet
   title strip and the notes band are placed by the planner itself, so those are computed
   from `MARGIN` and the note count; the border symbol's own frame and title block are

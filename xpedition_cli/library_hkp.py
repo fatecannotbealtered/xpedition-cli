@@ -505,6 +505,19 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
             library.issues.append(
                 f"{refdes}: symbol pins {missing} have no pin in cell {cell.name}"
             )
+        # And the other direction, which nothing checked: a cell pad with no
+        # symbol pin carries no net. A power MOSFET in DFN or PowerPAK has
+        # several pads per electrode and a drain paddle, so its converted cell
+        # had seven pads against a three-pin symbol and `--dry-run` still
+        # reported a clean preview -- a library that looks built and is not.
+        if pins:
+            unmapped = sorted(n for n in cell_numbers if n not in set(numbers))
+            if unmapped:
+                library.issues.append(
+                    f"{refdes}: cell {cell.name} has pads {unmapped} with no pin on symbol "
+                    f"{kind} ({len(cell_numbers)} pads against {len(numbers)} pins); "
+                    "those pads carry no net"
+                )
         number = _clean_number(str(part.get("value") or ""))
         if not pins:
             # a mechanical mark (mounting hole): its cell is generated, but the symbol is
