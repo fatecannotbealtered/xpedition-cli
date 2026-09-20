@@ -465,6 +465,38 @@ class _SheetPlanner:
         raise DesignError(f"node {node!r} is not power:NET, gnd, label:NAME, none or nc")
 
     # -- blocks --------------------------------------------------------------------
+    def _check_edge_name_widths(self, refdes: str, symbol: S.Symbol) -> None:
+        """DS-10: a top or bottom edge whose pin names cannot be read at the pitch.
+
+        Those names are drawn horizontally inside the body at the pin pitch, so a
+        name wider than the pitch runs into its neighbour's. At `CHAR_WIDTH` per
+        character over a 10-unit pitch, about 1.6 characters fit: a four-ground
+        bottom edge rendered as `AGNBPGNBCNE2AD`, which is `AGND`, `PGND1`,
+        `PGND2` and `EPAD` written over each other. Shortening them does not
+        help. Left and right edges are fine -- their names run along the row.
+        """
+        for side in ("top", "bottom"):
+            pins = [p for p in symbol.pins if p.side == side and p.name and p.name != p.number]
+            if len(pins) < 2:
+                continue
+            too_wide = [p for p in pins if CHAR_WIDTH * len(p.name) > GRID]
+            if not too_wide:
+                continue
+            self.plan.issues.append(
+                {
+                    "check": "DS-10",
+                    "object": refdes,
+                    "side": side,
+                    "pins": [p.number for p in too_wide],
+                    "names": [p.name for p in too_wide],
+                    "message": (
+                        f"{refdes}: {side}-edge pin names are wider than the {GRID}-unit "
+                        f"pitch and overlap into one row; put these pins on the left or "
+                        f"right edge, or drop the names where the pin numbers carry it"
+                    ),
+                }
+            )
+
     def ic(self, block: dict[str, Any]) -> None:
         refdes = str(block["refdes"])
         placed = self.part(
@@ -475,6 +507,7 @@ class _SheetPlanner:
             int(block["y"]),
             int(block.get("orientation", 0)),
         )
+        self._check_edge_name_widths(refdes, placed.symbol)
         treatments = {str(k): v for k, v in dict(block.get("pins", {})).items()}
         untreated = [p.number for p in placed.symbol.pins if p.number not in treatments]
         if untreated:

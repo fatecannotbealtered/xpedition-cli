@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- DS-10 reports a top or bottom edge whose pin names are wider than the pin pitch. Those
+  names are drawn horizontally inside the body at the pitch, and at `CHAR_WIDTH` per
+  character over 10 units about 1.6 characters fit, so a four-ground bottom edge rendered
+  as `AGNBPGNBCNE2AD` -- four names written over each other. Shortening them does not
+  help. The check names the pins and says where they can go instead; drawing them
+  readably needs a rotated name row, which is not done here.
+
 - DS-09 checks, when the plan is built, that nothing belonging to one net lands on the
   free end of another net's wire: a ground symbol reaches 40 units past its own end, four
   slots at the 10-unit pin pitch, and a boxed label runs `CHAR_WIDTH` per character
