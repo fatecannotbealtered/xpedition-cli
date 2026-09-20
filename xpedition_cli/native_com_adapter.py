@@ -6428,6 +6428,12 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                                 continue
                             if spec.get("orientation") is not None:
                                 attribute.Orientation = int(spec["orientation"])
+                            # Which corner of the text sits at the location. Set it
+                            # before the location: a symbol's refdes arrives
+                            # right-anchored, so the planned x would otherwise be
+                            # where the text ends rather than where it starts.
+                            if spec.get("origin") is not None:
+                                attribute.Origin = int(spec["origin"])
                             if spec.get("x") is not None and spec.get("y") is not None:
                                 attribute.SetLocation(int(spec["x"]), int(spec["y"]))
                 elif kind == "place_symbol":

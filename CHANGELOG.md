@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A part's reference designator and value start where the plan puts them. Designer's
+  attributes carry a `VdOrigin` saying which corner of the text sits at the location, and
+  a symbol leaves its refdes at `VDALIGN_MR` -- middle *right* -- so setting a location
+  put the text's right edge there and the string ran back its own width. A 17-unit refdes
+  against the planner's +12 offset landed on the part's own centreline, on every part of
+  every drawn sheet. The planner now states the left-anchored origin it means.
+
 - `project init --template` gives every user symbol partition a parts database instead of
   leaving Designer to raise a modal dialog at draw time, which blocks the draw until a
   human clicks. A missing one is filled by copying an unused stock database out of the

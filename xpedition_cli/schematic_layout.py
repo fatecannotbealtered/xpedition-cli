@@ -52,6 +52,13 @@ SHEET_BORDERS = {
     "A3": ("a3sheet", 6),
 }
 NC_ORIENTATION = {"left": 0, "right": 2, "top": 3, "bottom": 1}
+# Designer's `VdOrigin`: which corner of an attribute's text sits at its location.
+# A symbol leaves its reference designator at `VDALIGN_MR` (8, middle *right*), so
+# the text ends at the location and runs back the width of the string -- 17 units
+# for a refdes, over a +12 offset, which puts it on the part's own centreline. The
+# planner means its x as where the text starts, so it says so.
+ORIGIN_UPPER_LEFT = 1  # VDALIGN_UL
+ORIGIN_MIDDLE_LEFT = 2  # VDALIGN_ML
 TWO_TERMINAL = {
     "RES": lambda: S.resistor("RES"),
     "CAP": lambda: S.capacitor("CAP"),
@@ -273,13 +280,37 @@ class _SheetPlanner:
             x1, y1, x2, y2 = placed.bbox()
             if orientation in (1, 3):
                 attributes = [
-                    {"name": "Ref Designator", "x": x2 + 4, "y": y + 2, "orientation": 0},
-                    {"name": "Part Number", "x": x2 + 4, "y": y - 10, "orientation": 0},
+                    {
+                        "name": "Ref Designator",
+                        "x": x2 + 4,
+                        "y": y + 2,
+                        "orientation": 0,
+                        "origin": ORIGIN_MIDDLE_LEFT,
+                    },
+                    {
+                        "name": "Part Number",
+                        "x": x2 + 4,
+                        "y": y - 10,
+                        "orientation": 0,
+                        "origin": ORIGIN_UPPER_LEFT,
+                    },
                 ]
             else:
                 attributes = [
-                    {"name": "Ref Designator", "x": x1 + 10, "y": y2 + 4, "orientation": 0},
-                    {"name": "Part Number", "x": x1 + 10, "y": y1 - 12, "orientation": 0},
+                    {
+                        "name": "Ref Designator",
+                        "x": x1 + 10,
+                        "y": y2 + 4,
+                        "orientation": 0,
+                        "origin": ORIGIN_MIDDLE_LEFT,
+                    },
+                    {
+                        "name": "Part Number",
+                        "x": x1 + 10,
+                        "y": y1 - 12,
+                        "orientation": 0,
+                        "origin": ORIGIN_UPPER_LEFT,
+                    },
                 ]
         self.op(
             op="place_part",
