@@ -732,7 +732,51 @@ def _designer_collection(app: Any, method: str, design_name: str) -> Any:
         except Exception:
             return function("", design_name, "", "", True)
     except Exception as exc:
-        raise _com_error(exc, method) from exc
+        raise _designer_collection_error(app, exc, method, design_name) from exc
+
+
+def _designer_collection_error(
+    app: Any, exc: Exception, method: str, design_name: str
+) -> AdapterError:
+    """Say why a design collection could not be read, not just that COM said no.
+
+    Two ordinary mid-design states both surface as a bare type mismatch here, and
+    they have different recoveries, so an operator cannot act on the COM error:
+
+    * the schematic changed since the last `library build --package`, so the
+      packaged design no longer matches the sheets -- re-package;
+    * a sheet was added or removed, after which `GetActiveDesign` reports the
+      schematic instead of the block until the project is closed and reopened
+      (`COMPATIBILITY.md`), which re-packaging does *not* clear.
+
+    That `GetActiveDesign` tell is what separates them.
+    """
+    error = _com_error(exc, method)
+    if error.code != "E_SERVER":
+        return error
+    # Only a name counts. `_com_member` hands back the bound method when a release
+    # exposes this as a method it cannot call, and that is not an answer.
+    value = _com_member(app, "GetActiveDesign")
+    active = value.strip() if isinstance(value, str) else ""
+    after_sheet_change = bool(active) and active != design_name
+    error.details.update(
+        {
+            "design": design_name,
+            "active_design": active,
+            "likely_cause": (
+                "a sheet was added or removed; the project has to be reopened"
+                if after_sheet_change
+                else "the schematic has changed since it was last packaged"
+            ),
+            "hint": (
+                "session stop, then session start, and reopen the project"
+                if after_sheet_change
+                else "run library build --package, then retry"
+            ),
+            "_untrusted": ["active_design"],
+        }
+    )
+    return error
 
 
 def _designer_net_identity(net: Any) -> str:

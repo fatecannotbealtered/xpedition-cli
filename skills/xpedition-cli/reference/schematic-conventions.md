@@ -238,6 +238,13 @@ Read the design back with `schematic connectivity` and `project snapshot`,
 then check. Classes follow the review rule library: L2 is decidable from the
 netlist, L2b from geometry, manual needs an engineer.
 
+Run `library build --package` after a redraw, before reading the design back or
+reviewing it. A schematic that has changed since it was last packaged cannot be
+read: `review run`, `bom export` and `schematic components` all stop on the same
+COM type mismatch until it is re-packaged. Being unpackaged is a normal state to
+be in halfway through a design, not a failure — the error now names the cause and
+the one command that clears it.
+
 | ID | Check | Class | How |
 |---|---|---|---|
 | DS-01 | every component has a refdes | L2 | `review run`: components without a refdes are counted in `metadata.unnamed_symbols` |
