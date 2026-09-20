@@ -140,7 +140,10 @@ E
   Series elements in a signal path (fuse, diode, inductor, coupling
   capacitor) sit on one horizontal drawn wire from left to right. An IC's
   pins end in labels; its passives are drawn as ladders beside it. A sheet
-  where nothing but the labels connects is a netlist, not a schematic.
+  where nothing but the labels connects is a netlist, not a schematic. One
+  ladder's `path` takes the whole series run -- see §4 of the design format
+  reference; a run split into one-part ladders joined by matching labels is
+  exactly the sheet this rules out.
 - Spacing comes from real extents: at least 30 units between symbol bounding
   boxes, at least 10 units between a wire and an unrelated symbol, and room for
   the labels a pin will carry (6 units per character). A fixed column and row

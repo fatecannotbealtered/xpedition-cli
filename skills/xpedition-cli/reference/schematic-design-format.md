@@ -122,6 +122,22 @@ not find new symbol files under a path with other characters.
   thing horizontally, `x`, `y` its left node, parts with pin `1` on the left.
 - `path` alternates node, part, node, … and ends on a node. `"flip": true` on a
   part turns it round (cathode up, for instance).
+- **A `path` holds as many parts as the run has.** Draw a series run as one
+  ladder, not as several one-part ladders joined by matching labels: things that
+  are connected should look connected, and a sheet where nothing but the labels
+  connects is a netlist rather than a schematic.
+
+  ```json
+  {"kind": "ladder", "x": 160, "y": 530,
+   "path": ["power:VBAT",
+            {"refdes": "R206", "symbol": "RES", "value": "20mR 1%"},
+            "label:VSNS_B",
+            {"refdes": "R207", "symbol": "RES", "value": "5.1R 0402"},
+            "label:SNS2B"]}
+  ```
+
+  The intermediate node carries the label, so a third part joining the run there
+  connects to a named net rather than to a coincidence of two labels.
 - `gnd` may only end a ladder; `power:` normally starts one.
 - Two-terminal parts only; ICs go in `ic` blocks and connect by labels.
 
