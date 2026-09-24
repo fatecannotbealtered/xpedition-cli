@@ -16,10 +16,13 @@ available only when the optional Windows COM adapter and product registration
 are ready. Production readiness still requires the disposable R1/C1 smoke loop.
 
 ```bash
-# Install the CLI and bundled Skill. Until the npm packages are published these
-# fail with a 404; install from a checkout instead:
+# Install the CLI. Until the npm packages are published this fails with a 404;
+# install from a checkout instead:
 #   python -m pip install -e ".[native]"   # [native] is required on Windows
 npm install -g @fateforge/xpedition-cli
+
+# Install the bundled Skill. This one reads the GitHub repository, not npm, so
+# it works whether or not the packages are published.
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
 # Bootstrap the live contract before task commands.
