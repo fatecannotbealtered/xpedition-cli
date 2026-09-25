@@ -1,9 +1,9 @@
 # PCB layout conventions for Xpedition Layout
 
 Defaults an agent applies when it creates or edits a board. Nothing here is
-enforced yet: Layout attaches and licenses, but no board exists in the smoke
-project and a board is created by packaging the schematic in Designer, so every
-rule is **default** (industry practice) unless marked **verified**. Company
+enforced by the CLI: the Skill's commands create, place, route and check a board,
+but every value below is a **default** (industry practice) unless marked
+**verified**. Company
 rules supersede defaults when they arrive (**TBD** marks where a company
 decision is expected). `reference --compact` is the source of truth for
 commands.
@@ -27,10 +27,9 @@ Contents
 - Work in mm. The adapter passes coordinates in the board's current unit
   (`epcbUnitCurrent`), so read the unit before placing (TBD: expose it in
   `pcb info`).
-- Layout today: attach, licence and health are verified; `place_pcb_component`
-  and `move_pcb_component` act on an open board; there is no COM call that
-  creates a board — that is Designer's packaging step (`package`), which needs
-  every part in the PDB.
+- A board comes from the CLI: `library build --package` builds and packages the
+  parts, `pcb create` makes the board from a template through JobWizard and `pcb
+  annotate` forward-annotates it; the Skill has the order.
 - The review pipeline reads ODB++; produce it alongside Gerber.
 
 ## 2. Stackup
@@ -47,7 +46,9 @@ Contents
 
 ## 3. Net classes: width and clearance
 
-Defaults for 1 oz copper; the fab's capability sheet sets the floor (TBD).
+Defaults for 1 oz copper; the fab's capability sheet sets the floor (TBD). The
+stock templates ship 0.254 mm width and clearance, and the Skill keeps signals
+there; the SIGNAL row is the target once the fab's capability sheet allows it.
 
 | Class | Width | Clearance | Notes |
 |---|---|---|---|
