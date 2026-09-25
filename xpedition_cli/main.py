@@ -53,6 +53,7 @@ VALUE_FLAGS = {
     "--fields",
     "--backend",
     "--pace",
+    "--timeout",
     "--project",
     "--other-project",
     "--input",
@@ -1892,13 +1893,32 @@ def _input_path(positionals: list[str], options: dict[str, Any]) -> str | None:
     return None
 
 
+def _timeout_option(options: dict[str, Any]) -> float | None:
+    """`--timeout SECONDS`: how long a NativeBackend read may take (None: the default).
+
+    A timed-out read leaves the session stale, and recovering costs a session
+    restart, so a design known to be large is better given the time up front."""
+    if options.get("timeout") is None:
+        return None
+    try:
+        seconds = float(options["timeout"])
+    except ValueError as exc:
+        raise CLIError("E_VALIDATION", "--timeout is seconds") from exc
+    if not 1 <= seconds <= 3600:
+        raise CLIError("E_VALIDATION", "--timeout is 1 to 3600 seconds", {"timeout": seconds})
+    return seconds
+
+
 def _backend(options: dict[str, Any]) -> MockBackend | NativeBackend:
     name = str(options.get("backend") or "mock")
+    timeout = _timeout_option(options)
     if name == "mock":
         return MockBackend()
     if name == "native_xpedition":
         backend = NativeBackend()
         backend.require_implemented()
+        if timeout is not None:
+            backend.read_timeout_seconds = timeout
         return backend
     raise CLIError("E_VALIDATION", f"unsupported backend: {name}", {"backend": name})
 

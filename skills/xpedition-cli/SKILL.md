@@ -108,6 +108,11 @@ release cannot be discovered from the product environment. If `doctor` reports
 that COM automation is not registered, run the official post-install
 registration as Administrator; see `docs/NATIVE_ADAPTER.md`.
 
+A native read -- the snapshot behind review, bom, schematic, pcb, library and
+project reads -- has 120 s. A large design (tens of parts, a central library of
+several MB) may need more: pass `--timeout 300`. A read that runs out of time
+leaves the session stale, and recovering costs a restart before the retry.
+
 ## Agent Defaults
 
 For query projection and native post-write verification, read
@@ -213,7 +218,9 @@ Always parse the JSON envelope and check `.ok` first. Exit 2 means fix the
 arguments; exit 3 means refresh the project or ChangeSet path; exit 4 means
 surface backend/config or permission state; exit 5 means run the dry-run; exit
 6 means re-read state and dry-run again. Exit 7/8 are bounded retryable
-network/server or timeout failures. Use `xpedition-cli reference --compact`
+network/server or timeout failures, except a native `E_TIMEOUT`: the session is
+stale until `session stop` and `session start`, and the retry needs a larger
+`--timeout` (its hint says both). Use `xpedition-cli reference --compact`
 for the current complete mapping.
 
 ## Security boundary

@@ -65,6 +65,10 @@ class NativeBackend:
     """
 
     name = "native_xpedition"
+    # The snapshot behind every native read. 30 s was too short for a 41-part,
+    # 5-sheet design with an 8 MB central library, and a timeout costs a session
+    # restart, so the default errs long; `--timeout` sets it per command.
+    read_timeout_seconds: float = 120.0
 
     def _command_path(self) -> Path | None:
         command = os.environ.get("XPEDITION_NATIVE_COMMAND")
@@ -161,7 +165,7 @@ class NativeBackend:
         params = {"project": str(Path(project_path).expanduser().resolve())} if project_path else {}
         if domain:
             params["domain"] = str(domain)
-        value = self.invoke("snapshot", params)
+        value = self.invoke("snapshot", params, timeout_seconds=self.read_timeout_seconds)
         return (
             normalise_project(value, observed=True),
             Path(project_path).expanduser().resolve() if project_path else None,
@@ -261,13 +265,15 @@ class NativeBackend:
             # Record that, or the next command fails somewhere unrelated with no
             # way to connect it back to this timeout.
             record_native_timeout(str(method))
+            hint = "session stop, then session start, before the next native command"
+            if method == "snapshot":
+                # A read that runs out of time is a large design, not a fault:
+                # say how to give the next one room.
+                hint += f"; then retry with a --timeout above {timeout_seconds:g} seconds"
             raise CLIError(
                 "E_TIMEOUT",
                 "NativeBackend adapter timed out; the session is now stale",
-                {
-                    "method": str(method),
-                    "hint": "session stop, then session start, before the next native command",
-                },
+                {"method": str(method), "seconds": timeout_seconds, "hint": hint},
             ) from exc
         except OSError as exc:
             raise CLIError(

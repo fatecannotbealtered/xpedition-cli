@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--timeout SECONDS` gives a native read -- the snapshot behind review, bom,
+  schematic, pcb, library and project reads -- the time a large design needs (#29).
+  The default is 120 s, up from a fixed 30 s that a 41-part design with an 8 MB
+  central library outran; a timeout names the time it had and the flag to raise.
 - `schematic draw` notes when the partition's parts database does not exist. Designer
   draws a part instance's value itself when the library has no part for it -- twice, the
   horizontal copy landing on the reference designator -- and its own "Text alignment"

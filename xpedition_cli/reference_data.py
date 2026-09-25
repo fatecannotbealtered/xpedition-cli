@@ -2268,6 +2268,17 @@ def _full_reference() -> dict[str, Any]:
             },
             {"name": "query", "type": "string", "applies_to": ["* query"]},
             {
+                "name": "timeout",
+                "type": "number",
+                "default": 120,
+                "description": (
+                    "Seconds a NativeBackend read (the snapshot behind review, bom, schematic, "
+                    "pcb, library and project reads) may take, 1 to 3600. A read that runs "
+                    "out of time leaves the session stale, so give a large design room up "
+                    "front; writes keep their own limits."
+                ),
+            },
+            {
                 "name": "kind",
                 "type": "enum",
                 "choices": ["all", "erc", "drc", "dfm"],
