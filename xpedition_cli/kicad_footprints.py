@@ -557,17 +557,54 @@ def _copper_area(pad: FpPad) -> float:
     return pad.width * pad.height
 
 
-def _largest_by_number(pads: list[FpPad]) -> dict[str, int]:
-    """For every pad number, the index of its largest copper pad on the mount side."""
-    chosen: dict[str, int] = {}
+def _copper_box(pad: FpPad) -> tuple[float, float, float, float]:
+    """The pad's copper extent, axis-aligned after its rotation."""
+    width, height = pad.width, pad.height
+    if pad.shape == "custom" and pad.extent is not None:
+        width, height = max(width, pad.extent[0]), max(height, pad.extent[1])
+    angle = math.radians(pad.rotation or 0.0)
+    cos, sin = abs(math.cos(angle)), abs(math.sin(angle))
+    half_w = (width * cos + height * sin) / 2
+    half_h = (width * sin + height * cos) / 2
+    return (pad.x - half_w, pad.y - half_h, pad.x + half_w, pad.y + half_h)
+
+
+def _inside(inner: tuple[float, ...], outer: tuple[float, ...], tolerance: float = 1e-6) -> bool:
+    return (
+        inner[0] >= outer[0] - tolerance
+        and inner[1] >= outer[1] - tolerance
+        and inner[2] <= outer[2] + tolerance
+        and inner[3] <= outer[3] + tolerance
+    )
+
+
+def _kept_by_number(pads: list[FpPad]) -> set[int]:
+    """The copper pads that become pins: every land of a number, not only its largest.
+
+    One electrode often owns several lands -- a power MOSFET's drain leads and paddle,
+    a Kelvin resistor's terminals -- and the library keeps several pads on one pin
+    number: forward annotation puts them all on that pin's net. What is dropped is a
+    pad lying wholly inside a larger one of its number, which is a thermal pad's via or
+    a copper paste window, not a land of its own. Two lands that only overlap stay:
+    together they draw an L-shaped land that no single rectangle can.
+    """
+    by_number: dict[str, list[int]] = {}
     for index, pad in enumerate(pads):
         if not pad.number or pad.kind not in ("smd", "thru_hole"):
             continue
         if not any(layer in COPPER_LAYERS for layer in pad.layers):
             continue
-        if pad.number not in chosen or _copper_area(pad) > _copper_area(pads[chosen[pad.number]]):
-            chosen[pad.number] = index
-    return chosen
+        by_number.setdefault(pad.number, []).append(index)
+    kept: set[int] = set()
+    for indices in by_number.values():
+        boxes: list[tuple[float, float, float, float]] = []
+        for index in sorted(indices, key=lambda i: (-_copper_area(pads[i]), i)):
+            box = _copper_box(pads[index])
+            if any(_inside(box, larger) for larger in boxes):
+                continue
+            boxes.append(box)
+            kept.add(index)
+    return kept
 
 
 def cell_name(name: str) -> str:
@@ -588,7 +625,7 @@ def to_cell(
     issues: list[str] = []
     pins: list[H.CellPin] = []
     holes: list[H.CellPin] = []
-    chosen = _largest_by_number(footprint.pads)
+    kept = _kept_by_number(footprint.pads)
     kinds: set[str] = set()
     dropped: dict[str, int] = {}
     for index, pad in enumerate(footprint.pads):
@@ -618,10 +655,9 @@ def to_cell(
             else:
                 dropped["unnumbered"] = dropped.get("unnumbered", 0) + 1
             continue
-        if chosen.get(pad.number) != index:
-            # the same number on several pads (a thermal pad with its vias and paste
-            # windows): the largest piece of copper is the pin, the rest is dropped
-            dropped["duplicate_number"] = dropped.get("duplicate_number", 0) + 1
+        if index not in kept:
+            # inside a larger pad of its number: a thermal pad's via or paste window
+            dropped["inside_same_number"] = dropped.get("inside_same_number", 0) + 1
             continue
         if pad.drill_offset is not None and any(abs(v) > 1e-6 for v in pad.drill_offset):
             dropped["drill_offset_ignored"] = dropped.get("drill_offset_ignored", 0) + 1

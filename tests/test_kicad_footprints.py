@@ -99,7 +99,8 @@ def test_soic_pads_flip_y_keep_rotation_and_drop_pads_without_front_copper() -> 
     assert cell.name == "SOIC-8_Test"
     assert cell.group == "IC_SOIC" and cell.mount == "SURFACE"
     numbers = [pin.number for pin in cell.pins]
-    assert numbers == ["1", "2", "3", "4", "5", "6", "8"]  # 7 is back-side only
+    # 7 is back-side only; 8 has two lands, one reaching past the other: both stay
+    assert numbers == ["1", "2", "3", "4", "5", "6", "8", "8"]
     pin1 = cell.pins[0]
     assert (pin1.x, pin1.y) == (-2.475, 1.905)  # KiCad y down, Xpedition y up
     assert pin1.padstack == "SMD-RRECT1.95X0.6R0.15"
@@ -107,8 +108,8 @@ def test_soic_pads_flip_y_keep_rotation_and_drop_pads_without_front_copper() -> 
     assert cell.pins[3].padstack == "SMD-OBL1.95X0.6"
     assert cell.pins[4].padstack == "SMD-RECT0.6X0.6"  # a zero-ratio roundrect is a rectangle
     assert cell.pins[5].padstack == "SMD-RECT1.8X0.6"  # custom pad: box around its primitives
-    assert cell.pins[6].x == 2.475  # the first pad "8" stays, the second is dropped
-    assert issues == ["SOIC-8_Test: pads dropped (back_side 1, duplicate_number 1, no_copper 1)"]
+    assert (cell.pins[6].x, cell.pins[7].x) == (2.475, 3.475)
+    assert issues == ["SOIC-8_Test: pads dropped (back_side 1, no_copper 1)"]
     assert plan.pads["RRECT1.95X0.6R0.15"].radius == 0.15
     assert plan.pads["RRECT2.05X0.7R0.2"].shape == "RADIUS_CORNER_RECTANGLE"  # the mask
 
@@ -197,7 +198,51 @@ def test_thermal_pad_keeps_its_largest_copper_piece_not_its_first_via() -> None:
     exposed = next(pin for pin in cell.pins if pin.number == "8")
     assert exposed.padstack == "SMD-RECT1.65X2.85"  # the pad, not the via drilled first
     assert cell.mount == "SURFACE"
-    assert issues == ["SOIC-8_Test: pads dropped (back_side 1, duplicate_number 2, no_copper 2)"]
+    # the via inside the pad goes; the SOIC's own land "8" outside it stays
+    assert issues == ["SOIC-8_Test: pads dropped (back_side 1, inside_same_number 1, no_copper 2)"]
+    assert [pin.padstack for pin in cell.pins if pin.number == "8"] == [
+        "SMD-RECT1.65X2.85",
+        "SMD-RECT0.4X0.6",
+    ]
+
+
+TDFN = """(footprint "TDFN-2x2-6_Probe"
+  (version 20240108) (generator "test") (layer "F.Cu")
+  (attr smd)
+  (fp_rect (start -1.3 -1.3) (end 1.3 1.3) (stroke (width 0.05) (type solid)) (fill no)
+    (layer "F.CrtYd"))
+  (pad "3" smd rect (at -0.95 -0.65) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "3" smd rect (at -0.95 0) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "1" smd rect (at -0.95 0.65) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "2" smd rect (at 0.95 0.65) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "3" smd rect (at 0.95 0) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "3" smd rect (at 0.95 -0.65) (size 0.4 0.3) (layers "F.Cu" "F.Paste" "F.Mask"))
+  (pad "3" smd rect (at 0 -0.2) (size 0.9 1.0) (layers "F.Cu" "F.Mask"))
+  (pad "3" thru_hole circle (at 0 -0.2) (size 0.3 0.3) (drill 0.15) (layers "*.Cu"))
+)
+"""
+
+
+def test_every_land_of_an_electrode_becomes_a_pad_of_its_pin() -> None:
+    # A power MOSFET in a 2x2 mm TDFN: the drain owns four leads and the paddle, and
+    # a three-pin NMOS symbol must still meet all of them (issue #28).
+    _, cell, issues = _cell(TDFN)
+    numbers = sorted(pin.number for pin in cell.pins)
+    assert numbers == ["1", "2", "3", "3", "3", "3", "3"]
+    # the via in the paddle is not a land of its own
+    assert issues == ["TDFN-2x2-6_Probe: pads dropped (inside_same_number 1)"]
+    assert cell.mount == "SURFACE"
+
+
+def test_two_overlapping_lands_of_one_number_both_stay() -> None:
+    # an L-shaped land drawn as two rectangles that share an edge
+    text = TDFN.replace(
+        '(pad "3" thru_hole circle (at 0 -0.2) (size 0.3 0.3) (drill 0.15) (layers "*.Cu"))',
+        '(pad "3" smd rect (at 0.35 -0.9) (size 0.6 0.4) (layers "F.Cu" "F.Mask"))',
+    )
+    _, cell, issues = _cell(text)
+    assert sorted(pin.number for pin in cell.pins).count("3") == 6
+    assert issues == []
 
 
 def test_long_footprint_names_are_cut_to_the_library_limit_reproducibly() -> None:

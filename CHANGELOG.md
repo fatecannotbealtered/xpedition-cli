@@ -90,6 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A KiCad footprint that gives one number to several lands keeps them all (#28): each
+  becomes a pad of that pin, and forward annotation puts them on its net -- measured
+  with a 2x2 mm TDFN MOSFET whose drain owns four leads and the paddle. Only a pad
+  inside a larger one of its number (a thermal via) is dropped, now reported as
+  `inside_same_number`; two overlapping rectangles make an L-shaped land.
 - A running Designer read as absent after a temp cleaner emptied win32com's
   generated-wrapper cache (`has no attribute 'CLSIDToClassMap'`). The adapter
   removes such entries before it attaches, and an attach failure now says what

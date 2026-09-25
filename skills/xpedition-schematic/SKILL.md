@@ -98,7 +98,11 @@ schematic; the rules below are the non-negotiable subset.
   match the symbol's pin numbers; `library build --dry-run` lists mismatches under
   `issues`. Pick 1.27 mm or 1.0 mm pitch packages while the board is on the stock
   0.254 mm rules. The KiCad footprints carry a 1 mm reference designator, which is
-  what keeps the silkscreen readable.
+  what keeps the silkscreen readable. A footprint may give one number to several
+  lands -- a power MOSFET's drain leads and paddle, a Kelvin resistor's terminals --
+  and each becomes a pad of that pin, all on its net; a pad lying inside a larger
+  one of its number (a thermal via) is dropped, and two overlapping rectangles of
+  one number make an L-shaped land.
 - Generated symbols are `V 53` files in sheet units with 100 mil pin pitch and
   device-class shapes; never a bare rectangle for R, C, L or D.
 - Built-in symbol kinds: `RES`, `CAP`, `CAPP`, `IND`, `DIODE`, `LED`, `SW`,
