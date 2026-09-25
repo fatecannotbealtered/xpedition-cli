@@ -63,6 +63,50 @@ def _response(
     }
 
 
+def _heal_gen_py_cache(root: Path | None = None) -> list[str]:
+    """Remove win32com gen_py entries whose generated module is gone.
+
+    win32com caches each type library's generated wrapper under gen_py, which
+    lives in %TEMP%. A temp cleaner that deletes the .py files but leaves
+    __pycache__ turns an entry into an empty namespace package, and win32com
+    then fails every GetActiveObject on that library with "has no attribute
+    'CLSIDToClassMap'" -- which the attach probes read as "Designer is not
+    running". An entry is only a cache, rebuilt on demand. One being generated
+    right now has its .py files and no __pycache__ yet, so it is left alone.
+    """
+    if root is None:
+        try:
+            import win32com  # type: ignore[import-not-found]
+        except ImportError:
+            return []
+        gen_path = str(getattr(win32com, "__gen_path__", "") or "")
+        if not gen_path:
+            return []
+        root = Path(gen_path)
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return []
+    removed: list[str] = []
+    for entry in entries:
+        if (
+            entry.is_dir()
+            and entry.name != "__pycache__"
+            and (entry / "__pycache__").is_dir()
+            and not (entry / "__init__.py").exists()
+        ):
+            shutil.rmtree(entry, ignore_errors=True)
+            if not entry.exists():
+                removed.append(entry.name)
+    if removed:
+        print(
+            f"repaired the win32com type-library cache: removed {', '.join(removed)}",
+            file=sys.stderr,
+            flush=True,
+        )
+    return removed
+
+
 def _import_com() -> tuple[Any, Any]:
     if os.name != "nt":
         raise AdapterError(
@@ -330,6 +374,7 @@ def _com_error(exc: Exception, action: str) -> AdapterError:
 
 
 def _active_object(client: Any) -> Any:
+    causes: list[str] = []
     for progid in (
         "MGCPCB.Application",
         "MGCPCB.Application.60",
@@ -338,13 +383,16 @@ def _active_object(client: Any) -> Any:
     ):
         try:
             return client.GetActiveObject(progid)
-        except Exception:
-            continue
+        except Exception as exc:
+            causes.append(f"{progid}: {type(exc).__name__}: {exc}")
     raise AdapterError(
         "E_NOT_FOUND",
         "a running Xpedition Layout automation session was not found",
         {
             "progids": ["MGCPCB.Application", "MGCPCB.ExpeditionPCBApplication"],
+            # "not found" is the usual reason, not the only one; say what failed
+            "causes": causes,
+            "_untrusted": ["causes"],
             # GetActiveObject only binds a session the user already started, so
             # say which application that is. Layout and Designer are separate
             # products with separate COM classes: a running Designer does not
@@ -359,12 +407,32 @@ def _active_object(client: Any) -> Any:
     )
 
 
+def _designer_bound(client: Any, app: Any) -> Any:
+    """Designer through its makepy wrapper, generated if it is missing.
+
+    The Designer calls here were written against the early-bound wrapper, which
+    fills in optional arguments: late-bound, `Documents.Open(design)` fails with
+    "parameter not optional". Which of the two `GetActiveObject` returns depends
+    only on whether gen_py happens to hold the wrapper -- it did on the machine
+    this was built on, and a %TEMP% cleanup or a fresh machine takes it away. So
+    the wrapper is generated on first use rather than assumed.
+    """
+    gencache = getattr(client, "gencache", None)
+    if gencache is None:
+        return app
+    try:
+        return gencache.EnsureDispatch(app)
+    except Exception:
+        return app
+
+
 def _viewdraw_active(client: Any) -> Any:
+    causes: list[str] = []
     for progid in ("Viewdraw.Application", "Viewdraw.Application.60"):
         try:
-            return client.GetActiveObject(progid)
-        except Exception:
-            continue
+            return _designer_bound(client, client.GetActiveObject(progid))
+        except Exception as exc:
+            causes.append(f"{progid}: {type(exc).__name__}: {exc}")
     raise AdapterError(
         "E_NOT_FOUND",
         "a running Xpedition Designer automation session was not found",
@@ -376,6 +444,9 @@ def _viewdraw_active(client: Any) -> Any:
                 "start Xpedition Designer, or run: "
                 "xpedition-cli session start --backend native_xpedition --kind schematic"
             ),
+            # "not found" is the usual reason, not the only one; say what failed
+            "causes": causes,
+            "_untrusted": ["causes"],
         },
     )
 
@@ -459,7 +530,7 @@ def _viewdraw_application(client: Any, attach_only: bool = False) -> Any:
         last_error: Exception | None = None
         for progid in ("Viewdraw.Application", "Viewdraw.Application.60"):
             try:
-                return client.Dispatch(progid)
+                return _designer_bound(client, client.Dispatch(progid))
             except Exception as exc:
                 last_error = exc
         if last_error is not None:
@@ -1273,6 +1344,58 @@ def _open_project_answering(app: Any, path: str) -> Any:
     """
     with _PromptAnswerer(DESIGNER_PROMPTS, process_name="viewdraw.exe"):
         return app.OpenProject(path)
+
+
+_APPLICATION_PROGIDS = {
+    "schematic": ("Viewdraw.Application", "Viewdraw.Application.60"),
+    "pcb": ("MGCPCB.Application", "MGCPCB.ExpeditionPCBApplication"),
+}
+
+
+def _still_registered(client: Any, domain: str) -> bool:
+    for progid in _APPLICATION_PROGIDS[domain]:
+        try:
+            client.GetActiveObject(progid)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _quit_and_confirm(client: Any, app: Any, domain: str, wait: float = 20.0) -> None:
+    """Quit the application and check that it went.
+
+    A call cut short by a timeout can leave a question up -- a snapshot that had
+    asked Designer to switch projects left "close all open documents?" on screen --
+    and `Quit` then returns without quitting: the stop reported success with
+    Designer still running behind the dialog. The known questions are answered while
+    it quits, and an application still registered afterwards is an error that names
+    what holds it.
+    """
+    rules, process = (
+        (DESIGNER_PROMPTS, "viewdraw.exe")
+        if domain == "schematic"
+        else (LAYOUT_PROMPTS, "expeditionpcb.exe")
+    )
+    with _PromptAnswerer(rules, process_name=process) as prompts:
+        app.Quit()
+        deadline = time.monotonic() + wait
+        running = _still_registered(client, domain)
+        while running and time.monotonic() < deadline:
+            time.sleep(1.0)
+            running = _still_registered(client, domain)
+    if running:
+        name = "Designer" if domain == "schematic" else "Layout"
+        raise AdapterError(
+            "E_CONFLICT",
+            f"Xpedition {name} did not quit",
+            {
+                "domain": domain,
+                "blocking_dialogs": prompts.blocking_dialogs(),
+                "hint": f"answer or close the dialog in {name}, then session stop again",
+                "_untrusted": ["blocking_dialogs"],
+            },
+        )
 
 
 def _open_designer_project(app: Any, params: dict[str, Any]) -> Any:
@@ -6872,6 +6995,8 @@ def _show(params: dict[str, Any], client: Any) -> dict[str, Any]:
 def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
     pythoncom, client = _import_com()
     pythoncom.CoInitialize()
+    # before anything binds a running application through a cached wrapper
+    _heal_gen_py_cache()
     try:
         if method == "health":
             sdd_home = _configure_environment()
@@ -7018,7 +7143,7 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             elif doc is not None and bool(params.get("document_only", False)):
                 doc.Close(bool(params.get("save", False)))
             else:
-                app.Quit()
+                _quit_and_confirm(client, app, domain)
             return {"closed": True, "domain": domain}
         if method == "apply_changeset":
             operations = params.get("operations")

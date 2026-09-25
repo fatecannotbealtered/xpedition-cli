@@ -66,7 +66,9 @@ read it before a native task rather than inferring readiness from
 explicitly with `session start --backend native_xpedition --kind pcb|schematic`.
 A native command will otherwise activate the application on demand, which is slow
 and fails outright on installations whose COM registration bypasses the product
-launcher.
+launcher. `session stop` checks that the application quit; when a dialog holds it
+(a timed-out call can leave one up), the error lists the dialog: answer it in the
+application, then stop again.
 
 Never reach for `win32com` or a COM script to work around a missing command. The
 adapter performs the automation-licensing handshake that Xpedition requires, so a

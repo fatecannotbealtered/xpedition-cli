@@ -79,6 +79,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A running Designer read as absent after a temp cleaner emptied win32com's
+  generated-wrapper cache (`has no attribute 'CLSIDToClassMap'`). The adapter
+  removes such entries before it attaches, and an attach failure now says what
+  failed instead of only "not found". Designer is bound through its generated
+  wrapper, created if missing: late-bound, `project init` failed on
+  `Documents.Open` ("parameter not optional"), which a fresh machine would hit too.
+- `session stop` reported the application closed while a dialog a timed-out call had
+  left up held its `Quit`. Known questions are answered while it quits, and an
+  application still running afterwards is an `E_CONFLICT` naming the dialog.
 - Every confirm example in `reference` repeats the arguments of a dry-run example. The
   token is bound to them, so the `pcb route`, `outline`, `rules`, `export`, `holes`,
   `labels`, `create`, `trace`, `unroute` and `library build` examples failed with
