@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A failed `schematic draw` can be resumed (#30). Every sheet ends in a save, so the
+  failure now names the sheets it completed (`sheets_drawn`) and the rest
+  (`sheets_remaining`), with a hint, and `--sheets 3,4` draws only those; the netlist
+  check still covers the whole design, and the sheets left alone come back as
+  `sheets_kept`. The token binds the chosen sheets. `--pace` slows a draw for someone
+  watching Designer, as it does `pcb trace`. On a 4-sheet design interrupted on
+  sheet 3, the resume drew 132 of 207 operations and the netlist matched.
 - `--timeout SECONDS` gives a native read -- the snapshot behind review, bom,
   schematic, pcb, library and project reads -- the time a large design needs (#29).
   The default is 120 s, up from a fixed 30 s that a 41-part design with an 8 MB
@@ -92,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `session stop` reported the application closed while a dialog a timed-out call had
   left up held its `Quit`. Known questions are answered while it quits, and an
   application still running afterwards is an `E_CONFLICT` naming the dialog.
+- A draw that failed inside the adapter itself -- a sheet it could not make active --
+  reported no sheet or index; every draw failure now carries them.
+- The `schematic_draw` output schema declares `sheets_drawn`, `sheets_not_drawn` and
+  `sheets_kept`, and the dry run's declares `operations`.
 - Every confirm example in `reference` repeats the arguments of a dry-run example. The
   token is bound to them, so the `pcb route`, `outline`, `rules`, `export`, `holes`,
   `labels`, `create`, `trace`, `unroute` and `library build` examples failed with

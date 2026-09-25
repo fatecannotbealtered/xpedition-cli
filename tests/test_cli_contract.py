@@ -806,7 +806,7 @@ def test_schematic_draw_is_declared_by_reference(tmp_path: Path) -> None:
     draw = declared["schematic draw"]
     assert draw["permission_tier"] == "write"
     assert draw["dry_run_output_schema"] == "schematic_draw_preview"
-    assert {p["name"] for p in draw["params"]} == {"project", "design"}
+    assert {p["name"] for p in draw["params"]} == {"project", "design", "sheets", "pace"}
     assert "wiped and redrawn" in draw["blast_radius"]
 
 

@@ -764,6 +764,9 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "warnings",
             "netlist",
             "symbols_written",
+            "sheets_drawn",
+            "sheets_not_drawn",
+            "sheets_kept",
             "project",
             "summary",
             "_untrusted",
@@ -772,8 +775,8 @@ SCHEMAS: dict[str, dict[str, Any]] = {
     },
     "schematic_draw_preview": {
         "shape": "object",
-        "fields": ["preview", "confirm_token", "expires_at", "_untrusted"],
-        "untrusted_fields": ["preview"],
+        "fields": ["preview", "operations", "confirm_token", "expires_at", "_untrusted"],
+        "untrusted_fields": ["preview", "operations"],
     },
     "schematic_show": {
         "shape": "object",
@@ -1470,19 +1473,29 @@ def commands() -> list[dict[str, Any]]:
             ),
             _command(
                 "schematic draw",
-                "Plan a schematic from a design description and draw it in Xpedition Designer",
+                "Plan a schematic from a design description and draw it in Xpedition Designer; "
+                "--sheets draws only the named sheets, which resumes a draw that failed after "
+                "saving some, and --pace slows it for someone watching",
                 "schematic_draw",
                 [
                     "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
                     "--design ./design.json --dry-run --compact",
                     "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
                     "--design ./design.json --confirm <confirm_token> --compact",
+                    "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
+                    "--design ./design.json --sheets 3,4 --dry-run --compact",
                 ],
                 permission="write",
-                params=[_param("project", "path", True), _param("design", "path", True)],
+                params=[
+                    _param("project", "path", True),
+                    _param("design", "path", True),
+                    _param("sheets", "string"),
+                    _param("pace", "number"),
+                ],
                 blast_radius=(
-                    "every sheet listed in the design is wiped and redrawn; symbol files are "
-                    "written into the project's central-library partition"
+                    "every sheet drawn (all the design lists, or those --sheets names) is wiped "
+                    "and redrawn; symbol files are written into the project's central-library "
+                    "partition"
                 ),
                 dry_run_schema="schematic_draw_preview",
             ),

@@ -54,6 +54,7 @@ VALUE_FLAGS = {
     "--backend",
     "--pace",
     "--timeout",
+    "--sheets",
     "--project",
     "--other-project",
     "--input",
@@ -1776,10 +1777,22 @@ def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str
             "E_VALIDATION", f"design cannot be drawn: {exc}", {"design": str(design_file)}
         ) from exc
     summary = params["summary"]
+    planned = [int(sheet["number"]) for sheet in summary["sheets"]]
+    chosen = _sheets_option(options, planned)
+    if chosen is not None:
+        # Every sheet ends in a save, so the sheets a failed draw completed are on
+        # disk: redrawing only the rest resumes it. The netlist read back at the
+        # end still covers the whole design.
+        params["ops"] = _ops_for_sheets(params["ops"], chosen)
+    drawing = chosen if chosen is not None else planned
+    params["design_sheets"] = planned
+    pace = _pace_option(options, "schematic draw")
+    if pace:
+        params["pace"] = pace
     digest = hashlib.sha256(json.dumps(params["ops"], sort_keys=True).encode("utf-8")).hexdigest()[
         :16
     ]
-    scope = {"operation": "schematic_draw", "project": canonical, "plan": digest}
+    scope = {"operation": "schematic_draw", "project": canonical, "plan": digest, "sheets": drawing}
     preview = {
         "changes": [
             {
@@ -1789,13 +1802,16 @@ def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str
                 "parts": sheet["parts"],
             }
             for sheet in summary["sheets"]
+            if int(sheet["number"]) in drawing
         ],
+        "sheets_kept": [number for number in planned if number not in drawing],
         "summary": summary,
         "risk": {
             "tier": "T1",
             "blast_radius": (
-                "every sheet listed in the design is wiped and redrawn; symbol files are "
-                "written into the project's central-library partition"
+                "every sheet drawn (all the design lists, or those --sheets names) is wiped "
+                "and redrawn; symbol files are written into the project's central-library "
+                "partition"
             ),
         },
         "_untrusted": ["summary", "risk.blast_radius"],
@@ -1891,6 +1907,43 @@ def _input_path(positionals: list[str], options: dict[str, Any]) -> str | None:
     if len(positionals) > 2 and not positionals[2].startswith("-"):
         return positionals[2]
     return None
+
+
+def _sheets_option(options: dict[str, Any], planned: list[int]) -> list[int] | None:
+    """`--sheets 3,4`: draw only these sheets of the design; None draws them all."""
+    raw = options.get("sheets")
+    if raw is None:
+        return None
+    try:
+        chosen = sorted({int(part) for part in str(raw).split(",") if part.strip()})
+    except ValueError as exc:
+        raise CLIError(
+            "E_VALIDATION",
+            "--sheets is a comma-separated list of sheet numbers",
+            {"sheets": str(raw)},
+        ) from exc
+    if not chosen:
+        raise CLIError("E_VALIDATION", "--sheets names no sheet", {"sheets": str(raw)})
+    unknown = [number for number in chosen if number not in planned]
+    if unknown:
+        raise CLIError(
+            "E_VALIDATION",
+            "--sheets names sheets the design does not list",
+            {"sheets": unknown, "design_sheets": planned},
+        )
+    return chosen
+
+
+def _ops_for_sheets(ops: list[dict[str, Any]], chosen: list[int]) -> list[dict[str, Any]]:
+    """The operations of the chosen sheets: each sheet's run from its `open_sheet`."""
+    kept: list[dict[str, Any]] = []
+    sheet: int | None = None
+    for op in ops:
+        if op.get("op") == "open_sheet":
+            sheet = int(op["number"])
+        if sheet in chosen:
+            kept.append(op)
+    return kept
 
 
 def _timeout_option(options: dict[str, Any]) -> float | None:

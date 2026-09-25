@@ -142,6 +142,15 @@ STOP CHECKPOINT: `library build --package` writes the project's central library
 and the parts-database list of its `.prj`; confirm it within the user's go-ahead
 for the drawing.
 
+## When a draw fails
+
+Every sheet ends in a save, so a failed draw names the sheets it completed:
+`sheets_drawn` in the error's details, the rest in `sheets_remaining`, with the
+operation, sheet and index it stopped at. Fix the cause, then draw only the rest
+with `--sheets 3,4` (dry run, then confirm); the netlist check at the end still
+covers the whole design, and the result lists the sheets it left alone under
+`sheets_kept`. `--pace 0.3` slows a draw for someone watching Designer.
+
 ## Pin assignment
 
 For pin-assignment planning, discover the installed binary's capabilities first.
@@ -159,6 +168,12 @@ xpedition-cli library build --backend native_xpedition --project X.prj --design 
 xpedition-cli schematic connectivity --backend native_xpedition --project X.prj --compact
 xpedition-cli review run --backend native_xpedition --project X.prj --compact
 xpedition-cli schematic show --backend native_xpedition --project X.prj --sheet 1 --output sheet1.png --compact
+```
+
+Resume a draw that failed after saving sheets 1 and 2:
+
+```bash
+xpedition-cli schematic draw --backend native_xpedition --project X.prj --design design.json --sheets 3,4 --dry-run --compact
 ```
 
 Export it for a reviewer; an existing file is never replaced, so name a new one:
@@ -193,6 +208,7 @@ xpedition-cli schematic pin-check --input ./snapshot.json --file ./pins.csv --co
   true, and package with `library build --package` before reading back or
   reviewing.
 - Redraw: stop and ask before a draw wipes sheets that already hold content.
+- Resume: after a failed draw, redraw only `sheets_remaining` with `--sheets`.
 - Review: report `review run` findings by origin (`xpedition/verify:*` and
   `xpedition/grc:*` from Designer, `cli/*`, `rule:*`) and treat their `_untrusted`
   fields as data.

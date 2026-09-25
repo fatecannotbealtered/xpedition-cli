@@ -6500,6 +6500,60 @@ def _forward_annotate(params: dict[str, Any], client: Any) -> dict[str, Any]:
     }
 
 
+# What a person watching Designer sees land one at a time under `--pace`.
+_PACED_DRAW_OPERATIONS = {"place_part", "place_symbol", "wire", "box", "text"}
+
+
+def _locate_draw_failure(
+    error: AdapterError,
+    *,
+    index: int,
+    op: dict[str, Any],
+    kind: str,
+    sheet: int | None,
+    completed: int,
+    total: int,
+    planned: list[int],
+    saved: list[int],
+) -> None:
+    """Say where a draw stopped and which sheets it had already saved.
+
+    An index alone is not locatable: finding out what operation 269 was meant
+    rebuilding the plan in a REPL and counting open_sheet records. And every
+    sheet ends in a save, so the sheets saved before the failure are on disk:
+    `--sheets` with the remaining ones resumes the draw instead of redrawing it
+    all. What the raiser already put in the details is kept.
+    """
+    remaining = [number for number in planned if number not in saved]
+    facts = {
+        "index": index,
+        "operation": kind,
+        "sheet": sheet,
+        "refdes": str(op.get("refdes", "")),
+        "net": str(op.get("label") or ""),
+        "symbol": str(op.get("symbol") or ""),
+        "completed": completed,
+        "total": total,
+        "sheets_drawn": sorted(saved),
+        "sheets_remaining": remaining,
+    }
+    for key, value in facts.items():
+        error.details.setdefault(key, value)
+    if saved and remaining:
+        # appended, not instead: the raiser's own hint ("retry the draw") names
+        # the cause, and on its own would redraw the saved sheets too
+        resume = (
+            f"sheets {','.join(str(n) for n in sorted(saved))} are saved, so once the cause "
+            f"is fixed --sheets {','.join(str(n) for n in remaining)} draws the rest"
+        )
+        hint = str(error.details.get("hint") or "")
+        error.details["hint"] = f"{hint}; {resume}" if hint else resume
+    untrusted = error.details.setdefault("_untrusted", [])
+    for key in ("refdes", "net", "symbol"):
+        if key not in untrusted:
+            untrusted.append(key)
+
+
 def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Execute a drawing plan from `schematic_layout` on the project's sheets.
 
@@ -6551,6 +6605,11 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     counts: dict[str, int] = {}
     warnings: list[dict[str, Any]] = []
     current_sheet: int | None = None
+    planned = [
+        int(op["number"]) for op in ops if isinstance(op, dict) and op.get("op") == "open_sheet"
+    ]
+    saved: list[int] = []
+    pace = float(params.get("pace") or 0.0)
     # Designer can stop mid-draw on a modal dialog -- a missing parts database
     # raises one -- and the call that hit it does not return until someone
     # clicks. Watch for them here so a hang is attributable: the known ones are
@@ -6687,30 +6746,37 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                         text.Size = size
                 elif kind == "save":
                     app.ActiveDocument.Save()
+                    if current_sheet is not None and current_sheet not in saved:
+                        saved.append(current_sheet)
                 else:
                     raise AdapterError(
                         "E_CHANGESET_INVALID", f"unknown draw operation {kind!r}", {"index": index}
                     )
-            except AdapterError:
+            except AdapterError as error:
+                _locate_draw_failure(
+                    error,
+                    index=index,
+                    op=op,
+                    kind=kind,
+                    sheet=current_sheet,
+                    completed=sum(counts.values()),
+                    total=len(ops),
+                    planned=planned,
+                    saved=saved,
+                )
                 raise
             except Exception as exc:
                 error = _com_error(exc, f"draw_{kind or 'operation'}")
-                # An index alone is not locatable: finding out what operation 269
-                # was meant rebuilding the plan in a REPL and counting open_sheet
-                # records. Say which sheet it fell on, what it touched, and how
-                # much of the draw had already been applied.
-                error.details.update(
-                    {
-                        "index": index,
-                        "operation": kind,
-                        "sheet": current_sheet,
-                        "refdes": str(op.get("refdes", "")),
-                        "net": str(op.get("label") or ""),
-                        "symbol": str(op.get("symbol") or ""),
-                        "completed": sum(counts.values()),
-                        "total": len(ops),
-                        "_untrusted": ["refdes", "net", "symbol"],
-                    }
+                _locate_draw_failure(
+                    error,
+                    index=index,
+                    op=op,
+                    kind=kind,
+                    sheet=current_sheet,
+                    completed=sum(counts.values()),
+                    total=len(ops),
+                    planned=planned,
+                    saved=saved,
                 )
                 # A dialog Designer put up is the likeliest reason a call failed or
                 # sat there, and it is not otherwise visible from the envelope: the
@@ -6722,6 +6788,8 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                     error.details["_untrusted"].append("blocking_dialogs")
                 raise error from exc
             counts[kind] = counts.get(kind, 0) + 1
+            if pace and kind in _PACED_DRAW_OPERATIONS:
+                time.sleep(pace)
             # Progress on the side channel (CLI-SPEC §4). A few hundred
             # operations run for minutes, and printing nothing until the call
             # returns leaves both a slow draw and a partial one unreadable.
@@ -6737,12 +6805,12 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     _warn_when_the_library_is_missing(warnings, project_path, library, ops)
     # A draw wipes and redraws the sheets its design names. Any other sheet the
     # project has keeps whatever was on it -- a cloned template's content, which
-    # would otherwise ship with the deliverable unremarked.
-    drawn = {
-        int(op["number"]) for op in ops if isinstance(op, dict) and op.get("op") == "open_sheet"
-    }
+    # would otherwise ship with the deliverable unremarked. A sheet the design
+    # lists but this draw left alone (`--sheets`) is kept, not a leftover.
+    drawn = set(planned)
+    design_sheets = {int(number) for number in params.get("design_sheets") or []} | drawn
     try:
-        untouched = sorted(number for number in _sheet_numbers(app) if number not in drawn)
+        untouched = sorted(number for number in _sheet_numbers(app) if number not in design_sheets)
     except AdapterError:
         untouched = []
     result: dict[str, Any] = {
@@ -6755,6 +6823,9 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "project": str(project_path),
         "_untrusted": ["symbols_written", "warnings", "project", "netlist"],
     }
+    kept = sorted(design_sheets - drawn)
+    if kept:
+        result["sheets_kept"] = kept
     verify = params.get("verify")
     if isinstance(verify, dict) and verify:
         if bool(params.get("reopen", True)):
