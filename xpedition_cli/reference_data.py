@@ -1518,7 +1518,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_create",
                 [
                     "xpedition-cli pcb create --backend native_xpedition --project X.prj "
-                    "--dry-run --compact",
+                    '--template "4 Layer Template" --dry-run --compact',
                     "xpedition-cli pcb create --backend native_xpedition --project X.prj "
                     '--template "4 Layer Template" --confirm <confirm_token> --compact',
                 ],
@@ -1571,6 +1571,8 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli pcb trace --backend native_xpedition --project X.prj "
                     '--net I2C_SCL --layer 1 --width 0.254 --points "34.2,36.0 36.5,36.0 '
                     '36.5,40.5" --dry-run --compact',
+                    "xpedition-cli pcb trace --backend native_xpedition --project X.prj "
+                    "--file ./routes.json --dry-run --compact",
                     "xpedition-cli pcb trace --backend native_xpedition --project X.prj "
                     "--file ./routes.json --confirm <confirm_token> --compact",
                 ],
@@ -1639,7 +1641,9 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
                     "--nets I2C_SCL,I2C_SDA --dry-run --compact",
                     "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
-                    "--all --confirm <confirm_token> --compact",
+                    "--nets I2C_SCL,I2C_SDA --confirm <confirm_token> --compact",
+                    "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
+                    "--all --dry-run --compact",
                 ],
                 permission="write",
                 params=[
@@ -1681,7 +1685,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_labels",
                 [
                     "xpedition-cli pcb labels --backend native_xpedition --project X.prj "
-                    "--dry-run --compact",
+                    "--gap 0.3 --dry-run --compact",
                     "xpedition-cli pcb labels --backend native_xpedition --project X.prj "
                     "--gap 0.3 --confirm <confirm_token> --compact",
                 ],
@@ -1760,8 +1764,9 @@ def commands() -> list[dict[str, Any]]:
                     _param("pace", "number"),
                 ],
                 blast_radius=(
-                    "every unplaced part is placed, zone labels are written on the top "
-                    "silkscreen and the board is saved"
+                    "every trace and via on the board is deleted first; every unplaced part "
+                    "is placed (with --all the placed ones move too), zone labels are "
+                    "written on the top silkscreen and the board is saved"
                 ),
                 dry_run_schema="pcb_arrange_preview",
             ),
@@ -1791,7 +1796,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_route",
                 [
                     "xpedition-cli pcb route --backend native_xpedition --project X.prj "
-                    "--dry-run --compact",
+                    '--passes "route:1-5,viamin,smooth" --layers 1,4 --dry-run --compact',
                     "xpedition-cli pcb route --backend native_xpedition --project X.prj "
                     '--passes "route:1-5,viamin,smooth" --layers 1,4 --confirm <confirm_token> '
                     "--compact",
@@ -1813,7 +1818,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_outline",
                 [
                     "xpedition-cli pcb outline --backend native_xpedition --project X.prj "
-                    "--width 45 --height 30 --dry-run --compact",
+                    "--width 60 --height 45 --radius 3 --dry-run --compact",
                     "xpedition-cli pcb outline --backend native_xpedition --project X.prj "
                     "--width 60 --height 45 --radius 3 --confirm <confirm_token> --compact",
                 ],
@@ -1835,7 +1840,8 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_rules",
                 [
                     "xpedition-cli pcb rules --backend native_xpedition --project X.prj "
-                    "--class POWER --nets VBAT,+3V3 --width 0.5 --dry-run --compact",
+                    "--class POWER --nets VBAT,+3V3 --width 0.5 --min 0.4 --expansion 0.6 "
+                    "--dry-run --compact",
                     "xpedition-cli pcb rules --backend native_xpedition --project X.prj "
                     "--class POWER --nets VBAT,+3V3 --width 0.5 --min 0.4 --expansion 0.6 "
                     "--confirm <confirm_token> --compact",
@@ -1863,7 +1869,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_export",
                 [
                     "xpedition-cli pcb export --backend native_xpedition --project X.prj "
-                    "--dry-run --compact",
+                    "--formats odb,gerber,ncdrill --output ./fab --dry-run --compact",
                     "xpedition-cli pcb export --backend native_xpedition --project X.prj "
                     "--formats odb,gerber,ncdrill --output ./fab --confirm <confirm_token> "
                     "--compact",
@@ -1888,7 +1894,7 @@ def commands() -> list[dict[str, Any]]:
                 "pcb_holes",
                 [
                     "xpedition-cli pcb holes --backend native_xpedition --project X.prj "
-                    "--dry-run --compact",
+                    "--diameter 2.2 --inset 3.5 --dry-run --compact",
                     "xpedition-cli pcb holes --backend native_xpedition --project X.prj "
                     "--diameter 2.2 --inset 3.5 --confirm <confirm_token> --compact",
                 ],
@@ -2075,7 +2081,7 @@ def commands() -> list[dict[str, Any]]:
                 "library_build",
                 [
                     "xpedition-cli library build --backend native_xpedition --project X.prj "
-                    "--design design.json --dry-run --compact",
+                    "--design design.json --package --dry-run --compact",
                     "xpedition-cli library build --backend native_xpedition --project X.prj "
                     "--design design.json --confirm <confirm_token> --package --compact",
                 ],

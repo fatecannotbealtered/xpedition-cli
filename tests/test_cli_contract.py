@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -690,6 +691,38 @@ def test_schematic_export_is_declared_by_reference(tmp_path: Path) -> None:
     assert export["output_schema"] == "schematic_export"
     assert {p["name"] for p in export["params"]} == {"project", "output", "color", "schematic"}
     assert "never replaced" in export["blast_radius"]
+
+
+def test_confirm_examples_repeat_a_dry_run_example(tmp_path: Path) -> None:
+    # The confirm token is bound to the arguments, so a confirm example whose
+    # arguments no dry-run example shares fails with E_CONFLICT when copied.
+    result = run_cli("reference", "--compact", config_dir=tmp_path / "config")
+    assert result.returncode == 0
+
+    def arguments(example: str) -> list[str]:
+        kept: list[str] = []
+        skip = False
+        for word in shlex.split(example):
+            if skip:
+                skip = False
+            elif word == "--confirm":
+                skip = True
+            elif word not in ("--dry-run", "--compact"):
+                kept.append(word)
+        return kept
+
+    for command in payload(result)["data"]["commands"]:
+        dry_runs = [arguments(e) for e in command["examples"] if "--dry-run" in e]
+        for example in command["examples"]:
+            if "--confirm" in example:
+                assert arguments(example) in dry_runs, (command["path"], example)
+
+
+def test_pcb_arrange_declares_that_it_deletes_the_routing(tmp_path: Path) -> None:
+    result = run_cli("reference", "--compact", config_dir=tmp_path / "config")
+    assert result.returncode == 0
+    declared = {c["path"]: c for c in payload(result)["data"]["commands"]}
+    assert "every trace and via" in declared["pcb arrange"]["blast_radius"]
 
 
 EXAMPLE_DESIGN = ROOT / "examples" / "demo-sensor-board.json"

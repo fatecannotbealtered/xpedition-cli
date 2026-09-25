@@ -79,6 +79,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Every confirm example in `reference` repeats the arguments of a dry-run example. The
+  token is bound to them, so the `pcb route`, `outline`, `rules`, `export`, `holes`,
+  `labels`, `create`, `trace`, `unroute` and `library build` examples failed with
+  `E_CONFLICT` when copied; a test now holds every command to it. `pcb arrange` declares
+  in its blast radius that it deletes every trace and via on the board first.
 - `library build --dry-run` reports a cell pad that no symbol pin reaches. The pin check
   ran one way only -- every symbol pin needed a cell pin -- so a cell with *more* pads
   than the symbol has pins passed clean. A power MOSFET in DFN or PowerPAK carries
