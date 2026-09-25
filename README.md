@@ -134,7 +134,8 @@ bypass COM registration or license checks.
 xpedition-cli/
 ├── xpedition_cli/       # CLI boundary, models, ChangeSet, backends, contract
 ├── tests/               # command-level contract and FCC tests
-├── skills/xpedition-cli/
+├── skills/xpedition-cli/  # entry Skill: install, sessions, schematic, library
+├── skills/xpedition-pcb/  # board Skill: Layout, routing, DRC, fabrication
 ├── contract/            # canonical vendored machine contract
 ├── scripts/             # spec, version, and npm wrapper tooling
 ├── docs/                # compatibility, E2E, and open-source checklist
@@ -161,7 +162,7 @@ promise that the Xpedition automation behaves identically on another installatio
 ## Links
 
 - [Agent entry](AGENTS.md)
-- [Skill](skills/xpedition-cli/SKILL.md)
+- [Skill](skills/xpedition-cli/SKILL.md) and its board companion [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
 - [CLI contract](.agent/CLI-SPEC.md)
 - [Security policy](SECURITY.md)
 - [Compatibility matrix](docs/COMPATIBILITY.md)

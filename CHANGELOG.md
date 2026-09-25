@@ -61,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Skill is now two, on spec v1.6.3's rules for several Skills (SKILL-SPEC §7).
+  `xpedition-cli` stays the entry Skill: install, sessions, the write recipe, errors,
+  security and the schematic side. The new `xpedition-pcb` carries the board in Layout,
+  from packaging a drawn schematic to the fabrication package, with its conventions,
+  placement, hand-routing and fabrication references, and reads the entry Skill first.
+  A confirmed `pcb arrange` deleting all routing is now a STOP CHECKPOINT there. The same
+  `npx skills add fatecannotbealtered/xpedition-cli -y -g` installs both.
+- The vendored spec is v1.6.3.
 - Runtime readiness is beta: prior live E2E records do not cover the new native
   placement path. Public interface references, synthetic tests and a native smoke
   checklist are recorded without claiming licensed execution or release readiness.

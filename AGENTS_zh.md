@@ -26,7 +26,7 @@
 
 - 工具名：`xpedition-cli`
 - 语言/分发：Python 3.10+ + PyInstaller 二进制和 npm 壳
-- 源码：`xpedition_cli/`；测试：`tests/`；Skill：`skills/xpedition-cli/SKILL.md`
+- 源码：`xpedition_cli/`；测试：`tests/`；Skill：`skills/xpedition-cli/SKILL.md`（入口）和 `skills/xpedition-pcb/SKILL.md`（板级）
 - 本地校验：`pytest -q && ruff check xpedition_cli tests && ruff format --check xpedition_cli tests`
 - 后端：MockBackend（离线 JSON）与 NativeBackend（通过 Windows COM 适配器驱动正版
   Xpedition）。从原理图到打板资料的整条链记录在 `docs/E2E.md`，证据来自一台 XPED2604 的

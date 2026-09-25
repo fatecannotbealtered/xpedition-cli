@@ -1,0 +1,57 @@
+[
+  {
+    "id": "entry-skill-first",
+    "prompt": "Use xpedition-pcb to check the board in the running Layout session.",
+    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Layout before a native command. If ../xpedition-cli/SKILL.md is missing, stop and ask the user before installing the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+  },
+  {
+    "id": "schematic-to-board",
+    "prompt": "The schematic of the demo sensor board is drawn in Designer from design.json. Turn it into a board in Layout.",
+    "expected": "Start Layout with session start --backend native_xpedition --kind pcb; run library build --design design.json --package, pcb create and pcb annotate with --backend native_xpedition --project X.prj, each --dry-run then the same command with --confirm and the returned token; read back with pcb info and pcb components; report done only when pcb annotate says outcome annotated (annotated_on_open or in_synch also count) with no errors and the counts match the schematic."
+  },
+  {
+    "id": "first-layout",
+    "prompt": "Place the parts on the new board, route it and tell me whether it is clean.",
+    "expected": "Draw the outline and the holes first, dry-run pcb arrange and grow the outline (holes --replace) until summary.outside is empty, then confirm the arrange; pour GND on layer 2, set the POWER class and check seen_by_layout, route layers 1 and 4, pour the outer layers only after routing, then run pcb drc; call the board checked only when drc passes and every warning kind is named with why it is acceptable; present the placement as a starting point for a person, not a signed-off layout."
+  },
+  {
+    "id": "fabrication-package",
+    "prompt": "Send this board out for fabrication.",
+    "expected": "Read reference/fabrication.md; run pcb drc, then pcb export --output DIR --dry-run and confirm with the same arguments and the returned token; report the package ready only when drc passes and checks.ok is true, naming any problems; say the README's thickness, finish and mask colour are the board house's defaults unless the user gave them."
+  },
+  {
+    "id": "rebuild-after-cell-change",
+    "prompt": "I changed the footprint of U3 and rebuilt the library. Update the board.",
+    "expected": "Explain that annotating again keeps the old cell, so the board is recreated with pcb create --replace; stop and ask before confirming it because it archives the layout folder to a zip and deletes it; report the archive path; then annotate, outline, holes, arrange, pour, rules, route and the outer pours again."
+  },
+  {
+    "id": "arrange-on-routed-board",
+    "prompt": "Two parts are still unplaced on the routed board. Run the arrange so they get placed.",
+    "expected": "Stop and ask first: a confirmed pcb arrange deletes every trace and via on the board before placing, so the routing would have to be redone. Offer pcb move for the two parts instead."
+  },
+  {
+    "id": "small-local-move",
+    "prompt": "Move R12 two millimetres to the left, nothing else.",
+    "expected": "Read R12's position with pcb components, then pcb move --refdes R12 --to <new x,y> with a dry run first; never pcb arrange for a small edit; confirm only with the user's authorization; its traces do not move with it, so check the routing afterwards with pcb drc or pcb render."
+  },
+  {
+    "id": "board-looks-empty",
+    "prompt": "I annotated the board but Layout shows nothing on it. Is it broken?",
+    "expected": "Not broken: forward-annotated parts are unplaced until placed, and the stock templates open under the Loc: Assembly Bottom scheme that hides top-side parts. Check placement with pcb components, and use pcb show (Loc: All On) or pcb render to look; do not try to repair the board."
+  },
+  {
+    "id": "hand-route-a-net",
+    "prompt": "The autorouter gave VBAT a long detour. Route it by hand.",
+    "expected": "Read reference/hand-routing.md; pcb geometry --output board.json, plan the trace (PlanBuilder, 0.5 mm for a supply net), pcb trace --file plan.json --geometry board.json --dry-run, check the nearest pins and the offline check, confirm with the user's authorization, then read opens_after and look with pcb render."
+  },
+  {
+    "id": "schematic-request-boundary",
+    "prompt": "Draw a schematic for a 5 V to 3.3 V regulator with an I2C sensor.",
+    "expected": "Not this Skill: schematic drawing belongs to xpedition-cli (its schematic drawing conventions and design format). Run no pcb command."
+  },
+  {
+    "id": "bom-request-boundary",
+    "prompt": "Export the BOM of this design as CSV.",
+    "expected": "Not this Skill: bom export belongs to xpedition-cli. Only inside a fabrication package does pcb export write bom.csv."
+  }
+]

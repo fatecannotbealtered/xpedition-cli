@@ -26,7 +26,7 @@ This repo is an **AI-native CLI tool**: designed for AI agents first.
 
 - Tool name: `xpedition-cli`
 - Language / distribution: Python 3.10+ + PyInstaller binary and npm wrapper
-- Source: `xpedition_cli/`; tests: `tests/`; Skill: `skills/xpedition-cli/SKILL.md`
+- Source: `xpedition_cli/`; tests: `tests/`; Skills: `skills/xpedition-cli/SKILL.md` (entry) and `skills/xpedition-pcb/SKILL.md` (board)
 - Local checks: `pytest -q && ruff check xpedition_cli tests && ruff format --check xpedition_cli tests`
 - Backends: MockBackend (offline JSON) and NativeBackend (a licensed Xpedition
   installation through the Windows COM adapter). The whole schematic-to-fabrication

@@ -1,7 +1,7 @@
 ---
 name: xpedition-cli
 version: "1.0.0"
-description: "xpedition-cli provides agent-safe reads, design reviews, BOM exports, and controlled ChangeSet operations for Xpedition projects; triggered when a user needs to inspect or modify a normalized Xpedition project through MockBackend or a verified native adapter."
+description: "Entry Skill for xpedition-cli, the agent-safe command-line tool for Xpedition projects: install, doctor and native sessions for Designer and Layout (including connection failures), project creation, project data snapshots and queries, schematic drawing (including designing a circuit from a written requirement), schematic export, ERC, connectivity and schematic review in Designer, BOM, pin planning, footprint mapping (KiCad libraries or placeholder cells), and guarded ChangeSet writes through MockBackend or the native adapter. Use it for any task on an Xpedition project (.prj in Designer or Layout), even one that does not name Xpedition, and load it before any other xpedition-* Skill. For an unscoped design check, review here, then run DRC with xpedition-pcb if a board exists. Not for board creation, forward annotation, placement, routing, DRC or fabrication outputs: those are in xpedition-pcb."
 license: MIT
 user-invocable: true
 metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.0"}}
@@ -11,9 +11,8 @@ metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.0"}}
 
 Use this Skill for normalized Xpedition project snapshots, deterministic design
 reviews, BOM reads, ChangeSet validation, and controlled MockBackend writes.
-Native Xpedition reads and the supported component move/place writes are
-available only when the optional Windows COM adapter and product registration
-are ready. Production readiness still requires the disposable R1/C1 smoke loop.
+Native Xpedition reads and writes are available only when the optional Windows
+COM adapter and product registration are ready. Production readiness still requires the disposable R1/C1 smoke loop.
 
 ```bash
 # Install the CLI. Until the npm packages are published this fails with a 404;
@@ -21,8 +20,8 @@ are ready. Production readiness still requires the disposable R1/C1 smoke loop.
 #   python -m pip install -e ".[native]"   # [native] is required on Windows
 npm install -g @fateforge/xpedition-cli
 
-# Install the bundled Skill. This one reads the GitHub repository, not npm, so
-# it works whether or not the packages are published.
+# Install the bundled Skills: this entry Skill and xpedition-pcb. This reads the
+# GitHub repository, not npm, so it works whether or not the packages are published.
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
 # Bootstrap the live contract before task commands.
@@ -30,6 +29,18 @@ xpedition-cli context --compact
 xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
+
+## Skills in this family
+
+This is the entry Skill of the xpedition-cli family, and it carries what every
+task needs: the install, the first step, native sessions, the write recipe, the
+error decision tree and the security boundary. `xpedition-pcb` covers the board
+in Layout, from packaging a drawn schematic to the fabrication package; it reads
+this Skill first. The install command above installs both.
+
+For board work read `../xpedition-pcb/SKILL.md` and follow it; do not assemble
+`pcb` writes from `reference` alone. If that file is missing, STOP CHECKPOINT:
+tell the user and, once they agree, install the family with the command above.
 
 ## Native sessions: two separate applications
 
@@ -62,10 +73,12 @@ Use this Skill for:
 - validating or previewing a ChangeSet;
 - applying a named ChangeSet to a local MockBackend project after confirmation;
 - drawing schematic content through the verified native adapter, following the
-  drawing conventions below.
+  schematic drawing conventions below.
 
 Do not use this Skill for unattended full-board autorouting, bypassing engineer
 sign-off, editing Xpedition private databases, or browser-only UI work.
+Board work in Layout (packaging a drawn schematic into a board, placement,
+routing, DRC and the fabrication package) is in `xpedition-pcb`.
 
 ## First Step
 
@@ -91,9 +104,6 @@ registration as Administrator; see `docs/NATIVE_ADAPTER.md`.
 For query projection and native post-write verification, read
 `reference/agent-hardening.md`. In particular, a failed post-write verification
 is not permission to resend the write; inspect the observed state first.
-For small local layout adjustments, use the selected-placement workflow only when
-it is advertised by the installed binary's reference; read `reference/placement-tasks.md`.
-Its native smoke status and partial-execution boundaries remain explicit.
 
 Read `reference/confirmation-safety.md` for confirmation concurrency boundaries.
 Storage-degradation warnings mean replay protection is not guaranteed; stop
@@ -126,7 +136,6 @@ only that many objects; do not interpret it as a native-query performance claim.
 xpedition-cli project snapshot --backend mock --project ./demo-project.json --compact
 xpedition-cli session status --compact
 xpedition-cli schematic connectivity --backend mock --project ./demo-project.json --compact
-xpedition-cli pcb info --backend mock --project ./demo-project.json --compact
 xpedition-cli analysis run --kind all --backend mock --project ./demo-project.json --compact
 xpedition-cli bom export --backend mock --project ./demo-project.json --fields items,count --compact
 xpedition-cli review run --backend mock --project ./demo-project.json --compact
@@ -194,12 +203,12 @@ confirm exactly once. A rollback never uses a stale apply token.
 STOP CHECKPOINT: ask the user before confirming a write, using a broad target
 set, exposing sensitive project data, or selecting a future dangerous backend.
 
-## Drawing conventions
+## Schematic drawing conventions
 
-Applies whenever the agent creates or edits schematic or board content through
-the native adapter. Read `reference/schematic-conventions.md` before drawing a
-schematic and `reference/pcb-conventions.md` before touching a board; the rules
-below are the non-negotiable subset.
+Applies whenever the agent creates or edits schematic content through the
+native adapter. Read `reference/schematic-conventions.md` before drawing a
+schematic; the rules below are the non-negotiable subset. The board, from
+packaging the parts onward, is in `xpedition-pcb`.
 
 - Sheet units are 10 mil and the grid is 10 units: pin ends, wire ends and
   label anchors sit on multiples of 10.
@@ -242,103 +251,6 @@ below are the non-negotiable subset.
   `issues`. Pick 1.27 mm or 1.0 mm pitch packages while the board is on the stock
   0.254 mm rules. The KiCad footprints carry a 1 mm reference designator, which is
   what keeps the silkscreen readable.
-- From the schematic to a board, four guarded steps, each `--dry-run` then
-  `--confirm`: `library build --design FILE --package` (padstacks, cells and
-  parts for every part — placeholder cells unless the design names KiCad
-  footprints — imported into the project's central library,
-  then packaged), `pcb create` (the board from the library's `4 Layer Template`
-  through JobWizard; `--template` for another), `pcb annotate` (Layout's forward
-  annotation: the packaged parts and nets arrive unplaced), then `pcb info` and
-  `pcb components --project X.prj` to read the board back. Report done only when
-  `pcb annotate` says `outcome: annotated` (or `in_synch`) with no `errors`, and
-  the counts match the schematic.
-- Forward-annotated parts are invisible until placed. The first layout is a
-  handful of guarded commands, each `--dry-run` then `--confirm`: `pcb outline
-  --width W --height H --radius 3` (a rectangle from the origin with rounded
-  corners; size it by the dry run of `pcb arrange`, whose `summary.outside`
-  names what does not fit — 70 × 48 mm holds this 39-part board on real
-  footprints with room for every designator), `pcb holes` (a mounting hole in each corner; do it before the
-  arrangement so the planner keeps the corners clear), `pcb arrange --design
-  FILE` (one cluster per IC with its parts around it, decoupling nearest, rows
-  and columns on one pitch, centres on a 0.5 mm grid, room above every part for
-  its designator, clusters in rows by sheet, connectors on the side edges with
-  their designators inward, test points along the bottom, a zone label per
-  sheet from the design file's `zone`; `--all` to move parts that are already
-  placed; each part of a cluster stands beside the IC pin it connects to,
-  its own pad facing that pin), `pcb pour --net GND --layer 2` (a copper
-  plane inset from the outline, rounded like it; `--replace` after the
-  outline changed), `pcb rules --class POWER --nets VBAT,+3V3 --width 0.5`
-  (a net class with its trace widths on every layer, written through
-  Constraint Manager; supply nets get 0.5 mm, signals keep the template's
-  0.254 mm; the result must say `seen_by_layout`), then `pcb route --layers
-  1,4` (Layout's autorouter on the outer layers only: Route at effort 1–5,
-  Via Min, Smooth; `--unroute` to start over), then the outer-layer ground
-  pours `pcb pour --net GND --layer 1` and `--layer 4` (after routing, never
-  before: a pour in place makes the router count the ground net as done while
-  the copper leaves pins cut off), `pcb drc` (Layout's Batch DRC, every hazard
-  listed with its kind, objects and position; `errors` and `warnings` apart,
-  `passes` when there are no errors) and `pcb render --output board.png`
-  (the board drawn from its geometry in KiCad's colours, `--side bottom` for
-  the other side; it needs no screen, unlike `pcb show --output`, which
-  captures a black PNG while the desktop is locked). When the person looks at
-  Layout's own screen, `pcb show --top-view`: the stock schemes draw the pours
-  as outlines and every layer at once, so a poured, routed board looks bare and
-  crowded until that scheme is picked. The result of `pcb
-  route` says `complete` and lists `unrouted` nets with their open count; a
-  net that stays open next to a fine-pitch part is a rule problem (0.254 mm
-  traces and clearances on the stock templates), not a router problem.
-  Report a board as checked only when `pcb drc` says `passes` and you can
-  name each warning kind and why it is acceptable (`ViasUnderParts` — vias
-  under surface-mount bodies, tented — is; overlapping pads or partial nets
-  are errors and are not).
-  The placement is a starting point for a person, not a layout. `pcb arrange`
-  lists each part's `x`/`y` in millimetres and `read_back` proves the
-  placement; `summary.outside` names parts the outline could not hold, which
-  means a bigger outline, not a smaller gap.
-- Routing by hand (the person's layout, when the autorouter's is not good enough):
-  `pcb geometry --output board.json` gives every pad, pin, trace, via and plane;
-  plan the traces yourself (a `PlanBuilder` from `xpedition_cli.routing_plan`
-  resolves pin names and checks angles and clearances; `pcb stitch --geometry
-  board.json --net GND` writes the ground vias), then `pcb trace --file plan.json
-  --geometry board.json` (`--dry-run` shows the nearest pin of every trace end and
-  the offline check; `--confirm` draws; Layout's online DRC refuses an item that
-  violates a rule and the result names it), read `opens_after` per net and
-  `pcb render` to look. Fix a wrong piece with `pcb unroute --at x,y --layer N`
-  and draw it again; move a part with `pcb move --refdes R1 --to x,y --rotate 90`;
-  when someone is watching Layout's screen, `--pace 0.15` on `pcb trace` / `pcb via` /
-  `pcb arrange` makes the items land one at a time instead of in a burst;
-  tidy the designators with `pcb labels`. Widths: 0.254 mm signals, 0.5 mm supply
-  (the POWER class), 0.3 mm ground stubs (raise the default class's expansion
-  width first). Keep 0.254 mm from any pad a via does not sit inside; a test point
-  is a surface-mount pad, so an inner-layer run to it needs a via beside it; pour
-  the outer layers after the traces are in, then stitch every ground pad with a
-  via. A 39-part board took two rounds this way: 129 traces, 41 vias, DRC clean.
-- To send the board out: `pcb export --output DIR` (`--dry-run` then `--confirm`)
-  writes Layout's ODB++, Gerber (RS-274X) and NC drill outputs and gathers them into
-  `DIR`: `gerber/*.gbr` (empty and duplicate files left out), `drill/*.drl`, the
-  ODB++ job as a zip, `centroid.csv`, `bom.csv`, `README.md` for the board house and
-  `manifest.json` with `checks`. Report the package as ready only when `checks.ok`
-  is true; `problems` names what is missing (a silkscreen, an outline, a drill
-  layer). The first run on a board closes and reopens it in Layout to patch the
-  output setups; later runs do not. The README's board thickness, finish and mask
-  colour are the board house's defaults unless the person says otherwise.
-- After `library build` changed a cell that is already on the board, annotate
-  again and the part keeps its old cell: Layout never swaps the cell of an
-  existing component. Recreate the board instead: `pcb create --replace`, then
-  `pcb annotate`, `pcb outline`, `pcb holes`, `pcb arrange`, `pcb pour`, `pcb rules`,
-  `pcb route`, the outer pours — about three minutes, all through the CLI.
-- Then `pcb show --output board.png` to put the board in front of the person
-  and look at it yourself. Layout opens the stock templates under the
-  `Loc: Assembly Bottom` display scheme, which hides top-side parts, so a board
-  that "looks empty" after annotation or placement usually needs this, not a
-  fix; `pcb show` switches to `Loc: All On` (or `--scheme`).
-- Placeholder cells are placeholders: right pin count and rough size, nothing a
-  factory can use. Say so when handing over, and keep real cells from the
-  company's library as the follow-up.
-- While a board opens, Layout may ask about a stale lock, database recovery or
-  forward annotation; the adapter answers them and lists what it pressed under
-  `prompts`. If a result carries a prompt you did not expect, read it before
-  going on.
 - Generated symbols are `V 53` files in sheet units with 100 mil pin pitch and
   device-class shapes; never a bare rectangle for R, C, L or D.
 - Built-in symbol kinds: `RES`, `CAP`, `CAPP`, `IND`, `DIODE`, `LED`, `SW`,
@@ -401,3 +313,5 @@ the user's approved package-manager workflow, then run `changelog --since
 - Drawing: read the conventions reference, place on grid inside the border,
   connect with labelled stubs, mark unused pins, and diff the read-back netlist
   against the intent before reporting a schematic done.
+- Family boundary: a board request (placement, routing, DRC, Gerber) goes to
+  `xpedition-pcb`, which reads this Skill first.
