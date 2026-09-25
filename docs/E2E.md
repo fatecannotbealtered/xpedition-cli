@@ -400,6 +400,33 @@ coordinates) all completed with every item verified. The failing run's per-item
 report was overwritten before it was read, so what refused `R3` is not known.
 Treat a partial apply as possible and re-read the board rather than replaying.
 
+## Recorded run: resume, read time and multi-land pads (2026-09-26)
+
+Issues #28-#30, on two template clones (`issues-0925`, `mos-probe`), after a reboot.
+Designer first stopped on Siemens' licence sign-in, which only the user can complete.
+
+| Check | Evidence |
+|---|---|
+| Full draw | `examples/demo-sensor-board.json`, 4 sheets, 207 operations in 125 s; `netlist.matches` |
+| Draw interrupted | a paced draw (`--pace 0.3`) had its project closed from another process on sheet 3: `E_CONFLICT` at index 77/207 with `sheet: 3`, `sheets_drawn: [1, 2]`, `sheets_remaining: [3, 4]` |
+| Resume | `--sheets 3,4`: 132 operations, 96 s, `sheets_kept: [1, 2]`, `netlist.matches` for the whole design |
+| Pace | sheet 1 alone (16 paced items): 56 s without `--pace`, 72 s with `--pace 1` |
+| Read time | `review run` on the drawn design: 18.7 s, then 14.1 s with `--timeout 300` |
+| Timeout | `--timeout 1`: `E_TIMEOUT`, `details.seconds: 1.0`, hint to restart and raise `--timeout`; the next native command refused as stale |
+| Several lands on one pin | a KiCad TDFN whose drain owns four leads and the paddle: `kicad_import` kept all five (the paddle's via dropped as `inside_same_number`), `library build --package`, `pcb create --replace`, `pcb annotate`; `pcb geometry` shows seven pads on `Q1`, the five drain lands all on `DRAIN` |
+
+Three faults came up on the way and are fixed:
+
+- A running Designer read as absent: every win32com wrapper cache entry had lost its
+  `.py` files to a temp cleaner (`has no attribute 'CLSIDToClassMap'`). The adapter
+  now removes such entries, and the first call removed all four.
+- With the cache gone, Designer came back late-bound and `project init` failed on
+  `Documents.Open` ("parameter not optional"); it is now bound through its generated
+  wrapper, created on demand.
+- The `--timeout 1` read left "close all open documents?" up in Designer, and
+  `session stop` reported it closed while that dialog held `Quit`. The stop now
+  answers the known questions and checks that the application went.
+
 ## Not claimed by `stable`
 
 - Every recorded run comes from one Windows installation of XPED2604. A second
