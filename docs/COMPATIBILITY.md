@@ -105,7 +105,7 @@ One sheet unit is therefore 10 mil (0.254 mm) and the 100 mil grid is 10 units.
 `V 53` symbol files use sheet units directly; `V 54` files — every stock symbol
 on XPED2604 — are in 10 nm, 254000 per grid step. The `Y` record is the
 symbol type, not a scale: 1 part, 3 annotation, 4 power or ground, 5 border.
-Hand-generated symbols use `V 53`. The Skill's
+Hand-generated symbols use `V 53`. The xpedition-schematic Skill's
 `reference/schematic-conventions.md` carries the grid, size and sheet-extent
 rules that follow from this.
 

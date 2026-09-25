@@ -49,7 +49,7 @@ Two things about this run are worth stating plainly:
 
 ## Recorded run — a four-sheet example schematic, 2026-09-12
 
-A full sheet drawn under the Skill's drawing conventions, on the same
+A full sheet drawn under the xpedition-schematic Skill's drawing conventions, on the same
 installation and the same hand-built library:
 
 | Item | Evidence |

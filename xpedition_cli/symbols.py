@@ -3,8 +3,8 @@
 Designer stores symbols as plain ASCII under ``SymbolLibs/<partition>/sym/<name>.1``.
 A ``V 53`` file uses sheet units directly: one unit is 10 mil, so the 100 mil grid
 is 10 units and every pin's connection end lands on a multiple of ``GRID``.
-Shapes follow the Skill's ``reference/schematic-conventions.md``: IEC forms for
-two-terminal parts, rectangles with grouped pins for ICs and connectors.
+Shapes follow the xpedition-schematic Skill's ``reference/schematic-conventions.md``:
+IEC forms for two-terminal parts, rectangles with grouped pins for ICs and connectors.
 
 Verified on Xpedition Standard XPED2604: files written this way load, place and
 connect through ``AddPartInstance``.

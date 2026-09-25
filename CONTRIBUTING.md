@@ -33,7 +33,7 @@ limited to the disposable sequence in [`docs/E2E.md`](docs/E2E.md).
    through the ChangeSet confirmation flow.
 5. Add command-level tests for success, invalid input, errors, envelope shape,
    exit code and stdout/stderr behavior. The FCC guard must remain green.
-6. Update both READMEs, the Skill and `CHANGELOG.md`.
+6. Update both READMEs, the affected Skills and `CHANGELOG.md`.
 
 Do not claim NativeBackend or a new Xpedition version until a recorded licensed
 smoke test proves it. Keep `.agent/*`, `contract/contract.json`, and generated

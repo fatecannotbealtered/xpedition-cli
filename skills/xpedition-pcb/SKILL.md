@@ -1,7 +1,7 @@
 ---
 name: xpedition-pcb
 version: "1.0.0"
-description: "Handles board work in Xpedition Layout through the xpedition-cli tool: builds the board from a drawn schematic, forward-annotates it and brings it up to date after the schematic or a footprint changes, then the outline, mounting holes, placement, copper pours, net classes and trace widths, autorouting or planned hand routing, DRC, board renders and the fabrication package (Gerber, NC drill, ODB++, centroid). Use when the user asks to lay out, place or move parts on, route, DRC-check, render or export the PCB of an Xpedition project, even without the word Xpedition. Not for drawing, reviewing or exporting the schematic, the BOM, pin planning, footprint mapping or creating a project: those are in the xpedition-cli Skill, which is loaded before this one."
+description: "Handles board work in Xpedition Layout through the xpedition-cli tool: builds the board from a drawn schematic, forward-annotates it and brings it up to date after the schematic or a footprint changes, then the outline, mounting holes, placement, copper pours, net classes and trace widths, autorouting or planned hand routing, DRC, board renders and screenshots, and the fabrication package (Gerber, NC drill, ODB++, centroid). Use when the user asks to lay out, place or move parts on, route, DRC-check, render or export the PCB of an Xpedition project, including a part move given in mm, even without the word Xpedition. Not for the schematic, pin planning or footprint mapping (xpedition-schematic), or for install, doctor, sessions and Layout connection failures, project creation, the BOM and ChangeSet writes (the xpedition-cli Skill, loaded before this one)."
 license: MIT
 user-invocable: true
 metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.0"}}
@@ -32,8 +32,8 @@ Use this Skill for:
 - looking at a board and reading it back;
 - the fabrication package.
 
-Do not use it for drawing, reviewing or exporting the schematic, the BOM, pin
-planning, footprint mapping or creating a project; xpedition-cli covers those.
+Do not use it for the schematic, pin planning or footprint mapping
+(xpedition-schematic), or for the BOM or creating a project (xpedition-cli).
 Never present an autorouted board or a generated placement as signed off: both
 are starting points for a person.
 
@@ -75,7 +75,7 @@ done only when `pcb annotate` says `outcome: annotated` (`annotated_on_open` and
 `in_synch` count too) with no `errors`, and the counts match the schematic.
 
 `FILE` is the design file the schematic was drawn from. Its `packages` choose
-the footprints; see the schematic drawing conventions in `../xpedition-cli/SKILL.md`.
+the footprints; see the drawing conventions in `../xpedition-schematic/SKILL.md`.
 
 ```bash
 xpedition-cli session start --backend native_xpedition --kind pcb --compact

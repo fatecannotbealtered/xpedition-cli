@@ -96,7 +96,7 @@ def _net_of_pins(project: dict[str, Any]) -> dict[str, str]:
 
 
 def schematic_findings(project: dict[str, Any]) -> list[dict[str, Any]]:
-    """Netlist-decidable schematic rules (the Skill's DS checklist, in code)."""
+    """Netlist-decidable schematic rules (xpedition-schematic's DS checklist, in code)."""
     findings: list[dict[str, Any]] = []
     components = project["components"]
     pin_net = _net_of_pins(project)

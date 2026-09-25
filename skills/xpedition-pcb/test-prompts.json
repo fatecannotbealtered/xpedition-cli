@@ -47,7 +47,7 @@
   {
     "id": "schematic-request-boundary",
     "prompt": "Draw a schematic for a 5 V to 3.3 V regulator with an I2C sensor.",
-    "expected": "Not this Skill: schematic drawing belongs to xpedition-cli (its schematic drawing conventions and design format). Run no pcb command."
+    "expected": "Not this Skill: schematic drawing belongs to xpedition-schematic (its drawing conventions and design format); read ../xpedition-schematic/SKILL.md. Run no pcb command."
   },
   {
     "id": "bom-request-boundary",

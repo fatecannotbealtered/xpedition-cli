@@ -28,7 +28,7 @@ python -m xpedition_cli.main --help
 3. 在 `xpedition_cli/reference_data.py` 注册命令、schema、examples、权限等级和爆炸半径。
 4. 外部值必须在 `_untrusted` 中标记；所有写操作都走 ChangeSet 确认流程。
 5. 为成功、非法输入、错误、envelope、退出码及 stdout/stderr 边界增加命令级测试，保持 FCC guard 通过。
-6. 同步修改两个 README、Skill 和 `CHANGELOG.md`。
+6. 同步修改两个 README、受影响的 Skill 和 `CHANGELOG.md`。
 
 没有经过授权环境的记录，不要宣称 NativeBackend 或新的 Xpedition 版本可用。`.agent/*`、
 `contract/contract.json` 和生成代码只能通过 `scripts/sync-spec.js` 保持同步，不要手改规范副本或生成文件。

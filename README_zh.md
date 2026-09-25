@@ -120,8 +120,9 @@ Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJ
 xpedition-cli/
 ├── xpedition_cli/       # CLI 边界、模型、ChangeSet、后端、契约
 ├── tests/               # 命令级契约和 FCC 测试
-├── skills/xpedition-cli/  # 入口 Skill：安装、会话、原理图、库
-├── skills/xpedition-pcb/  # 板级 Skill：Layout、布线、DRC、制造输出
+├── skills/xpedition-cli/        # 入口 Skill：安装、会话、工程、ChangeSet
+├── skills/xpedition-schematic/  # 原理图 Skill：Designer 绘图、评审、引脚
+├── skills/xpedition-pcb/        # 板级 Skill：Layout、布线、DRC、制造输出
 ├── contract/            # vendored 机器契约真源
 ├── scripts/             # 规范、版本和 npm 壳工具
 ├── docs/                # 兼容性、E2E 和开源清单
@@ -147,7 +148,7 @@ Xpedition 自动化行为完全一致。
 ## 链接
 
 - [Agent 入口](AGENTS.md)
-- [Skill](skills/xpedition-cli/SKILL.md) 及板级的 [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
+- [Skill](skills/xpedition-cli/SKILL.md)（入口），以及 [xpedition-schematic](skills/xpedition-schematic/SKILL.md) 和 [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
 - [CLI 契约](.agent/CLI-SPEC.md)
 - [安全策略](SECURITY.md)
 - [兼容性矩阵](docs/COMPATIBILITY.md)

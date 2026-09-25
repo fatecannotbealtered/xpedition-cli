@@ -25,18 +25,18 @@
     "expected": "Do not invent a CLI self-update command; after the package update read changelog --since <previous_version> and refresh reference."
   },
   {
-    "id": "schematic-drawing-conventions",
-    "prompt": "Use xpedition-cli to draw a small schematic (5 V input, regulator, MCU, I2C sensor) in the running Designer session.",
-    "expected": "Read reference/schematic-conventions.md and reference/schematic-design-format.md; describe the circuit as sheets of IC blocks, ladders and chains, run schematic draw --dry-run, fix any DS issues in preview.summary, confirm, check netlist.matches is true, then schematic show --sheet N with --output to look at the result before reporting done."
-  },
-  {
     "id": "project-init-from-template",
     "prompt": "Create a new Xpedition project for a demo board under D:/work/demo and open it in the running Designer.",
-    "expected": "Use project init --backend native_xpedition --template <known-good .prj> --project <new .prj> --dry-run, inspect the preview (copy, rename, rewrite library keys, open), then --confirm; insist on an ASCII-only destination path because Designer cannot load new symbol files from a path with other characters; verify with schematic components or schematic show afterwards."
+    "expected": "Use project init --backend native_xpedition --template <known-good .prj> --project <new .prj> --dry-run, inspect the preview (copy, rename, rewrite library keys, open), then --confirm; insist on an ASCII-only destination path because Designer cannot load new symbol files from a path with other characters; check session status afterwards, and leave drawing on it to xpedition-schematic."
   },
   {
     "id": "board-request-goes-to-pcb",
     "prompt": "Use xpedition-cli to place and route the board, then export Gerbers.",
     "expected": "Board work belongs to xpedition-pcb: after this Skill's first step read ../xpedition-pcb/SKILL.md and follow its recipes instead of assembling pcb writes from reference. If that file is missing, stop and ask the user before installing the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+  },
+  {
+    "id": "schematic-request-goes-to-schematic",
+    "prompt": "Use xpedition-cli to draw a small regulator schematic in the running Designer session.",
+    "expected": "Schematic work belongs to xpedition-schematic: after this Skill's first step read ../xpedition-schematic/SKILL.md and follow its drawing conventions instead of assembling schematic writes from reference. If that file is missing, stop and ask the user before installing the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
   }
 ]

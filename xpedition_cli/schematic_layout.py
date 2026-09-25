@@ -5,7 +5,7 @@ with a treatment per pin (label, power symbol, ground, no-connect), and
 *ladders* (vertical) or *chains* (horizontal) of two-terminal parts strung
 between power, ground and labelled nodes. That is the vocabulary of a hardware
 review schematic — pull-ups, dividers, decoupling, LED chains, input chains —
-and it is what the Skill's drawing conventions ask for.
+and it is what the xpedition-schematic Skill's drawing conventions ask for.
 
 The planner turns a design into drawing operations for the native adapter's
 ``draw`` method, the netlist those operations must produce, the symbol files

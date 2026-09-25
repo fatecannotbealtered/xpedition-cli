@@ -61,13 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The Skill is now two, on spec v1.6.3's rules for several Skills (SKILL-SPEC §7).
-  `xpedition-cli` stays the entry Skill: install, sessions, the write recipe, errors,
-  security and the schematic side. The new `xpedition-pcb` carries the board in Layout,
-  from packaging a drawn schematic to the fabrication package, with its conventions,
-  placement, hand-routing and fabrication references, and reads the entry Skill first.
-  A confirmed `pcb arrange` deleting all routing is now a STOP CHECKPOINT there. The same
-  `npx skills add fatecannotbealtered/xpedition-cli -y -g` installs both.
+- The Skill is now three, on spec v1.6.3's rules for several Skills (SKILL-SPEC §7).
+  `xpedition-cli` stays the entry Skill: install, sessions, projects and ChangeSets, the
+  write recipe, errors and security. `xpedition-schematic` carries the schematic in
+  Designer: drawing conventions, design format, packaging after a draw, review, export,
+  pin assignment and footprint mapping. `xpedition-pcb` carries the board in Layout,
+  from creating it to the fabrication package, with its conventions, placement,
+  hand-routing and fabrication references. Both read the entry Skill first. Three writes
+  that discard work or cannot be previewed are now STOP CHECKPOINTs: a confirmed
+  `pcb arrange` deletes all routing, `schematic draw` wipes the sheets it redraws, and
+  `kicad_import` writes the central library without a dry run. The same
+  `npx skills add fatecannotbealtered/xpedition-cli -y -g` installs all three.
 - The vendored spec is v1.6.3.
 - Runtime readiness is beta: prior live E2E records do not cover the new native
   placement path. Public interface references, synthetic tests and a native smoke

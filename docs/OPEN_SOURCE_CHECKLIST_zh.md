@@ -51,9 +51,9 @@
 
 - [ ] 根目录 `AGENTS.md` 存在并指向 `.agent/AGENT.md`。
 - [ ] `.agent/{AGENT,CLI-SPEC,SKILL-SPEC,SEC-SPEC}.md` 规格文件齐全；共享仓库骨架标准引用 `ai-native-cli-spec/REPO-SPEC.md`。
-- [ ] `skills/xpedition-cli/SKILL.md`（入口 Skill）与 `skills/xpedition-pcb/SKILL.md` 存在；各自的 frontmatter 包含 `version`、`license: MIT`、`user-invocable: true`，且 `metadata.requires.min_version` 匹配 CLI 版本；`xpedition-pcb` 另外声明 `metadata.requires.skills: ["xpedition-cli"]`，正文开头先读 `../xpedition-cli/SKILL.md`，该文件不存在时停在 `STOP CHECKPOINT`。
-- [ ] 每个 Skill 的 `description` 写清不负责什么、该找哪个 Skill；入口 Skill 写明把板级工作交给哪个领域 Skill 的文件。
-- [ ] 入口 `SKILL.md` 包含 `When to use`、`Do not use`、`First Step`、Agent 默认规则、JSON contract、写操作配方或明确只读边界、`STOP CHECKPOINT`、错误决策树、安全边界、诚实的更新边界和评估场景。`xpedition-pcb` 带自己的触发条件、`STOP CHECKPOINT`、剧本和评估场景，其余部分指向入口 Skill。
+- [ ] `skills/xpedition-cli/SKILL.md`（入口 Skill）、`skills/xpedition-schematic/SKILL.md` 与 `skills/xpedition-pcb/SKILL.md` 存在；各自的 frontmatter 包含 `version`、`license: MIT`、`user-invocable: true`，且 `metadata.requires.min_version` 匹配 CLI 版本；两个领域 Skill 另外都声明 `metadata.requires.skills: ["xpedition-cli"]`，正文开头先读 `../xpedition-cli/SKILL.md`，该文件不存在时停在 `STOP CHECKPOINT`。
+- [ ] 每个 Skill 的 `description` 写清不负责什么、该找哪个 Skill；入口 Skill 写明它把工作交给的每个领域 Skill 的文件。
+- [ ] 入口 `SKILL.md` 包含 `When to use`、`Do not use`、`First Step`、Agent 默认规则、JSON contract、写操作配方或明确只读边界、`STOP CHECKPOINT`、错误决策树、安全边界、诚实的更新边界和评估场景。每个领域 Skill 带自己的触发条件、`STOP CHECKPOINT`、剧本和评估场景，其余部分指向入口 Skill。
 - [ ] 每个 Skill 的 `test-prompts.json` 存在、JSON 合法，合起来覆盖 fresh-agent read、写操作安全或只读边界、权限边界、`_untrusted` 处理和包管理器更新边界。
 - [ ] 本阶段自更新明确标记为 N/A。未来若增加裸 `update`，必须同步 `skills/` 下的每个 Skill 目录或返回 `skill_sync_command`，并在失败/中断时报告 `stage` + `current_version` + `binary_replaced` + `skill_sync_status`。
 - [ ] `xpedition-cli reference`、`xpedition-cli context`、`xpedition-cli doctor` 可运行并输出合法的 JSON 信封 —— 代理能从干净的检出自助上手。
