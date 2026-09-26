@@ -30,7 +30,7 @@ Contents
 - A board comes from the CLI: `library build --package` builds and packages the
   parts, `pcb create` makes the board from a template through JobWizard and `pcb
   annotate` forward-annotates it; the Skill has the order.
-- The review pipeline reads ODB++; produce it alongside Gerber.
+- Produce ODB++ alongside Gerber: DFM and assembly tools commonly read it.
 
 ## 2. Stackup
 
@@ -80,7 +80,6 @@ there; the SIGNAL row is the target once the fab's capability sheet allows it.
   size).
 - Decoupling: each supply pin has its capacitor ≤ 2 mm away on the same side
   with the shortest path to a ground via; the smallest value closest to the pin.
-  This is the rule library's P01.
 - Crystal ≤ 10 mm from its IC, nothing routed underneath, ground fill around it.
 - Switching converters (charger, boost): input capacitor, switch, inductor and
   output capacitor in the smallest loop; the switch node is a small island.
@@ -134,14 +133,13 @@ BOM — all from the same released revision.
 
 ## 10. Checklist
 
-Classes follow the review rule library: L2 from the netlist, L2b from geometry,
-manual needs an engineer.
+Classes: L2 from the netlist, L2b from geometry, manual needs an engineer.
 
 | ID | Check | Class |
 |---|---|---|
 | DP-01 | every schematic part placed; forward annotation has zero unresolved items | L2 |
 | DP-02 | DRC clean at the class rules | L2b |
-| DP-03 | decoupling ≤ 2 mm from its pin (rule library P01) | L2b |
+| DP-03 | decoupling ≤ 2 mm from its pin | L2b |
 | DP-04 | no plane split under differential pairs | L2b |
 | DP-05 | via count on power layer changes | L2b |
 | DP-06 | antenna, mounting and edge keep-outs respected | L2b |
@@ -153,13 +151,12 @@ manual needs an engineer.
 
 ## 11. Sources
 
-Versions unverified; cite by name until the company's copy is checked.
+Versions unverified; cite by name until the edition in use is checked.
 
 - IPC-2221 generic design, IPC-2222 rigid boards, IPC-2141 controlled impedance.
 - IPC-7351 land patterns — the installation's Footprint Expert generates to it.
 - IPC-6012 fabrication acceptance, IPC-A-610 assembly acceptance, IPC-D-356
   netlist.
-- Interface specifications: USB 2.0, I2C (NXP UM10204) — registered in the
-  review rule library.
+- Interface specifications: USB 2.0, I2C (NXP UM10204).
 - Company PCB design specification — the knowledge-base document `context`
   lists for board work, when one is bound; it supersedes every default.

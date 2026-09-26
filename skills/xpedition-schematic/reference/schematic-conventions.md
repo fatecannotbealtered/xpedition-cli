@@ -23,7 +23,6 @@ Contents
 8. Checklist before reporting done
 9. Tool status
 10. Sources
-11. Observed practice in a company review schematic
 
 ## 1. Units, grid and sheet sizes
 
@@ -196,8 +195,9 @@ semiconductors, `X` for connectors); the company has to pick one (TBD).
 | MH | mounting hole | FID | fiducial |
 
 Number from 1 without leading zeros, in reading order (left to right, top to
-bottom) or per function block; a deleted part's number stays unused until the
-design is re-annotated.
+bottom) or per function block; a multi-sheet design may number per sheet in
+hundreds instead (`R201`, `U201` on sheet 2). A deleted part's number stays
+unused until the design is re-annotated.
 
 Nets: ASCII only, `UPPER_SNAKE_CASE`, descriptive (`I2C_SDA`, `LID_DET`,
 `CHG_STAT_N`), never `NET1`. Power nets by voltage: `+3V3`, `+5V`, `+1V8`,
@@ -216,12 +216,14 @@ that could be read as active-low, use `_DP` / `_DN`. Designer's automatic
 - REFDES above or left of the body, value below or right; text never crosses a
   wire, a pin or other text.
 - Unused pins get `No_Connect`; an open pin without it fails review.
-- Sheet titles, descriptions, block titles and notes are written in Chinese
-  when the reviewers read Chinese, as the company review drafts are; net
-  names, reference designators and values stay ASCII.
-- Design intent goes on the sheet as text notes in the form
-  `Note <sheet>-<n>: …`; the review pipeline extracts notes in exactly that form
-  into rules.
+- Sheet titles, descriptions, block titles and notes are written in the
+  reviewers' language, Chinese included; net names, reference designators and
+  values stay ASCII.
+- Design intent goes on the sheet as text notes in one fixed form,
+  `Note <sheet>-<n>: …`, so a reviewer or a review tool can find and cite each
+  one.
+- Text sizes: pin numbers smallest, values and labels the body size, reference
+  designators a step larger, sheet titles about twice the body.
 
 ## 7. Sheets and title block
 
@@ -238,8 +240,8 @@ that could be read as active-low, use `_DP` / `_DN`. Designer's automatic
 ## 8. Checklist before reporting done
 
 Read the design back with `schematic connectivity` and `project snapshot`,
-then check. Classes follow the review rule library: L2 is decidable from the
-netlist, L2b from geometry, manual needs an engineer.
+then check. Classes: L2 is decidable from the netlist, L2b from geometry,
+manual needs an engineer.
 
 Run `library build --package` after a redraw, before reading the design back or
 reviewing it. A schematic that has changed since it was last packaged cannot be
@@ -286,9 +288,8 @@ hand; `reference --compact` is authoritative for the live command list.
 
 ## 10. Sources
 
-Versions unverified; cite the standard by name, not by clause, until the
-company's copy is checked. The company's review rule library already registers
-the GB/T and IPC items.
+Versions unverified; cite a standard by name, not by clause, until the edition
+in use is checked.
 
 - IEC 60617 / GB/T 4728 — graphical symbols for diagrams (symbol shapes).
 - IEC 61082 / GB/T 6988 — preparation of documents used in electrotechnology
@@ -299,35 +300,3 @@ the GB/T and IPC items.
 - Company schematic design specification and internal checklist — the
   knowledge-base documents `context` lists, when bound; they supersede every
   `default` above.
-
-## 11. Observed practice in a company review schematic
-
-Read from `DA30_R2_音响原理图.pdf` (a hardware design review draft, KiCad 10,
-A4 landscape, 8 sheets, dated 2026-09-10). These are observations, not yet
-confirmed company rules; where they differ from the defaults above, follow
-them unless a bound knowledge-base document says otherwise.
-
-- Sheet 1 is an overview: product name and design targets, one titled box per
-  following sheet with a one-line signal-flow summary, design and verification
-  boundaries, component conventions (tolerance, package, dielectric) and the
-  vendors used.
-- One function per sheet with a numbered title strip across the top
-  (`02 直流输入与电源保护`), a one-line description under it, free-text notes
-  in the lower left, and the title block in the lower right carrying the
-  status (`硬件设计评审稿 | 待 PCB 与样机验证`), the key ratings, sheet path,
-  file, title, size, date, revision and `Id n/N`.
-- Reference designators are numbered per sheet: `J201`, `U201`, `R205` on
-  sheet 2; `U401`, `C404` on sheet 4.
-- IC pins end in boxed global labels; every unused pin carries an X; ground
-  pins run to one vertical bus that ends in a single ground symbol.
-- Passives form vertical ladders between a power symbol and a ground symbol
-  (dividers, pull-ups, decoupling); the input chain (jack, fuse, diode) is one
-  horizontal drawn wire; decoupling capacitors hang from a short horizontal
-  rail wire.
-- Values carry the rating that matters: `10k 1%`, `100n/50V`, `4.7uH / 5A+`,
-  `4A / 125V`; part numbers appear next to ICs and protection parts.
-- Net names: `VRAW`, `VSYS`, `+3V3`, `+3V3A`, `DC_FUSED`, `EF_UVLO`,
-  `PWR_FAULT_N`, `I2S_BCLK_DRV`, `BOOT_N`, `KEY_N` — ASCII, upper snake case,
-  `_N` for active-low, rails named by role or voltage.
-- Text sizes on A4: pin numbers smallest, values and labels the body size,
-  reference designators a step larger, sheet titles about twice the body.

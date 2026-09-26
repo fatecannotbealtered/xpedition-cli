@@ -81,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The bundled conventions stay neutral. The schematic conventions drop §11, observations
+  read from one sample schematic: a company's own practice belongs in a bound
+  knowledge-base document. Its two general points -- numbering reference designators per
+  sheet in hundreds, and the text-size ladder -- are now defaults. Both conventions files
+  lose references to a review rule library and pipeline that are not part of this package.
 - The Skill is now three, on spec v1.6.3's rules for several Skills (SKILL-SPEC §7).
   `xpedition-cli` stays the entry Skill: install, sessions, projects and ChangeSets, the
   write recipe, errors and security. `xpedition-schematic` carries the schematic in
