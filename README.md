@@ -63,6 +63,7 @@ project before deleting it. See [SECURITY.md](SECURITY.md).
 | Change control | `change validate`, `change preview`, `change apply`, `change history`, `change rollback` | MockBackend |
 | Review and BOM | `review run`, `bom export|normalize|group|variants|missing|duplicates|validate|compare` | MockBackend |
 | Environment | `context`, `doctor`, `system capabilities`, `system license` | local probe |
+| Knowledge base | `kb list`, `kb add`, `kb remove` | local links to company rules; the agent reads them |
 | Session | `session status`, `session logs` | MockBackend; native start/attach/stop require adapter |
 | Exchange files | `exchange inspect`, `exchange import` | JSON/CSV/BOM/IPC-2581; PDF/EDN/ODB++ remain unavailable |
 | Agent bridge | `agent snapshot`, `agent query`, `agent review`, `agent capabilities`, `agent serve` | MockBackend; `serve` supports custom NDJSON and MCP transports |
@@ -123,10 +124,17 @@ commands are guarded: `--dry-run` returns a `confirm_token`, `--confirm <token>`
 ## Configuration
 
 The CLI has no login flow in this phase. It stores only the local confirmation
-secret, consumed-token ledger, and audit JSONL under `~/.xpedition-cli/`. Set
-`XPEDITION_CLI_CONFIG_DIR` to isolate these files in tests or CI. Set
-`XPEDITION_NATIVE_COMMAND` to select an adapter when needed; setting it does not
-bypass COM registration or license checks.
+secret, consumed-token ledger, audit JSONL and knowledge-base links under
+`~/.xpedition-cli/`. Set `XPEDITION_CLI_CONFIG_DIR` to isolate these files in
+tests or CI. Set `XPEDITION_NATIVE_COMMAND` to select an adapter when needed;
+setting it does not bypass COM registration or license checks.
+
+Company rules -- layout rules, drawing conventions, review checklists -- stay in
+the company's knowledge base. `kb add --name NAME --url URL --about TEXT` (a
+write: dry run, then confirm) records which document applies, in
+`knowledge-base.json`, and `context` lists them for the agent, which reads each
+with its own tools (for a Feishu wiki, lark-cli). The CLI never fetches a
+document.
 
 ## Project Structure
 

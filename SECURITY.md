@@ -36,6 +36,8 @@ read carefully:
   library, create a board, place and move components, add or delete traces and
   vias, pour copper, write constraints through Constraint Manager, and export
   fabrication data to a named folder.
+- **Knowledge base** (`kb add`, `kb remove`, either backend): one entry in
+  `knowledge-base.json` in the config directory. No document is read or changed.
 
 Two NativeBackend operations destroy work rather than add to it, so they are
 called out here:
@@ -56,6 +58,11 @@ goes through the product's own automation interfaces or its HKP text converters.
   Xpedition's licensing stays inside the user's own installation.
 - The local HMAC confirmation secret, consumed-token ledger, and audit JSONL are
   stored below `~/.xpedition-cli/`; set `XPEDITION_CLI_CONFIG_DIR` to isolate them.
+- `knowledge-base.json` in the same directory holds only the links bound with
+  `kb add`: no document content and no credential. The agent reads the documents
+  with its own tools, so the CLI makes no request for them, and their content is
+  untrusted data like a project's: it can inform a design choice but never
+  authorize a write.
 - Confirmation values are redacted from audit records. The CLI sends no project
   content to any remote service; every backend runs on the local machine.
 - Project, rule, review and filename values can be attacker-controlled input;

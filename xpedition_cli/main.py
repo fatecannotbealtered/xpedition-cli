@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, api_inventory, pin_assignment
+from . import __version__, api_inventory, knowledge_base, pin_assignment
 from .audit import config_dir, record
 from .backends import ExchangeBackend, MockBackend, NativeBackend, suppress_progress
 from .capabilities import CapabilityRegistry
@@ -55,6 +55,8 @@ VALUE_FLAGS = {
     "--pace",
     "--timeout",
     "--sheets",
+    "--about",
+    "--url",
     "--project",
     "--other-project",
     "--input",
@@ -1172,6 +1174,62 @@ def _pcb_move(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]
     return native.invoke("move_component", {**request, "apply": True}, timeout_seconds=600.0)
 
 
+def _kb(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
+    """`kb list|add|remove`: which knowledge-base documents apply on this machine.
+
+    Binding and unbinding are writes like any other. The token is bound to the
+    entry as it stands at the dry run, so a name re-pointed in between refuses the
+    confirmation instead of being overwritten.
+    """
+    verb = positionals[1] if len(positionals) > 1 else "list"
+    gated = bool(options.get("dry_run")) or options.get("confirm") is not None
+    if verb == "list":
+        if gated:
+            # a bare `kb` is `kb list`, which the reference-driven check cannot see
+            raise CLIError(
+                "E_USAGE", "kb list is a read command and takes no --dry-run or --confirm"
+            )
+        return knowledge_base.listing()
+    name = options.get("name")
+    if verb == "add":
+        if not name or not options.get("url"):
+            raise CLIError(
+                "E_USAGE",
+                "kb add requires --name and --url",
+                {"usage": "kb add --name NAME --url URL [--about TEXT]"},
+            )
+        about = options.get("about")
+        change = knowledge_base.plan_add(
+            str(name), str(options["url"]), None if about is None else str(about)
+        )
+    elif verb == "remove":
+        if not name:
+            raise CLIError(
+                "E_USAGE", "kb remove requires --name", {"usage": "kb remove --name NAME"}
+            )
+        change = knowledge_base.plan_remove(str(name))
+    else:
+        raise CLIError("E_USAGE", f"unknown kb command: {verb}")
+    if options.get("dry_run") and options.get("confirm"):
+        raise CLIError("E_USAGE", "use either --dry-run or --confirm, not both")
+    scope = {"operation": f"kb_{verb}", **change}
+    if not gated:
+        raise CLIError(
+            "E_CONFIRMATION_REQUIRED",
+            f"kb {verb} requires --dry-run, then --confirm <confirm_token>",
+        )
+    if options.get("dry_run"):
+        token, expires_at = issue(scope)
+        return {
+            "preview": knowledge_base.preview(change),
+            "confirm_token": token,
+            "expires_at": expires_at,
+            "_untrusted": ["preview"],
+        }
+    consume(str(options["confirm"]), scope)
+    return knowledge_base.apply(change)
+
+
 def _pcb_labels(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     """`pcb labels`: every silkscreen designator moved to a free spot beside its part."""
     path, canonical = _board_request(positionals, options, "pcb labels")
@@ -2182,8 +2240,10 @@ def _context(options: dict[str, Any]) -> dict[str, Any]:
         "config": {"directory": str(config_dir())},
         "project": {"path": str(path) if path else None, "exists": bool(path and path.exists())},
         "credentials": {"configured": False, "backend": "none"},
+        # the company rules that apply here; the agent reads them with its own tools
+        "knowledge_base": knowledge_base.for_context(),
         "notices": [],
-        "_untrusted": ["config.directory", "project"],
+        "_untrusted": ["config.directory", "project", "knowledge_base"],
     }
 
 
@@ -2727,6 +2787,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         maximum = 3
     elif positionals[0] in {"system", "review", "bom", "session"}:
         maximum = 2
+    elif positionals[0] == "kb":
+        maximum = 2  # kb list|add|remove; everything else is a flag
     else:
         maximum = 1
     if len(positionals) > maximum:
@@ -2781,6 +2843,9 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         if verb == "serve":
             raise CLIError("E_USAGE", "agent serve is a streaming command")
         raise CLIError("E_USAGE", f"unknown agent command: {verb}")
+
+    if positionals[0] == "kb":
+        return _kb(positionals, options)
 
     if positionals[0] == "session":
         verb = positionals[1] if len(positionals) > 1 else "status"
@@ -3697,6 +3762,7 @@ Commands:
   schematic pin-plan|pin-check   plan/check CSV pin assignments against saved snapshots only
   system api-inventory           inspect a trusted standalone COM type library
   context                         show runtime and credential context
+  kb list|add|remove             bind company knowledge-base documents (links only)
   doctor                         check environment and release readiness
   reference                      show the live machine contract
   changelog                      show release changes

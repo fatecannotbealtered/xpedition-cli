@@ -57,6 +57,7 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 | 变更控制 | `change validate`、`change preview`、`change apply`、`change history`、`change rollback` | MockBackend |
 | 审查与 BOM | `review run`、`bom export|normalize|group|variants|missing|duplicates|validate|compare` | MockBackend |
 | 环境 | `context`、`doctor`、`system capabilities`、`system license` | 本地探针 |
+| 知识库 | `kb list`、`kb add`、`kb remove` | 本地记录公司规则文档的链接，由 Agent 去读 |
 | 会话 | `session status`、`session logs` | MockBackend；原生 start/attach/stop 需要适配器 |
 | Exchange 文件 | `exchange inspect`、`exchange import` | JSON/CSV/BOM/IPC-2581；PDF/EDN/ODB++ 仍不可用 |
 | Agent 桥接 | `agent snapshot`、`agent query`、`agent review`、`agent capabilities`、`agent serve` | MockBackend；`serve` 支持自定义 NDJSON 和 MCP transport |
@@ -111,8 +112,13 @@ Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJ
 ## 配置
 
 本阶段没有登录流程。CLI 只在 `~/.xpedition-cli/` 下保存本地确认 secret、已消费 token
-记录和审计 JSONL。测试或 CI 可设置 `XPEDITION_CLI_CONFIG_DIR` 隔离这些文件。Native
+记录、审计 JSONL 和知识库链接。测试或 CI 可设置 `XPEDITION_CLI_CONFIG_DIR` 隔离这些文件。Native
 适配器可通过 `XPEDITION_NATIVE_COMMAND` 指定；设置该变量不会绕过 COM 注册或许可证检查。
+
+公司自己的规则（布局规则、绘图约定、评审清单）留在公司知识库里。
+`kb add --name NAME --url URL --about TEXT`（写操作：先 dry-run 再 confirm）把适用的文档记到
+`knowledge-base.json`，`context` 把它们列给 Agent，由 Agent 用自己的工具去读（飞书 wiki 用
+lark-cli）。CLI 本身从不读取文档。
 
 ## 项目结构
 

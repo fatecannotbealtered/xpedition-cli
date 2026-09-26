@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `kb add --name NAME --url URL --about TEXT`, `kb list` and `kb remove --name NAME`
+  bind a company's knowledge-base documents -- layout rules, drawing conventions, review
+  checklists -- on this machine, and `context` lists them. Binding and unbinding are
+  writes, behind the usual dry run and token. The agent reads each document with its own
+  tools (for a Feishu wiki, lark-cli), every time, and the Skills say when: before work in
+  its area. A company rule replaces a bundled default and settles a TBD; verified facts,
+  the write safety rules and STOP CHECKPOINTs stand. The CLI stores http(s) links only;
+  it never fetches a document, so no document system is special-cased and no credential
+  is held.
 - A failed `schematic draw` can be resumed (#30). Every sheet ends in a save, so the
   failure now names the sheets it completed (`sheets_drawn`) and the rest
   (`sheets_remaining`), with a hint, and `--sheets 3,4` draws only those; the netlist

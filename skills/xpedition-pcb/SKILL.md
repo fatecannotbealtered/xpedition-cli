@@ -44,8 +44,12 @@ what is attached and start Layout explicitly with `session start --backend
 native_xpedition --kind pcb`. `--backend` defaults to `mock`, so every native
 command names `--backend native_xpedition --project X.prj`; the short forms in
 the prose leave both out. Read `reference/pcb-conventions.md` before touching a
-board: the rules in this Skill are its non-negotiable subset. `reference
---compact` stays the source of truth for commands and parameters.
+board: the rules in this Skill are its non-negotiable subset, and only a
+company rule changes them. `reference --compact` stays the source of truth for
+commands and parameters. When `context` lists a knowledge-base document for
+board work, read it first: its rules replace the design defaults, here and in
+the conventions, and settle the TBDs; the verified facts and the write safety
+rules stand (see Company knowledge base in the entry Skill).
 
 Every write is shown as its dry run: inspect the preview, then run the same
 command with `--confirm <confirm_token>` in place of `--dry-run`. The token is

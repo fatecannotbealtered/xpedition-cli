@@ -3,10 +3,10 @@
 Defaults an agent applies when it creates or edits a board. Nothing here is
 enforced by the CLI: the Skill's commands create, place, route and check a board,
 but every value below is a **default** (industry practice) unless marked
-**verified**. Company
-rules supersede defaults when they arrive (**TBD** marks where a company
-decision is expected). `reference --compact` is the source of truth for
-commands.
+**verified**. Company rules supersede defaults: when `context` lists a
+knowledge-base document for board work, read it first (**TBD** marks where a
+company decision is still expected). `reference --compact` is the source of
+truth for commands.
 
 Contents
 
@@ -161,4 +161,5 @@ Versions unverified; cite by name until the company's copy is checked.
   netlist.
 - Interface specifications: USB 2.0, I2C (NXP UM10204) — registered in the
   review rule library.
-- Company PCB design specification — pending; it supersedes every default.
+- Company PCB design specification — the knowledge-base document `context`
+  lists for board work, when one is bound; it supersedes every default.

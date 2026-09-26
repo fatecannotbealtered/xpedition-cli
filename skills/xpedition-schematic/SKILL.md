@@ -44,6 +44,10 @@ sessions, project creation, the BOM or ChangeSet writes (xpedition-cli).
 defaults to `mock`, so every native command names `--backend native_xpedition
 --project X.prj`; the short forms in the prose leave both out. Each write is
 shown as its dry run: confirm with the same arguments and the returned token.
+When `context` lists a knowledge-base document for schematics, read it first:
+its rules replace the drawing defaults, here and in
+`reference/schematic-conventions.md`, and settle the TBDs, while the verified
+facts stand (see Company knowledge base in the entry Skill).
 
 A MockBackend read needs no Designer:
 

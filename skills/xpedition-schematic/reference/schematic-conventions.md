@@ -8,7 +8,7 @@ Status of each rule:
 
 - **verified** — measured on Xpedition Standard XPED2604 through the native adapter.
 - **default** — industry practice (see Sources); apply unless the company
-  specification says otherwise.
+  specification (a knowledge-base document listed by `context`) says otherwise.
 - **TBD** — a company decision is pending; the default applies meanwhile.
 
 Contents
@@ -296,15 +296,16 @@ the GB/T and IPC items.
 - IEEE 315 / ASME Y14.44 — reference designations; GB/T 5094 (IEC 81346) is the
   alternative letter scheme.
 - IPC-2612 — sectional requirements for electronic diagramming symbol generation.
-- Company schematic design specification and internal checklist — pending from
-  the hardware team; it supersedes every `default` above when it arrives.
+- Company schematic design specification and internal checklist — the
+  knowledge-base documents `context` lists, when bound; they supersede every
+  `default` above.
 
 ## 11. Observed practice in a company review schematic
 
 Read from `DA30_R2_音响原理图.pdf` (a hardware design review draft, KiCad 10,
 A4 landscape, 8 sheets, dated 2026-09-10). These are observations, not yet
 confirmed company rules; where they differ from the defaults above, follow
-them until the company specification arrives.
+them unless a bound knowledge-base document says otherwise.
 
 - Sheet 1 is an overview: product name and design targets, one titled box per
   following sheet with a one-line signal-flow summary, design and verification

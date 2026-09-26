@@ -22,10 +22,31 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "config",
             "project",
             "credentials",
+            "knowledge_base",
             "notices",
             "_untrusted",
         ],
-        "untrusted_fields": ["config.directory", "project"],
+        "untrusted_fields": ["config.directory", "project", "knowledge_base"],
+    },
+    "kb_list": {
+        "shape": "object",
+        "fields": ["documents", "count", "config", "_untrusted"],
+        "untrusted_fields": ["documents", "config"],
+    },
+    "kb_add": {
+        "shape": "object",
+        "fields": ["name", "url", "about", "replaced", "config", "_untrusted"],
+        "untrusted_fields": ["url", "about", "replaced", "config"],
+    },
+    "kb_remove": {
+        "shape": "object",
+        "fields": ["name", "removed", "url", "config", "_untrusted"],
+        "untrusted_fields": ["url", "config"],
+    },
+    "kb_change_preview": {
+        "shape": "object",
+        "fields": ["preview", "confirm_token", "expires_at", "_untrusted"],
+        "untrusted_fields": ["preview"],
     },
     "doctor": {
         "shape": "object",
@@ -1073,6 +1094,48 @@ def commands() -> list[dict[str, Any]]:
                 "--project ./board.prj --compact",
             ],
             params=[_param("kind", "enum"), _param("project", "path")],
+        ),
+        _command(
+            "kb list",
+            "The knowledge-base documents bound on this machine: a name, a link and what "
+            "each covers. The tool does not read them: before work in a document's area, "
+            "read it with your own tools for that system (for a Feishu wiki, lark-cli)",
+            "kb_list",
+            ["xpedition-cli kb list --compact"],
+        ),
+        _command(
+            "kb add",
+            "Bind a knowledge-base document's link under a name, with what it covers. "
+            "Binding a name again points it at the new link and keeps what it covers "
+            "unless --about is given; --about '' clears it",
+            "kb_add",
+            [
+                "xpedition-cli kb add --name pcb --url https://example.feishu.cn/wiki/AbCdEf123 "
+                '--about "PCB layout rules" --dry-run --compact',
+                "xpedition-cli kb add --name pcb --url https://example.feishu.cn/wiki/AbCdEf123 "
+                '--about "PCB layout rules" --confirm <confirm_token> --compact',
+            ],
+            permission="write",
+            params=[
+                _param("name", "string", True),
+                _param("url", "string", True),
+                _param("about", "string"),
+            ],
+            blast_radius="one entry in knowledge-base.json in the tool's config directory",
+            dry_run_schema="kb_change_preview",
+        ),
+        _command(
+            "kb remove",
+            "Unbind a knowledge-base document",
+            "kb_remove",
+            [
+                "xpedition-cli kb remove --name pcb --dry-run --compact",
+                "xpedition-cli kb remove --name pcb --confirm <confirm_token> --compact",
+            ],
+            permission="write",
+            params=[_param("name", "string", True)],
+            blast_radius="one entry in knowledge-base.json in the tool's config directory",
+            dry_run_schema="kb_change_preview",
         ),
         _command(
             "session attach",
