@@ -2788,9 +2788,15 @@ def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         _settle(4.0)
     partitions: list[dict[str, Any]] = []
     failed: list[str] = []
+    skipped: list[str] = []
+    go_on = params.get("continue_on_error") is not False
     started_all = time.monotonic()
     try:
-        for pretty in pretties:
+        for index, pretty in enumerate(pretties):
+            if failed and not go_on:
+                # CLI-SPEC §15.5: stop at the first failure; the rest are reported, not tried
+                skipped = [p.name[:-7] for p in pretties[index:]]
+                break
             started = time.monotonic()
             plan, issues = kicad_footprints.convert_library(pretty)
             partition = plan.partition
@@ -2846,6 +2852,7 @@ def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "cells": sum(int(p["cells"]) for p in partitions if p["ok"] and "skipped" not in p),
         "partitions": partitions,
         "failed": failed,
+        "skipped": skipped,
         "seconds": round(time.monotonic() - started_all, 1),
         "ok": not failed,
         "_untrusted": ["project", "library", "root", "partitions"],
@@ -5036,22 +5043,34 @@ def _unroute_nets(params: dict[str, Any], client: Any) -> dict[str, Any]:
     }
     if not apply:
         return result
-    deleted = 0
-    failed: dict[str, int] = {}
+    # target by target, so `continue_on_error: false` can stop between two of them
+    by_target: dict[str, list[Any]] = {}
     for target, item in victims:
-        try:
-            item.Delete()
-            deleted += 1
-        except Exception:
-            # one item Layout would not delete must not hide what happened to the rest
-            failed[target] = failed.get(target, 0) + 1
-    items = []
+        by_target.setdefault(target, []).append(item)
+    go_on = params.get("continue_on_error") is not False
+    deleted = 0
+    items: list[dict[str, Any]] = []
+    skipped: list[str] = []
     for entry in ordered:
-        missed = failed.get(entry["target"], 0)
-        item = {**entry, "ok": not missed, "deleted": entry["traces"] + entry["vias"] - missed}
+        if items and not go_on and not items[-1]["ok"]:
+            skipped.append(entry["target"])
+            continue
+        missed = 0
+        for item in by_target.get(entry["target"], []):
+            try:
+                item.Delete()
+                deleted += 1
+            except Exception:
+                # one item Layout would not delete must not hide what happened to the rest
+                missed += 1
+        result_item = {
+            **entry,
+            "ok": not missed,
+            "deleted": entry["traces"] + entry["vias"] - missed,
+        }
         if missed:
-            item["error"] = {"code": "E_CONFLICT", "retryable": False, "not_deleted": missed}
-        items.append(item)
+            result_item["error"] = {"code": "E_CONFLICT", "retryable": False, "not_deleted": missed}
+        items.append(result_item)
     succeeded = sum(1 for item in items if item["ok"])
     regenerated = _regenerate_planes(doc)
     try:
@@ -5063,11 +5082,13 @@ def _unroute_nets(params: dict[str, Any], client: Any) -> dict[str, Any]:
         {
             "deleted": deleted,
             "items": items,
+            # attempted targets only; the ones a stop left alone are in `skipped`
             "summary": {
                 "total": len(items),
                 "succeeded": succeeded,
                 "failed": len(items) - succeeded,
             },
+            "skipped": skipped,
             "planes_regenerated": regenerated,
             "routing": _routing_counts(doc),
             "applied": True,
@@ -6621,8 +6642,17 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
             )
         try:
             target.mkdir(parents=True, exist_ok=True)
+            folder = target.resolve()
             for name, text in symbols.items():
-                (target / f"{name}.1").write_text(str(text), encoding="utf-8")
+                path = (target / f"{name}.1").resolve()
+                if path.parent != folder:
+                    # the planner refuses such a name; this holds for any caller
+                    raise AdapterError(
+                        "E_VALIDATION",
+                        "a symbol name must be a plain file name",
+                        {"symbol": str(name)[:80], "_untrusted": ["symbol"]},
+                    )
+                path.write_text(str(text), encoding="utf-8")
                 written.append(str(name))
         except OSError as exc:
             raise AdapterError("E_IO", f"cannot write symbol files: {exc}") from exc

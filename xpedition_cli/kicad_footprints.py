@@ -808,6 +808,11 @@ def convert_library(
             issues.append(f"{footprint.name}: not converted ({type(exc).__name__}: {exc})")
             continue
         issues += found
+        bad = H.unquotable(H.cell_texts(cell))
+        if bad:
+            # a quote or a line break in a KiCad file would write records of its own
+            issues.append(f"{footprint.name}: {bad[0][0]} cannot be quoted in HKP, skipped")
+            continue
         if cell.pins or cell.holes:
             plan.cells[cell.name] = cell
     return plan, issues

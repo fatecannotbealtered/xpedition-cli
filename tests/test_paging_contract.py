@@ -98,6 +98,8 @@ def test_paging_is_declared_where_it_happens_and_honoured_where_declared(capsys,
             checked.append(path)
             if not {"limit", "offset"} <= declared:
                 problems.append(f"{path}: pages but reference does not declare --limit/--offset")
+            if not command.get("default_sort"):
+                problems.append(f"{path}: pages but declares no default_sort")
             listed = data["items"] if "items" in data else data["findings"]
             if len(listed) > 1:
                 problems.append(f"{path}: ignored --limit 1")

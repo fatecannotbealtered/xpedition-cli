@@ -119,6 +119,30 @@ def test_a_partition_imported_since_the_dry_run_refuses_the_token(capsys, setup,
     args = [*setup["args"], "--backend", "native_xpedition"]
     _, dry = run(capsys, *args, "--dry-run")
     (setup["cells"] / "Resistor_SMD.cel").write_bytes(b"cel")
-    code, result = run(capsys, *args, "--confirm", dry["data"]["confirm_token"])
+    token = dry["data"]["confirm_token"]
+    code, result = run(capsys, *args, "--dangerous", "--confirm", token)
     assert code == 6 and result["error"]["code"] == "E_CONFLICT"
     assert native == []
+
+
+def test_merging_into_a_partition_that_exists_needs_dangerous(capsys, setup, native) -> None:
+    (setup["cells"] / "Package_SO.cel").write_bytes(b"cel")
+    args = [*setup["args"], "--backend", "native_xpedition"]
+    _, dry = run(capsys, *args, "--dry-run")
+    assert dry["data"]["preview"]["dangerous"] is True
+    token = dry["data"]["confirm_token"]
+    code, refused = run(capsys, *args, "--confirm", token)
+    assert code == 5 and refused["error"]["code"] == "E_CONFIRMATION_REQUIRED"
+    assert native == []
+    code, result = run(capsys, *args, "--dangerous", "--confirm", token)
+    assert code == 0, result
+
+
+def test_stopping_at_the_first_failure_is_passed_on(capsys, setup, native) -> None:
+    args = [*setup["args"], "--backend", "native_xpedition", "--continue-on-error", "false"]
+    _, dry = run(capsys, *args, "--dry-run")
+    code, _ = run(capsys, *args, "--confirm", dry["data"]["confirm_token"])
+    assert code == 0
+    assert native[-1]["params"]["continue_on_error"] is False
+    code, result = run(capsys, *setup["args"], "--continue-on-error", "maybe", "--dry-run")
+    assert code == 2 and result["error"]["code"] == "E_VALIDATION"

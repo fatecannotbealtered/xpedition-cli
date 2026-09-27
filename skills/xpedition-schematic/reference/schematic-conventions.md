@@ -272,12 +272,12 @@ the one command that clears it.
 What the native adapter covers and where the conventions are still applied by
 hand; `reference --compact` is authoritative for the live command list.
 
-| Need | Today |
+| Need | Covered by |
 |---|---|
 | Place a part | `place_component` with an explicit library partition; keep the returned object, because `DesignComponents` lags the placement. `AddPartInstance(partition, part, symbol, x, y)`: the part name is the visible Part Number |
-| Wire two pins with a label | `connect` draws one wire between two pins and labels it; the per-pin stub-and-label form runs through the adapter's `AddNet` + `AddLabel` and is not yet a ChangeSet operation |
+| Wire two pins with a label | `connect` draws one wire between two pins and labels it; the per-pin stub-and-label form runs through the adapter's `AddNet` + `AddLabel` and is not a ChangeSet operation |
 | Power symbols, ground, no-connects | `AddSymbolInstance(partition, symbol, x, y)` places refdes-less symbols without an orphan: stock `Globals:gnd`, `builtin:No_Connect` (set `Orientation` 0 / 2 / 3 / 1 for left / right / top / bottom pins) and one generated type-4 power symbol per net from `xpedition_cli.symbols.power_symbol`. A stub ending on the symbol origin joins the net |
-| Symbol generation | `xpedition_cli.symbols` writes `V 53` files per §2; not yet a CLI command. Designer keeps the definition of a symbol it has placed, so a changed symbol needs a new name |
+| Symbol generation | `xpedition_cli.symbols` writes `V 53` files per §2 for `schematic draw`; it is not a command of its own. Designer keeps the definition of a symbol it has placed, so a changed symbol needs a new name |
 | Clean sheet | `ExecuteCommandByID(57642)` (Select All) then `Block.DeleteSelected(False)`; keeps the border. There is no per-object delete |
 | Titles and notes | `Block.AddText(text, x, y)`, then `.Size` |
 | Whole sheets | `schematic draw --design FILE` (format: `reference/schematic-design-format.md`) plans IC blocks, ladders, chains, labels, power and ground symbols, no-connects, titles and notes, draws them, reopens the project and diffs the netlist read back |

@@ -59,6 +59,7 @@ VALUE_FLAGS = {
     "--url",
     "--libraries",
     "--root",
+    "--continue-on-error",
     "--project",
     "--other-project",
     "--input",
@@ -222,6 +223,7 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
                 raise CLIError("E_VALIDATION", f"--{key} must not be negative")
     validate_reference_options(positionals, options)
     _reject_a_guard_flag_that_does_not_apply(positionals, options)
+    _reject_paging_that_does_not_apply(positionals, options)
     if tuple(positionals[:2]) in pin_assignment.COMMANDS:
         pin_assignment.validate_argv(argv)
         options["fields"] = pin_assignment.protected_fields(options.get("fields"))
@@ -279,6 +281,44 @@ def _reject_a_guard_flag_that_does_not_apply(
                 },
             )
         return
+
+
+def _reject_paging_that_does_not_apply(positionals: list[str], options: dict[str, Any]) -> None:
+    """Refuse `--limit` / `--offset` on a command that does not page.
+
+    Ignoring them handed back more than was asked for, with no sign of it: `bom
+    validate --limit 1` returned every issue. A command pages exactly when
+    `reference` declares both, which the paging contract test holds it to.
+    """
+    supplied = [name for name in ("limit", "offset") if options.get(name) is not None]
+    if not supplied:
+        return
+    declared = {item["path"]: item for item in reference()["commands"]}
+    for length in (3, 2, 1):
+        command = declared.get(" ".join(positionals[:length]))
+        if command is None:
+            continue
+        names = {param["name"] for param in command.get("params", [])}
+        missing = [name for name in supplied if name not in names]
+        if missing:
+            raise CLIError(
+                "E_USAGE",
+                f"{command['path']} does not page and takes no "
+                f"{' or '.join('--' + name for name in missing)}",
+                {"command": command["path"], "options": ["--" + name for name in missing]},
+            )
+        return
+
+
+def _continue_on_error(options: dict[str, Any]) -> bool:
+    """CLI-SPEC §15.5: a batch goes on past a failed item unless told `false`."""
+    value = options.get("continue_on_error")
+    if value is None:
+        return True
+    text = str(value).strip().lower()
+    if text not in {"true", "false"}:
+        raise CLIError("E_VALIDATION", "--continue-on-error is true or false", {"value": value})
+    return text == "true"
 
 
 def _schematic_export(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
@@ -456,10 +496,13 @@ def _library_kicad_import(positionals: list[str], options: dict[str, Any]) -> di
     }
     if options.get("dry_run") and options.get("confirm"):
         raise CLIError("E_USAGE", "use either --dry-run or --confirm, not both")
+    continue_on_error = _continue_on_error(options)
+    merging = [row["partition"] for row in plan["libraries"] if row["exists"]]
     if options.get("dry_run"):
         token, expires_at = issue(scope)
         preview = {
             **plan,
+            "dangerous": bool(merging),
             "changes": [
                 {"action": "close_designer_project", "reopened_after": True},
                 *(
@@ -472,7 +515,7 @@ def _library_kicad_import(positionals: list[str], options: dict[str, Any]) -> di
                 ),
             ],
             "risk": {
-                "tier": "T1",
+                "tier": "T2" if merging else "T1",
                 "blast_radius": (
                     "one cell partition per library in the project's central library -- an "
                     "existing one is merged, its same-named cells overwritten -- and the "
@@ -492,12 +535,17 @@ def _library_kicad_import(positionals: list[str], options: dict[str, Any]) -> di
             "E_CONFIRMATION_REQUIRED",
             "library kicad-import requires --dry-run, then --confirm <confirm_token>",
         )
+    if merging:
+        _require_dangerous(
+            options, "library kicad-import overwrites same-named cells in partitions that exist"
+        )
     native = _native_for_write("library kicad-import", options)
     consume(str(options["confirm"]), scope)
     request: dict[str, Any] = {
         "project": plan["project"],
         "root": plan["root"],
         "libraries": [row["library"] for row in plan["libraries"]],
+        "continue_on_error": continue_on_error,
     }
     result = native.invoke(
         "kicad_import", request, timeout_seconds=kicad_import.WRITE_TIMEOUT_SECONDS
@@ -1190,7 +1238,13 @@ def _pcb_unroute(positionals: list[str], options: dict[str, Any]) -> dict[str, A
             "pcb unroute requires --dry-run, then --confirm <confirm_token>",
         )
     native = _native_for_write("pcb unroute", options)
-    request: dict[str, Any] = {"project": canonical, "nets": nets, "all": everything, "start": True}
+    request: dict[str, Any] = {
+        "project": canonical,
+        "nets": nets,
+        "all": everything,
+        "start": True,
+        "continue_on_error": _continue_on_error(options),
+    }
     if at:
         request["at"] = at
         if layer is not None:
@@ -2413,6 +2467,21 @@ def _context(options: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _native_fix(native: dict[str, Any]) -> str:
+    """What to do about an unavailable NativeBackend, by the reason it gives."""
+    reason = native.get("reason")
+    if not native.get("automation_command_configured"):
+        return 'install the native COM adapter: python -m pip install "xpedition-cli[native]"'
+    if reason == "configured native COM adapter was not found":
+        return (
+            "point XPEDITION_NATIVE_COMMAND at the adapter executable, or unset it to use "
+            "the installed xpedition-native-adapter"
+        )
+    if reason == "Xpedition SDD_HOME could not be discovered":
+        return "install Xpedition, or set SDD_HOME to its SDD_HOME folder"
+    return "run scripts/register-xpedition-user.ps1 (or the official Administrator registration)"
+
+
 def _native_live_applications(native_ready: bool) -> dict[str, Any]:
     """Ask the adapter which Xpedition applications are attachable right now.
 
@@ -2460,12 +2529,7 @@ def _doctor(options: dict[str, Any]) -> dict[str, Any]:
             else (
                 "inspect session status and repair Xpedition startup"
                 if native_runtime_failed
-                else (
-                    "run scripts/register-xpedition-user.ps1 (or the official "
-                    "Administrator registration)"
-                    if native.get("automation_command_configured")
-                    else "install the native COM adapter"
-                )
+                else _native_fix(native)
             ),
             "message": (
                 native_session.get("reason") if native_runtime_failed else native.get("reason")
@@ -2771,6 +2835,7 @@ def _paged_review(
     limit = options.get("limit")
     end = len(findings) if limit is None else min(len(findings), offset + int(limit))
     report["findings"] = findings[offset:end]
+    report["count"] = len(report["findings"])
     report["offset"] = offset
     report["next_offset"] = end if end < len(findings) else None
     report["has_more"] = end < len(findings)

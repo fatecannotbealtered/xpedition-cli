@@ -73,6 +73,7 @@ def test_reference_marks_the_dangerous_writes(capsys) -> None:
         "pcb arrange",
         "pcb route",
         "pcb annotate",
+        "library kicad-import",
     }
     for path in dangerous:
         command = commands[path]

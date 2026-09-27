@@ -392,6 +392,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "deleted",
             "items",
             "summary",
+            "skipped",
             "planes_regenerated",
             "routing",
             "applied",
@@ -417,6 +418,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "ok",
             "items",
             "summary",
+            "skipped",
             "_untrusted",
         ],
         "items_shape": ["target", "ok", "partition", "cells", "padstacks", "issues", "error"],
@@ -908,6 +910,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "project",
             "revision",
             "findings",
+            "count",
             "offset",
             "next_offset",
             "has_more",
@@ -979,6 +982,17 @@ def _param(
     return {"name": name, "type": type_name, "required": required, "multiple": multiple}
 
 
+DEFAULT_SORT = "the order the project or design stores them; stable between calls"
+REVIEW_SORT = "rule order, then the order each rule found them"
+FILE_SORT = "oldest first, as written"
+# the lists declared by their own modules
+OTHER_SORTS = {
+    "schematic pin-plan": "the CSV's row order",
+    "schematic pin-check": "the CSV's row order",
+    "system api-inventory": "the type library's own order",
+}
+
+
 def _command(
     path: str,
     description: str,
@@ -989,6 +1003,7 @@ def _command(
     blast_radius: str = "none",
     dry_run_schema: str | None = None,
     dangerous: str | None = None,
+    sort: str | None = None,
 ) -> dict[str, Any]:
     """One command's declaration. `dangerous` says when the write also needs
     --dangerous with its token (CLI-SPEC §15.4): "always", or the condition."""
@@ -1007,6 +1022,9 @@ def _command(
     if dangerous:
         command["dangerous"] = True
         command["dangerous_when"] = dangerous
+    if any(param["name"] == "limit" for param in command["params"]) and command["type"] == "query":
+        # CLI-SPEC §8: a list keeps one order from call to call, and says which
+        command["default_sort"] = sort or DEFAULT_SORT
     return command
 
 
@@ -1118,6 +1136,7 @@ def commands() -> list[dict[str, Any]]:
             "session_logs",
             ["xpedition-cli session logs --compact"],
             params=[_param("limit", "integer"), _param("offset", "integer")],
+            sort=FILE_SORT,
         ),
         _command(
             "session start",
@@ -1309,6 +1328,7 @@ def commands() -> list[dict[str, Any]]:
                 _param("limit", "integer"),
                 _param("offset", "integer"),
             ],
+            sort=FILE_SORT,
         ),
         _command(
             "change rollback",
@@ -1336,6 +1356,7 @@ def commands() -> list[dict[str, Any]]:
                 _param("limit", "integer"),
                 _param("offset", "integer"),
             ],
+            sort=REVIEW_SORT,
         ),
         _command(
             "review findings",
@@ -1348,6 +1369,7 @@ def commands() -> list[dict[str, Any]]:
                 _param("limit", "integer"),
                 _param("offset", "integer"),
             ],
+            sort=REVIEW_SORT,
         ),
         _command(
             "review report",
@@ -1360,6 +1382,7 @@ def commands() -> list[dict[str, Any]]:
                 _param("limit", "integer"),
                 _param("offset", "integer"),
             ],
+            sort=REVIEW_SORT,
         ),
         _command(
             "bom export",
@@ -1776,6 +1799,7 @@ def commands() -> list[dict[str, Any]]:
                     _param("all", "boolean"),
                     _param("at", "string"),
                     _param("layer", "number"),
+                    _param("continue-on-error", "boolean"),
                 ],
                 blast_radius=(
                     "the routing of the named nets (or of all) is deleted, not archived, and "
@@ -2266,6 +2290,9 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli library kicad-import --backend native_xpedition --project "
                     "X.prj --libraries Package_SO,Resistor_SMD --confirm <confirm_token> "
                     "--compact",
+                    "xpedition-cli library kicad-import --backend native_xpedition --project "
+                    "X.prj --libraries Package_SO,Resistor_SMD --dangerous --confirm "
+                    "<confirm_token> --compact",
                 ],
                 permission="write",
                 params=[
@@ -2273,6 +2300,7 @@ def commands() -> list[dict[str, Any]]:
                     _param("libraries", "string", multiple=True),
                     _param("root", "path"),
                     _param("limit", "integer"),
+                    _param("continue-on-error", "boolean"),
                 ],
                 blast_radius=(
                     "one cell partition per library in the project's central library (an "
@@ -2280,6 +2308,7 @@ def commands() -> list[dict[str, Any]]:
                     "padstack database; Designer's project is closed while it runs"
                 ),
                 dry_run_schema="library_kicad_import_preview",
+                dangerous="when a library's partition exists already: its dry run marks it",
             ),
             _command(
                 "library search",
@@ -2344,6 +2373,7 @@ def commands() -> list[dict[str, Any]]:
                     _param("limit", "integer"),
                     _param("offset", "integer"),
                 ],
+                sort=REVIEW_SORT,
             ),
             _command(
                 "agent capabilities",
@@ -2360,7 +2390,12 @@ def commands() -> list[dict[str, Any]]:
         ]
     )
     result.extend(placement_contract.commands())
-    return result + pin_commands() + [api_command()]
+    result += pin_commands() + [api_command()]
+    for command in result:
+        pages = any(param["name"] == "limit" for param in command["params"])
+        if command["type"] == "query" and pages and "default_sort" not in command:
+            command["default_sort"] = OTHER_SORTS.get(command["path"], DEFAULT_SORT)
+    return result
 
 
 def release_readiness() -> dict[str, Any]:
@@ -2511,6 +2546,17 @@ def _full_reference() -> dict[str, Any]:
                     "refused with E_CONFIRMATION_REQUIRED even with a valid token. Each "
                     "command's dangerous_when says when it applies. Other writes accept it: "
                     "pcb trace and pcb via then skip the offline clearance check."
+                ),
+            },
+            {
+                "name": "continue-on-error",
+                "type": "boolean",
+                "default": True,
+                "applies_to": ["pcb unroute", "library kicad-import"],
+                "description": (
+                    "A batch goes on past a failed item by default; false stops at the first "
+                    "failure. Items already done stay done; the rest are listed in `skipped` "
+                    "and `summary` counts only the attempted ones."
                 ),
             },
             {

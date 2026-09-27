@@ -56,6 +56,19 @@ These NativeBackend operations destroy work rather than add to it; each needs
 - `pcb route --unroute` and `pcb annotate --unroute` delete every trace and via
   before they route or annotate, and `pcb arrange` does the same on a board that
   has routing (its dry run counts it).
+- `library kicad-import` into a partition that exists already overwrites its
+  same-named cells (its dry run marks those partitions).
+
+Two writes that lose work stay outside the tier, and this is where the line runs:
+
+- `schematic draw` redraws the sheets it lists from the design file and deletes
+  what they held. The design file stays, so the drawing can be drawn again; hand
+  edits made on those sheets in Designer cannot. The CLI does not read a sheet
+  before it redraws it, so it cannot tell a sheet it drew from one someone edited
+  and does not gate on it. Instead the Skill stops to ask before drawing over
+  sheets that hold content, and `--sheets` limits a draw to the sheets named.
+- `session stop` quits the application. Saved design data is untouched; changes
+  not yet saved are lost, which its preview states before the confirm.
 
 The CLI never edits Xpedition private database files directly. All of the above
 goes through the product's own automation interfaces or its HKP text converters.

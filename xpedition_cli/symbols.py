@@ -462,7 +462,9 @@ def write_symbol(library_root: Path, partition: str, symbol: Symbol) -> Path:
     """Write ``<library_root>/<partition>/sym/<name>.1`` and return the path."""
     target = Path(library_root) / partition / "sym"
     target.mkdir(parents=True, exist_ok=True)
-    path = target / f"{symbol.name}.1"
+    path = (target / f"{symbol.name}.1").resolve()
+    if path.parent != target.resolve():
+        raise ValueError(f"symbol name {symbol.name!r} is not a plain file name")
     path.write_text(symbol.render(), encoding="utf-8")
     return path
 

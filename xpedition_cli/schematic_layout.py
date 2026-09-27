@@ -17,6 +17,7 @@ Units are sheet units (10 mil); everything lands on the 10-unit grid.
 
 from __future__ import annotations
 
+import re
 import zlib
 from dataclasses import dataclass, field
 from typing import Any
@@ -121,6 +122,30 @@ def _rotate(x: int, y: int, orientation: int) -> tuple[int, int]:
     return {0: (x, y), 1: (-y, x), 2: (-x, -y), 3: (y, -x)}[orientation]
 
 
+# A symbol's name becomes the name of its file in the library's `sym` folder, and
+# its texts become lines of that file: a path in the name would write elsewhere,
+# and a line break in a text would add records of its own.
+_SYMBOL_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.+-]{0,47}")
+_BREAKS_A_LINE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _check_symbol(name: str, symbol: S.Symbol) -> None:
+    if not _SYMBOL_NAME.fullmatch(name) or ".." in name:
+        raise DesignError(
+            f"symbol name {name!r} is not a plain name: letters, digits, _ . + - "
+            "(it names a file in the symbol library)"
+        )
+    texts = [symbol.device, symbol.netname or "", *symbol.labels]
+    for pin in symbol.pins:
+        texts += [pin.number, pin.name or "", pin.pintype]
+    bad = [text for text in texts if _BREAKS_A_LINE.search(str(text))]
+    if bad:
+        raise DesignError(
+            f"symbol {name!r}: {bad[0]!r} holds a line break or a control character, "
+            "which would add records to the symbol file"
+        )
+
+
 def _hashed_name(base: str, text: str) -> str:
     """Designer keeps the definition of a placed symbol, so a changed geometry
     must arrive under a new name; hashing the rendered text does that."""
@@ -149,6 +174,7 @@ class _Library:
             )
         else:
             symbol = _symbol_from_spec(name, spec)
+        _check_symbol(name, symbol)
         symbol.name = _hashed_name(name, symbol.render())
         self._built[name] = symbol
         self.files[symbol.name] = symbol.render()
@@ -160,6 +186,7 @@ class _Library:
         if key in self._built:
             return self._built[key]
         symbol = S.power_symbol(net)
+        _check_symbol(S.power_symbol_name(net), symbol)
         symbol.name = _hashed_name(S.power_symbol_name(net), symbol.render())
         self._built[key] = symbol
         self.files[symbol.name] = symbol.render()

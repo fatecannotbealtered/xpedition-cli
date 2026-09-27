@@ -118,7 +118,8 @@ def commands() -> list[dict[str, Any]]:
                 ],
                 "execution_support": "offline_observation_only",
                 "native_execution": False,
-                "live_smoke_status": "not_applicable_to_offline_comparison",
+                # offline comparison only: no live run applies
+                "live_smoke_status": "not_applicable",
                 "observation_contract": {
                     "pin_identity": (
                         "components[].refdes + pins[].number; exact strings"

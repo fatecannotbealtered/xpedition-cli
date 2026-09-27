@@ -19,7 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pcb annotate --unroute`, and `pcb arrange` on a board with routing (its dry run
   counts it). Without it the confirmed run is refused with `E_CONFIRMATION_REQUIRED`
   and the token stays unspent. `reference` marks them `dangerous` with `dangerous_when`
-  in the `dangerous` permission tier, and the tool is now T2.
+  in the `dangerous` permission tier, and the tool is now T2. `library kicad-import`
+  joins them when it merges into a partition that exists. SECURITY.md says where the line
+  runs, and why `schematic draw` and `session stop` stay outside it.
+- `--continue-on-error false` stops `pcb unroute` and `library kicad-import` at the first
+  failed item; the rest are listed in `skipped` and `summary` counts the attempted ones.
 - `kb add --name NAME --url URL --about TEXT`, `kb list` and `kb remove --name NAME`
   bind a company's knowledge-base documents -- layout rules, drawing conventions, review
   checklists -- on this machine, and `context` lists them. Binding and unbinding are
@@ -139,7 +143,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `manufacturing bom` ignored `--limit`, `agent review` ignored `--limit` and
   `--offset`, and six query commands paged without declaring it in `reference`.
 - Design text holding a double quote or a line break could write records of its own
-  into the generated HKP library files; it is refused now.
+  into the generated HKP library files; it is refused now. The same holds for symbol
+  files, and a KiCad footprint whose text cannot be quoted is skipped with an issue.
+- A symbol name in a design file named a file path: `../../../ESCAPE` would have been
+  written outside the library's `sym` folder. A symbol name is a plain name now, and the
+  adapter writes a symbol file only inside that folder.
+- `--limit` and `--offset` on a command that does not page were ignored -- `bom validate
+  --limit 1` returned every issue -- and are refused now. Review pages carry `count`, and
+  every paged command declares its `default_sort`.
+- `doctor` suggested COM registration when the configured adapter file was missing; it
+  now names the fix for the reason the backend gives.
 - `pcb trace --dangerous` and `pcb via --dangerous`, which skip the offline clearance
   check, were refused by a global check and could not be used.
 - A pip install that is not editable -- the one the README now leads with -- answered

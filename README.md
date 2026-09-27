@@ -44,11 +44,12 @@ component, creating a net, connecting pins, moving or deleting a component, and
 setting a property. Applying a ChangeSet requires a preview token, writes a
 backup when replacing an existing file, saves atomically, and verifies the project after the write.
 
-Risk tier: **T1**. Against MockBackend the blast radius is the explicitly named
+Risk tier: **T2**. Against MockBackend the blast radius is the explicitly named
 local JSON file. Against NativeBackend it is the named Xpedition project: a
 confirmed write can draw a schematic, place parts, add or delete routing, and
 `pcb create --replace` archives the existing layout folder to a zip beside the
-project before deleting it. See [SECURITY.md](SECURITY.md).
+project before deleting it. Writes that destroy work with no archive also need
+`--dangerous` next to the token. See [SECURITY.md](SECURITY.md).
 
 ## Capabilities
 

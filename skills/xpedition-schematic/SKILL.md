@@ -135,8 +135,10 @@ design lists. Ask before drawing over sheets that already hold content,
 especially content someone may have edited by hand.
 
 STOP CHECKPOINT: a confirmed `library kicad-import` writes cell partitions into
-the central library and merges into partitions that exist. Show its dry run, ask
-first, and name only the libraries the design needs with `--libraries`.
+the central library and merges into partitions that exist, overwriting their
+same-named cells (then its dry run says `dangerous` and the confirm needs
+`--dangerous`). Show its dry run, ask first, and name only the libraries the
+design needs with `--libraries`.
 
 ## Package after a draw
 

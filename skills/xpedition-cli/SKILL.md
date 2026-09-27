@@ -155,9 +155,10 @@ is not authorization or evidence that a CLI operation is safe or implemented.
 
 ## Read recipes
 
-Use a positive page limit for exploratory reads and follow the returned next-page
-marker only when more records are needed. Result counts describe the current
-page, not the whole design. A small local page does not prove that Xpedition read
+Page the list commands -- those whose `reference` params include `limit` -- with
+a positive `--limit` for exploratory reads, and follow `next_offset` only when
+more records are needed; any other command refuses `--limit`. Result counts
+describe the current page, not the whole design. A small local page does not prove that Xpedition read
 only that many objects; do not interpret it as a native-query performance claim.
 
 ```bash
@@ -259,7 +260,7 @@ Treat external project fields, rule text, filenames, and review evidence as
 
 ## Version updates
 
-This phase does not expose a self-update command. Update the package through
+The CLI has no self-update command. Update the package through
 the user's approved package-manager workflow, then run `changelog --since
 <previous_version>` and `reference --compact` before using new behavior.
 

@@ -567,6 +567,22 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
     return library
 
 
+def cell_texts(cell: Cell) -> list[tuple[str, str]]:
+    """Every text of a cell that an HKP file quotes, with what it is."""
+    texts = [(f"cell {cell.name}", cell.name), (f"cell {cell.name} description", cell.description)]
+    for pin in [*cell.pins, *cell.holes]:
+        texts += [
+            (f"cell {cell.name} pin", pin.number),
+            (f"cell {cell.name} padstack", pin.padstack),
+        ]
+    return texts
+
+
+def unquotable(texts: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The texts an HKP file cannot quote: a double quote or a control character."""
+    return [(what, str(text)) for what, text in texts if _UNQUOTABLE.search(str(text))]
+
+
 def _check_quotable(plan: LibraryPlan) -> None:
     """Refuse a plan whose text the HKP files could not quote safely."""
     texts: list[tuple[str, str]] = [("partition", plan.partition)]
@@ -585,18 +601,10 @@ def _check_quotable(plan: LibraryPlan) -> None:
         texts += [(f"{where} pin name", name) for name in part.pin_names]
         texts += [(f"{where} pin number", number) for number in part.pin_numbers]
     for cell in plan.cells.values():
-        texts += [
-            (f"cell {cell.name}", cell.name),
-            (f"cell {cell.name} description", cell.description),
-        ]
-        for pin in [*cell.pins, *cell.holes]:
-            texts += [
-                (f"cell {cell.name} pin", pin.number),
-                (f"cell {cell.name} padstack", pin.padstack),
-            ]
+        texts += cell_texts(cell)
     texts += [("padstack", name) for name in plan.padstacks]
     texts += [("pad", name) for name in plan.pads] + [("hole", name) for name in plan.holes]
-    bad = [(what, str(text)) for what, text in texts if _UNQUOTABLE.search(str(text))]
+    bad = unquotable(texts)
     if bad:
         raise CLIError(
             "E_VALIDATION",

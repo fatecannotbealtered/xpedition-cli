@@ -74,6 +74,21 @@ jobs:
         if: runner.os == 'Linux'
         run: npm audit --omit=dev
 
+      # REPO-SPEC §4: the tag, package.json and every derived version agree before
+      # anything is built or signed, not only before npm publishes
+      - name: Verify version consistency
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version (${TAG_VERSION}) does not match package.json version (${PKG_VERSION})"
+            exit 1
+          fi
+          node scripts/check-version.js
+
       # the full check, as CI runs it: the vendored assets against the pinned tag
       - name: Verify spec/contract sync
         if: runner.os == 'Linux'

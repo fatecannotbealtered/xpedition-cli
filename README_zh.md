@@ -39,10 +39,10 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 创建网络、连接引脚、移动或删除器件、设置属性等受控操作。应用 ChangeSet 必须先拿到
 预览 token，替换已有文件时自动生成备份，随后原子保存并回读验证。
 
-风险等级：**T1**。对 MockBackend，爆炸半径是明确指定的那个本地 JSON 文件。对 NativeBackend，
+风险等级：**T2**。对 MockBackend，爆炸半径是明确指定的那个本地 JSON 文件。对 NativeBackend，
 爆炸半径是指定的那个 Xpedition 工程：一次确认过的写入可以画原理图、摆器件、增删布线；
-`pcb create --replace` 会先把已有布局目录打包成工程旁边的 zip，然后删除它。
-参见 [SECURITY.md](SECURITY.md)。
+`pcb create --replace` 会先把已有布局目录打包成工程旁边的 zip，然后删除它。会毁掉没有归档的
+成果的写操作，除了 token 还要加 `--dangerous`。参见 [SECURITY.md](SECURITY.md)。
 
 ## 能力
 

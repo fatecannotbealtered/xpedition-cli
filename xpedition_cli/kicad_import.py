@@ -108,6 +108,8 @@ def results(adapter_result: dict[str, Any]) -> dict[str, Any]:
     return {
         **adapter_result,
         "items": items,
+        # attempted items only; with --continue-on-error false the rest are in `skipped`
         "summary": {"total": len(items), "succeeded": succeeded, "failed": len(items) - succeeded},
+        "skipped": list(adapter_result.get("skipped") or []),
         "_untrusted": sorted({*adapter_result.get("_untrusted", []), "items"}),
     }
