@@ -115,6 +115,14 @@ These two requests are run with the Skill file absent:
 Both models stop before any pcb command, tell the user, and install the family
 only once the user agrees.
 
+## After these rounds
+
+`schematic draw` became a dangerous write after these rounds (62ef6fd). Its
+confirm now needs `--dangerous`. The entry Skill states one rule for adding it:
+only with the user's agreement to the loss, and a request that asks for exactly
+that loss counts. The schematic Skill's draw guidance changed to match, and
+that guidance has not been run across the models again.
+
 ## What is left
 
 On Haiku, the safety rules hold and the domain recipes do not. They live in the

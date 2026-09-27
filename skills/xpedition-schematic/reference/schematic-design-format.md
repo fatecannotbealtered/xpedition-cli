@@ -34,6 +34,10 @@ Contents
 
 - `sheet_size`: `A`, `B`, `C`, `D`, `A4` or `A3`. Every sheet gets that border
   and page size; `A4` suits a review draft.
+- `partition` (optional, default `Case`): the symbol library partition the
+  generated symbols go to. It names a folder and a `.prj` entry, so it is a plain
+  identifier: a letter, then letters, digits and `_`. Symbol names (§2) are
+  plain names too: letters, digits and `_ . + -`.
 - `status`, `title`, `revision`, `date` form the footer of every sheet.
 - Titles, descriptions, block titles and notes may be Chinese: Designer shows
   them correctly on screen. Net names, reference designators and values stay

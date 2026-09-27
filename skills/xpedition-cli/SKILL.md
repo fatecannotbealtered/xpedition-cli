@@ -229,6 +229,9 @@ confirm exactly once. A rollback never uses a stale apply token.
 
 STOP CHECKPOINT: ask the user before confirming a write, using a broad target
 set, exposing sensitive project data, or adding `--dangerous` to a confirm.
+`--dangerous` goes on only with the user's agreement to the loss its preview
+names. A request that asks for exactly that loss already counts; the domain
+Skills say which requests do, such as a draw over sheets no one edited by hand.
 
 ## Error decision tree
 

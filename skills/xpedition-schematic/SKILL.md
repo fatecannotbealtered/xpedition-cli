@@ -224,7 +224,8 @@ xpedition-cli schematic pin-check --input ./snapshot.json --file ./pins.csv --co
   `preview.summary.issues`, confirm, report done only when `netlist.matches` is
   true, and package with `library build --package` before reading back or
   reviewing.
-- Redraw: stop and ask before a draw wipes sheets that already hold content.
+- Redraw: a requested draw covers sheets holding only a template's or an earlier
+  draw's content; stop and ask before it wipes sheets someone edited by hand.
 - Resume: after a failed draw, fix the cause its error names, then redraw only
   `sheets_remaining` with `--sheets`.
 - Review: report `review run` findings by origin (`xpedition/verify:*` and
