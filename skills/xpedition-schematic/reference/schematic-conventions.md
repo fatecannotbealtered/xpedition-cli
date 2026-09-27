@@ -247,8 +247,8 @@ Run `library build --package` after a redraw, before reading the design back or
 reviewing it. A schematic that has changed since it was last packaged cannot be
 read: `review run`, `bom export` and `schematic components` all stop on the same
 COM type mismatch until it is re-packaged. Being unpackaged is a normal state to
-be in halfway through a design, not a failure — the error now names the cause and
-the one command that clears it.
+be in halfway through a design, not a failure — the error names the cause and the
+one command that clears it.
 
 | ID | Check | Class | How |
 |---|---|---|---|

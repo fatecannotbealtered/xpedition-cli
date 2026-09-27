@@ -58,4 +58,4 @@
 - [ ] 本阶段自更新明确标记为 N/A。未来若增加裸 `update`，必须同步 `skills/` 下的每个 Skill 目录或返回 `skill_sync_command`，并在失败/中断时报告 `stage` + `current_version` + `binary_replaced` + `skill_sync_status`。
 - [ ] `xpedition-cli reference`、`xpedition-cli context`、`xpedition-cli doctor` 可运行并输出合法的 JSON 信封 —— 代理能从干净的检出自助上手。
 - [ ] `xpedition-cli reference` 暴露 `release_readiness`，`xpedition-cli doctor` 报告匹配的检查项。
-- [ ] `SECURITY.md` 中的风险等级与 `.agent/SEC-SPEC.md` 声明的等级一致（`T1`）。
+- [ ] `SECURITY.md` 中的风险等级与 `.agent/SEC-SPEC.md` 声明的等级一致（`T2`）。

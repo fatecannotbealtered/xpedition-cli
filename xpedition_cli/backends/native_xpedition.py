@@ -57,6 +57,21 @@ def _refuse_a_stale_session(method: str) -> None:
     )
 
 
+def native_fix(status: dict[str, Any]) -> str:
+    """What to do about an unavailable NativeBackend, by the reason `status` gives."""
+    reason = status.get("reason")
+    if not status.get("automation_command_configured"):
+        return 'install the native COM adapter: python -m pip install "xpedition-cli[native]"'
+    if reason == "configured native COM adapter was not found":
+        return (
+            "point XPEDITION_NATIVE_COMMAND at the adapter executable, or unset it to use "
+            "the installed xpedition-native-adapter"
+        )
+    if reason == "Xpedition SDD_HOME could not be discovered":
+        return "install Xpedition, or set SDD_HOME to its SDD_HOME folder"
+    return "run scripts/register-xpedition-user.ps1 (or the official Administrator registration)"
+
+
 class NativeBackend:
     """Boundary for a licensed Xpedition automation adapter.
 
@@ -149,11 +164,7 @@ class NativeBackend:
                 "backend": self.name,
                 "reason": status["reason"],
                 "adapter": status["automation_command"],
-                "hint": (
-                    "register Xpedition COM automation as Administrator, then retry"
-                    if status["automation_command"]
-                    else "install the native adapter and register Xpedition COM automation"
-                ),
+                "hint": native_fix(status),
                 "_untrusted": ["adapter", "reason"],
             },
         )

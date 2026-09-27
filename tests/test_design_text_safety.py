@@ -37,6 +37,29 @@ def test_a_symbol_name_that_is_not_a_plain_file_name_is_refused(name) -> None:
         L.plan(renamed(_design(), "LDO", name))
 
 
+@pytest.mark.parametrize("partition", ["../../ESCAPE", "Case/sub", "1Case", ""])
+def test_a_symbol_partition_that_is_not_a_plain_identifier_is_refused(partition) -> None:
+    design = {**_design(), "partition": partition or " "}
+    with pytest.raises(L.DesignError, match="not a plain identifier"):
+        L.plan(design)
+
+
+def test_the_adapter_refuses_a_partition_that_is_a_path(tmp_path, monkeypatch) -> None:
+    project = tmp_path / "demo.prj"
+    project.write_text("", encoding="utf-8")
+    monkeypatch.setattr(adapter, "_symbol_library_root", lambda path: tmp_path / "lib")
+    params = {
+        "project": str(project),
+        "ops": [{"op": "noop"}],
+        "library": "../../ESCAPE",
+        "symbols": {"R": "V 53"},
+    }
+    with pytest.raises(adapter.AdapterError) as caught:
+        adapter._draw(params, None)
+    assert caught.value.code == "E_VALIDATION"
+    assert not (tmp_path / "ESCAPE").exists()
+
+
 def test_a_line_break_in_a_pin_name_is_refused() -> None:
     design = _design()
     design["symbols"]["LDO"]["left"][0][1] = "VIN\nL 0 0 6 0 3 0 0 0 INJECTED"

@@ -146,3 +146,12 @@ def test_stopping_at_the_first_failure_is_passed_on(capsys, setup, native) -> No
     assert native[-1]["params"]["continue_on_error"] is False
     code, result = run(capsys, *setup["args"], "--continue-on-error", "maybe", "--dry-run")
     assert code == 2 and result["error"]["code"] == "E_VALIDATION"
+
+
+def test_the_token_binds_the_batch_policy(capsys, setup, native) -> None:
+    args = [*setup["args"], "--backend", "native_xpedition"]
+    _, dry = run(capsys, *args, "--dry-run")
+    token = dry["data"]["confirm_token"]
+    code, result = run(capsys, *args, "--continue-on-error", "false", "--confirm", token)
+    assert code == 6 and result["error"]["code"] == "E_CONFLICT"
+    assert native == []

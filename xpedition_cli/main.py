@@ -290,7 +290,8 @@ def _reject_paging_that_does_not_apply(positionals: list[str], options: dict[str
     validate --limit 1` returned every issue. A command pages exactly when
     `reference` declares both, which the paging contract test holds it to.
     """
-    supplied = [name for name in ("limit", "offset") if options.get(name) is not None]
+    scoped = {"limit": "limit", "offset": "offset", "continue_on_error": "continue-on-error"}
+    supplied = [scoped[key] for key in scoped if options.get(key) is not None]
     if not supplied:
         return
     declared = {item["path"]: item for item in reference()["commands"]}
@@ -303,8 +304,7 @@ def _reject_paging_that_does_not_apply(positionals: list[str], options: dict[str
         if missing:
             raise CLIError(
                 "E_USAGE",
-                f"{command['path']} does not page and takes no "
-                f"{' or '.join('--' + name for name in missing)}",
+                f"{command['path']} takes no {' or '.join('--' + name for name in missing)}",
                 {"command": command["path"], "options": ["--" + name for name in missing]},
             )
         return
@@ -493,6 +493,7 @@ def _library_kicad_import(positionals: list[str], options: dict[str, Any]) -> di
         "project": plan["project"],
         "root": plan["root"],
         "libraries": [(row["library"], row["exists"]) for row in plan["libraries"]],
+        "continue_on_error": _continue_on_error(options),
     }
     if options.get("dry_run") and options.get("confirm"):
         raise CLIError("E_USAGE", "use either --dry-run or --confirm, not both")
@@ -1231,6 +1232,7 @@ def _pcb_unroute(positionals: list[str], options: dict[str, Any]) -> dict[str, A
         "nets": "all" if everything else ",".join(sorted(nets)),
         "at": at,
         "layer": str(layer or ""),
+        "continue_on_error": _continue_on_error(options),
     }
     if options.get("confirm") is None and not options.get("dry_run"):
         raise CLIError(
@@ -2068,12 +2070,15 @@ def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str
         ],
         "sheets_kept": [number for number in planned if number not in drawing],
         "summary": summary,
+        # every sheet drawn is wiped first, hand edits included, with no copy kept
+        "dangerous": True,
+        "requires": "--dangerous with --confirm",
         "risk": {
-            "tier": "T1",
+            "tier": "T2",
             "blast_radius": (
                 "every sheet drawn (all the design lists, or those --sheets names) is wiped "
-                "and redrawn; symbol files are written into the project's central-library "
-                "partition"
+                "and redrawn, hand edits included; symbol files are written into the "
+                "project's central-library partition"
             ),
         },
         "_untrusted": ["summary", "risk.blast_radius"],
@@ -2095,6 +2100,7 @@ def _schematic_draw(positionals: list[str], options: dict[str, Any]) -> dict[str
             "E_CONFIRMATION_REQUIRED",
             "schematic draw requires --dry-run, then --confirm <confirm_token>",
         )
+    _require_dangerous(options, "schematic draw wipes every sheet it draws, hand edits included")
     if str(options.get("backend", "mock")) != "native_xpedition":
         raise CLIError(
             "E_BACKEND_UNAVAILABLE",
@@ -2469,17 +2475,9 @@ def _context(options: dict[str, Any]) -> dict[str, Any]:
 
 def _native_fix(native: dict[str, Any]) -> str:
     """What to do about an unavailable NativeBackend, by the reason it gives."""
-    reason = native.get("reason")
-    if not native.get("automation_command_configured"):
-        return 'install the native COM adapter: python -m pip install "xpedition-cli[native]"'
-    if reason == "configured native COM adapter was not found":
-        return (
-            "point XPEDITION_NATIVE_COMMAND at the adapter executable, or unset it to use "
-            "the installed xpedition-native-adapter"
-        )
-    if reason == "Xpedition SDD_HOME could not be discovered":
-        return "install Xpedition, or set SDD_HOME to its SDD_HOME folder"
-    return "run scripts/register-xpedition-user.ps1 (or the official Administrator registration)"
+    from .backends.native_xpedition import native_fix
+
+    return native_fix(native)
 
 
 def _native_live_applications(native_ready: bool) -> dict[str, Any]:

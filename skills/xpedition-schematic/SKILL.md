@@ -79,8 +79,9 @@ schematic; the rules below are the non-negotiable subset.
   symbol; both join by a stub ending on the symbol origin.
 - To draw a whole schematic, describe it in the design format of
   `reference/schematic-design-format.md` and run `schematic draw --design FILE
-  --dry-run`; read `preview.summary.issues`, then `--confirm`. Report done only
-  when the result's `netlist.matches` is true.
+  --dry-run`; read `preview.summary.issues`, then confirm with `--dangerous
+  --confirm <token>`: every sheet drawn is wiped first. Report done only when the
+  result's `netlist.matches` is true.
 - Then `schematic show --sheet N` to put the sheet in front of the person, and
   `--output sheet.png` to look at it yourself before saying it is done.
 - Review before handing over: `review run --backend native_xpedition --project
@@ -131,8 +132,10 @@ STOP CHECKPOINT: a drawn wire that crosses another wire shorts two nets; prefer
 labels, and read back before confirming a schematic write.
 
 STOP CHECKPOINT: a confirmed `schematic draw` wipes and redraws every sheet the
-design lists. Ask before drawing over sheets that already hold content,
-especially content someone may have edited by hand.
+design lists, so its confirm needs `--dangerous`. A user's request to draw covers
+sheets that hold only a template's or an earlier draw's content; ask before
+drawing over sheets someone may have edited by hand, and add `--dangerous` only
+after that yes.
 
 STOP CHECKPOINT: a confirmed `library kicad-import` writes cell partitions into
 the central library and merges into partitions that exist, overwriting their

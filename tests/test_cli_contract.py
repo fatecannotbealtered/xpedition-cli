@@ -777,6 +777,7 @@ def test_schematic_draw_confirm_needs_the_native_backend(tmp_path: Path) -> None
         str(project),
         "--design",
         str(EXAMPLE_DESIGN),
+        "--dangerous",
         "--confirm",
         "ct_bogus",
         config_dir=tmp_path / "config",
@@ -819,7 +820,8 @@ def test_schematic_draw_is_declared_by_reference(tmp_path: Path) -> None:
     result = run_cli("reference", "--compact", config_dir=tmp_path / "config")
     declared = {c["path"]: c for c in payload(result)["data"]["commands"]}
     draw = declared["schematic draw"]
-    assert draw["permission_tier"] == "write"
+    # every sheet drawn is wiped first, so the confirm also needs --dangerous
+    assert draw["permission_tier"] == "dangerous" and draw["type"] == "write"
     assert draw["dry_run_output_schema"] == "schematic_draw_preview"
     assert {p["name"] for p in draw["params"]} == {"project", "design", "sheets", "pace"}
     assert "wiped and redrawn" in draw["blast_radius"]

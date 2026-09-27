@@ -125,6 +125,7 @@ def _rotate(x: int, y: int, orientation: int) -> tuple[int, int]:
 # A symbol's name becomes the name of its file in the library's `sym` folder, and
 # its texts become lines of that file: a path in the name would write elsewhere,
 # and a line break in a text would add records of its own.
+_PARTITION_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 _SYMBOL_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.+-]{0,47}")
 _BREAKS_A_LINE = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -766,7 +767,14 @@ def plan(design: dict[str, Any]) -> Plan:
         raise DesignError(f"unknown sheet size {size!r}; use one of {sorted(SHEET_SIZES)}")
     width, height = SHEET_SIZES[size]
     library = _Library(dict(design.get("symbols", {})))
-    result = Plan(partition=str(design.get("partition") or PARTITION))
+    partition = str(design.get("partition") or PARTITION)
+    # a folder of the symbol library and an entry in the .prj: a plain identifier
+    if not _PARTITION_NAME.fullmatch(partition):
+        raise DesignError(
+            f"partition {partition!r} is not a plain identifier: a letter, then letters, "
+            "digits and _"
+        )
+    result = Plan(partition=partition)
     boxed = bool(design.get("boxed_labels", True))
     total = len(design["sheets"])
     status = str(design.get("status", "")).strip()

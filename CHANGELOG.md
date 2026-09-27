@@ -20,10 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counts it). Without it the confirmed run is refused with `E_CONFIRMATION_REQUIRED`
   and the token stays unspent. `reference` marks them `dangerous` with `dangerous_when`
   in the `dangerous` permission tier, and the tool is now T2. `library kicad-import`
-  joins them when it merges into a partition that exists. SECURITY.md says where the line
-  runs, and why `schematic draw` and `session stop` stay outside it.
+  joins them when it merges into a partition that exists, and `schematic draw` always: every
+  sheet it draws is wiped first, hand edits included. SECURITY.md says why `session stop`
+  stays outside the tier.
 - `--continue-on-error false` stops `pcb unroute` and `library kicad-import` at the first
-  failed item; the rest are listed in `skipped` and `summary` counts the attempted ones.
+  failed item; the rest are listed in `skipped` and `summary` counts the attempted ones. The
+  token binds the choice, and other commands refuse the flag.
 - `kb add --name NAME --url URL --about TEXT`, `kb list` and `kb remove --name NAME`
   bind a company's knowledge-base documents -- layout rules, drawing conventions, review
   checklists -- on this machine, and `context` lists them. Binding and unbinding are
@@ -145,9 +147,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Design text holding a double quote or a line break could write records of its own
   into the generated HKP library files; it is refused now. The same holds for symbol
   files, and a KiCad footprint whose text cannot be quoted is skipped with an issue.
-- A symbol name in a design file named a file path: `../../../ESCAPE` would have been
-  written outside the library's `sym` folder. A symbol name is a plain name now, and the
-  adapter writes a symbol file only inside that folder.
+- A symbol name or a symbol partition in a design file named a file path:
+  `../../../ESCAPE` would have been written outside the library's `sym` folder, and the
+  partition also into the `.prj`. Both are plain names now, and the adapter writes a symbol
+  file only inside its folder.
 - `--limit` and `--offset` on a command that does not page were ignored -- `bom validate
   --limit 1` returned every issue -- and are refused now. Review pages carry `count`, and
   every paged command declares its `default_sort`.

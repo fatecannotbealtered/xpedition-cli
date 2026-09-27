@@ -7,12 +7,12 @@
   {
     "id": "schematic-drawing-conventions",
     "prompt": "Use xpedition-cli to draw a small schematic (5 V input, regulator, MCU, I2C sensor) in the running Designer session.",
-    "expected": "Read reference/schematic-conventions.md and reference/schematic-design-format.md; describe the circuit as sheets of IC blocks, ladders and chains, run schematic draw --dry-run, fix any DS issues in preview.summary, confirm, check netlist.matches is true, package with library build --package before any further read-back or review, then schematic show --sheet N with --output to look at the result before reporting done."
+    "expected": "Read reference/schematic-conventions.md and reference/schematic-design-format.md; describe the circuit as sheets of IC blocks, ladders and chains, run schematic draw --dry-run, fix any DS issues in preview.summary, confirm with --dangerous (every sheet drawn is wiped first; the user's request covers sheets without hand edits), check netlist.matches is true, package with library build --package before any further read-back or review, then schematic show --sheet N with --output to look at the result before reporting done."
   },
   {
     "id": "redraw-over-hand-edits",
     "prompt": "Redraw sheet 2 from design.json. I moved a few labels on it by hand yesterday.",
-    "expected": "Stop and ask first: a confirmed schematic draw wipes and redraws every sheet it draws, so the hand edits would be lost. Dry-run only that sheet with --sheets 2 and redraw only with the user's go-ahead."
+    "expected": "Stop and ask first: a confirmed schematic draw wipes and redraws every sheet it draws, so the hand edits would be lost. Dry-run only that sheet with --sheets 2 and confirm with --dangerous only after the user's go-ahead."
   },
   {
     "id": "resume-a-failed-draw",

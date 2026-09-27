@@ -2855,7 +2855,7 @@ def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "skipped": skipped,
         "seconds": round(time.monotonic() - started_all, 1),
         "ok": not failed,
-        "_untrusted": ["project", "library", "root", "partitions"],
+        "_untrusted": ["project", "library", "root", "partitions", "skipped"],
     }
 
 
@@ -5093,7 +5093,7 @@ def _unroute_nets(params: dict[str, Any], client: Any) -> dict[str, Any]:
             "routing": _routing_counts(doc),
             "applied": True,
             "saved": saved,
-            "_untrusted": ["pcb", "prompts", "targets", "items"],
+            "_untrusted": ["pcb", "prompts", "targets", "items", "skipped"],
         }
     )
     return result
@@ -6627,6 +6627,12 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     if not isinstance(ops, list) or not ops:
         raise AdapterError("E_USAGE", "draw requires a non-empty list of operations")
     library = str(params.get("library") or "Case")
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", library):
+        raise AdapterError(
+            "E_VALIDATION",
+            "the symbol partition must be a plain identifier",
+            {"partition": library[:80], "_untrusted": ["partition"]},
+        )
     symbols = params.get("symbols") or {}
     if not isinstance(symbols, dict):
         raise AdapterError("E_USAGE", "draw symbols must map symbol names to file text")

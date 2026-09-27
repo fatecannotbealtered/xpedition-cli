@@ -402,7 +402,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
         "items_shape": ["target", "ok", "traces", "vias", "deleted", "error"],
         "summary_shape": ["total", "succeeded", "failed"],
-        "untrusted_fields": ["pcb", "prompts", "targets", "items"],
+        "untrusted_fields": ["pcb", "prompts", "targets", "items", "skipped"],
     },
     "library_kicad_import": {
         "shape": "object",
@@ -423,7 +423,7 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
         "items_shape": ["target", "ok", "partition", "cells", "padstacks", "issues", "error"],
         "summary_shape": ["total", "succeeded", "failed"],
-        "untrusted_fields": ["project", "library", "root", "partitions", "items"],
+        "untrusted_fields": ["project", "library", "root", "partitions", "items", "skipped"],
     },
     "library_kicad_import_preview": {
         "shape": "object",
@@ -1607,7 +1607,7 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
                     "--design ./design.json --dry-run --compact",
                     "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
-                    "--design ./design.json --confirm <confirm_token> --compact",
+                    "--design ./design.json --dangerous --confirm <confirm_token> --compact",
                     "xpedition-cli schematic draw --backend native_xpedition --project ./board.prj "
                     "--design ./design.json --sheets 3,4 --dry-run --compact",
                 ],
@@ -1620,10 +1620,11 @@ def commands() -> list[dict[str, Any]]:
                 ],
                 blast_radius=(
                     "every sheet drawn (all the design lists, or those --sheets names) is wiped "
-                    "and redrawn; symbol files are written into the project's central-library "
-                    "partition"
+                    "and redrawn, hand edits included; symbol files are written into the "
+                    "project's central-library partition"
                 ),
                 dry_run_schema="schematic_draw_preview",
+                dangerous="always: each sheet it draws is wiped first, hand edits included",
             ),
             _command(
                 "schematic show",

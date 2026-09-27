@@ -35,7 +35,28 @@ def project(tmp_path):
 def test_limit_on_a_command_that_does_not_page_is_refused(capsys, project, argv) -> None:
     code, result = run(capsys, *argv, "--project", project, "--limit", "1")
     assert code == 2 and result["error"]["code"] == "E_USAGE"
-    assert "does not page" in result["error"]["message"]
+    assert "takes no --limit" in result["error"]["message"]
+
+
+def test_continue_on_error_is_refused_where_there_is_no_batch(capsys, project) -> None:
+    argv = ["review", "run", "--backend", "mock", "--project", project]
+    code, result = run(capsys, *argv, "--continue-on-error", "false")
+    assert code == 2 and result["error"]["code"] == "E_USAGE"
+
+
+def test_a_draw_confirm_without_dangerous_is_refused_before_the_token_is_spent(
+    capsys, tmp_path
+) -> None:
+    from pathlib import Path
+
+    design = Path(__file__).resolve().parents[1] / "examples" / "demo-sensor-board.json"
+    prj = tmp_path / "p.prj"
+    prj.write_text("", encoding="utf-8")
+    argv = ["schematic", "draw", "--project", str(prj), "--design", str(design)]
+    _, dry = run(capsys, *argv, "--dry-run")
+    assert dry["data"]["preview"]["dangerous"] is True
+    code, result = run(capsys, *argv, "--confirm", dry["data"]["confirm_token"])
+    assert code == 5 and result["error"]["code"] == "E_CONFIRMATION_REQUIRED"
 
 
 def test_a_review_page_says_how_many_it_holds(capsys, project) -> None:

@@ -6,7 +6,7 @@ write. Observe the project before requesting a new preview.
 
 ## What the local store protects
 
-Cooperating CLI processes sharing the same configuration directory now serialize
+Cooperating CLI processes sharing the same configuration directory serialize
 checking and recording a consumed token under one cross-process lock. A thread
 gate also serializes callers within a process. POSIX uses `flock`; Windows uses a
 nonblocking byte-range lock through `msvcrt`. Lock wait is bounded; contention

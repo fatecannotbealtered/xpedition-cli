@@ -132,7 +132,7 @@ def draw(capsys, tmp_path, sheets: str, *extra: str) -> tuple[int, dict]:
 def test_the_token_binds_the_chosen_sheets(tmp_path, capsys, native) -> None:
     _, preview = draw(capsys, tmp_path, "2", "--dry-run")
     token = preview["data"]["confirm_token"]
-    code, result = draw(capsys, tmp_path, "3", "--confirm", token)
+    code, result = draw(capsys, tmp_path, "3", "--dangerous", "--confirm", token)
     assert code != 0 and result["error"]["code"] == "E_CONFLICT", result
     assert native == [], "a token for other sheets must not reach Designer"
 
@@ -140,7 +140,14 @@ def test_the_token_binds_the_chosen_sheets(tmp_path, capsys, native) -> None:
 def test_a_confirmed_resume_sends_only_those_sheets(tmp_path, capsys, native) -> None:
     _, preview = draw(capsys, tmp_path, "2", "--dry-run")
     code, result = draw(
-        capsys, tmp_path, "2", "--pace", "0.2", "--confirm", preview["data"]["confirm_token"]
+        capsys,
+        tmp_path,
+        "2",
+        "--pace",
+        "0.2",
+        "--dangerous",
+        "--confirm",
+        preview["data"]["confirm_token"],
     )
     assert code == 0 and result["ok"], result
     [request] = native

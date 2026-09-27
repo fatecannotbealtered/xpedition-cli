@@ -58,4 +58,4 @@ Run through this gate **before the first public push** of `xpedition-cli`. It is
 - [ ] Self-update is explicitly N/A for this phase. If a future release adds a bare `update`, it must sync every Skill directory under `skills/` or return `skill_sync_command` and report `stage` + `current_version` + `binary_replaced` + `skill_sync_status` on failures.
 - [ ] `xpedition-cli reference`, `xpedition-cli context`, and `xpedition-cli doctor` run and emit valid JSON envelopes — an agent can self-onboard from a clean checkout.
 - [ ] `xpedition-cli reference` exposes `release_readiness`, and `xpedition-cli doctor` reports the matching check.
-- [ ] The risk tier in `SECURITY.md` matches the tier declared in `.agent/SEC-SPEC.md` (`T1`).
+- [ ] The risk tier in `SECURITY.md` matches the tier declared in `.agent/SEC-SPEC.md` (`T2`).
