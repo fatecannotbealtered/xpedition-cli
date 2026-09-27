@@ -39,7 +39,7 @@ def design(pins: dict[str, str], *, boxed: bool = True, symbol: dict | None = No
 
 
 def ds09(result) -> list[dict]:
-    return [issue for issue in result.issues if issue["check"] == "DS-09"]
+    return [issue for issue in result.issues if issue["check"] == "DS-15"]
 
 
 def test_a_ground_symbol_covering_the_next_pins_end_is_reported() -> None:

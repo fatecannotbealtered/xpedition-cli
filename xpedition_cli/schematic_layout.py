@@ -320,7 +320,7 @@ class _SheetPlanner:
         self.boxed = boxed
         self.placed: dict[str, _Placed] = {}
         self.symbol_boxes: list[tuple[str, tuple[int, int, int, int]]] = []
-        # For DS-09: the free wire ends Designer finishes nets at, and the
+        # For DS-15: the free wire ends Designer finishes nets at, and the
         # label boxes and symbols that must not land on another net's end.
         self.endpoints: list[tuple[str, int, int]] = []
         self.coverage: list[tuple[str, str, tuple[int, int, int, int]]] = []
@@ -418,7 +418,7 @@ class _SheetPlanner:
             if ax != bx and ay != by:
                 raise DesignError(f"wire from ({ax}, {ay}) to ({bx}, {by}) is not orthogonal")
         # Designer finishes a net at a wire's free end, so those are the points
-        # another net's label box or symbol must not land on. See DS-09.
+        # another net's label box or symbol must not land on. See DS-15.
         owner = net or (str(label["net"]) if label else None)
         if owner:
             for point in (points[0], points[-1]):
@@ -494,7 +494,7 @@ class _SheetPlanner:
 
     # -- blocks --------------------------------------------------------------------
     def _check_edge_name_widths(self, refdes: str, symbol: S.Symbol) -> None:
-        """DS-10: a top or bottom edge whose pin names cannot be read at the pitch.
+        """DS-16: a top or bottom edge whose pin names cannot be read at the pitch.
 
         Those names are drawn horizontally inside the body at the pin pitch, so a
         name wider than the pitch runs into its neighbour's. At `CHAR_WIDTH` per
@@ -512,7 +512,7 @@ class _SheetPlanner:
                 continue
             self.plan.issues.append(
                 {
-                    "check": "DS-10",
+                    "check": "DS-16",
                     "object": refdes,
                     "side": side,
                     "pins": [p.number for p in too_wide],
@@ -726,7 +726,7 @@ class _SheetPlanner:
                             "message": f"closer than {MIN_GAP} units",
                         }
                     )
-        # DS-09. Designer finishes a net at a wire's free end, so anything of
+        # DS-15. Designer finishes a net at a wire's free end, so anything of
         # another net sitting on that point changes what the draw means. A ground
         # symbol reaches 40 units past its own end, four slots at the 10-unit pin
         # pitch; a boxed label is CHAR_WIDTH per character wide and runs sideways
@@ -741,7 +741,7 @@ class _SheetPlanner:
                 if x1 <= px <= x2 and y1 <= py <= y2:
                     self.plan.issues.append(
                         {
-                            "check": "DS-09",
+                            "check": "DS-15",
                             "sheet": sheet_number,
                             "object": description,
                             "net": net,

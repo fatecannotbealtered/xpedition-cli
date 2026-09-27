@@ -1,4 +1,4 @@
-"""DS-10: pin names on a top or bottom edge that cannot be read at the pitch.
+"""DS-16: pin names on a top or bottom edge that cannot be read at the pitch.
 
 Those names are drawn horizontally inside the body at the pin pitch. At
 `CHAR_WIDTH` per character over a 10-unit pitch about 1.6 characters fit, so a
@@ -38,7 +38,7 @@ def design(sides: dict, pins: dict) -> dict:
 
 
 def ds10(result) -> list[dict]:
-    return [issue for issue in result.issues if issue["check"] == "DS-10"]
+    return [issue for issue in result.issues if issue["check"] == "DS-16"]
 
 
 def test_a_bottom_edge_of_ground_names_is_reported() -> None:

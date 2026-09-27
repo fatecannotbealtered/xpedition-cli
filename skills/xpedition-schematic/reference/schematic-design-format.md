@@ -174,6 +174,10 @@ Net names: ASCII `UPPER_SNAKE_CASE`; rails by voltage (`+5V`, `+3V3`) or role
 - DS-07: every part and symbol lies inside the border margin.
 - DS-08: parts that are not wired to each other inside one ladder keep at
   least 30 units apart.
+- DS-15: no label box, power or ground symbol lands on the free end of another
+  net's wire (Designer would refuse the draw, or merge the two nets).
+- DS-16: pin names on a top or bottom edge fit the pin pitch; wider ones overlap
+  into one unreadable row.
 - Grid: every position and wire point is a multiple of 10.
 
 Issues are reported in `summary.issues`; the draw still runs, so read them.

@@ -266,6 +266,8 @@ one command that clears it.
 | DS-12 | no leftover objects on the sheet | manual | engineer review |
 | DS-13 | Designer's own verification passes | L2 | `review run` on the live design: findings tagged `xpedition/verify:*` and `xpedition/grc:*` |
 | DS-14 | every IC supply net has a capacitor to ground; every I2C line a pull-up | L2 | `review run` rules `cli/decoupling`, `cli/i2c-pullup` |
+| DS-15 | no label box, power or ground symbol lands on another net's wire end | L2b | `schematic draw --dry-run` issue `DS-15` |
+| DS-16 | pin names on a top or bottom edge are readable at the pin pitch | L2b | `schematic draw --dry-run` issue `DS-16` |
 
 ## 9. Tool status
 
@@ -284,7 +286,7 @@ hand; `reference --compact` is authoritative for the live command list.
 | Show the result | `schematic show --sheet N [--output sheet.png]`: activates the sheet, fits it, raises Designer's window and optionally captures it as PNG — the way to look at Chinese text, which a PDF garbles |
 | More sheets | the `New Sheet` command (34165) adds one; close and reopen the project before reading the design back afterwards |
 | PDF | `schematic export --backend native_xpedition --project X.prj --output X.pdf`; only what is inside the border is printed |
-| DS-01 … DS-10 | by hand from snapshot and connectivity output |
+| The §8 checklist | its How column names the command for each item; DS-11 and DS-12 stay with an engineer |
 
 ## 10. Sources
 

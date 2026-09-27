@@ -53,14 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schematic and a clean review. `library build --package` clears both, so the draw says
   so instead of leaving the findings to be chased.
 
-- DS-10 reports a top or bottom edge whose pin names are wider than the pin pitch. Those
+- DS-16 reports a top or bottom edge whose pin names are wider than the pin pitch. Those
   names are drawn horizontally inside the body at the pitch, and at `CHAR_WIDTH` per
   character over 10 units about 1.6 characters fit, so a four-ground bottom edge rendered
   as `AGNBPGNBCNE2AD` -- four names written over each other. Shortening them does not
   help. The check names the pins and says where they can go instead; drawing them
   readably needs a rotated name row, which is not done here.
 
-- DS-09 checks, when the plan is built, that nothing belonging to one net lands on the
+- DS-15 checks, when the plan is built, that nothing belonging to one net lands on the
   free end of another net's wire: a ground symbol reaches 40 units past its own end, four
   slots at the 10-unit pin pitch, and a boxed label runs `CHAR_WIDTH` per character
   sideways from a top-edge pin across its neighbours. Designer refuses those draws with
@@ -140,6 +140,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The plan-time checks for a covered wire end and for unreadable edge pin names reported
+  as DS-09 and DS-10, ids the checklist gives to the refdes-prefix and part-number
+  checks, so a reviewer looking an issue up found a different rule. They are DS-15 and
+  DS-16 now, with a row each in the checklist, and a test holds every id the planner
+  emits to a checklist row that names that dry-run issue.
 - `changelog` returned 27 of the 102 entries of 1.0.0: a release that repeats a heading
   kept only its first section, and an entry lost its continuation lines.
 - `manufacturing bom` ignored `--limit`, `agent review` ignored `--limit` and
