@@ -57,6 +57,8 @@ VALUE_FLAGS = {
     "--sheets",
     "--about",
     "--url",
+    "--libraries",
+    "--root",
     "--project",
     "--other-project",
     "--input",
@@ -105,6 +107,8 @@ VALUE_FLAGS = {
     "--query",
     "--transport",
 }
+# CLI-SPEC §15.1: a plural flag takes a comma list and repeats; both forms mix
+PLURAL_FLAGS = {"--fields", "--nets", "--sheets", "--formats", "--layers", "--libraries"}
 BOOL_FLAGS = {
     "--all",
     "--top-view",
@@ -126,6 +130,7 @@ BOOL_FLAGS = {
 
 def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
     positionals: list[str] = []
+    supplied: set[str] = set()
     options: dict[str, Any] = {
         "format": "json",
         "fields": None,
@@ -187,7 +192,18 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
                     raise CLIError("E_USAGE", f"option {name} may only be supplied once")
                 if not separator and str(value).startswith("--"):
                     raise CLIError("E_USAGE", f"option {name} requires a value")
-            options[key] = value
+            if key in supplied and name in PLURAL_FLAGS:
+                options[key] = f"{options[key]},{value}"
+            elif key in supplied and options[key] != value:
+                # keeping the last one silently would drop what the caller meant first
+                raise CLIError(
+                    "E_USAGE",
+                    f"option {name} was given twice with different values",
+                    {"option": name, "values": [options[key], value]},
+                )
+            else:
+                options[key] = value
+            supplied.add(key)
             index += 1
             continue
         positionals.append(token)
@@ -227,7 +243,7 @@ def _project_path(positionals: list[str], options: dict[str, Any]) -> str | None
     return None
 
 
-_GUARD_FLAGS = ("dry_run", "confirm")
+_GUARD_FLAGS = ("dry_run", "confirm", "dangerous")
 
 
 def _reject_a_guard_flag_that_does_not_apply(
@@ -406,6 +422,87 @@ def _read_design(options: dict[str, Any], command: str) -> tuple[Path, dict[str,
             "E_VALIDATION", f"design file is not valid JSON: {exc}", {"design": str(design_file)}
         ) from exc
     return design_file, design
+
+
+def _library_kicad_import(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
+    """`library kicad-import`: KiCad footprint libraries as cell partitions.
+
+    The dry run reads only files -- the libraries, their footprint counts and which
+    partitions the central library has already -- and binds the token to that list,
+    so a library that appeared or a partition that was imported in between refuses
+    the confirmation. The confirmed run converts them through the adapter.
+    """
+    from . import kicad_import
+
+    project_path = _project_path(positionals, options)
+    if not project_path:
+        raise CLIError("E_USAGE", "library kicad-import requires --project X.prj")
+    project = Path(str(project_path)).expanduser().resolve()
+    libraries = list(
+        dict.fromkeys(
+            item.strip() for item in str(options.get("libraries") or "").split(",") if item.strip()
+        )
+    )
+    if options.get("libraries") is not None and not libraries:
+        raise CLIError("E_VALIDATION", "--libraries names no library")
+    root = str(options["root"]) if options.get("root") else None
+    limit = int(options.get("limit") or 0)
+    plan = kicad_import.plan(project, libraries, root, limit)
+    scope = {
+        "operation": "library_kicad_import",
+        "project": plan["project"],
+        "root": plan["root"],
+        "libraries": [(row["library"], row["exists"]) for row in plan["libraries"]],
+    }
+    if options.get("dry_run") and options.get("confirm"):
+        raise CLIError("E_USAGE", "use either --dry-run or --confirm, not both")
+    if options.get("dry_run"):
+        token, expires_at = issue(scope)
+        preview = {
+            **plan,
+            "changes": [
+                {"action": "close_designer_project", "reopened_after": True},
+                *(
+                    {
+                        "action": "merge_partition" if row["exists"] else "create_partition",
+                        "partition": row["partition"],
+                        "footprints": row["footprints"],
+                    }
+                    for row in plan["libraries"]
+                ),
+            ],
+            "risk": {
+                "tier": "T1",
+                "blast_radius": (
+                    "one cell partition per library in the project's central library -- an "
+                    "existing one is merged, its same-named cells overwritten -- and the "
+                    "library's shared padstack database"
+                ),
+            },
+            "_untrusted": ["project", "library", "root", "libraries", "risk.blast_radius"],
+        }
+        return {
+            "preview": preview,
+            "confirm_token": token,
+            "expires_at": expires_at,
+            "_untrusted": ["preview"],
+        }
+    if options.get("confirm") is None:
+        raise CLIError(
+            "E_CONFIRMATION_REQUIRED",
+            "library kicad-import requires --dry-run, then --confirm <confirm_token>",
+        )
+    native = _native_for_write("library kicad-import", options)
+    consume(str(options["confirm"]), scope)
+    request: dict[str, Any] = {
+        "project": plan["project"],
+        "root": plan["root"],
+        "libraries": [row["library"] for row in plan["libraries"]],
+    }
+    result = native.invoke(
+        "kicad_import", request, timeout_seconds=kicad_import.WRITE_TIMEOUT_SECONDS
+    )
+    return kicad_import.results(result)
 
 
 def _library_build(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
@@ -617,8 +714,9 @@ def _pcb_create(positionals: list[str], options: dict[str, Any]) -> dict[str, An
             },
             {"action": "register_cells_in_project", "list": project_file.CELL_LIST},
         ],
+        "dangerous": replace,
         "risk": {
-            "tier": "T1",
+            "tier": "T2" if replace else "T1",
             "blast_radius": (
                 (
                     "the design's whole existing layout — placement, routing, pours, "
@@ -649,6 +747,10 @@ def _pcb_create(positionals: list[str], options: dict[str, Any]) -> dict[str, An
         raise CLIError(
             "E_CONFIRMATION_REQUIRED",
             "pcb create requires --dry-run, then --confirm <confirm_token>",
+        )
+    if replace:
+        _require_dangerous(
+            options, "pcb create --replace removes the board's layout and ends Layout processes"
         )
     native = _native_for_write("pcb create", options)
     consume(str(options["confirm"]), scope)
@@ -700,9 +802,13 @@ def _pcb_annotate(positionals: list[str], options: dict[str, Any]) -> dict[str, 
             {"action": "forward_annotate"},
             {"action": "save_board"},
         ],
+        "dangerous": unroute,
         "risk": {
-            "tier": "T1",
+            "tier": "T2" if unroute else "T1",
             "blast_radius": (
+                "every trace and via is deleted first, not archived; " if unroute else ""
+            )
+            + (
                 "the board's components and nets are replaced by the packaged schematic's "
                 "and Layout saves the board"
             ),
@@ -722,6 +828,8 @@ def _pcb_annotate(positionals: list[str], options: dict[str, Any]) -> dict[str, 
             "E_CONFIRMATION_REQUIRED",
             "pcb annotate requires --dry-run, then --confirm <confirm_token>",
         )
+    if unroute:
+        _require_dangerous(options, "pcb annotate --unroute deletes the board's routing first")
     native = _native_for_write("pcb annotate", options)
     consume(str(options["confirm"]), scope)
     return native.invoke(
@@ -757,6 +865,9 @@ def _pcb_arrange(positionals: list[str], options: dict[str, Any]) -> dict[str, A
     }
     result = native.invoke("arrange_components", {**request, "apply": False}, timeout_seconds=900.0)
     digest = str(result.get("digest") or "")
+    routing = result.get("routing") or {}
+    # a confirmed arrange deletes every trace and via first
+    routed = bool(int(routing.get("traces") or 0) + int(routing.get("vias") or 0))
     scope = {
         "operation": "pcb_arrange",
         "project": canonical,
@@ -776,6 +887,7 @@ def _pcb_arrange(positionals: list[str], options: dict[str, Any]) -> dict[str, A
             "skipped_placed": result.get("skipped_placed"),
             "digest": digest,
             "routing": result.get("routing"),
+            "dangerous": routed,
             "changes": [
                 {"action": "delete_traces_and_vias", **(result.get("routing") or {})},
                 {"action": "place_components", "count": len(result.get("plan") or [])},
@@ -783,8 +895,11 @@ def _pcb_arrange(positionals: list[str], options: dict[str, Any]) -> dict[str, A
                 {"action": "save_board"},
             ],
             "risk": {
-                "tier": "T1",
+                "tier": "T2" if routed else "T1",
                 "blast_radius": (
+                    "every trace and via on the board is deleted, not archived; " if routed else ""
+                )
+                + (
                     "every listed part is placed on the top side at the planned position "
                     "and the board is saved; parts already placed are left alone unless --all"
                 ),
@@ -797,6 +912,8 @@ def _pcb_arrange(positionals: list[str], options: dict[str, Any]) -> dict[str, A
             "expires_at": expires_at,
             "_untrusted": ["preview"],
         }
+    if routed:
+        _require_dangerous(options, "pcb arrange deletes the board's traces and vias first")
     consume(str(options["confirm"]), scope)
     return native.invoke(
         "arrange_components",
@@ -1045,7 +1162,14 @@ def _pcb_trace(positionals: list[str], options: dict[str, Any]) -> dict[str, Any
 def _pcb_unroute(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     """`pcb unroute`: delete the traces and vias of some nets, or of all."""
     path, canonical = _board_request(positionals, options, "pcb unroute")
-    nets = [item.strip() for item in str(options.get("nets") or "").split(",") if item.strip()]
+    # input order, each net once: the result's items[] zip back to what was asked
+    nets = list(
+        dict.fromkeys(
+            item.strip() for item in str(options.get("nets") or "").split(",") if item.strip()
+        )
+    )
+    if options.get("nets") is not None and not nets:
+        raise CLIError("E_VALIDATION", "--nets names no net", {"nets": str(options["nets"])})
     everything = bool(options.get("all", False))
     at = str(options.get("at") or "").strip()
     layer = options.get("layer")
@@ -1081,16 +1205,23 @@ def _pcb_unroute(positionals: list[str], options: dict[str, Any]) -> dict[str, A
             "at": plan.get("at"),
             "layer": plan.get("layer"),
             "to_delete": plan.get("to_delete"),
+            "targets": plan.get("targets"),
+            "total": len(plan.get("targets") or []),
             "changes": [
                 {"action": "delete_traces_and_vias", **(plan.get("to_delete") or {})},
                 {"action": "regenerate_planes"},
                 {"action": "save"},
             ],
+            "dangerous": True,
+            "requires": "--dangerous with --confirm",
             "risk": {
-                "tier": "T1",
-                "blast_radius": "the routing of the named nets is deleted and the board saved",
+                "tier": "T2",
+                "blast_radius": (
+                    "the routing of the named nets is deleted and the board saved; it is not "
+                    "archived: re-routing is the way back"
+                ),
             },
-            "_untrusted": ["project", "pcb", "risk.blast_radius"],
+            "_untrusted": ["project", "pcb", "targets", "risk.blast_radius"],
         }
         return {
             "preview": preview,
@@ -1098,8 +1229,20 @@ def _pcb_unroute(positionals: list[str], options: dict[str, Any]) -> dict[str, A
             "expires_at": expires_at,
             "_untrusted": ["preview"],
         }
+    _require_dangerous(options, "pcb unroute deletes routing that is not archived")
     consume(str(options["confirm"]), scope)
     return native.invoke("unroute_nets", {**request, "apply": True}, timeout_seconds=600.0)
+
+
+def _require_dangerous(options: dict[str, Any], why: str) -> None:
+    """CLI-SPEC §15.4: the second gate of a dangerous write, checked before the token
+    is spent, so the same token still works once --dangerous is added."""
+    if not options.get("dangerous"):
+        raise CLIError(
+            "E_CONFIRMATION_REQUIRED",
+            f"{why}; confirm with --dangerous as well as the token",
+            {"hint": "run the same command with --dangerous --confirm <confirm_token>"},
+        )
 
 
 def _pcb_move(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
@@ -1732,12 +1875,17 @@ def _pcb_route(positionals: list[str], options: dict[str, Any]) -> dict[str, Any
             "before": current.get("before"),
             "unrouted_before": current.get("unrouted_before"),
             "changes": [
+                *([{"action": "delete_traces_and_vias"}] if unroute else []),
                 {"action": "run_route_passes", "count": len(current.get("passes") or [])},
                 {"action": "save_board"},
             ],
+            "dangerous": unroute,
             "risk": {
-                "tier": "T1",
+                "tier": "T2" if unroute else "T1",
                 "blast_radius": (
+                    "every trace and via is deleted first, not archived; " if unroute else ""
+                )
+                + (
                     "traces and vias are added or changed on every net the passes touch; "
                     "the board is saved"
                 ),
@@ -1750,6 +1898,8 @@ def _pcb_route(positionals: list[str], options: dict[str, Any]) -> dict[str, Any
             "expires_at": expires_at,
             "_untrusted": ["preview"],
         }
+    if unroute:
+        _require_dangerous(options, "pcb route --unroute deletes the board's routing first")
     consume(str(options["confirm"]), scope)
     return native.invoke("route_board", {**request, "apply": True}, timeout_seconds=1800.0)
 
@@ -2043,7 +2193,8 @@ def _project_for_changeset(
     project, path = (
         backend.load(project_path, domain=domain)
         if backend.name == "native_xpedition"
-        else backend.load(project_path)
+        # a ChangeSet may create its project: base revision R00 is the empty project
+        else backend.load(project_path, allow_missing=True)
     )
     if path is None or not path.exists():
         project["project"] = str(changeset["project"])
@@ -2203,26 +2354,41 @@ def _changelog(since: str | None) -> dict[str, Any]:
         if since and _semver_key(version) <= _semver_key(since):
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        body = text[match.end() : end]
-        changes = {}
-        for category in ("added", "changed", "fixed", "deprecated", "removed", "security"):
-            section = re.search(
-                rf"^### {category.title()}\s*$([\s\S]*?)(?=^### |\Z)", body, re.MULTILINE
-            )
-            changes[category] = (
-                [
-                    line[2:].strip()
-                    for line in section.group(1).splitlines()
-                    if line.strip().startswith("-")
-                ]
-                if section
-                else []
-            )
+        changes = _changelog_changes(text[match.end() : end])
         entries.append({"version": version, "date": match.group(2), "changes": changes})
     result: dict[str, Any] = {"current_version": __version__, "entries": entries}
     if since:
         result["since"] = since
     return result
+
+
+_CHANGE_CATEGORIES = ("added", "changed", "fixed", "deprecated", "removed", "security")
+
+
+def _changelog_changes(body: str) -> dict[str, list[str]]:
+    """Every entry of one release, by category.
+
+    A long release repeats a heading -- three `### Changed` sections, say -- and
+    each counts. An entry runs on over its indented lines; a nested bullet joins
+    its parent after a semicolon.
+    """
+    changes: dict[str, list[str]] = {category: [] for category in _CHANGE_CATEGORIES}
+    current: list[str] | None = None
+    for line in body.splitlines():
+        heading = re.match(r"^### (\w+)\s*$", line)
+        if heading:
+            current = changes.get(heading.group(1).lower())
+            continue
+        if current is None or not line.strip():
+            continue
+        if line.startswith("- "):
+            current.append(line[2:].strip())
+        elif line[0] in " \t" and current:
+            text = line.strip()
+            nested = text.startswith("- ")
+            joiner = "; " if nested else " "
+            current[-1] = f"{current[-1]}{joiner}{text[2:] if nested else text}"
+    return changes
 
 
 def _semver_key(value: str) -> tuple[int, int, int]:
@@ -2358,7 +2524,7 @@ def _doctor(options: dict[str, Any]) -> dict[str, Any]:
     if options.get("project"):
         project_path = Path(str(options["project"])).expanduser().resolve()
         try:
-            MockBackend().load(str(project_path))
+            MockBackend().load(str(project_path), allow_missing=True)
             project_status = "pass" if project_path.exists() else "warn"
             checks.append(
                 {
@@ -2766,10 +2932,6 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     validate_reference_options(positionals, options)
     if not positionals:
         raise CLIError("E_USAGE", "a command is required; use --help to list commands")
-    if options.get("dangerous"):
-        raise CLIError(
-            "E_USAGE", "this phase has no dangerous command; NativeBackend is unavailable"
-        )
     command = tuple(positionals[:2])
     if positionals[0] in {
         "project",
@@ -2839,7 +3001,7 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
                 project, _agent_query(project, options.get("query")), {**options, "query": None}
             )
         if verb == "review":
-            return run_review(project, options.get("rules"))
+            return _paged_review(project, options.get("rules"), options)
         if verb == "serve":
             raise CLIError("E_USAGE", "agent serve is a streaming command")
         raise CLIError("E_USAGE", f"unknown agent command: {verb}")
@@ -2968,7 +3130,7 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         if not target_input:
             raise CLIError("E_CONFIG", "exchange import requires --project TARGET")
         target = Path(str(target_input)).expanduser().resolve()
-        current, _ = MockBackend().load(str(target))
+        current, _ = MockBackend().load(str(target), allow_missing=True)
         preview = {
             "source": str(source),
             "format": format_name,
@@ -3239,6 +3401,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
 
     if positionals[0] == "library" and len(positionals) > 1 and positionals[1] == "build":
         return _library_build(positionals, options)
+    if positionals[0] == "library" and len(positionals) > 1 and positionals[1] == "kicad-import":
+        return _library_kicad_import(positionals, options)
 
     if positionals[0] == "schematic" and not (len(positionals) > 1 and positionals[1] == "apply"):
         backend = _backend(options)
@@ -3455,17 +3619,7 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         project, _ = backend.load(_project_path(positionals, options))
         verb = positionals[1] if len(positionals) > 1 else "verify"
         if verb == "bom":
-            rows = bom_rows(project)
-            return {
-                "project": project["project"],
-                "revision": project["revision"],
-                "items": rows,
-                "count": len(rows),
-                "offset": 0,
-                "next_offset": None,
-                "has_more": False,
-                "_untrusted": ["project", "items"],
-            }
+            return _list_data(project, bom_rows(project), options)
         if verb == "artifacts":
             return _list_data(project, project["manufacturing"]["artifacts"], options)
         if verb == "verify":

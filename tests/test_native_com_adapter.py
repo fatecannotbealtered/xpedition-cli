@@ -650,3 +650,29 @@ def test_backup_layout_folder_answers_none_without_a_board(tmp_path) -> None:
     empty = tmp_path / "PCB"
     empty.mkdir()
     assert _backup_layout_folder(empty) is None
+
+
+def test_the_health_probe_changes_nothing_on_a_running_layout(monkeypatch) -> None:
+    """`doctor` only looks: it must not switch on Layout's dialog suppression."""
+    from types import SimpleNamespace
+
+    from xpedition_cli import native_com_adapter as adapter
+
+    written: list[str] = []
+
+    class Gui:
+        def __setattr__(self, name, value):
+            written.append(name)
+
+    app = SimpleNamespace(Gui=Gui())
+    com = SimpleNamespace(CoInitialize=lambda: None, CoUninitialize=lambda: None)
+    monkeypatch.setattr(adapter, "_import_com", lambda: (com, object()))
+    monkeypatch.setattr(adapter, "_heal_gen_py_cache", lambda *args: None)
+    monkeypatch.setattr(adapter, "_configure_environment", lambda: "C:/SDD_HOME")
+    monkeypatch.setattr(adapter, "_com_registered", lambda: True)
+    monkeypatch.setattr(adapter, "_viewdraw_registered", lambda: False)
+    monkeypatch.setattr(adapter, "_active_object", lambda client: app)
+    result = adapter.dispatch("health", {})
+    assert result["application_running"] is True
+    assert written == []
+    assert "dialog_suppression" not in result

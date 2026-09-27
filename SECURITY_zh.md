@@ -19,9 +19,11 @@ Windows COM 适配器驱动本机上正版安装的 Xpedition，使用的是那�
 
 ## 风险等级
 
-根据 [`.agent/SEC-SPEC_zh.md`](.agent/SEC-SPEC_zh.md)，本工具为 **T1**。所有写操作
-都要先 `--dry-run` 预览，再用 `--confirm <token>` 放行；token 一次性，且与该次操作的
-范围绑定。
+根据 [`.agent/SEC-SPEC_zh.md`](.agent/SEC-SPEC_zh.md)，本工具为 **T2**：部分写操作会
+毁掉没有归档的设计成果。所有写操作都要先 `--dry-run` 预览，再用 `--confirm <token>` 放行；
+token 一次性，且与该次操作的范围绑定。下面列出的破坏性操作在 `reference` 里属于
+`dangerous` 档，还要加 `--dangerous` 作为第二道门：不加时确认执行会以
+`E_CONFIRMATION_REQUIRED` 被拒，token 也不会被消耗。
 
 爆炸半径取决于后端，NativeBackend 那一档要仔细看：
 
@@ -33,13 +35,15 @@ Windows COM 适配器驱动本机上正版安装的 Xpedition，使用的是那�
 - **知识库**（`kb add`、`kb remove`，与后端无关）：配置目录中 `knowledge-base.json` 的一条
   记录，不读取也不修改任何文档。
 
-其中两条 NativeBackend 操作是删除而不是新增，单独列出：
+以下 NativeBackend 操作是删除而不是新增，都需要 `--dangerous`：
 
 - `pcb create --replace` 会删掉该设计的整个布局目录。它会先把这个目录打包成工程旁边的
   `PCB-backup-<时间戳>.zip`，并在结果的 `backup` 字段里返回归档路径。如果有 Layout 进程
   仍占着目录里的文件，该进程会被结束，以便删除目录。
-- `pcb unroute --all` 会删掉板上全部走线和过孔。布线本身不做归档，恢复办法是重跑布线器
-  或重放保存下来的布线计划。
+- `pcb unroute` 会删掉指定网络、`--all` 时全部网络、或某一点上的走线和过孔。布线本身不做
+  归档，恢复办法是重跑布线器或重放保存下来的布线计划。
+- `pcb route --unroute` 和 `pcb annotate --unroute` 会先删掉全部走线和过孔再布线或标注；
+  板上已有布线时，`pcb arrange` 也一样（它的 dry-run 会统计布线数量）。
 
 CLI 从不直接改写 Xpedition 私有数据库文件，以上全部通过该产品自带的自动化接口或
 HKP 文本转换器完成。

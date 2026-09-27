@@ -198,7 +198,7 @@ recovery box and the offer to forward-annotate.
 
 Same project and schematic; the placeholder cells replaced by KiCad's footprints.
 
-1. `python -m xpedition_cli.kicad_import --project DemoBoard.prj` converted all 155
+1. `python -m xpedition_cli.kicad_import --project DemoBoard.prj` (today `library kicad-import`, with a dry run) converted all 155
    `.pretty` libraries (15 450 files) into 152 cell partitions holding 15 113 cells:
    about a quarter of an hour of converter runs, 5–8 s per library (three libraries
    hold no front-side footprint). The run produced the converter's rules: cell names

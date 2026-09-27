@@ -2,18 +2,10 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from . import resources
 
 
 def markdown() -> str:
-    """Read the source changelog or its PyInstaller-bundled copy."""
-    candidates = [
-        Path(__file__).resolve().parent.parent / "CHANGELOG.md",
-        Path(getattr(sys, "_MEIPASS", "")) / "CHANGELOG.md",
-        Path.cwd() / "CHANGELOG.md",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-    return ""
+    """The changelog this installation shipped with (see `resources`)."""
+    path = resources.locate("CHANGELOG.md")
+    return path.read_text(encoding="utf-8") if path else ""

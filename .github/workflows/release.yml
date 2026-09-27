@@ -41,9 +41,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # the locked runtime and freezer first: the binary is built from exactly the
+      # versions pip-audit examines below; the dev extra only adds test tooling
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-build.txt
           pip install -e ".[dev]"
 
       - name: Test
@@ -54,9 +57,9 @@ jobs:
       # on main ships: this job re-runs the tests at tag time but never asked
       # whether the code it is about to sign has a known vulnerability. A
       # release blocked by a fresh upstream advisory is the intended outcome.
+      # on every runner: the freezer's Windows dependencies exist only there
       - name: Audit Python dependencies
-        if: runner.os == 'Linux'
-        run: pip-audit -r requirements.txt
+        run: pip-audit -r requirements.txt -r requirements-build.txt
 
       # REPO-SPEC §5c: refuse to publish a binary whose vendored spec or
       # generated contract module has drifted from the pinned tag. ruff comes
@@ -66,9 +69,15 @@ jobs:
         with:
           node-version: "20"
 
+      # the npm wrapper ships too; audit it here as CI does on every merge
+      - name: Audit npm wrapper
+        if: runner.os == 'Linux'
+        run: npm audit --omit=dev
+
+      # the full check, as CI runs it: the vendored assets against the pinned tag
       - name: Verify spec/contract sync
         if: runner.os == 'Linux'
-        run: node scripts/check-spec.js --local-only
+        run: node scripts/check-spec.js
 
       - name: Build binary
         run: python build.py

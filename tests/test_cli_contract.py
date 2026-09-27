@@ -63,8 +63,22 @@ def test_self_description_and_system_commands(tmp_path: Path) -> None:
     assert doctor["data"]["checks"][-1]["check"] == "release_readiness"
 
 
+def test_a_read_of_a_project_that_does_not_exist_is_not_found(tmp_path: Path) -> None:
+    missing = tmp_path / "no-such-project.json"
+    for args in (
+        ("project", "info", "--backend", "mock", "--project", str(missing)),
+        ("schematic", "components", "--backend", "mock", "--project", str(missing)),
+        ("bom", "export", "--backend", "mock", "--project", str(missing)),
+    ):
+        result = run_cli(*args, config_dir=tmp_path / "config")
+        assert result.returncode == 3, result.stdout
+        error = payload(result)["error"]
+        assert error["code"] == "E_NOT_FOUND" and error["details"]["path"] == str(missing)
+
+
 def test_project_snapshot_design_snapshot_review_and_bom(tmp_path: Path) -> None:
     project = tmp_path / "project.json"
+    project.write_text(json.dumps({"project": "demo_board"}), encoding="utf-8")
     for args in (
         ("project", "info", "--backend", "mock", "--project", str(project)),
         ("project", "snapshot", "--backend", "mock", "--project", str(project)),
@@ -707,7 +721,8 @@ def test_confirm_examples_repeat_a_dry_run_example(tmp_path: Path) -> None:
                 skip = False
             elif word == "--confirm":
                 skip = True
-            elif word not in ("--dry-run", "--compact"):
+            # --dangerous is the second gate of the confirmed run, not part of the token
+            elif word not in ("--dry-run", "--compact", "--dangerous"):
                 kept.append(word)
         return kept
 

@@ -23,12 +23,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import schematic_layout as L
+from .errors import CLIError
 
 PARTITION = L.PARTITION
 LAYERS = 4
 SILK_WIDTH = 0.15
 MASK_EXPANSION = 0.1
 KICAD_PREFIX = "kicad:"  # package key of a KiCad footprint: kicad:Library:Footprint
+# what an HKP file cannot hold inside a quoted value: a double quote ends it early and
+# a line break starts a record of its own, so design text could write records
+_UNQUOTABLE = re.compile(r'["\x00-\x1f\x7f]')
 
 
 @dataclass(frozen=True)
@@ -559,7 +563,51 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
                 "partition": cell.partition or library.partition,
             }
         )
+    _check_quotable(library)
     return library
+
+
+def _check_quotable(plan: LibraryPlan) -> None:
+    """Refuse a plan whose text the HKP files could not quote safely."""
+    texts: list[tuple[str, str]] = [("partition", plan.partition)]
+    for part in plan.parts.values():
+        where = f"part {part.number}"
+        texts += [
+            (where, part.number),
+            (f"{where} description", part.description),
+            (f"{where} prefix", part.prefix),
+            (f"{where} cell", part.cell),
+            (f"{where} symbol", part.symbol),
+            (f"{where} type", part.part_type),
+        ]
+        for name, value in part.properties.items():
+            texts += [(f"{where} property name", name), (f"{where} property {name}", value)]
+        texts += [(f"{where} pin name", name) for name in part.pin_names]
+        texts += [(f"{where} pin number", number) for number in part.pin_numbers]
+    for cell in plan.cells.values():
+        texts += [
+            (f"cell {cell.name}", cell.name),
+            (f"cell {cell.name} description", cell.description),
+        ]
+        for pin in [*cell.pins, *cell.holes]:
+            texts += [
+                (f"cell {cell.name} pin", pin.number),
+                (f"cell {cell.name} padstack", pin.padstack),
+            ]
+    texts += [("padstack", name) for name in plan.padstacks]
+    texts += [("pad", name) for name in plan.pads] + [("hole", name) for name in plan.holes]
+    bad = [(what, str(text)) for what, text in texts if _UNQUOTABLE.search(str(text))]
+    if bad:
+        raise CLIError(
+            "E_VALIDATION",
+            "design text holds a double quote or a line break, which the library files "
+            "cannot quote",
+            {
+                "fields": [{"field": what, "value": text[:80]} for what, text in bad[:20]],
+                "count": len(bad),
+                "_untrusted": ["fields"],
+            },
+        )
 
 
 # -- rendering --------------------------------------------------------------------------

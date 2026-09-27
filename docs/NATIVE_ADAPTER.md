@@ -75,7 +75,7 @@ schematic net operations used by `apply_changeset`, and the project-level
 methods behind the guarded commands: `clone_project`, `draw`, `show`,
 `verify`, `export_pdf`, `package`, `library_import`, `kicad_import` (every KiCad
 `.pretty` footprint library as a cell partition, through the stock HKP converters;
-`python -m xpedition_cli.kicad_import`), `pcb_create` (JobWizard's command line),
+`library kicad-import`), `pcb_create` (JobWizard's command line),
 `forward_annotate` (Layout's Project Integration), `board_outline` (rounded corners
 through the points array), `mounting_holes` (`PutMountingHoleEx`), `arrange_components`,
 `plane_pour` (`bRouteObstruct` false, so the copper flows around traces), `route_board`

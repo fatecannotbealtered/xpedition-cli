@@ -157,12 +157,29 @@ def normalise_project(project: dict[str, Any], *, observed: bool = False) -> dic
     return _normalise(project, observed=observed)
 
 
-def load_project(path: str | None) -> tuple[dict[str, Any], Path | None]:
+def load_project(
+    path: str | None, *, allow_missing: bool = False
+) -> tuple[dict[str, Any], Path | None]:
+    """The project at `path`; a path that does not exist is E_NOT_FOUND.
+
+    Only a command that creates the file -- an import into a new target, say --
+    passes `allow_missing` and starts from the empty project.
+    """
     if not path:
         return copy.deepcopy(EMPTY_PROJECT), None
     project_path = Path(path).expanduser().resolve()
     if not project_path.exists():
-        return copy.deepcopy(EMPTY_PROJECT), project_path
+        if allow_missing:
+            return copy.deepcopy(EMPTY_PROJECT), project_path
+        raise CLIError(
+            "E_NOT_FOUND",
+            "the project file does not exist",
+            {
+                "path": str(project_path),
+                "hint": "check --project; project init creates a new project",
+                "_untrusted": ["path"],
+            },
+        )
     try:
         with project_path.open("r", encoding="utf-8") as handle:
             raw = json.load(handle)

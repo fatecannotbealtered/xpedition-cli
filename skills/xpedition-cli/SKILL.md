@@ -12,17 +12,14 @@ metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.0"}}
 Use this Skill for normalized Xpedition project snapshots, BOM reads, ChangeSet
 validation, and controlled MockBackend writes.
 Native Xpedition reads and writes are available only when the optional Windows
-COM adapter and product registration are ready. Production readiness still requires the disposable R1/C1 smoke loop.
+COM adapter and product registration are ready; `reference` reports the release
+readiness.
 
 ```bash
-# Install the CLI. Until the npm packages are published this fails with a 404;
-# install from a checkout instead:
-#   python -m pip install -e ".[native]"   # [native] is required on Windows
-npm install -g @fateforge/xpedition-cli
+# Install the CLI from its repository, with the Windows adapter ([native]).
+python -m pip install "xpedition-cli[native] @ git+https://github.com/fatecannotbealtered/xpedition-cli"
 
-# Install the bundled Skills: this entry Skill, xpedition-schematic and
-# xpedition-pcb. This reads the GitHub repository, not npm, so it works whether
-# or not the packages are published.
+# Install the bundled Skills: this entry Skill, xpedition-schematic and xpedition-pcb.
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
 # Bootstrap the live contract before task commands.
@@ -44,11 +41,11 @@ Two domain Skills build on it and read it first:
 | The board in Layout: from creating the board to the fabrication package | `../xpedition-pcb/SKILL.md` |
 
 Packaging the parts (`library build --package`) belongs to both: after a redraw,
-before the schematic is read back, and before a board is created. For that work
-read the domain Skill's file and follow it; do not assemble `schematic draw` or
-`pcb` writes from `reference` alone. If the file is missing, STOP CHECKPOINT:
-tell the user and, once they agree, install the family with the command above,
-which installs all three.
+before the schematic is read back, and before a board is created. For any of this
+work read the domain Skill's file and follow it; do not assemble `schematic draw`
+or `pcb` writes from `reference` alone. If the file for the work at hand is
+missing, STOP CHECKPOINT: tell the user and, once they agree, install the family
+with the command above, which installs all three.
 
 ## Company knowledge base
 
@@ -230,14 +227,16 @@ rollback records. To restore the latest automatic backup, use
 confirm exactly once. A rollback never uses a stale apply token.
 
 STOP CHECKPOINT: ask the user before confirming a write, using a broad target
-set, exposing sensitive project data, or selecting a future dangerous backend.
+set, exposing sensitive project data, or adding `--dangerous` to a confirm.
 
 ## Error decision tree
 
 Always parse the JSON envelope and check `.ok` first. Exit 2 means fix the
 arguments; exit 3 means refresh the project or ChangeSet path; exit 4 means
-surface backend/config or permission state; exit 5 means run the dry-run; exit
-6 means re-read state and dry-run again. Exit 7/8 are bounded retryable
+surface backend/config or permission state; exit 5 means run the dry-run, or,
+when the message asks for `--dangerous`, that the write destroys work: get the
+user's agreement, then repeat the confirm with `--dangerous` and the same token;
+exit 6 means re-read state and dry-run again. Exit 7/8 are bounded retryable
 network/server or timeout failures, except a native `E_TIMEOUT`: the session is
 stale until `session stop` and `session start`, and the retry needs a larger
 `--timeout` (its hint says both). Use `xpedition-cli reference --compact`
@@ -245,7 +244,10 @@ for the current complete mapping.
 
 ## Security boundary
 
-This tool is T1. There is no CLI login and no persisted upstream credential;
+This tool is T2: some writes destroy work that is not archived, and those take
+`--dangerous` next to the token (the command's `dangerous_when` in `reference`
+says when). Pass it only after the user agreed to that loss. There is no CLI
+login and no persisted upstream credential;
 Xpedition's own licensing stays inside the user's installation. The NativeBackend
 runs only when `XPEDITION_NATIVE_COMMAND` names an adapter, and a confirmed write
 through it changes the named Xpedition project, not just a local JSON file: it can

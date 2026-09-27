@@ -9,8 +9,10 @@ from ..models import load_project, snapshot
 class MockBackend:
     name = "mock"
 
-    def load(self, project_path: str | None) -> tuple[dict[str, Any], Path | None]:
-        return load_project(project_path)
+    def load(
+        self, project_path: str | None, *, allow_missing: bool = False
+    ) -> tuple[dict[str, Any], Path | None]:
+        return load_project(project_path, allow_missing=allow_missing)
 
     def snapshot(self, project: dict[str, Any]) -> dict[str, Any]:
         return snapshot(project)

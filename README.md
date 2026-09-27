@@ -21,7 +21,7 @@ by `--dry-run` then `--confirm <token>`.
 ## Agent Install
 
 ```bash
-npm install -g @fateforge/xpedition-cli
+python -m pip install "xpedition-cli[native] @ git+https://github.com/fatecannotbealtered/xpedition-cli"
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
 xpedition-cli context --compact
@@ -29,10 +29,11 @@ xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
 
-For a checkout, run `python -m xpedition_cli.main ...` from the repository root.
-No CLI login is required for MockBackend. Native Xpedition credentials and
-licensing remain inside the verified Xpedition environment. Install the Windows
-adapter with `python -m pip install -e ".[native]"`; see
+The first line installs the CLI from this repository with the Windows adapter
+(`[native]`); a tagged release also publishes a standalone binary to npm as
+`@fateforge/xpedition-cli`. From a checkout, `python -m pip install -e ".[native]"`
+does the same. No CLI login is required for MockBackend. Native Xpedition
+credentials and licensing remain inside the verified Xpedition environment; see
 [Native adapter protocol](docs/NATIVE_ADAPTER.md).
 
 ## What It Does
@@ -104,8 +105,8 @@ commands are guarded: `--dry-run` returns a `confirm_token`, `--confirm <token>`
 
 | Stage | Commands |
 |---|---|
-| Project and schematic | `project init`, `schematic plan`, `schematic draw`, `schematic show`, `schematic export`, `review run` |
-| Library | `library build` (parts from a design file; cells from KiCad footprints via `python -m xpedition_cli.kicad_import`) |
+| Project and schematic | `project init`, `schematic draw`, `schematic show`, `schematic export`, `review run` |
+| Library | `library build` (parts from a design file), `library kicad-import` (cells from KiCad footprint libraries) |
 | Board | `pcb create`, `pcb annotate`, `pcb outline`, `pcb holes`, `pcb arrange`, `pcb pour`, `pcb rules`, `pcb route`, `pcb drc` |
 | By hand | `pcb geometry`, `pcb trace`, `pcb via`, `pcb unroute`, `pcb move`, `pcb labels`, `pcb stitch` (offline plan checks in `xpedition_cli.routing_plan`) |
 | Pictures and output | `pcb render`, `pcb show [--top-view]`, `pcb export` (ODB++, Gerber, NC drill, centroid, BOM, manifest) |
@@ -162,11 +163,12 @@ node scripts/check-version.js
 node scripts/check-spec.js --local-only
 ```
 
-`reference.release_readiness.level` is `stable`: every public command has a
-command-level test, the contract tests cover the failure and boundary behaviour as
-well as the happy path, and live runs against a licensed Xpedition are recorded in
-[`docs/E2E.md`](docs/E2E.md). `stable` is a statement about that evidence, not a
-promise that the Xpedition automation behaves identically on another installation.
+`reference.release_readiness.level` is `beta`: every public command has a
+command-level test and the contract tests cover the failure and boundary behaviour
+as well as the happy path, and live runs against a licensed Xpedition are recorded
+in [`docs/E2E.md`](docs/E2E.md); `reference` names what still keeps it from
+`stable`. The level is a statement about that evidence, not a promise that the
+Xpedition automation behaves identically on another installation.
 
 ## Links
 
@@ -178,6 +180,7 @@ promise that the Xpedition automation behaves identically on another installatio
 - [Native adapter protocol](docs/NATIVE_ADAPTER.md)
 - [MCP transport](docs/MCP.md)
 - [E2E notes](docs/E2E.md)
+- [Skill evaluations across models](docs/EVALS.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 - [Third-party notice](NOTICE.md)

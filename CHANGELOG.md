@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `library kicad-import` converts KiCad footprint libraries into cell partitions of a
+  project's central library as a guarded command. Its dry run reads only files -- the
+  libraries, their footprint counts, the partitions that exist already -- and binds the
+  token to that list; the result reports each library in `items[]` with a `summary`. It
+  replaces `python -m xpedition_cli.kicad_import`, which wrote with no dry run.
+- `--dangerous`, the second gate of CLI-SPEC §15.4, on the writes that destroy work that
+  is not archived: `pcb unroute`, `pcb create --replace`, `pcb route --unroute`,
+  `pcb annotate --unroute`, and `pcb arrange` on a board with routing (its dry run
+  counts it). Without it the confirmed run is refused with `E_CONFIRMATION_REQUIRED`
+  and the token stays unspent. `reference` marks them `dangerous` with `dangerous_when`
+  in the `dangerous` permission tier, and the tool is now T2.
 - `kb add --name NAME --url URL --about TEXT`, `kb list` and `kb remove --name NAME`
   bind a company's knowledge-base documents -- layout rules, drawing conventions, review
   checklists -- on this machine, and `context` lists them. Binding and unbinding are
@@ -81,6 +92,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Plural flags -- `--nets`, `--sheets`, `--layers`, `--formats`, `--libraries`,
+  `--fields` -- repeat as well as take a comma list, and `reference` marks them
+  `multiple`. A singular flag given twice with different values is a usage error; it
+  used to keep the last one silently.
+- `pcb unroute` reports each net (or the point) in `items[]` with a `summary`, a net
+  named twice counts once, and an empty `--nets` is a validation error.
+- A read whose `--project` does not exist is `E_NOT_FOUND`, not an empty design.
+  ChangeSet writes and imports still create their target.
+- `doctor` and `session status` only look at a running Layout: the probe used to switch
+  on its dialog suppression and single-threaded mode, which the commands that drive
+  Layout still set when they attach. `health` no longer reports `dialog_suppression`.
+- `live_smoke_status` uses the spec's values: `missing`, with `reason` saying what the
+  recorded runs cover.
+- The release binary's dependencies are locked -- `requirements.txt` (Pillow 12.3.0,
+  which fixes the 25 advisories against 12.2.0) and `requirements-build.txt`
+  (PyInstaller) -- and CI and the release workflow both audit them; the release also
+  runs `npm audit` and the full spec check, as CI does.
+- The install instructions start from the repository with pip, which works before any
+  npm release.
 - The bundled conventions stay neutral. The schematic conventions drop §11, observations
   read from one sample schematic: a company's own practice belongs in a bound
   knowledge-base document. Its two general points -- numbering reference designators per
@@ -104,6 +134,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `changelog` returned 27 of the 102 entries of 1.0.0: a release that repeats a heading
+  kept only its first section, and an entry lost its continuation lines.
+- `manufacturing bom` ignored `--limit`, `agent review` ignored `--limit` and
+  `--offset`, and six query commands paged without declaring it in `reference`.
+- Design text holding a double quote or a line break could write records of its own
+  into the generated HKP library files; it is refused now.
+- `pcb trace --dangerous` and `pcb via --dangerous`, which skip the offline clearance
+  check, were refused by a global check and could not be used.
+- A pip install that is not editable -- the one the README now leads with -- answered
+  `reference` with `E_UNKNOWN` and `changelog` with nothing: the wheel held neither
+  contract/contract.json nor CHANGELOG.md. `setup.py` now carries both into the package,
+  and neither command falls back to a file in the working directory, which would be
+  another project's.
+- The tests run against their own configuration directory; some had been writing audit
+  records into the developer's `~/.xpedition-cli`.
+- README said the release level was `stable` (it is `beta`) and listed a
+  `schematic plan` command that does not exist.
 - A KiCad footprint that gives one number to several lands keeps them all (#28): each
   becomes a pad of that pin, and forward annotation puts them on its net -- measured
   with a 2x2 mm TDFN MOSFET whose drain owns four leads and the paddle. Only a pad

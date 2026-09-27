@@ -22,9 +22,13 @@ reproduction steps, and impact. Do not attach confidential design files.
 
 ## Risk Tier
 
-This tool is **T1** under [`.agent/SEC-SPEC.md`](.agent/SEC-SPEC.md). Every write
-is previewed by `--dry-run` and released by `--confirm <token>`, where the token
-is single-use and bound to that operation's scope.
+This tool is **T2** under [`.agent/SEC-SPEC.md`](.agent/SEC-SPEC.md): some of its
+writes destroy design work that is not archived. Every write is previewed by
+`--dry-run` and released by `--confirm <token>`, where the token is single-use and
+bound to that operation's scope. The destructive ones, listed below, are the
+`dangerous` tier in `reference` and need `--dangerous` as a second gate: without it
+a confirmed run is refused with `E_CONFIRMATION_REQUIRED`, and the token stays
+unspent.
 
 The blast radius depends on the backend, and the NativeBackend's is the one to
 read carefully:
@@ -39,15 +43,19 @@ read carefully:
 - **Knowledge base** (`kb add`, `kb remove`, either backend): one entry in
   `knowledge-base.json` in the config directory. No document is read or changed.
 
-Two NativeBackend operations destroy work rather than add to it, so they are
-called out here:
+These NativeBackend operations destroy work rather than add to it; each needs
+`--dangerous`:
 
 - `pcb create --replace` deletes the design's whole layout folder. It first
   archives that folder to `PCB-backup-<timestamp>.zip` beside the project and
   returns the archive's path in `backup`. If a Layout process still holds a file
   in the folder, that process is ended so the folder can be removed.
-- `pcb unroute --all` deletes every trace and via on the board. The routing is
-  not archived; re-running the router or a saved routing plan is the way back.
+- `pcb unroute` deletes the traces and vias of the named nets, of every net
+  with `--all`, or at a point. The routing is not archived; re-running the router
+  or a saved routing plan is the way back.
+- `pcb route --unroute` and `pcb annotate --unroute` delete every trace and via
+  before they route or annotate, and `pcb arrange` does the same on a board that
+  has routing (its dry run counts it).
 
 The CLI never edits Xpedition private database files directly. All of the above
 goes through the product's own automation interfaces or its HKP text converters.

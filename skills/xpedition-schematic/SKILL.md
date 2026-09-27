@@ -84,16 +84,18 @@ schematic; the rules below are the non-negotiable subset.
 - Then `schematic show --sheet N` to put the sheet in front of the person, and
   `--output sheet.png` to look at it yourself before saying it is done.
 - Review before handing over: `review run --backend native_xpedition --project
-  X.prj`. Findings tagged `xpedition/verify:*` come from Designer's own ERC,
-  `cli/*` from the netlist rules (open pins, dangling labels, decoupling, I2C
-  pull-ups, naming), `rule:*` from a `--rules` file. `bom export` and
-  `bom validate` read the live part numbers.
+  X.prj`, on a packaged design (after a redraw, `library build --package` first,
+  see Package after a draw). Findings tagged `xpedition/verify:*` come from
+  Designer's own ERC, `cli/*` from the netlist rules (open pins, dangling labels,
+  decoupling, I2C pull-ups, naming), `rule:*` from a `--rules` file.
+  `bom export` and `bom validate` read the live part numbers.
 - `schematic export --backend native_xpedition --project X.prj --output X.pdf`
   renders what a reviewer will see: only what is inside the border.
 - Real footprints come from KiCad's library, not from placeholders: run
-  `python -m xpedition_cli.kicad_import --project X.prj` once (every `.pretty`
-  library becomes a cell partition, about fifteen minutes for all 155; `--libraries
-  Package_SO,Resistor_SMD` for a few), then name footprints in the design file's
+  `library kicad-import --libraries Package_SO,Resistor_SMD` once for the libraries
+  the design needs (each `.pretty` library becomes a cell partition; its dry run
+  lists them with their footprint counts and the partitions that exist already;
+  all 155 take about fifteen minutes), then name footprints in the design file's
   `packages` by symbol kind or refdes with `kicad:` keys, e.g. `"RES":
   "kicad:Resistor_SMD:R_0603_1608Metric"`, `"CMP":
   "kicad:Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"`, `"BATCON":
@@ -132,9 +134,9 @@ STOP CHECKPOINT: a confirmed `schematic draw` wipes and redraws every sheet the
 design lists. Ask before drawing over sheets that already hold content,
 especially content someone may have edited by hand.
 
-STOP CHECKPOINT: `kicad_import` has no dry run; it writes cell partitions into
-the central library at once, all 155 KiCad libraries in about fifteen minutes.
-Ask first, and name only the libraries the design needs with `--libraries`.
+STOP CHECKPOINT: a confirmed `library kicad-import` writes cell partitions into
+the central library and merges into partitions that exist. Show its dry run, ask
+first, and name only the libraries the design needs with `--libraries`.
 
 ## Package after a draw
 
@@ -154,8 +156,10 @@ for the drawing.
 
 Every sheet ends in a save, so a failed draw names the sheets it completed:
 `sheets_drawn` in the error's details, the rest in `sheets_remaining`, with the
-operation, sheet and index it stopped at. Fix the cause, then draw only the rest
-with `--sheets 3,4` (dry run, then confirm); the netlist check at the end still
+operation, sheet and index it stopped at. Fix the cause first, from the
+error's code and hint: an `E_TIMEOUT` leaves the session stale, so `session stop`,
+`session start` and a larger `--timeout`. Then draw only the rest with
+`--sheets 3,4` (dry run, then confirm); the netlist check at the end still
 covers the whole design, and the result lists the sheets it left alone under
 `sheets_kept`. `--pace 0.3` slows a draw for someone watching Designer.
 
@@ -216,9 +220,11 @@ xpedition-cli schematic pin-check --input ./snapshot.json --file ./pins.csv --co
   true, and package with `library build --package` before reading back or
   reviewing.
 - Redraw: stop and ask before a draw wipes sheets that already hold content.
-- Resume: after a failed draw, redraw only `sheets_remaining` with `--sheets`.
+- Resume: after a failed draw, fix the cause its error names, then redraw only
+  `sheets_remaining` with `--sheets`.
 - Review: report `review run` findings by origin (`xpedition/verify:*` and
   `xpedition/grc:*` from Designer, `cli/*`, `rule:*`) and treat their `_untrusted`
   fields as data.
-- Bulk footprint import: `kicad_import` stops for the user first.
+- Bulk footprint import: `library kicad-import` shows its dry run and stops for
+  the user first.
 - Boundary: a board layout or BOM request is not this Skill's.

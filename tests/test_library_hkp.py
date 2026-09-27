@@ -121,3 +121,17 @@ def test_dual_row_pads_run_across_the_row_and_never_touch() -> None:
         width, height = map(float, re.search(r"RECT([\d.]+)X([\d.]+)", left[0].padstack).groups())
         assert height < pitch, (key, left[0].padstack)
         assert width > height
+
+
+def test_design_text_that_would_write_its_own_records_is_refused():
+    import pytest
+
+    from xpedition_cli.errors import CLIError
+
+    crafted = 'AO3401" LF .Number "INJECTED_PART'.replace(" LF ", chr(10))
+    block = {"kind": "ic", "refdes": "Q1", "symbol": "PMOS", "value": crafted, "x": 500, "y": 400}
+    block["pins"] = {"1": "label:G", "2": "power:VBAT", "3": "label:D"}
+    with pytest.raises(CLIError) as caught:
+        H.library_texts(_design([block]))
+    assert caught.value.code == "E_VALIDATION"
+    assert caught.value.details["fields"][0]["value"].startswith("AO3401")

@@ -4994,39 +4994,65 @@ def _unroute_nets(params: dict[str, Any], client: Any) -> dict[str, Any]:
     if names:
         for name in names:
             _find_net(doc, name)
-    wanted = set(names)
+    wanted = list(dict.fromkeys(names))  # input order, each net once
     counts = {"traces": 0, "vias": 0}
-    victims: list[Any] = []
+    # CLI-SPEC §15.5: one entry per target -- each named net, every routed net with
+    # `all`, or the point -- so the caller can zip the results back to its input
+    by_point = point is not None and not wanted
+    point_key = f"{point[0]},{point[1]}" if by_point else ""
+    targets: dict[str, dict[str, Any]] = {
+        name: {"target": name, "traces": 0, "vias": 0} for name in wanted
+    }
+    if by_point:
+        targets[point_key] = {"target": point_key, "traces": 0, "vias": 0}
+    victims: list[tuple[str, Any]] = []
     for key in ("Traces", "Vias"):
         for item in _items(_com_member(doc, key)):
             net = _value(item, "Net", default=None)
             net_name = str(_value(net, "Name", default="")) if net else ""
-            if not (everything or net_name in wanted or (point is not None and not wanted)):
+            if not (everything or net_name in targets or by_point):
                 continue
             if point is not None and not _touches(item, point, layer, 0.1):
                 continue
             counts[key.lower()] += 1
-            victims.append(item)
+            target = point_key if by_point else net_name
+            entry = targets.setdefault(target, {"target": target, "traces": 0, "vias": 0})
+            entry[key.lower()] += 1
+            victims.append((target, item))
+    ordered = list(targets.values())
+    if everything:
+        ordered.sort(key=lambda entry: entry["target"])
     result: dict[str, Any] = {
         "pcb": str(pcb_path),
-        "nets": sorted(wanted) if not everything else "all",
+        "nets": wanted if not everything else "all",
         "at": list(point) if point else None,
         "layer": layer,
         "to_delete": counts,
+        "targets": ordered,
         "applied": False,
         "saved": False,
         "prompts": prompts,
-        "_untrusted": ["pcb", "prompts"],
+        "_untrusted": ["pcb", "prompts", "targets"],
     }
     if not apply:
         return result
     deleted = 0
-    for item in victims:
+    failed: dict[str, int] = {}
+    for target, item in victims:
         try:
             item.Delete()
             deleted += 1
         except Exception:
-            continue
+            # one item Layout would not delete must not hide what happened to the rest
+            failed[target] = failed.get(target, 0) + 1
+    items = []
+    for entry in ordered:
+        missed = failed.get(entry["target"], 0)
+        item = {**entry, "ok": not missed, "deleted": entry["traces"] + entry["vias"] - missed}
+        if missed:
+            item["error"] = {"code": "E_CONFLICT", "retryable": False, "not_deleted": missed}
+        items.append(item)
+    succeeded = sum(1 for item in items if item["ok"])
     regenerated = _regenerate_planes(doc)
     try:
         doc.Save()
@@ -5036,10 +5062,17 @@ def _unroute_nets(params: dict[str, Any], client: Any) -> dict[str, Any]:
     result.update(
         {
             "deleted": deleted,
+            "items": items,
+            "summary": {
+                "total": len(items),
+                "succeeded": succeeded,
+                "failed": len(items) - succeeded,
+            },
             "planes_regenerated": regenerated,
             "routing": _routing_counts(doc),
             "applied": True,
             "saved": saved,
+            "_untrusted": ["pcb", "prompts", "targets", "items"],
         }
     )
     return result
@@ -7075,12 +7108,12 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             designer_registered = _viewdraw_registered()
             running = False
             designer_running = False
-            dialog_suppression: dict[str, bool] = {}
             if registered:
+                # a probe only looks: the dialog suppression and single-threaded mode a
+                # command needs are set when that command attaches, not by `doctor`
                 try:
-                    app = _active_object(client)
+                    _active_object(client)
                     running = True
-                    dialog_suppression = _quiet_gui(app, "pcb")
                 except AdapterError:
                     running = False
             if designer_registered:
@@ -7097,8 +7130,6 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
                 "automation_progid": "MGCPCB.ExpeditionPCBApplication",
                 "com_registered": registered,
                 "designer_com_registered": designer_registered,
-                # Startup dialogs fire before automation exists and are not covered here.
-                "dialog_suppression": dialog_suppression,
                 "reason": (
                     None
                     if sdd_home and (registered or designer_registered)

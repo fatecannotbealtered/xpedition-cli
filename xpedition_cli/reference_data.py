@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from typing import Any
 
-from . import __version__, placement_contract
+from . import __version__, placement_contract, resources
 from .api_inventory_contract import OUTPUT_SCHEMA as API_OUTPUT_SCHEMA
 from .api_inventory_contract import command as api_command
 from .contract_gen import CODES
+from .errors import CLIError
 from .pin_assignment_contract import OUTPUT_SCHEMA as PIN_OUTPUT_SCHEMA
 from .pin_assignment_contract import commands as pin_commands
 from .reference_query import select_reference, selector_params
@@ -389,7 +388,10 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "at",
             "layer",
             "to_delete",
+            "targets",
             "deleted",
+            "items",
+            "summary",
             "planes_regenerated",
             "routing",
             "applied",
@@ -397,7 +399,34 @@ SCHEMAS: dict[str, dict[str, Any]] = {
             "prompts",
             "_untrusted",
         ],
-        "untrusted_fields": ["pcb", "prompts"],
+        "items_shape": ["target", "ok", "traces", "vias", "deleted", "error"],
+        "summary_shape": ["total", "succeeded", "failed"],
+        "untrusted_fields": ["pcb", "prompts", "targets", "items"],
+    },
+    "library_kicad_import": {
+        "shape": "object",
+        "fields": [
+            "project",
+            "library",
+            "root",
+            "libraries",
+            "cells",
+            "partitions",
+            "failed",
+            "seconds",
+            "ok",
+            "items",
+            "summary",
+            "_untrusted",
+        ],
+        "items_shape": ["target", "ok", "partition", "cells", "padstacks", "issues", "error"],
+        "summary_shape": ["total", "succeeded", "failed"],
+        "untrusted_fields": ["project", "library", "root", "partitions", "items"],
+    },
+    "library_kicad_import_preview": {
+        "shape": "object",
+        "fields": ["preview", "confirm_token", "expires_at", "_untrusted"],
+        "untrusted_fields": ["preview"],
     },
     "pcb_move_preview": {
         "shape": "object",
@@ -959,7 +988,10 @@ def _command(
     params: list[dict[str, Any]] | None = None,
     blast_radius: str = "none",
     dry_run_schema: str | None = None,
+    dangerous: str | None = None,
 ) -> dict[str, Any]:
+    """One command's declaration. `dangerous` says when the write also needs
+    --dangerous with its token (CLI-SPEC §15.4): "always", or the condition."""
     command = {
         "path": path,
         "type": "write" if permission.startswith("write") else "query",
@@ -967,11 +999,14 @@ def _command(
         "params": params or [],
         "output_schema": schema,
         "examples": examples,
-        "permission_tier": permission,
+        "permission_tier": "dangerous" if dangerous else permission,
         "blast_radius": blast_radius,
     }
     if dry_run_schema:
         command["dry_run_output_schema"] = dry_run_schema
+    if dangerous:
+        command["dangerous"] = True
+        command["dangerous_when"] = dangerous
     return command
 
 
@@ -1501,7 +1536,12 @@ def commands() -> list[dict[str, Any]]:
                 "Search schematic components, nets and connections",
                 "list_result",
                 [_mock_example("schematic query", "--query 3V3")],
-                params=[_param("query", "string", True), _param("project", "path")],
+                params=[
+                    _param("query", "string", True),
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             _command(
                 "schematic apply",
@@ -1552,7 +1592,7 @@ def commands() -> list[dict[str, Any]]:
                 params=[
                     _param("project", "path", True),
                     _param("design", "path", True),
-                    _param("sheets", "string"),
+                    _param("sheets", "string", multiple=True),
                     _param("pace", "number"),
                 ],
                 blast_radius=(
@@ -1597,6 +1637,10 @@ def commands() -> list[dict[str, Any]]:
                     '--template "4 Layer Template" --dry-run --compact',
                     "xpedition-cli pcb create --backend native_xpedition --project X.prj "
                     '--template "4 Layer Template" --confirm <confirm_token> --compact',
+                    "xpedition-cli pcb create --backend native_xpedition --project X.prj "
+                    "--replace --dry-run --compact",
+                    "xpedition-cli pcb create --backend native_xpedition --project X.prj "
+                    "--replace --dangerous --confirm <confirm_token> --compact",
                 ],
                 permission="write",
                 params=[
@@ -1609,9 +1653,11 @@ def commands() -> list[dict[str, Any]]:
                 blast_radius=(
                     "a new PCB folder beside the .prj; the .prj gains the board path, the "
                     "template name and a cell-library list; with --replace the existing "
-                    "layout data is removed first"
+                    "layout data is zipped beside the project and removed first, and a "
+                    "Layout process holding it is ended"
                 ),
                 dry_run_schema="pcb_create_preview",
+                dangerous="with --replace",
             ),
             _command(
                 "pcb geometry",
@@ -1717,20 +1763,26 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
                     "--nets I2C_SCL,I2C_SDA --dry-run --compact",
                     "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
-                    "--nets I2C_SCL,I2C_SDA --confirm <confirm_token> --compact",
+                    "--nets I2C_SCL,I2C_SDA --dangerous --confirm <confirm_token> --compact",
+                    "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
+                    "--nets I2C_SCL --nets I2C_SDA --dry-run --compact",
                     "xpedition-cli pcb unroute --backend native_xpedition --project X.prj "
                     "--all --dry-run --compact",
                 ],
                 permission="write",
                 params=[
                     _param("project", "path", True),
-                    _param("nets", "string"),
+                    _param("nets", "string", multiple=True),
                     _param("all", "boolean"),
                     _param("at", "string"),
                     _param("layer", "number"),
                 ],
-                blast_radius="the routing of the named nets is deleted and the board saved",
+                blast_radius=(
+                    "the routing of the named nets (or of all) is deleted, not archived, and "
+                    "the board saved"
+                ),
                 dry_run_schema="pcb_unroute_preview",
+                dangerous="always",
             ),
             _command(
                 "pcb move",
@@ -1831,6 +1883,8 @@ def commands() -> list[dict[str, Any]]:
                     "--design design.json --dry-run --compact",
                     "xpedition-cli pcb arrange --backend native_xpedition --project X.prj "
                     "--design design.json --confirm <confirm_token> --compact",
+                    "xpedition-cli pcb arrange --backend native_xpedition --project X.prj "
+                    "--design design.json --dangerous --confirm <confirm_token> --compact",
                 ],
                 permission="write",
                 params=[
@@ -1845,6 +1899,7 @@ def commands() -> list[dict[str, Any]]:
                     "written on the top silkscreen and the board is saved"
                 ),
                 dry_run_schema="pcb_arrange_preview",
+                dangerous="when the board has traces or vias: the dry run's routing counts them",
             ),
             _command(
                 "pcb drc",
@@ -1876,16 +1931,24 @@ def commands() -> list[dict[str, Any]]:
                     "xpedition-cli pcb route --backend native_xpedition --project X.prj "
                     '--passes "route:1-5,viamin,smooth" --layers 1,4 --confirm <confirm_token> '
                     "--compact",
+                    "xpedition-cli pcb route --backend native_xpedition --project X.prj "
+                    "--unroute --dry-run --compact",
+                    "xpedition-cli pcb route --backend native_xpedition --project X.prj "
+                    "--unroute --dangerous --confirm <confirm_token> --compact",
                 ],
                 permission="write",
                 params=[
                     _param("project", "path", True),
                     _param("passes", "string"),
-                    _param("layers", "string"),
+                    _param("layers", "string", multiple=True),
                     _param("unroute", "boolean"),
                 ],
-                blast_radius="traces and vias on every net the passes touch; the board is saved",
+                blast_radius=(
+                    "traces and vias on every net the passes touch; with --unroute every trace "
+                    "and via is deleted first; the board is saved"
+                ),
                 dry_run_schema="pcb_route_preview",
+                dangerous="with --unroute",
             ),
             _command(
                 "pcb outline",
@@ -1926,7 +1989,7 @@ def commands() -> list[dict[str, Any]]:
                 params=[
                     _param("project", "path", True),
                     _param("class", "string", True),
-                    _param("nets", "string"),
+                    _param("nets", "string", multiple=True),
                     _param("width", "number", True),
                     _param("min", "number"),
                     _param("expansion", "number"),
@@ -1953,7 +2016,7 @@ def commands() -> list[dict[str, Any]]:
                 permission="write",
                 params=[
                     _param("project", "path", True),
-                    _param("formats", "string"),
+                    _param("formats", "string", multiple=True),
                     _param("output", "path"),
                 ],
                 blast_radius=(
@@ -2016,6 +2079,10 @@ def commands() -> list[dict[str, Any]]:
                     "--dry-run --compact",
                     "xpedition-cli pcb annotate --backend native_xpedition --project X.prj "
                     "--confirm <confirm_token> --compact",
+                    "xpedition-cli pcb annotate --backend native_xpedition --project X.prj "
+                    "--unroute --dry-run --compact",
+                    "xpedition-cli pcb annotate --backend native_xpedition --project X.prj "
+                    "--unroute --dangerous --confirm <confirm_token> --compact",
                 ],
                 permission="write",
                 params=[
@@ -2028,6 +2095,7 @@ def commands() -> list[dict[str, Any]]:
                     "--unroute every trace and via goes first; Layout saves the board"
                 ),
                 dry_run_schema="pcb_annotate_preview",
+                dangerous="with --unroute",
             ),
             *[
                 _command(
@@ -2071,7 +2139,12 @@ def commands() -> list[dict[str, Any]]:
                 "Search design constraints",
                 "list_result",
                 [_mock_example("constraints query", "--query impedance")],
-                params=[_param("query", "string", True), _param("project", "path")],
+                params=[
+                    _param("query", "string", True),
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             _command(
                 "constraints validate",
@@ -2085,7 +2158,11 @@ def commands() -> list[dict[str, Any]]:
                 "Export normalized constraint records",
                 "list_result",
                 [_mock_example("constraints export")],
-                params=[_param("project", "path")],
+                params=[
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             _command(
                 "analysis results",
@@ -2147,7 +2224,11 @@ def commands() -> list[dict[str, Any]]:
                 "Export manufacturing BOM rows",
                 "bom",
                 [_mock_example("manufacturing bom")],
-                params=[_param("project", "path")],
+                params=[
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             _command(
                 "library build",
@@ -2172,11 +2253,45 @@ def commands() -> list[dict[str, Any]]:
                 dry_run_schema="library_build_preview",
             ),
             _command(
+                "library kicad-import",
+                "Convert KiCad footprint libraries (.pretty folders) into cell partitions "
+                "of the project's central library through the stock HKP converters, one "
+                "partition per library. The dry run reads only files: the libraries, their "
+                "footprint counts and which partitions exist already. Name the libraries a "
+                "design needs; all 155 take about fifteen minutes",
+                "library_kicad_import",
+                [
+                    "xpedition-cli library kicad-import --backend native_xpedition --project "
+                    "X.prj --libraries Package_SO,Resistor_SMD --dry-run --compact",
+                    "xpedition-cli library kicad-import --backend native_xpedition --project "
+                    "X.prj --libraries Package_SO,Resistor_SMD --confirm <confirm_token> "
+                    "--compact",
+                ],
+                permission="write",
+                params=[
+                    _param("project", "path", True),
+                    _param("libraries", "string", multiple=True),
+                    _param("root", "path"),
+                    _param("limit", "integer"),
+                ],
+                blast_radius=(
+                    "one cell partition per library in the project's central library (an "
+                    "existing one is merged, its same-named cells overwritten) and the shared "
+                    "padstack database; Designer's project is closed while it runs"
+                ),
+                dry_run_schema="library_kicad_import_preview",
+            ),
+            _command(
                 "library search",
                 "Search normalized library records",
                 "library_search",
                 [_mock_example("library search", "--query RES")],
-                params=[_param("query", "string", True), _param("project", "path")],
+                params=[
+                    _param("query", "string", True),
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             *[
                 _command(
@@ -2211,7 +2326,12 @@ def commands() -> list[dict[str, Any]]:
                 "Search normalized design data for an Agent integration",
                 "list_result",
                 [_mock_example("agent query", "--query 3V3")],
-                params=[_param("query", "string", True), _param("project", "path")],
+                params=[
+                    _param("query", "string", True),
+                    _param("project", "path"),
+                    _param("limit", "integer"),
+                    _param("offset", "integer"),
+                ],
             ),
             _command(
                 "agent review",
@@ -2254,9 +2374,10 @@ def release_readiness() -> dict[str, Any]:
         # Recorded 2026-09-19 on a disposable board built through the CLI: preview
         # against real state, a verified top-side apply, protected-part, unknown-
         # identity and stale-preview refusals, persistence across a close/reopen,
-        # and a DRC with no placement hazard. Not `verified`: bottom-side placement
-        # was not exercised, and one first-run partial apply is unexplained.
-        "live_smoke_status": "recorded_top_side_only",
+        # and a DRC with no placement hazard. Still `missing` for the stable gate:
+        # bottom-side placement was not exercised, and one first-run partial apply
+        # is unexplained; `reason` says what the recorded runs do cover.
+        "live_smoke_status": "missing",
         "reason": (
             "The original 107-command release recorded command-level and native evidence; "
             "neither the added offline pin workflows nor the metadata inventory extend that "
@@ -2288,17 +2409,18 @@ def release_readiness() -> dict[str, Any]:
 
 
 def _full_reference() -> dict[str, Any]:
-    candidates = [
-        Path(__file__).resolve().parent.parent / "contract" / "contract.json",
-        Path(getattr(sys, "_MEIPASS", "")) / "contract" / "contract.json",
-        Path.cwd() / "contract" / "contract.json",
-    ]
-    contract_path = next((path for path in candidates if path.exists()), candidates[0])
+    contract_path = resources.locate("contract/contract.json")
+    if contract_path is None:
+        raise CLIError(
+            "E_CONFIG",
+            "this installation is missing its machine contract (contract/contract.json)",
+            {"hint": "reinstall xpedition-cli"},
+        )
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     return {
         "tool": "xpedition-cli",
         "version": __version__,
-        "risk_tier": "T1",
+        "risk_tier": "T2",
         "release_readiness": release_readiness(),
         "global_flags": [
             {
@@ -2313,8 +2435,8 @@ def _full_reference() -> dict[str, Any]:
                 "name": "fields",
                 "type": "string",
                 "description": (
-                    "Comma-separated data paths, including items.refdes or items[].refdes; "
-                    "pagination and _untrusted are retained."
+                    "Comma-separated data paths, including items.refdes or items[].refdes, "
+                    "or the flag repeated; pagination and _untrusted are retained."
                 ),
             },
             {
@@ -2340,7 +2462,7 @@ def _full_reference() -> dict[str, Any]:
             {
                 "name": "name",
                 "type": "string",
-                "applies_to": ["project init", "system api-inventory"],
+                "applies_to": ["project init", "system api-inventory", "kb add", "kb remove"],
             },
             {"name": "query", "type": "string", "applies_to": ["* query"]},
             {
@@ -2378,6 +2500,18 @@ def _full_reference() -> dict[str, Any]:
                 "name": "confirm",
                 "type": "string",
                 "applies_to": [item["path"] for item in commands() if item["type"] == "write"],
+            },
+            {
+                "name": "dangerous",
+                "type": "boolean",
+                "default": False,
+                "applies_to": [item["path"] for item in commands() if item.get("dangerous")],
+                "description": (
+                    "The second gate of a dangerous write: without it the confirmed run is "
+                    "refused with E_CONFIRMATION_REQUIRED even with a valid token. Each "
+                    "command's dangerous_when says when it applies. Other writes accept it: "
+                    "pcb trace and pcb via then skip the offline clearance check."
+                ),
             },
             {
                 "name": "backup",

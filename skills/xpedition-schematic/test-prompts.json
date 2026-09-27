@@ -2,7 +2,7 @@
   {
     "id": "entry-skill-first",
     "prompt": "Use xpedition-schematic to read the schematic open in Designer.",
-    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Designer before a native command. If ../xpedition-cli/SKILL.md is missing, stop and ask the user before installing the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Designer before a native command."
   },
   {
     "id": "schematic-drawing-conventions",
@@ -12,7 +12,7 @@
   {
     "id": "redraw-over-hand-edits",
     "prompt": "Redraw sheet 2 from design.json. I moved a few labels on it by hand yesterday.",
-    "expected": "Stop and ask first: a confirmed schematic draw wipes and redraws every sheet the design lists, so the hand edits would be lost. Redraw only with the user's go-ahead."
+    "expected": "Stop and ask first: a confirmed schematic draw wipes and redraws every sheet it draws, so the hand edits would be lost. Dry-run only that sheet with --sheets 2 and redraw only with the user's go-ahead."
   },
   {
     "id": "resume-a-failed-draw",
@@ -37,7 +37,7 @@
   {
     "id": "real-footprints",
     "prompt": "Use real footprints instead of placeholders for this design.",
-    "expected": "Ask first: python -m xpedition_cli.kicad_import has no dry run and writes cell partitions into the central library (all 155 libraries in about fifteen minutes). With the user's go-ahead run it with --libraries for the libraries the design needs, name the footprints in the design file's packages with kicad: keys, check that pad numbers match pin numbers with library build --dry-run, and prefer 1.27 mm or 1.0 mm pitch packages on the stock 0.254 mm rules."
+    "expected": "Run library kicad-import --libraries with the libraries the design needs as a dry run first, show its list (libraries, footprint counts, partitions that exist already) and confirm only with the user's go-ahead; then name the footprints in the design file's packages with kicad: keys, check that pad numbers match pin numbers with library build --dry-run, and prefer 1.27 mm or 1.0 mm pitch packages on the stock 0.254 mm rules."
   },
   {
     "id": "board-request-boundary",

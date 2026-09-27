@@ -12,7 +12,8 @@ board.json --net GND` plans the ground vias without Layout, a plan to draw with
 (`--dry-run` shows the nearest pin of every trace end and the offline check;
 `--confirm` draws; Layout's online DRC refuses an item that violates a rule and
 the result names it), read `opens_after` per net and `pcb render` to look. Fix a
-wrong piece with `pcb unroute --at x,y --layer N` and draw it again; move a part
+wrong piece with `pcb unroute --at x,y --layer N` (its confirm takes `--dangerous`:
+the routing it deletes is not archived) and draw it again; move a part
 with `pcb move --refdes R1 --to x,y --rotate 90`; when someone is watching
 Layout's screen, `--pace 0.15` on `pcb trace` / `pcb via` / `pcb arrange` makes
 the items land one at a time instead of in a burst; tidy the designators with

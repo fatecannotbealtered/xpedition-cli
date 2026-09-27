@@ -20,12 +20,12 @@ dev = [
   "pip-audit>=2.7",
   # `pcb render` draws through Pillow; the renderer is pure Python, so its tests
   # belong in CI on every platform, not only where the Windows adapter installs.
-  "Pillow>=10",
+  "Pillow>=12.3",
 ]
 native = [
   "pywin32>=306; sys_platform == 'win32'",
   "pywinauto>=0.6.8; sys_platform == 'win32'",
-  "Pillow>=10",
+  "Pillow>=12.3",
 ]
 
 [project.scripts]

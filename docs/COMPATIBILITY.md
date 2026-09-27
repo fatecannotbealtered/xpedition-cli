@@ -82,7 +82,7 @@ Useful when a library has to be built rather than imported:
 |---|---|---|
 | Library Manager | `common/win64/bin/LibraryManager.exe` | COM `LibraryManager.Application`, **read-only** — the object model exposes no Add/Create for symbols, cells or parts |
 | Cell / Padstack editors | reached via `ActiveLibrary.CellEditor` / `.PadstackEditor` | yes — `OpenDatabase`, `NewPartition`, `NewCell(eCellType)`, `SaveActiveDatabase`, `SuppressTrivialDialogs` |
-| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build` and `kicad_import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "KiCad footprints as cells" below) |
+| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build` and `library kicad-import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "KiCad footprints as cells" below) |
 | PCB Footprint Expert 26 (Siemens) | `lm_fpe/` | IPC-7351B generator with populated `.fpx` libraries for SM/TH discretes, semiconductors, connectors and BGA |
 
 Schematic symbols are plain ASCII (`SymbolLibs/<partition>/sym/<name>.<version>`),
@@ -475,7 +475,7 @@ Forward annotation after a library change (verified the hard way):
 KiCad ships its footprint library as text (`share/kicad/footprints/<library>.pretty/*.kicad_mod`,
 155 libraries and 15 450 footprints in KiCad 9 here) under CC-BY-SA 4.0 with the KiCad library
 exception. `xpedition_cli.kicad_footprints` turns each `.pretty` folder into one cell partition
-and `kicad_import` (`python -m xpedition_cli.kicad_import --project X.prj`) feeds them through
+and `library kicad-import` (the adapter's `kicad_import`) feeds them through
 `HKP2PadstackDB` / `HKP2CellDB`; a design then names a footprint as its package
 (`"packages": {"RES": "kicad:Resistor_SMD:R_0603_1608Metric"}`) and `library build` writes
 parts that reference the cell and registers its partition in `LIST 2dCellLibraries`. The whole

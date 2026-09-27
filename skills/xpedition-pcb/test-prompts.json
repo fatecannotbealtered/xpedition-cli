@@ -2,7 +2,7 @@
   {
     "id": "entry-skill-first",
     "prompt": "Use xpedition-pcb to check the board in the running Layout session.",
-    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Layout before a native command. If ../xpedition-cli/SKILL.md is missing, stop and ask the user before installing the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Layout before a native command."
   },
   {
     "id": "schematic-to-board",
@@ -22,12 +22,12 @@
   {
     "id": "rebuild-after-cell-change",
     "prompt": "I changed the footprint of U3 and rebuilt the library. Update the board.",
-    "expected": "Explain that annotating again keeps the old cell, so the board is recreated with pcb create --replace; stop and ask before confirming it because it archives the layout folder to a zip and deletes it; report the archive path; then annotate, outline, holes, arrange, pour, rules, route and the outer pours again."
+    "expected": "Explain that annotating again keeps the old cell, so the board is recreated with pcb create --replace; stop and ask before confirming it because it archives the layout folder to a zip and deletes it; with the user's go-ahead confirm with --dangerous as well as the token; report the archive path; then annotate, outline, holes, arrange, pour, rules, route and the outer pours again."
   },
   {
     "id": "arrange-on-routed-board",
     "prompt": "Two parts are still unplaced on the routed board. Run the arrange so they get placed.",
-    "expected": "Stop and ask first: a confirmed pcb arrange deletes every trace and via on the board before placing, so the routing would have to be redone. Offer pcb move for the two parts instead."
+    "expected": "Stop and ask first: a confirmed pcb arrange deletes every trace and via on the board before placing (its dry run says dangerous and the confirm would need --dangerous), so the routing would have to be redone. Offer pcb move for the two parts instead."
   },
   {
     "id": "small-local-move",
@@ -42,7 +42,7 @@
   {
     "id": "hand-route-a-net",
     "prompt": "The autorouter gave VBAT a long detour. Route it by hand.",
-    "expected": "Read reference/hand-routing.md; pcb geometry --output board.json, plan the trace (PlanBuilder, 0.5 mm for a supply net), pcb trace --file plan.json --geometry board.json --dry-run, check the nearest pins and the offline check, confirm with the user's authorization, then read opens_after and look with pcb render."
+    "expected": "Read reference/hand-routing.md; pcb geometry --output board.json; remove the detour with pcb unroute (its confirm deletes routing that is not archived and needs --dangerous, so ask first); plan the trace (PlanBuilder, 0.5 mm for a supply net), pcb trace --file plan.json --geometry board.json --dry-run, check the nearest pins and the offline check, confirm with the user's authorization, then read opens_after and look with pcb render."
   },
   {
     "id": "schematic-request-boundary",
@@ -53,5 +53,10 @@
     "id": "bom-request-boundary",
     "prompt": "Export the BOM of this design as CSV.",
     "expected": "Not this Skill: bom export belongs to xpedition-cli. Only inside a fabrication package does pcb export write bom.csv."
+  },
+  {
+    "id": "entry-skill-missing",
+    "prompt": "Check the board in the running Layout session. (The entry Skill is not installed here: ../xpedition-cli/SKILL.md does not exist.)",
+    "expected": "Stop before any command: the entry Skill this one builds on is missing. Tell the user and, once they agree, install the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
   }
 ]

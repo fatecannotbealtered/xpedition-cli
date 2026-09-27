@@ -19,7 +19,7 @@ NativeBackend 通过可选的 Windows COM 适配器驱动正版 Xpedition，已�
 ## Agent 安装
 
 ```bash
-npm install -g @fateforge/xpedition-cli
+python -m pip install "xpedition-cli[native] @ git+https://github.com/fatecannotbealtered/xpedition-cli"
 npx skills add fatecannotbealtered/xpedition-cli -y -g
 
 xpedition-cli context --compact
@@ -27,9 +27,10 @@ xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
 
-在代码检出目录中可使用 `python -m xpedition_cli.main ...`。MockBackend 不需要
-CLI 登录；Native Xpedition 的凭据和许可证留在经过验证的 Xpedition 环境内。Windows
-Native 适配器可通过 `python -m pip install -e ".[native]"` 安装，详见
+第一行从本仓库安装 CLI 和 Windows 适配器（`[native]`）；打 tag 发版时还会把独立二进制
+发布到 npm，包名 `@fateforge/xpedition-cli`。在代码检出目录中用
+`python -m pip install -e ".[native]"` 效果相同。MockBackend 不需要 CLI 登录；Native
+Xpedition 的凭据和许可证留在经过验证的 Xpedition 环境内，详见
 [NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)。
 
 ## 它做什么
@@ -94,8 +95,8 @@ Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJ
 
 | 阶段 | 命令 |
 |---|---|
-| 工程与原理图 | `project init`、`schematic plan`、`schematic draw`、`schematic show`、`schematic export`、`review run` |
-| 库 | `library build`（零件来自设计文件；封装由 KiCad 库转换，`python -m xpedition_cli.kicad_import`） |
+| 工程与原理图 | `project init`、`schematic draw`、`schematic show`、`schematic export`、`review run` |
+| 库 | `library build`（零件来自设计文件）、`library kicad-import`（封装由 KiCad 封装库转换） |
 | 板子 | `pcb create`、`pcb annotate`、`pcb outline`、`pcb holes`、`pcb arrange`、`pcb pour`、`pcb rules`、`pcb route`、`pcb drc` |
 | 手工布线 | `pcb geometry`、`pcb trace`、`pcb via`、`pcb unroute`、`pcb move`、`pcb labels`、`pcb stitch`（离线检查在 `xpedition_cli.routing_plan`） |
 | 出图与出资料 | `pcb render`、`pcb show [--top-view]`、`pcb export`（ODB++、Gerber、钻孔、坐标、BOM、清单） |
@@ -146,10 +147,10 @@ node scripts/check-version.js
 node scripts/check-spec.js --local-only
 ```
 
-当前 `reference.release_readiness.level` 为 `stable`：每条公开命令都有命令级测试，
+当前 `reference.release_readiness.level` 为 `beta`：每条公开命令都有命令级测试，
 契约测试覆盖失败路径和边界行为而不只是正常路径，正版 Xpedition 上的真实运行记录在
-[`docs/E2E.md`](docs/E2E.md)。`stable` 说的是这些证据，不等于承诺换一台机器上的
-Xpedition 自动化行为完全一致。
+[`docs/E2E.md`](docs/E2E.md)；离 `stable` 还差什么，`reference` 里写着。这个等级说的是
+这些证据，不等于承诺换一台机器上的 Xpedition 自动化行为完全一致。
 
 ## 链接
 
@@ -161,6 +162,7 @@ Xpedition 自动化行为完全一致。
 - [NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)
 - [MCP transport](docs/MCP.md)
 - [E2E 说明](docs/E2E.md)
+- [Skill 跨模型评测](docs/EVALS.md)
 - [变更记录](CHANGELOG.md)
 - [贡献说明](CONTRIBUTING.md)
 - [第三方声明](NOTICE.md)

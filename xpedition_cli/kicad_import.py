@@ -1,48 +1,113 @@
-"""Convert KiCad footprint libraries into a project's central library, in bulk.
+"""`library kicad-import`: KiCad footprint libraries as cell partitions of a central library.
 
-    python -m xpedition_cli.kicad_import --project X.prj [--libraries A,B] [--root DIR]
-                                         [--limit N] [--timeout SECONDS]
-
-Every `.pretty` folder becomes one cell partition (see `native_com_adapter._kicad_import`).
-This is the bulk step for testing a converted library; whether the conversion becomes a
-public CLI command is a separate decision, so the entry point stays a module.
+Every `.pretty` folder becomes one cell partition named after it; the conversion runs
+in the native adapter through the stock HKP converters (`_kicad_import`). This module
+is the command's pure half: the dry run's plan -- which libraries, how many
+footprints, which partitions the central library already has -- read from the files
+alone, and the per-library result the confirmed run reports.
 """
 
 from __future__ import annotations
 
-import argparse
-import json
-import sys
+from pathlib import Path
+from typing import Any
 
-from .backends import NativeBackend
+from . import kicad_footprints
 from .errors import CLIError
 
+WRITE_TIMEOUT_SECONDS = 6 * 3600.0  # all 155 KiCad libraries take about fifteen minutes
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="import KiCad footprint libraries")
-    parser.add_argument("--project", required=True, help="the Xpedition .prj")
-    parser.add_argument("--libraries", default="", help="comma-separated .pretty names")
-    parser.add_argument("--root", default="", help="the KiCad footprints folder")
-    parser.add_argument("--limit", type=int, default=0, help="only the first N libraries")
-    parser.add_argument("--timeout", type=float, default=6 * 3600.0)
-    args = parser.parse_args(argv)
-    request: dict[str, object] = {"project": args.project}
-    if args.libraries:
-        request["libraries"] = [s.strip() for s in args.libraries.split(",") if s.strip()]
-    if args.root:
-        request["root"] = args.root
-    if args.limit:
-        request["limit"] = args.limit
-    native = NativeBackend()
-    native.require_implemented()
+
+def central_library(project: Path) -> Path:
+    """The `.lmc` the project names (`KEY CentralLibrary`)."""
     try:
-        result = native.invoke("kicad_import", request, timeout_seconds=args.timeout)
-    except CLIError as exc:
-        result = {"ok": False, "error": exc.code, "message": str(exc), "details": exc.details}
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
-    return 0 if result.get("ok") else 1
+        text = project.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise CLIError("E_IO", f"cannot read the project file: {exc}") from exc
+    for line in text.splitlines():
+        if line.startswith("KEY CentralLibrary "):
+            lmc = Path(line[len("KEY CentralLibrary ") :].strip().strip('"'))
+            return lmc if lmc.is_absolute() else project.parent / lmc
+    raise CLIError(
+        "E_NOT_FOUND",
+        "the project names no CentralLibrary",
+        {"project": str(project), "_untrusted": ["project"]},
+    )
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def plan(project: Path, libraries: list[str], root: str | None, limit: int) -> dict[str, Any]:
+    """What a confirmed import would convert; nothing is written."""
+    if not project.is_file():
+        raise CLIError(
+            "E_NOT_FOUND",
+            "the project file does not exist",
+            {"path": str(project), "_untrusted": ["path"]},
+        )
+    folder = Path(root).expanduser() if root else kicad_footprints.default_root()
+    if folder is None or not folder.is_dir():
+        raise CLIError(
+            "E_NOT_FOUND",
+            "the KiCad footprint folder was not found",
+            {"hint": "pass --root, or set XPEDITION_KICAD_FOOTPRINTS"},
+        )
+    pretties = kicad_footprints.libraries(folder)
+    if libraries:
+        stems = {(w[:-7] if w.lower().endswith(".pretty") else w).lower() for w in libraries}
+        pretties = [p for p in pretties if p.name[:-7].lower() in stems]
+        missing = sorted(stems - {p.name[:-7].lower() for p in pretties})
+        if missing:
+            raise CLIError(
+                "E_NOT_FOUND",
+                "KiCad libraries were not found",
+                {"libraries": missing, "_untrusted": ["libraries"]},
+            )
+    if limit > 0:
+        pretties = pretties[:limit]
+    if not pretties:
+        raise CLIError("E_VALIDATION", "no KiCad library to import", {"root": str(folder)})
+    lmc = central_library(project)
+    rows = []
+    for pretty in pretties:
+        partition = kicad_footprints.partition_name(pretty.name)
+        rows.append(
+            {
+                "library": pretty.name[:-7],
+                "partition": partition,
+                "footprints": sum(1 for _ in pretty.glob("*.kicad_mod")),
+                "exists": (lmc.parent / "CellDBLibs" / f"{partition}.cel").is_file(),
+            }
+        )
+    return {
+        "project": str(project),
+        "library": str(lmc),
+        "root": str(folder),
+        "libraries": rows,
+        "total": len(rows),
+        "footprints": sum(row["footprints"] for row in rows),
+    }
+
+
+def results(adapter_result: dict[str, Any]) -> dict[str, Any]:
+    """The adapter's run with CLI-SPEC §15.5's per-library items and summary."""
+    items = []
+    for record in adapter_result.get("partitions") or []:
+        item = {
+            "target": record.get("library"),
+            "ok": bool(record.get("ok")),
+            "partition": record.get("partition"),
+            "cells": record.get("cells"),
+            "padstacks": record.get("padstacks"),
+            "issues": record.get("issues"),
+        }
+        if record.get("skipped"):
+            item["skipped"] = record["skipped"]
+        if not item["ok"]:
+            item["error"] = {"code": "E_IO", "retryable": False, "steps": record.get("steps")}
+        items.append(item)
+    succeeded = sum(1 for item in items if item["ok"])
+    return {
+        **adapter_result,
+        "items": items,
+        "summary": {"total": len(items), "succeeded": succeeded, "failed": len(items) - succeeded},
+        "_untrusted": sorted({*adapter_result.get("_untrusted", []), "items"}),
+    }

@@ -110,8 +110,9 @@ handful of commands in this order; 1–7 are guarded writes, each `--dry-run` th
    sizes the board: `summary.outside` names parts the outline could not hold,
    which means a bigger outline (steps 1 and 2 again), not a smaller gap — 70 ×
    48 mm holds the 39-part `examples/demo-sensor-board.json` board on real
-   footprints with room for every designator. A confirmed arrange deletes every trace and via on the board first and
-   reports what it removed.
+   footprints with room for every designator. A confirmed arrange deletes every
+   trace and via on the board first and reports what it removed; on a routed
+   board its dry run says `dangerous` and the confirm needs `--dangerous`.
 4. `pcb pour --net GND --layer 2`: a copper plane inset from the outline,
    rounded like it; `--replace` after the outline changed.
 5. `pcb rules --class POWER --nets VBAT,+3V3 --width 0.5`: a net class with its
@@ -194,20 +195,26 @@ rules`, `pcb route`, the outer pours — about three minutes, all through the CL
 
 STOP CHECKPOINT: `pcb create --replace` archives the existing layout folder to a
 zip beside the project and deletes it. Confirm only with the user's go-ahead for
-that board, and report the archive path.
+that board (the confirm needs `--dangerous`), and report the archive path.
 
 ## Handing over
 
 Placeholder cells are placeholders: right pin count and rough size, nothing a
 factory can use. Say so when handing over, and keep real cells from the
-company's library as the follow-up.
+company's library as the follow-up. With a fabrication package, also say that its
+board thickness, finish and mask colour are the board house's defaults unless the
+person named them.
 
 STOP CHECKPOINT: ask the user before confirming a board write they have not
 asked for, and before any that discards work: `pcb arrange` on a routed board (a
 confirmed arrange deletes every trace and via first; `--all` also moves the parts
 already placed), `pcb route --unroute`, `pcb unroute`, `pcb annotate --unroute`,
-`pcb pour --replace`, `pcb holes --replace`, or any confirm whose preview lists
-something it deletes or removes.
+`pcb pour --replace` or `pcb holes --replace` on pours or holes that were there
+before this task (redoing the ones this layout just made, after the outline grew,
+is part of the first layout), or any confirm whose preview lists something it
+deletes or removes. The ones whose preview says `dangerous` -- routing
+deleted with no archive, a layout replaced -- also need `--dangerous` next to the
+token; add it only after the user agreed to that loss.
 
 ## References
 
@@ -230,6 +237,7 @@ something it deletes or removes.
   routing, and "checked" only when `pcb drc` passes with every warning kind
   explained.
 - Work that goes: a confirmed arrange deletes all routing and `pcb create
-  --replace` archives the layout; both stop for the user.
+  --replace` archives the layout; both stop for the user, and `--dangerous` is
+  added only after the user agreed.
 - One part: `pcb move`, never `pcb arrange`, and the routing checked afterwards.
 - Boundary: a schematic drawing or BOM request is not this Skill's.
