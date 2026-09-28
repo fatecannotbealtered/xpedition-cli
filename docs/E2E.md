@@ -434,6 +434,31 @@ Three faults came up on the way and are fixed:
   `session stop` reported it closed while that dialog held `Quit`. The stop now
   answers the known questions and checks that the application went.
 
+## Recorded run: sheet pages, generated symbols and part attributes (2026-09-29)
+
+A template clone (`project init --template`, 264 files), after the readability,
+sheet-size and quality-gate changes. Designer started through `session start` with no
+licence prompt.
+
+| Check | Evidence |
+|---|---|
+| Example on A4 | `examples/demo-sensor-board.json`: plan with no issue, draw 183 s; `netlist.matches` under the stricter check -- no `extra_nets`, `unplanned_components` or `no_connects_joined` |
+| Packaging | `library build --package`: every step, no `cells_missing`, `packaged` |
+| A4 page | `schematic export`: `pages` 4 x 842 x 595 pt, landscape, no warning |
+| Generated symbols | in the PDF, each power symbol's net name sits above its bar; `VDD` on U201's and U202's top edges no longer covers the first side pin's name |
+| Part attributes | U201, U202 and J201 show the refdes and part number where the plan put them (part number upper right; J201's refdes moved off its own `+3V3`); TP301, turned pin-up, and the holes keep horizontal text |
+| C page | the same design with `"sheet_size": "C"`: draw 149 s, `netlist.matches`; `pages` 4 x 1584 x 1224 pt, landscape, the whole border and title block on the page (the plain code had printed 1224 x 1584 and cut them off) |
+| B page | `"sheet_size": "B"`, the default: draw 153 s, `netlist.matches`, no warning; `pages` 4 x 1224 x 792 pt, landscape |
+
+One thing came up and is fixed: after `SheetSize = 13` (VDSHEET_CL_SIZE) Designer
+reads the property back as 2, the plain C, while the page is landscape. The draw
+compared the two and warned "sheet size did not take" on every C sheet after two
+retries; a plain size read back for its landscape or portrait code now counts.
+
+The design's preview (`schematic render`) and the exported sheets match part for
+part. The ground and no-connect symbols in the preview now follow the stock files
+(a triangle with `GND` under it; a lead and a cross beside the pin).
+
 ## What the recorded runs do not cover
 
 - Every recorded run comes from one Windows installation of XPED2604. A second

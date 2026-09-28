@@ -35,7 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   collide with nothing. Designer's default put a box's part number under its
   lower-left corner, where the wire from a bottom-edge ground pin runs through any
   part number longer than a few characters. This uses the attribute placement the
-  two-terminal parts already had; a live draw of it is still to be recorded.
+  two-terminal parts already had, and the recorded draw of 2026-09-29 shows every
+  attribute where the plan put it. The preview's ground and no-connect symbols follow
+  the stock files: a `GND` under the ground triangle is text DS-17 now sees.
 - `pcb metrics` measures how good a placement and its routing are, from `pcb
   geometry`'s file and without Layout: per net the ratsnest (the shortest tree
   through its pins, as if unrouted) and how often signal airwires cross; parts whose
@@ -93,8 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   title block among them, cut off, and nothing reported it. A, B (the default), C and
   D now use the landscape codes (`VDSHEET_AL_SIZE` 11 to `DL_SIZE` 14), as `borders.ini`
   pairs `csheet.1` with CSHEETL. A4 and A3 keep their plain codes, recorded printing
-  landscape. The new codes are read from the type library and still need a recorded
-  draw and export.
+  landscape. Recorded 2026-09-29: C exports 1584 x 1224 pt and B 1224 x 792 pt, whole
+  border and title block on the page. Designer reads a landscape code back as its plain
+  size (13 set, 2 read), which the draw had reported as "sheet size did not take" on
+  every sheet; that read-back now counts.
 - A generated power symbol wrote its net name through its own bar: the name was
   anchored by its upper centre above the bar, so it hung across it, in Designer as
   in the preview. It is anchored by its lower centre now, as the stock `pwr_bar` is.

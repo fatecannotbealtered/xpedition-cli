@@ -123,3 +123,11 @@ def test_the_example_designs_still_plan_on_their_recorded_a4_code() -> None:
     params = L.plan_to_params(json.loads(example.read_text(encoding="utf-8")), "X.prj")
     sizes = {op["size"] for op in params["ops"] if op["op"] == "set_sheet"}
     assert sizes == {5}
+
+
+def test_a_landscape_page_code_reads_back_as_its_plain_size() -> None:
+    # CL_SIZE (13) set, CSIZE (2) read, and the page exported landscape: a set that took
+    taken = adapter.sheet_size_taken
+    assert taken(2, 13) and taken(1, 12) and taken(9, 20) and taken(2, 23)
+    assert taken(5, 5) and taken(13, 13)
+    assert not taken(3, 13) and not taken(2, 5)

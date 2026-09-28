@@ -2386,6 +2386,22 @@ def _beyond_the_plan(
     return extra, unplanned, joined
 
 
+def sheet_size_taken(read_back: int, requested: int) -> bool:
+    """Whether Designer holds the `VdSheetSize` a draw asked for.
+
+    A landscape or portrait page code reads back as its plain size: VDSHEET_CL_SIZE
+    (13) set, VDSHEET_CSIZE (2) read, and the page exports landscape all the same
+    (1584 x 1224 pt, recorded 2026-09-29). Only the size can be checked this way; the
+    export reads the orientation back from the PDF.
+    """
+    if read_back == requested:
+        return True
+    for first in (11, 21):  # the L family and the P family, each ten codes long
+        if first <= requested < first + 10:
+            return read_back == requested - first
+    return False
+
+
 LIBRARY_TOOL_TIMEOUT = 300.0
 # the partition the planner writes symbols and parts to when a design names none; the
 # stock central library registers it (schematic_layout.PARTITION)
@@ -6808,13 +6824,14 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
                         _settle(1.0)
                         _ensure_sheet(app, current_sheet)
                     if op.get("size") is not None:
+                        wanted = int(op["size"])
                         for _attempt in range(2):
-                            if int(app.ActiveView.Block.SheetSize) == int(op["size"]):
+                            if sheet_size_taken(int(app.ActiveView.Block.SheetSize), wanted):
                                 break
-                            app.ActiveView.Block.SheetSize = int(op["size"])
+                            app.ActiveView.Block.SheetSize = wanted
                             _settle(1.0)
                             _ensure_sheet(app, current_sheet)
-                        if int(app.ActiveView.Block.SheetSize) != int(op["size"]):
+                        if not sheet_size_taken(int(app.ActiveView.Block.SheetSize), wanted):
                             warnings.append(
                                 {
                                     "index": index,

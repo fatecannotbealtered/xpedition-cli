@@ -186,17 +186,15 @@ def _symbol_art(plan: L.Plan, library: str, name: str) -> _Art | None:
     if name in plan.symbols:
         return parse_symbol(plan.symbols[name])
     if (library, name) == ("Globals", "gnd"):
-        # a stand-in for the stock ground symbol, in the 40 x 40 the planner reserves
+        # the stock Globals:gnd, as its file draws it: a pin down to a triangle, and the
+        # net name hanging under it (VDALIGN_UC at y -15, size 8)
         return _Art(
-            lines=[
-                [(0, 0), (0, -20)],
-                [(-20, -20), (20, -20)],
-                [(-12, -28), (12, -28)],
-                [(-4, -36), (4, -36)],
-            ]
+            lines=[[(0, 0), (0, -5)], [(0, -13), (-8, -5), (8, -5), (0, -13)]],
+            texts=[(0, -15, 8, 4, "NETNAME", "GND", 3)],
         )
     if (library, name) == ("builtin", "No_Connect"):
-        return _Art(lines=[[(-5, -5), (5, 5)], [(-5, 5), (5, -5)]])
+        # the stock builtin:No_Connect: a lead from the pin end to a cross beside it
+        return _Art(lines=[[(0, 0), (-10, 0)], [(-14, -4), (-6, 4)], [(-14, 4), (-6, -4)]])
     return None
 
 
