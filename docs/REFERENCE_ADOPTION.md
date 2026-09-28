@@ -1,5 +1,9 @@
 # Public-reference adoption and evidence boundaries
 
+*Historical record: written for pull request #8 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 This work advances engineer-level task coverage without claiming an untested
 Xpedition version behaves like someone else's installation. No third-party source
 code, manuals, binaries or library assets are included by this change. New code

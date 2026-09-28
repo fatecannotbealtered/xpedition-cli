@@ -61,7 +61,10 @@ def native_fix(status: dict[str, Any]) -> str:
     """What to do about an unavailable NativeBackend, by the reason `status` gives."""
     reason = status.get("reason")
     if not status.get("automation_command_configured"):
-        return 'install the native COM adapter: python -m pip install "xpedition-cli[native]"'
+        return (
+            'install the native COM adapter: python -m pip install "xpedition-cli[native] @ '
+            'git+https://github.com/fatecannotbealtered/xpedition-cli"'
+        )
     if reason == "configured native COM adapter was not found":
         return (
             "point XPEDITION_NATIVE_COMMAND at the adapter executable, or unset it to use "
@@ -69,7 +72,10 @@ def native_fix(status: dict[str, Any]) -> str:
         )
     if reason == "Xpedition SDD_HOME could not be discovered":
         return "install Xpedition, or set SDD_HOME to its SDD_HOME folder"
-    return "run scripts/register-xpedition-user.ps1 (or the official Administrator registration)"
+    return (
+        "run scripts/register-xpedition-user.ps1 from a clone of the repository (or the "
+        "official Administrator registration)"
+    )
 
 
 class NativeBackend:
@@ -223,7 +229,6 @@ class NativeBackend:
                 "render_board",
                 "hand_route",
                 "unroute_nets",
-                "move_component",
                 "board_geometry",
                 "tidy_labels",
                 "plane_pour",

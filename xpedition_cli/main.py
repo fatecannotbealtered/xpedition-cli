@@ -2618,7 +2618,7 @@ def _doctor(options: dict[str, Any]) -> dict[str, Any]:
             "fix": (
                 None
                 if level == "stable"
-                else "record the licensed Xpedition R-C smoke loop before declaring stable"
+                else "see reference's release_readiness for the evidence stable still needs"
             ),
             "message": f"{level}: {readiness.get('reason', '')}",
             "details": {
@@ -3986,14 +3986,22 @@ Commands:
   version                        show the CLI version
   system capabilities|license    inspect backend capabilities or native license status
   session status|logs            inspect local session state and logs
-  exchange inspect|import        inspect or import JSON/CSV/BOM exchange files
+  session start|attach|open|stop start, attach to, open a project in or quit Layout or Designer
+  exchange inspect|import        inspect or import JSON/CSV/BOM/IPC-2581 exchange files
   project init|info|tree|snapshot|diff
                                   create or inspect a normalized project
   design snapshot                 alias for project snapshot
   schematic sheets|components|pins|nets|connectivity|power|interfaces|unconnected|query|apply
                                   inspect normalized schematic data
+  schematic draw|show|export     draw, show or export a schematic in Designer (native)
+  library build|kicad-import     build a design's parts or import KiCad footprints (native)
   pcb placement-plan             plan explicit local origin transforms from observations
-  pcb placement                  preview/confirm selected native placements (native smoke missing)
+  pcb placement                  preview/confirm selected native placements
+  pcb create|annotate|outline|holes|arrange|move|rules|pour|route|trace|via|unroute|labels
+                                  build, place and route a board in Layout (native)
+  pcb geometry|render|show|drc|export
+                                  read, picture, check and package a board (native)
+  pcb stitch                     plan ground-stitching vias from a geometry file (offline)
   pcb info|components|footprints|nets|layers|stackup|tracks|vias|zones|keepouts|query
                                   inspect normalized PCB data
   constraints list|query|validate|export
@@ -4005,7 +4013,7 @@ Commands:
   library search|parts|symbols|footprints|padstacks|models|validate
                                   inspect normalized library records
   agent snapshot|query|review|capabilities|serve
-                                  expose read-only Agent integration (serve uses NDJSON stdio)
+                                  read-only Agent integration (serve: NDJSON or MCP on stdio)
   change validate|preview|apply|history|rollback
                                   validate, apply, inspect or rollback a ChangeSet
   review run|findings|report      run or read deterministic design checks
@@ -4020,8 +4028,9 @@ Common options:
 Reference selectors (choose one):
   reference --command "pcb trace" | --domain pcb | --schema context
 
-Native Xpedition automation is intentionally unavailable until a licensed,
-audited adapter is configured. Use MockBackend for offline development.
+Native commands need a licensed Xpedition on Windows and the adapter from the
+[native] extra; `doctor` says whether it is ready. MockBackend (--backend mock,
+the default) works offline.
 """
 
 

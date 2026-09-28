@@ -108,7 +108,7 @@ def commands() -> list[dict[str, Any]]:
             "type": "write" if write else "query",
             "description": "Plan explicit selected-origin translate/rotate/align/distribute tasks"
             + (
-                " and apply with read-back (native smoke missing)"
+                " and apply with read-back (native smoke: top side only)"
                 if write
                 else " from supplied observations without COM"
             ),

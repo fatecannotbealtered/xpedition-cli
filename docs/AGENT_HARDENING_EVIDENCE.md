@@ -1,11 +1,16 @@
 # Agent hardening: verification record
 
+*Historical record: written for pull request #4 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 Recorded on 2026-09-17. This is evidence for the first hardening change, not a
 claim that the entire AI-native roadmap or licensed-native validation is complete.
 
 ## Source and execution
 
-- Baseline: `2a66f2dc52c95a7165c9cc675ed01b0c65d8e7b5` (1.0.0).
+- Baseline: `2a66f2dc52c95a7165c9cc675ed01b0c65d8e7b5` (numbered 1.0.0 on
+  2026-09-17: an unpublished pre-release state, not the published 1.0.0).
 - Verified implementation: `f656b8de426e3175c472a4a01e42dd5b941dbd64`.
 - [GitHub Actions run 35228596168](https://github.com/fatecannotbealtered/xpedition-cli/actions/runs/35228596168), job `105226443964`.
 - [Raw regression and benchmark artifact](https://github.com/fatecannotbealtered/xpedition-cli/actions/runs/35228596168/artifacts/10500450492).
@@ -84,7 +89,9 @@ licensed installation: place/move/connect with actual library identifiers, verif
 the reported fields, save/close/reopen and compare again. Confirm that partial
 failure handling does not cause an automatic duplicate write. No new licensed
 native smoke evidence is claimed by this change, and no production project was
-opened or modified during these tests.
+opened or modified during these tests. That run has not been recorded yet: the
+licensed runs in `docs/E2E.md` since this change exercise other paths (the
+2026-09-19 smoke is `pcb placement`, not a native ChangeSet apply).
 
 ## Subsequent work, outside this change
 

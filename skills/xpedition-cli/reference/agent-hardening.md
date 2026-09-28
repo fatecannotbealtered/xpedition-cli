@@ -46,7 +46,7 @@ adapter, not a licensed Xpedition installation.
 
 ## Performance regression checks
 
-`tests/test_routing_incremental.py` counts pair comparisons rather than relying
+In a source checkout, `tests/test_routing_incremental.py` counts pair comparisons rather than relying
 on wall-clock limits. `python scripts/benchmark-routing.py` compares the pinned
 original checker with the working tree, including 200 deterministic randomized
 geometry cases that must produce identical findings in identical order.

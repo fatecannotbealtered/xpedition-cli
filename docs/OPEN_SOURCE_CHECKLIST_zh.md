@@ -2,7 +2,7 @@
 
 [English](OPEN_SOURCE_CHECKLIST.md) | [中文](OPEN_SOURCE_CHECKLIST_zh.md)
 
-在 `xpedition-cli` **首次公开推送之前**逐项走查。这是一道安全与质量关卡，不是文档 —— 仓库公开前每一项都必须勾选（或明确写明理由后豁免）。一旦公开，历史中泄露的密钥就无法收回。
+`xpedition-cli` **每次发布之前**（推送 `vX.Y.Z` tag 之前）逐项走查。这是一道安全与质量关卡，不是文档 —— 待发布的提交必须勾选每一项（或明确写明理由后豁免）；本文件中的复选框保持空白，作为下一次发布的模板。仓库已经公开，推送上去的密钥无法收回：“密钥”一节的检查适用于每一次推送，而不只是发布。
 
 ## 密钥
 
@@ -58,4 +58,4 @@
 - [ ] 本阶段自更新明确标记为 N/A。未来若增加裸 `update`，必须同步 `skills/` 下的每个 Skill 目录或返回 `skill_sync_command`，并在失败/中断时报告 `stage` + `current_version` + `binary_replaced` + `skill_sync_status`。
 - [ ] `xpedition-cli reference`、`xpedition-cli context`、`xpedition-cli doctor` 可运行并输出合法的 JSON 信封 —— 代理能从干净的检出自助上手。
 - [ ] `xpedition-cli reference` 暴露 `release_readiness`，`xpedition-cli doctor` 报告匹配的检查项。
-- [ ] `SECURITY.md` 中的风险等级与 `.agent/SEC-SPEC.md` 声明的等级一致（`T2`）。
+- [ ] `SECURITY.md` 中的风险等级与 `reference.risk_tier` 一致（`T2`），分级依据 `.agent/SEC-SPEC.md`。

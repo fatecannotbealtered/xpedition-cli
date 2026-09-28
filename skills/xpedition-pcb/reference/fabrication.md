@@ -7,9 +7,9 @@ the ODB++ job as a zip, `centroid.csv`, `bom.csv`, `README.md` for the board
 house and `manifest.json` with `checks`. Report the package as ready only when
 `checks.ok` is true; `problems` names what is missing (a silkscreen, an outline,
 a drill layer). The first run on a board closes and reopens it in Layout to
-patch the output setups; later runs do not. The README's board thickness,
-finish and mask colour are the board house's defaults unless the person says
-otherwise.
+patch the output setups; later runs do not. The README leaves board thickness,
+finish and mask colour to the board house (`pcb export` takes no such options);
+pass on any the person names separately.
 
 `checks` covers what the package contains, not the board's design rules, so run
 `pcb drc` first: a board that does not pass is not ready to send.

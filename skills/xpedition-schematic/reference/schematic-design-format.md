@@ -4,7 +4,9 @@
 compact JSON description and draws it through Xpedition Designer. The planner
 is pure Python (`xpedition_cli.schematic_layout`), so `--dry-run` shows the
 plan, the netlist it will produce and any convention issues before anything
-touches the product. See `examples/demo-sensor-board.json` for a complete design.
+touches the product. In [the repository](https://github.com/fatecannotbealtered/xpedition-cli),
+`examples/demo-sensor-board.json` is a complete design and
+`examples/demo-sensor-board-kicad.json` the same design with KiCad footprints.
 
 Contents
 
@@ -34,10 +36,23 @@ Contents
 
 - `sheet_size`: `A`, `B`, `C`, `D`, `A4` or `A3`. Every sheet gets that border
   and page size; `A4` suits a review draft.
-- `partition` (optional, default `Case`): the symbol library partition the
-  generated symbols go to. It names a folder and a `.prj` entry, so it is a plain
-  identifier: a letter, then letters, digits and `_`. Symbol names (§2) are
-  plain names too: letters, digits and `_ . + -`.
+- `partition` (optional, default `PartQuest`, the partition a stock central
+  library registers for symbols, cells and parts; one it does not register
+  cannot be packaged): the library partition the generated symbols go to. It
+  names a folder and a `.prj` entry, so it is a plain identifier: a letter, then
+  letters, digits and `_`. Symbol names (§2) are plain names too: letters,
+  digits and `_ . + -`.
+- `packages` (optional, read by `library build`): the footprint of each part,
+  keyed by symbol kind or reference designator (a refdes key wins), e.g.
+  `{"RES": "0603", "U302": "TSSOP20", "CMP": "kicad:Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"}`.
+  Stock keys are `0402`, `0603`, `0805`, `SOT23`, `TP`, `HOLE`, `HDR<n>`,
+  `SOIC<n>` and `TSSOP<n>`; a `kicad:Library:Footprint` key takes the cell from a
+  KiCad library imported with `library kicad-import`. Without an entry a part
+  gets a placeholder package for its kind and pin count.
+- `kicad_footprints` (optional): the KiCad footprint folder that `kicad:` keys
+  are read from to check their pads against the symbol's pins. Without it the
+  planner uses `XPEDITION_KICAD_FOOTPRINTS`, `KICAD9_FOOTPRINT_DIR` or
+  `KICAD8_FOOTPRINT_DIR`, then a standard KiCad install under Program Files.
 - `status`, `title`, `revision`, `date` form the footer of every sheet.
 - Titles, descriptions, block titles and notes may be Chinese: Designer shows
   them correctly on screen. Net names, reference designators and values stay
@@ -46,7 +61,9 @@ Contents
   on screen.
 - Each sheet: `number` (1-based, the sheet Designer will show), `title` (the
   strip across the top, `02 POWER`), `description`
-  (one line under it), `blocks`, `notes` (`Note 2-1: …`, lower left).
+  (one line under it), `blocks`, `notes` (`Note 2-1: …`, lower left), and an
+  optional `zone`: the silkscreen label `pcb arrange` writes over that sheet's
+  parts on the board (its sheet number otherwise).
 
 ## 2. Symbols
 
@@ -88,8 +105,10 @@ Boxes for ICs and connectors are defined once per design:
   `POWER`, `GROUND`; default `BI`. Type supply pins `POWER` / `GROUND`, inputs
   `IN`, open-drain outputs `OCL`: Designer's verification warns for every `BI`
   pin on a net that also has a `POWER` or `GROUND` pin (resistors and
-  capacitors excepted). The built-in passives, MOSFET drain and source and test
-  points are `ANALOG` for that reason, and a correct design verifies clean.
+  capacitors excepted, so `RES`, `CAP` and `CAPP` keep `BI` pins). The other
+  built-in kinds -- `IND`, `DIODE`, `LED`, `SW`, `BAT`, `NTC`, the MOSFET drain
+  and source, and `TP` -- are `ANALOG` for that reason (the MOSFET gate is `IN`),
+  and a correct design verifies clean.
 
 Symbol files are generated from these definitions and named by content, so a
 changed definition is always a new symbol to Designer. They are written into
@@ -105,7 +124,8 @@ not find new symbol files under a path with other characters.
 ```
 
 - `x`, `y` is the symbol origin (centre of the body) in sheet units; `kind`
-  `connector` is the same block with a different word.
+  `connector` is the same block with a different word. `orientation` (optional)
+  turns the symbol: `0`, `1`, `2`, `3` for 0°, 90°, 180°, 270° counter-clockwise.
 - `pins` must name every pin of the symbol (DS-06); each gets a treatment from
   §6. Several `gnd` pins on the bottom edge share one bar that runs one stub
   past the last pin, with the single ground symbol on its free end: a pin on
@@ -180,7 +200,13 @@ Net names: ASCII `UPPER_SNAKE_CASE`; rails by voltage (`+5V`, `+3V3`) or role
   into one unreadable row.
 - Grid: every position and wire point is a multiple of 10.
 
-Issues are reported in `summary.issues`; the draw still runs, so read them.
+Two kinds of result. DS-06, the grid, a wire that is not orthogonal, a reference
+designator used twice on one sheet and a treatment for a pin the symbol does not
+have make the design undrawable: the dry run refuses it with `E_VALIDATION` and
+issues no token. DS-07, DS-08, DS-15 and DS-16 are reported in `summary.issues`
+and the draw still runs, so read them. The planner does not check that a
+reference designator is unique across sheets; keep the refdes numbering per
+sheet (R1xx on sheet 1, R2xx on sheet 2) so they cannot collide.
 After drawing, the adapter reopens the project, reads every net back and
 compares it with the plan (`netlist.matches`, `differences`, `links_broken`).
 

@@ -17,7 +17,7 @@
   {
     "id": "fabrication-package",
     "prompt": "Send this board out for fabrication.",
-    "expected": "Read reference/fabrication.md; run pcb drc, then pcb export --output DIR --dry-run and confirm with the same arguments and the returned token; report the package ready only when drc passes and checks.ok is true, naming any problems; say the README's thickness, finish and mask colour are the board house's defaults unless the user gave them."
+    "expected": "Read reference/fabrication.md; run pcb drc, then pcb export --output DIR --dry-run and confirm with the same arguments and the returned token; report the package ready only when drc passes and checks.ok is true, naming any problems; say the README leaves thickness, finish and mask colour to the board house, and pass on any the user gave separately."
   },
   {
     "id": "rebuild-after-cell-change",

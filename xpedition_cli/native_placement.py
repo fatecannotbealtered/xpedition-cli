@@ -1,7 +1,7 @@
 """Conservative Layout binding for selected-origin placement tasks.
 
 API names/signatures were cross-checked against a published community makepy
-interface. This new path has not been validated on licensed Xpedition. It never
+interface. One licensed smoke run covers it, top side only (2026-09-19, docs/E2E.md). It never
 disables placement DRC while editing, edits routing, flips parts, or invokes bulk UnPlace.
 """
 

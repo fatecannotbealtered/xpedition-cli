@@ -23,7 +23,7 @@ reproduction steps, and impact. Do not attach confidential design files.
 ## Risk Tier
 
 This tool is **T2** under [`.agent/SEC-SPEC.md`](.agent/SEC-SPEC.md): some of its
-writes destroy design work that is not archived. Every write is previewed by
+writes destroy design work. Every write is previewed by
 `--dry-run` and released by `--confirm <token>`, where the token is single-use and
 bound to that operation's scope. The destructive ones, listed below, are the
 `dangerous` tier in `reference` and need `--dangerous` as a second gate: without it
@@ -65,14 +65,28 @@ These NativeBackend operations destroy work rather than add to it; each needs
 design data untouched. Changes not yet saved are lost, which its preview states
 before the confirm.
 
-The CLI never edits Xpedition private database files directly. All of the above
-goes through the product's own automation interfaces or its HKP text converters.
+Three NativeBackend steps close and reopen the board without saving it, so edits
+made in Layout and not yet saved are lost: `pcb annotate` (always), `pcb export`
+when it has to change the board's output setups (its first run on a board), and
+`pcb show --top-view` the first time it writes the top-view display scheme.
+`pcb show` is a read and has no confirmation gate. Save hand edits in Layout
+before running any of them.
+
+The CLI never edits Xpedition's private database files directly. It works
+through the product's automation interfaces and the product's own command-line
+tools (JobWizard, the packager, `sch2pdf`, the `HKP2*` converters), and it acts
+on the project's files and processes itself: it copies a template project, edits
+the library entries of the `.prj` file, writes output setups and display schemes
+into the project's `Config` folder, archives and deletes the layout folder for
+`pcb create --replace`, ends a Layout process that holds that folder, and answers
+the product's dialogs through Windows UI Automation.
 
 ## Data and Secrets
 
 - No upstream credentials are required or stored. MockBackend needs none, and
   Xpedition's licensing stays inside the user's own installation.
-- The local HMAC confirmation secret, consumed-token ledger, and audit JSONL are
+- The local HMAC confirmation secret, the consumed-token ledger and its lock, the
+  audit JSONL, the native session record (`session.json`) and placement locks are
   stored below `~/.xpedition-cli/`; set `XPEDITION_CLI_CONFIG_DIR` to isolate them.
 - `knowledge-base.json` in the same directory holds only the links bound with
   `kb add`: no document content and no credential. The agent reads the documents

@@ -91,7 +91,7 @@ class CapabilityRegistry:
                 "available",
                 "ExchangeBackend",
                 ("exchange.inspect", "exchange.import"),
-                "JSON/CSV/BOM parsing is available; PDF, EDN, ODB++ and IPC-2581 are planned",
+                "JSON/CSV/BOM and IPC-2581 parsing is available; PDF, EDN and ODB++ are planned",
             ),
             Capability(
                 "agent_stdio",
@@ -109,7 +109,7 @@ class CapabilityRegistry:
                 "agent_mcp",
                 "available",
                 "MCPServer",
-                ("initialize", "tools/list", "tools/call"),
+                ("initialize", "ping", "tools/list", "tools/call"),
             ),
         ]
 
@@ -129,10 +129,14 @@ class CapabilityRegistry:
                 NativeBackend().status().get("automation_command_configured")
             ),
             "capabilities": self.as_dict(),
-            # Session lifecycle is no longer planned: start/attach/open/stop reach the
-            # real applications through the COM adapter and are declared by `reference`.
+            # What is not there yet: these reads return empty data on the native
+            # backend, and the adapter implements only part of the ChangeSet set.
             "planned_command_domains": [
-                "native_xpedition",
+                "native_constraints",
+                "native_analysis",
+                "native_manufacturing",
+                "native_library_reads",
+                "native_changeset_operations",
                 "exchange_imports",
             ],
             "_untrusted": ["platform", "capabilities"],

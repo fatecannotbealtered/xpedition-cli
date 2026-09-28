@@ -2,7 +2,7 @@
 
 [English](OPEN_SOURCE_CHECKLIST.md) | [中文](OPEN_SOURCE_CHECKLIST_zh.md)
 
-Run through this gate **before the first public push** of `xpedition-cli`. It is a security and quality checkpoint, not documentation — every box must be ticked (or consciously waived with a note) before the repo goes public. Once public, secrets in history cannot be un-leaked.
+Run through this gate **before every release** of `xpedition-cli` (before its `vX.Y.Z` tag is pushed). It is a security and quality checkpoint, not documentation — every box must be ticked (or consciously waived with a note) for the commit being released; the boxes in this file stay blank as the template for the next release. The repository is already public, so a secret pushed to it cannot be un-leaked: the Secrets checks apply to every push, not only to a release.
 
 ## Secrets
 
@@ -55,7 +55,7 @@ Run through this gate **before the first public push** of `xpedition-cli`. It is
 - [ ] Each Skill's `description` says what it does not cover and which Skill does, and the entry Skill names the file of each domain Skill it hands work to.
 - [ ] The entry `SKILL.md` includes `When to use`, `Do not use`, `First Step`, agent defaults, JSON contract, write recipe or explicit read-only boundary, `STOP CHECKPOINT`, error decision tree, security boundary, an honest update boundary, and eval scenarios. Each domain Skill carries its own triggers, `STOP CHECKPOINT`s, playbooks and eval scenarios, and points at the entry Skill for the rest.
 - [ ] Each Skill's `test-prompts.json` is present and valid JSON; together they cover fresh-agent read, write safety or read-only boundary, permission boundary, `_untrusted` handling, and the package-update boundary.
-- [ ] Self-update is explicitly N/A for this phase. If a future release adds a bare `update`, it must sync every Skill directory under `skills/` or return `skill_sync_command` and report `stage` + `current_version` + `binary_replaced` + `skill_sync_status` on failures.
+- [ ] Self-update is explicitly N/A for this phase. If a future release adds a bare `update`, it must sync every Skill directory under `skills/` or return `skill_sync_command` and report `stage` + `current_version` + `binary_replaced` + `skill_sync_status` on failure or interruption.
 - [ ] `xpedition-cli reference`, `xpedition-cli context`, and `xpedition-cli doctor` run and emit valid JSON envelopes — an agent can self-onboard from a clean checkout.
 - [ ] `xpedition-cli reference` exposes `release_readiness`, and `xpedition-cli doctor` reports the matching check.
-- [ ] The risk tier in `SECURITY.md` matches the tier declared in `.agent/SEC-SPEC.md` (`T2`).
+- [ ] The risk tier in `SECURITY.md` matches `reference.risk_tier` (`T2`), classified under `.agent/SEC-SPEC.md`.

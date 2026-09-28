@@ -1,11 +1,11 @@
-# Selected-origin placement tasks (unreleased; native smoke missing)
+# Selected-origin placement tasks (native smoke partial)
 
 ## Scope and public references
 
 This change turns familiar selection/translate/rotate/align/distribute workflows
 into one deterministic task, not a new auto-placer or a UI click macro. Its baseline
-includes confirmation concurrency PR #7 (`8e40dc910b09e5f0ca58b975739bc4bba7cef031`);
-that PR is not merged or modified. PRs #4–#6 are not included.
+included confirmation concurrency PR #7 (`8e40dc910b09e5f0ca58b975739bc4bba7cef031`)
+but not PRs #4–#6; all of them, and this change (PR #10), were merged on 2026-09-18.
 
 The native binding cross-checks the published API surface in
 [SiemensEDA_Python_Interface](https://github.com/EdgarMerger/SiemensEDA_Python_Interface/blob/main/xpedition_layout/layout_ifc.py),
@@ -71,7 +71,8 @@ is attempted. Results account for every selected item as unchanged, verified,
 not_attempted, outcome_unknown or verification_failed. Execution/save failures
 are non-retryable; transport failure after submit is explicitly outcome unknown.
 Inspect the live board before another preview. There is not yet a durable operation
-journal, restart recovery, or proof of save/close/reopen durability.
+journal or restart recovery. Save/close/reopen durability has one licensed record, the
+2026-09-19 smoke in [`E2E.md`](E2E.md).
 
 No routing deletion/repair or unselected placement is requested. This is not proof
 that Xpedition made no incidental changes; routing topology and whole-board DRC
@@ -86,7 +87,13 @@ per-item verification, refusals, silent failure, DRC cleanup and save uncertaint
 CLI tests exercise preview/confirm, stale state, response mismatch, partial results,
 request counts and machine discovery. CI executes no licensed Xpedition.
 
-Before release, run on a disposable licensed board: top/bottom parts, all protection
-states, stale preview, a refused move after a prior success, DRC-setting restoration,
-save failure, and save/close/reopen read-back. Inspect unselected parts and routing
-and run full DRC. Runtime readiness is beta until that new native evidence exists.
+A licensed smoke on a disposable board (2026-09-19, [`E2E.md`](E2E.md)) covered
+top-side parts, a `FixLock` part refused as a moved target, unknown components,
+a stale preview, save/close/reopen read-back and a full DRC with no placement hazard.
+Still not run on a licensed board: bottom-side parts (`Side` is read-only and this
+tool does not flip sides), the `Anchor` states and other `FixLock` values, a
+deliberate refused move after a prior success, DRC-setting restoration, a save
+failure, and a check of unselected parts and routing afterwards (that board was
+unrouted). The first confirmed run applied part of a task and then reported it
+incomplete; its per-item report was lost, later runs did not reproduce it, and the
+cause is unknown. Runtime readiness stays beta until that native evidence exists.

@@ -29,8 +29,9 @@ limited to the disposable sequence in [`docs/E2E.md`](docs/E2E.md).
 2. Add the domain model/backend operation under `xpedition_cli/`.
 3. Register the command, schema, examples, permission tier and blast radius in
    `xpedition_cli/reference_data.py`.
-4. Keep external values marked in `_untrusted` and route every mutating action
-   through the ChangeSet confirmation flow.
+4. Keep external values marked in `_untrusted` and gate every mutating action
+   behind `--dry-run` then a single-use `--confirm <token>`, with `--dangerous`
+   as well when it destroys work.
 5. Add command-level tests for success, invalid input, errors, envelope shape,
    exit code and stdout/stderr behavior. The FCC guard must remain green.
 6. Update both READMEs, the affected Skills and `CHANGELOG.md`.

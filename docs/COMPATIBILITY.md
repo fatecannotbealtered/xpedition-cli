@@ -7,12 +7,12 @@ environment passes the smoke loop described in [`E2E.md`](E2E.md).
 | Backend | Version / environment | Status | Notes |
 |---|---|---|---|
 | MockBackend | xpedition-cli 1.0.x, Python 3.10–3.12 | verified | Offline JSON project model, schematic/PCB/constraint/analysis/manufacturing/library reads, ChangeSet validation/preview/apply, snapshot, BOM and review. |
-| NativeBackend — Designer | Xpedition Standard XPED2604 on Windows 11, `Viewdraw.Application`, pywin32 bridge | reads and writes verified | Attach, schematic snapshot, `AddPartInstance` placement, net creation, labels and coordinate read-back all confirmed against a running Designer session. The R1/C1 smoke loop of [`E2E.md`](E2E.md) is recorded against a hand-built minimal library, not the stock one — see the blocker below. |
-| NativeBackend — Layout | Xpedition Standard XPED2604, `MGCPCB.ExpeditionPCBApplication` | attach verified, reads unverified | COM registration and health probing work. No board document was open during verification, so `Components`/`Nets` reads have not been exercised. |
+| NativeBackend — Designer | Xpedition Standard XPED2604 on Windows 11, `Viewdraw.Application`, pywin32 bridge | reads and writes verified | Attach, schematic snapshot, `AddPartInstance` placement, net creation, labels and coordinate read-back all confirmed against a running Designer session. The R1/C1 smoke loop of [`E2E.md`](E2E.md) is recorded against a hand-built minimal library, not the stock one — see below. |
+| NativeBackend — Layout | Xpedition Standard XPED2604, `MGCPCB.ExpeditionPCBApplication` | reads and writes verified | Board creation, forward annotation, `Components`/`Nets` reads, placement, routing by the router and by hand, pours, Batch DRC and fabrication outputs, all through the adapter; recorded in [`E2E.md`](E2E.md) from 2026-09-14 on boards built from a template, with cells generated or converted by the CLI rather than a production library. Bottom-side placement has not been exercised. |
 | ExchangeBackend | JSON / CSV / BOM / IPC-2581 XML | verified | Import and normalization use the normalized project model with dry-run/confirm writes. |
 | ExchangeBackend | PDF / EDN / ODB++ | planned | Format-specific parsers are not enabled yet. |
 
-## What blocks the E2E smoke loop
+## A stock installation ships no component library
 
 Not the CLI, and not COM: **the installation ships no component library**.
 `SDD_HOME/standard/templates/dxdesigner/TemplateLibrary` is a deliberately empty
@@ -26,8 +26,9 @@ is answered by Designer itself:
 6055  Symbol Resistors:R.1 not found, empty or a block.
 ```
 
-`E2E.md` therefore cannot be satisfied on a stock installation; it needs a
-populated central library. Placement against a symbol that *does* exist
+The first smoke loop in `E2E.md` therefore ran against a hand-built library, and
+the CLI now generates the parts a design needs (`library build`, with cells from
+`library kicad-import`). Placement against a symbol that *does* exist
 (`builtin:espl1`) succeeds and reads back with correct coordinates, so the write
 path is not what is missing.
 
@@ -317,12 +318,14 @@ Placing components (verified on XPED2604, `pcb arrange`):
   pass `None`, because win32com turns the typelib's default `0` into "The
   Python instance can not be converted to a COM object". Text is anchored at
   its centre: a 1.2 mm string measures about 1.18 mm per character.
-- Routing rules are read-only through automation: `NetClass.MinTraceWidth(layer,
-  scheme, unit)`, `TypicalTraceWidth`, `ExpansionTraceWidth` and
-  `Document.GetClearanceRule(a, b, layerA, layerB, unit)` read them (0.254 mm
-  everywhere on the stock 4-layer template, via padstack `026VIA`) and nothing
-  sets them. Placeholder cells therefore need pads at least 0.254 mm apart: a
-  0.65 mm pitch with 0.4 mm pads (0.25 mm gap) leaves its nets open.
+- Routing rules are read-only through Layout's own automation:
+  `NetClass.MinTraceWidth(layer, scheme, unit)`, `TypicalTraceWidth`,
+  `ExpansionTraceWidth` and `Document.GetClearanceRule(a, b, layerA, layerB, unit)`
+  read them (0.254 mm everywhere on the stock 4-layer template, via padstack
+  `026VIA`) and nothing there sets them. Constraint Manager's automation does set
+  trace widths (`pcb rules`; see "Constraint Manager automation" below); this tool
+  does not set clearances. Placeholder cells therefore need pads at least 0.254 mm
+  apart: a 0.65 mm pitch with 0.4 mm pads (0.25 mm gap) leaves its nets open.
 
 Autorouting (verified on XPED2604, `pcb route`):
 
@@ -445,7 +448,7 @@ Forward annotation after a library change (verified the hard way):
 | `RoutePass` type 7 (remove hangers) | `PassType(7, 1, 3, False, False)` is "参数无效"; deleting the hanging trace (`pcb unroute --at`) and drawing it to the via instead is the fix |
 | `Component.FabricationLayerTexts` | the cell's texts; `Type` 2 silkscreen, `TextType` 1 the designator; `Move(x, y, eUnit)` moves one, `Format.Orientation` turns with the part (a designator of a part at 90° stands upright), `Extrema` is its box |
 | `RespectComponentPlacementDRC` | true makes `Component.Place` refuse a spot that touches another part — what `pcb move` wants; `pcb arrange` turns it off while it lifts and re-places everything |
-| Trace-width hazards | the stock `(Default)` class allows exactly one width (min = typical = expansion = 10 th); a 0.3 mm stub is a `TraceWidths` hazard until the expansion width is raised (`pcb rules --class "(Default)" --expansion 0.5`) |
+| Trace-width hazards | the stock `(Default)` class allows exactly one width (min = typical = expansion = 10 th); a 0.3 mm stub is a `TraceWidths` hazard until the expansion width is raised (`pcb rules --class "(Default)" --width 0.254 --min 0.254 --expansion 0.5`; `--width` is required, and `--min` keeps the stock minimum) |
 
 ## Constraint Manager automation (net classes and trace widths)
 
@@ -492,5 +495,5 @@ library takes about a quarter of an hour. Facts that cost time:
 | Cell names | at most **64 characters**: `HKP2CellDB` logs `无法添加单元 "…"。正在跳到下一个单元。` for longer ones and then **saves nothing** for the whole file (`遇到 N 个错误。将不会保存单元数据库文件。`, exit code 1). 685 KiCad names are longer; they are cut to 56 characters plus `~` and seven hex digits of a SHA-1 of the full name (`kicad_footprints.cell_name`), and `kicad_import` retries a partition once without any cell the log refused |
 | Log noise | every converter log contains `正在检查文件格式错误...` and `未找到文件格式错误。` ("checking for file format errors… none found"); a log check that matches the word "error" alone reports success as failure. `_tool_log` matches a leading `错误`/`error`, `错误:`/`error:`, `无法添加`, `遇到 N 个错误` |
 | Coordinates | KiCad's Y points down, Xpedition's up: every Y is negated; rotations are counter-clockwise on screen in both, so angles stay |
-| Same pad number twice | a thermal pad with its paste windows and vias: the largest copper pad is the pin, the rest is dropped (a cell's pin count must equal its part's); paste-only, back-side and `connect` pads are dropped too |
+| Same pad number twice | every copper land of a number stays, as a pad of that pin (a MOSFET's drain leads and paddle), and forward annotation puts them all on its net; only a pad lying wholly inside a larger one of its number (a thermal pad's via or a copper paste window) is dropped, reported as `inside_same_number`; paste-only, back-side and `connect` pads are dropped too |
 | Merge | `HKP2PadstackDB … -m` and `HKP2CellDB … -m` add to what exists, replacing same-named entries and registering the partition in the `.lmc`; Layout and Designer may stay open with the project (Designer's project is closed and reopened by the adapter as for `library build`) |

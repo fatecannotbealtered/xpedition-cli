@@ -747,8 +747,8 @@ def default_root() -> Path | None:
         value = os.environ.get(variable)
         if value and Path(value).is_dir():
             return Path(value)
-    candidates = [Path("D:/software/kicad/home/share/kicad/footprints")]
-    for base in ("C:/Program Files/KiCad", "C:/Program Files (x86)/KiCad", "D:/software/kicad"):
+    candidates: list[Path] = []
+    for base in ("C:/Program Files/KiCad", "C:/Program Files (x86)/KiCad"):
         root = Path(base)
         if root.is_dir():
             candidates += sorted(root.glob("*/share/kicad/footprints"), reverse=True)

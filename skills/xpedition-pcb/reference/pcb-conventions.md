@@ -24,9 +24,9 @@ Contents
 
 ## 1. Scope and units
 
-- Work in mm. The adapter passes coordinates in the board's current unit
-  (`epcbUnitCurrent`), so read the unit before placing (TBD: expose it in
-  `pcb info`).
+- Work in mm. Every `pcb` command and read takes and reports millimetres,
+  whatever unit the board displays; only a ChangeSet place or move without a
+  `unit` uses the board's current unit.
 - A board comes from the CLI: `library build --package` builds and packages the
   parts, `pcb create` makes the board from a template through JobWizard and `pcb
   annotate` forward-annotates it; the Skill has the order.

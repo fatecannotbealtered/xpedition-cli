@@ -1,5 +1,9 @@
 # Read-only API inventory: source references and review record
 
+*Historical record: written for pull request #9 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 Independent implementation based on main d42b226. Existing draft PRs remain
 unchanged. This is the metadata-investigation part of the public-reference adoption
 work, separate from offline pin assignment and native write hardening.
@@ -71,8 +75,10 @@ No permissive fallback or ctypes COM-pointer wrapper was introduced.
 
 The initial 256-test validation record is historical and did not establish real
 binding compatibility. API_INVENTORY_BINDING_VALIDATION.json records the corrected
-suite; the independent Windows smoke must still pass before claiming that binding
-is tested. System OLE metadata remains distinct from target Xpedition evidence.
+suite; the independent Windows smoke then passed (run 35298644634, recorded in
+API_INVENTORY_WINDOWS_VALIDATION.json and API_INVENTORY_REVIEW.md), so the binding
+is tested against standard OLE metadata. System OLE metadata remains distinct from
+target Xpedition evidence.
 
 
 The remaining metadata calls were checked against the published pywin32 binding.

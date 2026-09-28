@@ -28,7 +28,7 @@ What actually happened. Include the full error output if applicable.
 
 - **xpedition-cli version**: (run `xpedition-cli --version`)
 - **OS**: (e.g., Windows 11, macOS 15, Ubuntu 24.04)
-- **Install method**: (e.g., npm, prebuilt binary, built from source)
+- **Install method**: (e.g., pip, npm, prebuilt binary, built from source)
 
 ## Doctor Output
 

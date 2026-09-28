@@ -22,7 +22,9 @@ present. Set `XPEDITION_SDD_HOME` when the installation cannot be found from
 
 The Xpedition automation classes must be registered by the product's official
 post-install step. If `xpedition-cli doctor` reports that COM automation is
-not registered, first try the current-user helper (no elevation required):
+not registered, first try the current-user helper (no elevation required). The
+`scripts/` helpers ship in neither the wheel nor the npm package, so run them from
+a clone of this repository:
 
 ```powershell
 # Substitute the SDD_HOME of the installed release, for example
@@ -32,8 +34,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\register-xpedition-user.ps1
 ```
 
 If the current-user registration is rejected by the local policy, run
-`scripts/register-xpedition.ps1` from an elevated PowerShell. The helper then
-invokes the installation's own `registrator.exe`:
+`scripts/register-xpedition.ps1` from the clone in an elevated PowerShell. The
+helper then invokes the installation's own `registrator.exe`:
 
 ```powershell
 $env:SDD_HOME = "<install>\home\<release>\SDD_HOME"
@@ -78,6 +80,9 @@ methods behind the guarded commands: `clone_project`, `draw`, `show`,
 `library kicad-import`), `pcb_create` (JobWizard's command line),
 `forward_annotate` (Layout's Project Integration), `board_outline` (rounded corners
 through the points array), `mounting_holes` (`PutMountingHoleEx`), `arrange_components`,
+`placement_batch` (`pcb placement`: the selected parts previewed, then moved one at a
+time with the placement DRC on and each read back), `show_board` (`pcb show`: the board
+window to the front under a display scheme, fitted, optionally captured to a PNG),
 `plane_pour` (`bRouteObstruct` false, so the copper flows around traces), `route_board`
 (`LayerSelect` for the inner layers; a second round after the planes regenerate),
 `net_rules` (a net class and its trace widths through the `ConstraintsAuto` server, then
@@ -93,9 +98,10 @@ supports the PCB `MGCPCB.ExpeditionPCBApplication` and schematic
 Xpedition process when possible; otherwise `start` or `open` creates one
 through the launcher. Layout's own questions while a board opens (a stale lock,
 database recovery, the offer to forward-annotate) are answered from a helper
-thread through UI Automation, which needs the optional `pywinauto` package
-(`pip install "xpedition-cli[native]"`); without it those prompts wait for a
-person.
+thread through UI Automation, which needs the optional `pywinauto` package (the
+`native` extra, installed from a checkout as above or with
+`python -m pip install "xpedition-cli[native] @ git+https://github.com/fatecannotbealtered/xpedition-cli"`);
+without it those prompts wait for a person.
 
 Prefer starting through the product launcher rather than through COM. Every
 Xpedition `LocalServer32` entry points at the real binary under
@@ -129,6 +135,7 @@ snapshot; it is recorded in [`E2E.md`](E2E.md), together with the runs that took
 a project from an empty schematic to a fabrication package.
 
 Attach, snapshot, placement and coordinate read-back have each been verified
-against a running Designer session. The smoke loop itself is blocked by the
-empty stock component library rather than by the adapter — see
-[`COMPATIBILITY.md`](COMPATIBILITY.md).
+against a running Designer session. The smoke loop itself passed on 2026-09-12
+against a hand-built library: the installation ships no component library, so the
+`R` and `C` symbols were authored into a writable copy of its empty template
+library — see [`COMPATIBILITY.md`](COMPATIBILITY.md).

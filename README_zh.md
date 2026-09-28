@@ -14,7 +14,7 @@
 NativeBackend 通过可选的 Windows COM 适配器驱动正版 Xpedition，已经把一个工程从空白原理图
 一路做到布线完成的板子和整套打板资料（见 `docs/E2E.md`）。这些证据来自同一台 Windows 机器，
 封装是转换来的开源库，料号是占位值。CLI 不直接修改 Xpedition 私有数据库，
-所有写操作都要先 `--dry-run` 再 `--confirm <token>`。
+所有写命令都要先 `--dry-run` 再 `--confirm <token>`。
 
 ## Agent 安装
 
@@ -27,9 +27,11 @@ xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
 
-第一行从本仓库安装 CLI 和 Windows 适配器（`[native]`）；打 tag 发版时还会把独立二进制
-发布到 npm，包名 `@fateforge/xpedition-cli`。在代码检出目录中用
-`python -m pip install -e ".[native]"` 效果相同。MockBackend 不需要 CLI 登录；Native
+第一行从本仓库的默认分支安装 CLI 和 Windows 适配器（`[native]`）；要固定到某个发布版本，
+在末尾加上 tag，例如 `...xpedition-cli@v1.0.0`。在代码检出目录中用
+`python -m pip install -e ".[native]"` 效果相同。每次打 tag 发版还会把独立二进制发布到 npm，
+包名 `@fateforge/xpedition-cli`。它不带 Windows 适配器，只能用于 MockBackend、离线规划和
+文件类命令；要驱动 Xpedition，必须在 Windows 上用 pip 安装。MockBackend 不需要 CLI 登录；Native
 Xpedition 的凭据和许可证留在经过验证的 Xpedition 环境内，详见
 [NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)。
 
@@ -40,30 +42,35 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 预览 token，替换已有文件时自动生成备份，随后原子保存并回读验证。
 
 风险等级：**T2**。对 MockBackend，爆炸半径是明确指定的那个本地 JSON 文件。对 NativeBackend，
-爆炸半径是指定的那个 Xpedition 工程：一次确认过的写入可以画原理图、摆器件、增删布线；
-`pcb create --replace` 会先把已有布局目录打包成工程旁边的 zip，然后删除它。会毁掉没有归档的
-成果的写操作，除了 token 还要加 `--dangerous`。参见 [SECURITY.md](SECURITY.md)。
+爆炸半径是指定的那个 Xpedition 工程：一次确认过的写入可以画原理图、摆器件、增删布线。
+会毁掉成果的写操作，除了 token 还要加 `--dangerous`：`schematic draw`、`pcb unroute`、
+`pcb create --replace`（会先把已有布局目录打包成工程旁边的 zip，再删除它）、有布线时的
+`pcb arrange`、`pcb route --unroute`、`pcb annotate --unroute`，以及导入到已存在分区的
+`library kicad-import`。`pcb annotate`、改动了输出设置的 `pcb export`，以及对一块板第一次
+运行的 `pcb show --top-view`，都会不存盘地关闭并重新打开板子，所以先在 Layout 里保存手工改动。
+参见 [SECURITY_zh.md](SECURITY_zh.md)。
 
 ## 能力
 
 | 领域 | 命令 | 后端 |
 |---|---|---|
-| 工程数据 | `project init`、`project info`、`project tree`、`project snapshot`、`project diff`、`design snapshot` | MockBackend |
-| 原理图 | 上述读取命令，以及用于 ChangeSet 的 `schematic apply` | MockBackend |
-| PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`layers`、`stackup`、`tracks`、`vias`、`zones`、`keepouts`、`query` | MockBackend |
-| PCB 设计 | `pcb create`、`annotate`、`outline`、`holes`、`arrange`、`move`、`rules`、`pour`、`route`、`trace`、`via`、`unroute`、`stitch`、`labels`、`geometry`、`render`、`show`、`drc`、`export` | NativeBackend（见下节） |
-| 原理图绘制 | `schematic draw`、`schematic show`、`library build` | NativeBackend（见下节） |
-| 约束与分析 | `constraints ...`、`analysis run|results|erc|drc|dfm` | MockBackend |
-| 制造与库 | `manufacturing ...`、`library search|...|validate` | MockBackend |
-| 变更控制 | `change validate`、`change preview`、`change apply`、`change history`、`change rollback` | MockBackend |
-| 审查与 BOM | `review run`、`bom export|normalize|group|variants|missing|duplicates|validate|compare` | MockBackend |
-| 环境 | `context`、`doctor`、`system capabilities`、`system license` | 本地探针 |
+| 工程数据 | `project init`、`project info`、`project tree`、`project snapshot`、`project diff`、`design snapshot` | 两种后端；原生下 `project init --template` 复制模板工程，`project diff` 比对的是 MockBackend 文件和它的备份 |
+| 原理图读取 | `schematic sheets`、`components`、`pins`、`nets`、`connectivity`、`unconnected`、`power`、`interfaces`、`query` | 两种后端 |
+| 原理图绘制 | `schematic draw`、`schematic show`、`schematic export`、`library build`、`library kicad-import` | NativeBackend（见下节） |
+| 引脚规划 | `schematic pin-plan`、`schematic pin-check` | 离线，基于提供的快照 |
+| PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`tracks`、`vias`、`layers`、`stackup`、`zones`、`keepouts`、`query` | 两种后端；原生下只读元件、封装、网络、走线和过孔，其余返回空 |
+| PCB 设计 | `pcb create`、`annotate`、`outline`、`holes`、`arrange`、`placement`、`move`、`rules`、`pour`、`route`、`trace`、`via`、`unroute`、`labels`、`geometry`、`render`、`show`、`drc`、`export` | NativeBackend（见下节） |
+| PCB 规划 | `pcb stitch`、`pcb placement-plan` | 离线，基于文件 |
+| 约束与分析 | `constraints ...`、`analysis run|results|erc|drc|dfm` | MockBackend；原生下 `analysis run` 会被拒绝，读取命令返回空（请用 `review run` 和 `pcb drc`） |
+| 制造与库读取 | `manufacturing ...`、`library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend；原生下返回空 |
+| 变更控制 | `change validate`、`change preview`、`change apply`、`change history`、`change rollback`、`schematic apply` | MockBackend；原生下 `change apply` 能放置和移动器件，`schematic apply` 还能建网络、连引脚 |
+| 审查与 BOM | `review run`、`bom export|normalize|group|variants|missing|duplicates|validate|compare` | 两种后端；原生下 `review run` 还会跑 Designer 自带的校验 |
+| 环境 | `context`、`doctor`、`reference`、`changelog`、`system capabilities`、`system license`、`system api-inventory` | 本地探针；`api-inventory` 在 Windows 上读取 COM 类型库 |
 | 知识库 | `kb list`、`kb add`、`kb remove` | 本地记录公司规则文档的链接，由 Agent 去读 |
-| 会话 | `session status`、`session logs` | MockBackend；原生 start/attach/stop 需要适配器 |
+| 会话 | `session status`、`session logs`、`session start`、`session attach`、`session open`、`session stop` | start/attach/open/stop 驱动 Xpedition；`session logs` 读取的日志本版本从不写入 |
 | Exchange 文件 | `exchange inspect`、`exchange import` | JSON/CSV/BOM/IPC-2581；PDF/EDN/ODB++ 仍不可用 |
-| Agent 桥接 | `agent snapshot`、`agent query`、`agent review`、`agent capabilities`、`agent serve` | MockBackend；`serve` 支持自定义 NDJSON 和 MCP transport |
-| 原生 Xpedition | `session ...`、工程/PCB 读取、受控器件移动与放置 | NativeBackend；需 COM 注册和授权 |
-| 规划中 | 未支持的 Exchange 格式、完整原生 ChangeSet、R-C 闭环证据 | 在 `capabilities` 中显式标记 |
+| Agent 桥接 | `agent snapshot`、`agent query`、`agent review`、`agent capabilities`、`agent serve` | 默认 MockBackend，选了原生后端时走原生；`serve` 支持自定义 NDJSON 和 MCP transport |
+| 规划中 | 约束、分析、制造和库读取的原生实现；PDF/EDN/ODB++ 导入；其余原生 ChangeSet 操作 | 列在 `system capabilities` 里 |
 
 实时命令和 schema 以 `xpedition-cli reference --compact` 为准。
 
@@ -85,11 +92,12 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 7. 使用 `change history` 查看本地操作记录。回滚同样必须先预览，再使用一次性确认 token。
 
 Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJSON
-请求/响应流访问 MockBackend 的 snapshot、query、review 和 capability 方法。
+请求/响应流访问 snapshot、query、review 和 capability 方法；除非请求选了原生后端，否则走 MockBackend。
 
 ## 原生 Xpedition：从原理图到打板资料
 
-下面每一步都在有许可的 Xpedition（XPED2604）上对示例工程跑通过；过程记录在
+下面各阶段都在有许可的 Xpedition（XPED2604）上对示例工程跑通过；例外是单独运行的
+`pcb via`，以及带门禁的 `library kicad-import`（它背后的转换器是通过早先的入口跑的）。过程记录在
 [docs/E2E.md](docs/E2E.md)，自动化接口的每条事实在 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
 写命令都有门禁：`--dry-run` 返回 `confirm_token`，`--confirm <token>` 才执行。
 
@@ -97,8 +105,8 @@ Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJ
 |---|---|
 | 工程与原理图 | `project init`、`schematic draw`、`schematic show`、`schematic export`、`review run` |
 | 库 | `library build`（零件来自设计文件）、`library kicad-import`（封装由 KiCad 封装库转换） |
-| 板子 | `pcb create`、`pcb annotate`、`pcb outline`、`pcb holes`、`pcb arrange`、`pcb pour`、`pcb rules`、`pcb route`、`pcb drc` |
-| 手工布线 | `pcb geometry`、`pcb trace`、`pcb via`、`pcb unroute`、`pcb move`、`pcb labels`、`pcb stitch`（离线检查在 `xpedition_cli.routing_plan`） |
+| 板子 | `pcb create`、`pcb annotate`、`pcb outline`、`pcb holes`、`pcb arrange`、`pcb placement`、`pcb pour`、`pcb rules`、`pcb route`、`pcb drc` |
+| 手工布线 | `pcb geometry`、`pcb trace`、`pcb via`、`pcb unroute`、`pcb move`、`pcb labels`、`pcb stitch`（离线规划；计划检查在 `xpedition_cli.routing_plan`） |
 | 出图与出资料 | `pcb render`、`pcb show [--top-view]`、`pcb export`（ODB++、Gerber、钻孔、坐标、BOM、清单） |
 
 ## 机器契约
@@ -112,8 +120,9 @@ Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJ
 
 ## 配置
 
-本阶段没有登录流程。CLI 只在 `~/.xpedition-cli/` 下保存本地确认 secret、已消费 token
-记录、审计 JSONL 和知识库链接。测试或 CI 可设置 `XPEDITION_CLI_CONFIG_DIR` 隔离这些文件。Native
+本阶段没有登录流程。CLI 的本地状态都在 `~/.xpedition-cli/` 下：确认 secret、已消费 token
+记录及其锁文件、审计 JSONL、知识库链接、原生会话记录（`session.json`）和摆放任务的锁文件。
+测试或 CI 可设置 `XPEDITION_CLI_CONFIG_DIR` 隔离这些文件。Native
 适配器可通过 `XPEDITION_NATIVE_COMMAND` 指定；设置该变量不会绕过 COM 注册或许可证检查。
 
 公司自己的规则（布局规则、绘图约定、评审清单）留在公司知识库里。
@@ -154,16 +163,16 @@ node scripts/check-spec.js --local-only
 
 ## 链接
 
-- [Agent 入口](AGENTS.md)
+- [Agent 入口](AGENTS_zh.md)
 - [Skill](skills/xpedition-cli/SKILL.md)（入口），以及 [xpedition-schematic](skills/xpedition-schematic/SKILL.md) 和 [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
 - [CLI 契约](.agent/CLI-SPEC.md)
-- [安全策略](SECURITY.md)
+- [安全策略](SECURITY_zh.md)
 - [兼容性矩阵](docs/COMPATIBILITY.md)
 - [NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)
 - [MCP transport](docs/MCP.md)
 - [E2E 说明](docs/E2E.md)
 - [Skill 跨模型评测](docs/EVALS.md)
 - [变更记录](CHANGELOG.md)
-- [贡献说明](CONTRIBUTING.md)
-- [第三方声明](NOTICE.md)
+- [贡献说明](CONTRIBUTING_zh.md)
+- [第三方声明](NOTICE_zh.md)
 - [MIT 许可证](LICENSE)

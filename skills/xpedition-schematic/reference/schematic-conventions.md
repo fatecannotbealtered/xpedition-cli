@@ -29,7 +29,7 @@ Contents
 | Fact | Value | Status |
 |---|---|---|
 | Sheet coordinate unit | 1 unit = 10 mil = 0.254 mm | verified |
-| Grid | 100 mil = 10 units; every pin end, wire end and label anchor sits on a multiple of 10 | unit verified, grid default |
+| Grid | 100 mil = 10 units; every pin end and wire end sits on a multiple of 10, and a net label sits a few units beside the stub end it names | unit verified, grid default |
 | Axes | x grows to the right, y grows upward (ground symbols hang below their pin, power bars sit above it); the border's lower-left corner is (0, 0) | verified |
 | Symbol files with header `V 53` | same 10-mil units as the sheet: a pin at `35` reads back 35 units from the origin | verified |
 | Symbol files with header `V 54` | 10 nm per unit: `254000` = 100 mil = 10 sheet units. Every stock Globals, builtin and Borders symbol is V 54 | verified |
@@ -93,30 +93,32 @@ rectangle: readers recognise the class from the shape before they read the
 value.
 
 A generated symbol is a `V 53` text file at
-`SymbolLibs/<partition>/sym/<name>.1`; this resistor loads and places on
+`SymbolLibs/<partition>/sym/<name>.1`. This is what `xpedition_cli.symbols`
+writes for a resistor; files written this way load, place and connect on
 XPED2604 (verified). Sizes are in sheet units.
 
 ```
 V 53
-K 1196353901 R.1
+K 466425173 R.1
 F Case
-D -30 5 30 -5                        bounding box x1 y1 x2 y2
+D -20 24 20 -24                       bounding box x1 y1 x2 y2
 Y 1
 Z 10
 i 11
-U -20 12 10 0 4 0 DEVICE=R            attribute: x y size … NAME=value
-U -20 -16 10 0 5 0 PART_NAME=R
-U -30 12 10 0 8 3 REFDES=
-l 5 -20 -5 20 -5 20 5 -20 5 -20 -5    polyline: point count, then x y pairs
-l 2 -30 0 -20 0                       pin leg
-P 10 -30 0 -20 0 0 3 0                pin: id, connection end x y, body end x y
-L -34 4 4 0 5 0 0 0 1                 pin number text: x y size …
-A 0 1 10 0 6 3 #=1                    pin number attribute
+U -20 18 8 0 8 3 REFDES=              attribute: x y size … NAME=value
+U -20 -20 8 0 4 0 DEVICE=R
+l 5 -10 -4 10 -4 10 4 -10 4 -10 -4    body: point count, then x y pairs
+l 2 -20 0 -10 0                       pin leg
+P 10 -20 0 -10 0 0 3 0                pin: id, connection end x y, body end x y
+L -10 0 6 0 3 0 0 0 1                 pin number text: x y size …
+A -16 2 5 0 3 0 #=1                   pin number attribute
+A -7 -3 6 0 3 0 NAME=1
 A 0 10 10 0 3 0 PINTYPE=BI
-l 2 20 0 30 0
-P 11 30 0 20 0 0 3 0
-L 31 4 4 0 5 0 0 0 2
-A 0 1 10 0 6 3 #=2
+l 2 20 0 10 0
+P 11 20 0 10 0 0 3 0
+L 10 0 6 0 3 0 0 0 2
+A 13 2 5 0 3 0 #=2
+A 1 -3 6 0 3 0 NAME=2
 A 0 10 10 0 3 0 PINTYPE=BI
 E
 ```
@@ -252,7 +254,7 @@ one command that clears it.
 
 | ID | Check | Class | How |
 |---|---|---|---|
-| DS-01 | every component has a refdes | L2 | `review run`: components without a refdes are counted in `metadata.unnamed_symbols` |
+| DS-01 | every component has a refdes | L2 | the native snapshot (`project snapshot --backend native_xpedition`): components without a refdes are counted in `metadata.unnamed_symbols` |
 | DS-02 | every net has a name | L2 | `review run` rule `cli/unnamed-net` (nets of three or more pins) |
 | DS-03 | no single-pin net | L2 | `review run` rule `cli/single-pin-net` |
 | DS-04 | no pin in two intended nets | L2 | `schematic draw` plan (a pin in two nets is rejected by the planner) |

@@ -2,7 +2,7 @@
 
 *[English](CONTRIBUTING.md) | 中文*
 
-修改行为前先读 [AGENTS.md](AGENTS.md) 和固定版本的 `.agent/` 规范。本 CLI
+修改行为前先读 [AGENTS_zh.md](AGENTS_zh.md) 和固定版本的 `.agent/` 规范。本 CLI
 优先面向 Agent：stdout 只输出一个 JSON envelope，错误遵守统一的 code/exit/retryable
 映射，写操作使用 `--dry-run` 再配合单次 `--confirm` token。
 
@@ -26,7 +26,7 @@ python -m xpedition_cli.main --help
 1. 先读 `.agent/CLI-SPEC.md` 和 `.agent/SEC-SPEC.md` 的相关章节。
 2. 在 `xpedition_cli/` 下增加领域模型或后端操作。
 3. 在 `xpedition_cli/reference_data.py` 注册命令、schema、examples、权限等级和爆炸半径。
-4. 外部值必须在 `_untrusted` 中标记；所有写操作都走 ChangeSet 确认流程。
+4. 外部值必须在 `_untrusted` 中标记；所有写操作都先 `--dry-run`，再用单次 `--confirm <token>` 执行，会毁掉成果的还要加 `--dangerous`。
 5. 为成功、非法输入、错误、envelope、退出码及 stdout/stderr 边界增加命令级测试，保持 FCC guard 通过。
 6. 同步修改两个 README、受影响的 Skill 和 `CHANGELOG.md`。
 

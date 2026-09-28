@@ -20,7 +20,7 @@ Windows COM 适配器驱动本机上正版安装的 Xpedition，使用的是那�
 ## 风险等级
 
 根据 [`.agent/SEC-SPEC_zh.md`](.agent/SEC-SPEC_zh.md)，本工具为 **T2**：部分写操作会
-毁掉没有归档的设计成果。所有写操作都要先 `--dry-run` 预览，再用 `--confirm <token>` 放行；
+毁掉设计成果。所有写操作都要先 `--dry-run` 预览，再用 `--confirm <token>` 放行；
 token 一次性，且与该次操作的范围绑定。下面列出的破坏性操作在 `reference` 里属于
 `dangerous` 档，还要加 `--dangerous` 作为第二道门：不加时确认执行会以
 `E_CONFIRMATION_REQUIRED` 被拒，token 也不会被消耗。
@@ -51,14 +51,23 @@ token 一次性，且与该次操作的范围绑定。下面列出的破坏性�
 `session stop` 不在这一档：它退出程序，已保存的设计数据不受影响；尚未保存的修改会丢失，
 确认前的预览会写明这一点。
 
-CLI 从不直接改写 Xpedition 私有数据库文件，以上全部通过该产品自带的自动化接口或
-HKP 文本转换器完成。
+有三个 NativeBackend 步骤会不存盘地关闭并重新打开板子，在 Layout 里做了但还没保存的修改会丢失：
+`pcb annotate`（每次都会）、需要改动板子输出设置时的 `pcb export`（即对一块板的第一次导出），
+以及第一次写入顶视图显示方案时的 `pcb show --top-view`。`pcb show` 是读命令，没有确认门禁。
+运行它们之前，先在 Layout 里保存手工改动。
+
+CLI 从不直接改写 Xpedition 私有数据库文件。它通过该产品的自动化接口和产品自带的命令行工具
+（JobWizard、封装器、`sch2pdf`、`HKP2*` 转换器）工作，也会直接处理工程的文件和进程：复制模板
+工程，修改 `.prj` 文件里的库条目，把输出设置和显示方案写进工程的 `Config` 目录，为
+`pcb create --replace` 归档并删除布局目录、结束占用该目录的 Layout 进程，并通过 Windows UI
+Automation 应答产品弹出的对话框。
 
 ## 数据与密钥
 
 - 不需要也不保存任何上游凭据。MockBackend 用不到，Xpedition 的许可留在用户自己的安装里。
-- 本地 HMAC 确认 secret、已消费 token 记录和审计 JSONL 保存在 `~/.xpedition-cli/`；
-  可用 `XPEDITION_CLI_CONFIG_DIR` 隔离测试目录。
+- 本地 HMAC 确认 secret、已消费 token 记录及其锁文件、审计 JSONL、原生会话记录
+  （`session.json`）和摆放任务的锁文件保存在 `~/.xpedition-cli/`；可用
+  `XPEDITION_CLI_CONFIG_DIR` 隔离测试目录。
 - 同一目录下的 `knowledge-base.json` 只保存 `kb add` 绑定的链接，不含文档内容和凭据。
   文档由 Agent 用自己的工具读取，CLI 不为此发出任何请求；文档内容与工程内容一样是不可信
   数据，可以影响设计取舍，不能授权写操作。

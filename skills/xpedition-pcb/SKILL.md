@@ -39,7 +39,8 @@ are starting points for a person.
 
 ## Before a board task
 
-`pcb *` commands run in Xpedition Layout. Check `doctor`'s `native_session` for
+`pcb *` commands run in Xpedition Layout, except `pcb stitch` and
+`pcb placement-plan`, which work from files. Check `doctor`'s `native_session` for
 what is attached and start Layout explicitly with `session start --backend
 native_xpedition --kind pcb`. `--backend` defaults to `mock`, so every native
 command names `--backend native_xpedition --project X.prj`; the short forms in
@@ -109,8 +110,8 @@ handful of commands in this order; 1–7 are guarded writes, each `--dry-run` th
    beside the IC pin it connects to, its own pad facing that pin. Its dry run
    sizes the board: `summary.outside` names parts the outline could not hold,
    which means a bigger outline (steps 1 and 2 again), not a smaller gap — 70 ×
-   48 mm holds the 39-part `examples/demo-sensor-board.json` board on real
-   footprints with room for every designator. A confirmed arrange deletes every
+   48 mm held the 39-part board of the recorded end-to-end run on real
+   footprints, with room for every designator. A confirmed arrange deletes every
    trace and via on the board first and reports what it removed; on a routed
    board its dry run says `dangerous` and the confirm needs `--dangerous`.
 4. `pcb pour --net GND --layer 2`: a copper plane inset from the outline,
@@ -160,10 +161,10 @@ xpedition-cli pcb render --backend native_xpedition --project X.prj --output boa
 One part: `pcb move --refdes R1 --to x,y --rotate 90`. Its traces stay where
 they were, so check the routing afterwards (`pcb drc`, `pcb render`) and route
 again where it broke; Layout refuses a position that touches another part.
-Several parts, aligned or distributed: use the selected-placement workflow only
-when it is advertised by the installed binary's reference; read
-`reference/placement-tasks.md`. Its native smoke status and partial-execution
-boundaries remain explicit. Never use `pcb arrange` for a small edit.
+Several parts, aligned or distributed: use the selected-placement workflow
+(`pcb placement-plan`, `pcb placement`) and read `reference/placement-tasks.md`,
+which states its native evidence and partial-execution boundaries. Never use
+`pcb arrange` for a small edit.
 
 ```bash
 xpedition-cli pcb components --backend native_xpedition --project X.prj --compact
@@ -202,8 +203,8 @@ that board (the confirm needs `--dangerous`), and report the archive path.
 Placeholder cells are placeholders: right pin count and rough size, nothing a
 factory can use. Say so when handing over, and keep real cells from the
 company's library as the follow-up. With a fabrication package, also say that its
-board thickness, finish and mask colour are the board house's defaults unless the
-person named them.
+README leaves board thickness, finish and mask colour to the board house
+(`pcb export` takes no such options); pass on any the person named separately.
 
 STOP CHECKPOINT: ask the user before confirming a board write they have not
 asked for, and before any that discards work: `pcb arrange` on a routed board (a

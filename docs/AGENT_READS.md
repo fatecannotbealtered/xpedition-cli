@@ -1,5 +1,9 @@
 # Scoped discovery and bounded local reads
 
+*Historical record: written for pull request #5 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 This change is independent of the native write hardening in PR #4. It does not
 merge that PR, modify native automation, create a project, or publish a release.
 The source baseline is `main@d42b226a5b1812b2937ded096bf618b8692c4f9a`.

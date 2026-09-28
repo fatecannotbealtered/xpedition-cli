@@ -1,8 +1,8 @@
 # Pin assignment planning and observation checks
 
-Use the live `reference` catalog to discover whether the installed binary offers
-these offline workflows and their input/observation contracts. They do not extend
-the set of native write operations. Versions remain unchanged until a release.
+`schematic pin-plan` and `schematic pin-check` are offline workflows; `reference`
+gives their input and observation contracts. They do not extend the set of native
+write operations.
 
 ## Recipe
 
@@ -45,9 +45,8 @@ empty lists or a default project. Known partial snapshots are rejected.
 
 Output is bounded: default 100 rows, maximum 1000 per page, at most 100 issues and
 8 peer samples with totals/truncation flags. All requested pins are assessed before
-paging. Field projection retains assessment, provenance, paging and trust controls.
-Whole-field projection works on this branch; array-child projection depends on the
-separate PR #4 output-layer change and is not added here.
+paging. Field projection retains assessment, provenance, paging and trust controls,
+and `--fields` can select fields inside array items as well as whole fields.
 
 ## Reproducible synthetic example
 

@@ -1,5 +1,9 @@
 # Diagnostic backend boundaries
 
+*Historical record: written for pull request #6 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 Two narrow fixes based on `main@d42b226`. This PR is independent of PRs #4 and #5;
 neither existing branch is changed or merged.
 
@@ -15,10 +19,11 @@ analysis function (the result did label its engine `mock`). The explicit native
 combination now fails with non-retryable `E_BACKEND_UNAVAILABLE` before reading a
 project. This is an intentional compatibility tightening, not a new native engine.
 
-Native stored analysis reads (`analysis results/erc/drc/dfm`) are not disabled.
-The native `pcb drc` and `review run` entry points remain separate capabilities;
-they are not interchangeable with every analysis kind, and this patch does not
-claim a native DFM runner exists.
+Native stored analysis reads (`analysis results/erc/drc/dfm`) are not disabled,
+but the native snapshot never fills `analysis`, so on NativeBackend they return an
+empty list. The native `pcb drc` and `review run` entry points remain separate
+capabilities; they are not interchangeable with every analysis kind, and this patch
+does not claim a native DFM runner exists.
 
 The regression tests exercise the public CLI boundary, fail if unsupported
 analysis touches either backend access or the mock analysis function, and ensure

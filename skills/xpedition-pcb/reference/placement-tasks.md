@@ -1,8 +1,9 @@
 # Local placement tasks
 
-Only use this workflow when the installed binary's reference advertises the new
-placement commands. Obtain their input schemas and preconditions from reference;
-older released binaries do not have these commands. Unreleased implementation is
+Obtain the input schemas and preconditions of `pcb placement-plan` and
+`pcb placement` from `reference`. The native path has been smoke-tested on one
+disposable board, top side only (`reference`'s `release_readiness` says what that
+covers); that is
 not a reason to assume native compatibility or bypass engineer authorization.
 
 Prefer an explicit selected set and local transforms when adjusting an existing

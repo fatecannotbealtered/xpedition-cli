@@ -15,8 +15,8 @@ works offline; NativeBackend drives a licensed Xpedition installation through an
 optional Windows COM adapter, and has taken a project from an empty schematic to a
 routed board and a fabrication package (`docs/E2E.md`). That evidence comes from one
 Windows installation, with converted open-source footprints and placeholder part
-numbers. The CLI never edits Xpedition private databases, and every write is gated
-by `--dry-run` then `--confirm <token>`.
+numbers. The CLI never edits Xpedition's private databases directly, and every
+write command is gated by `--dry-run` then `--confirm <token>`.
 
 ## Agent Install
 
@@ -29,10 +29,13 @@ xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
 
-The first line installs the CLI from this repository with the Windows adapter
-(`[native]`); a tagged release also publishes a standalone binary to npm as
-`@fateforge/xpedition-cli`. From a checkout, `python -m pip install -e ".[native]"`
-does the same. No CLI login is required for MockBackend. Native Xpedition
+The first line installs the CLI and its Windows adapter (`[native]`) from this
+repository's default branch; append a release tag to pin one, e.g.
+`...xpedition-cli@v1.0.0`. From a checkout, `python -m pip install -e ".[native]"`
+does the same. Each tagged release also publishes a standalone binary to npm as
+`@fateforge/xpedition-cli`. It has no Windows adapter, so it serves MockBackend,
+offline planning and file commands only; driving Xpedition needs the pip install
+on Windows. No CLI login is required for MockBackend. Native Xpedition
 credentials and licensing remain inside the verified Xpedition environment; see
 [Native adapter protocol](docs/NATIVE_ADAPTER.md).
 
@@ -46,31 +49,36 @@ backup when replacing an existing file, saves atomically, and verifies the proje
 
 Risk tier: **T2**. Against MockBackend the blast radius is the explicitly named
 local JSON file. Against NativeBackend it is the named Xpedition project: a
-confirmed write can draw a schematic, place parts, add or delete routing, and
-`pcb create --replace` archives the existing layout folder to a zip beside the
-project before deleting it. Writes that destroy work with no archive also need
-`--dangerous` next to the token. See [SECURITY.md](SECURITY.md).
+confirmed write can draw a schematic, place parts, and add or delete routing.
+The writes that destroy work also need `--dangerous` next to the token:
+`schematic draw`, `pcb unroute`, `pcb create --replace` (which first archives the
+layout folder to a zip beside the project), `pcb arrange` on a routed board,
+`pcb route --unroute`, `pcb annotate --unroute`, and `library kicad-import` into a
+partition that exists. `pcb annotate`, `pcb export` when it changes the output
+setups, and the first `pcb show --top-view` on a board close and reopen the board
+without saving it, so save hand edits in Layout first. See [SECURITY.md](SECURITY.md).
 
 ## Capabilities
 
 | Area | Commands | Backend |
 |---|---|---|
-| Project data | `project init`, `project info`, `project tree`, `project snapshot`, `project diff`, `design snapshot` | MockBackend |
-| Schematic | reads above plus `schematic apply` for ChangeSets | MockBackend |
-| PCB reads | `pcb info`, `components`, `footprints`, `nets`, `layers`, `stackup`, `tracks`, `vias`, `zones`, `keepouts`, `query` | MockBackend |
-| PCB design | `pcb create`, `annotate`, `outline`, `holes`, `arrange`, `move`, `rules`, `pour`, `route`, `trace`, `via`, `unroute`, `stitch`, `labels`, `geometry`, `render`, `show`, `drc`, `export` | NativeBackend (see below) |
-| Schematic drawing | `schematic draw`, `schematic show`, `library build` | NativeBackend (see below) |
-| Constraints/analysis | `constraints ...`, `analysis run|results|erc|drc|dfm` | MockBackend |
-| Manufacturing/library | `manufacturing ...`, `library search|...|validate` | MockBackend |
-| Change control | `change validate`, `change preview`, `change apply`, `change history`, `change rollback` | MockBackend |
-| Review and BOM | `review run`, `bom export|normalize|group|variants|missing|duplicates|validate|compare` | MockBackend |
-| Environment | `context`, `doctor`, `system capabilities`, `system license` | local probe |
+| Project data | `project init`, `project info`, `project tree`, `project snapshot`, `project diff`, `design snapshot` | both; natively `project init --template` copies a template project, and `project diff` compares a MockBackend file with its backup |
+| Schematic reads | `schematic sheets`, `components`, `pins`, `nets`, `connectivity`, `unconnected`, `power`, `interfaces`, `query` | both |
+| Schematic drawing | `schematic draw`, `schematic show`, `schematic export`, `library build`, `library kicad-import` | NativeBackend (see below) |
+| Pin planning | `schematic pin-plan`, `schematic pin-check` | offline, against a supplied snapshot |
+| PCB reads | `pcb info`, `components`, `footprints`, `nets`, `tracks`, `vias`, `layers`, `stackup`, `zones`, `keepouts`, `query` | both; natively only components, footprints, nets, tracks and vias are read, and the rest come back empty |
+| PCB design | `pcb create`, `annotate`, `outline`, `holes`, `arrange`, `placement`, `move`, `rules`, `pour`, `route`, `trace`, `via`, `unroute`, `labels`, `geometry`, `render`, `show`, `drc`, `export` | NativeBackend (see below) |
+| PCB planning | `pcb stitch`, `pcb placement-plan` | offline, from files |
+| Constraints/analysis | `constraints ...`, `analysis run|results|erc|drc|dfm` | MockBackend; natively `analysis run` is refused and the reads come back empty (use `review run` and `pcb drc`) |
+| Manufacturing/library reads | `manufacturing ...`, `library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend; natively they come back empty |
+| Change control | `change validate`, `change preview`, `change apply`, `change history`, `change rollback`, `schematic apply` | MockBackend; natively `change apply` places and moves parts, and `schematic apply` also creates nets and connects pins |
+| Review and BOM | `review run`, `bom export|normalize|group|variants|missing|duplicates|validate|compare` | both; natively `review run` adds Designer's own verification |
+| Environment | `context`, `doctor`, `reference`, `changelog`, `system capabilities`, `system license`, `system api-inventory` | local probe; `api-inventory` reads COM type libraries on Windows |
 | Knowledge base | `kb list`, `kb add`, `kb remove` | local links to company rules; the agent reads them |
-| Session | `session status`, `session logs` | MockBackend; native start/attach/stop require adapter |
+| Session | `session status`, `session logs`, `session start`, `session attach`, `session open`, `session stop` | start/attach/open/stop drive Xpedition; `session logs` reads a log this version never writes |
 | Exchange files | `exchange inspect`, `exchange import` | JSON/CSV/BOM/IPC-2581; PDF/EDN/ODB++ remain unavailable |
-| Agent bridge | `agent snapshot`, `agent query`, `agent review`, `agent capabilities`, `agent serve` | MockBackend; `serve` supports custom NDJSON and MCP transports |
-| Native Xpedition | `session ...`, project/PCB reads, controlled component move/place | NativeBackend; requires COM registration and licensing |
-| Planned | unsupported Exchange formats, full native ChangeSets, recorded R-C evidence | explicit in `capabilities` |
+| Agent bridge | `agent snapshot`, `agent query`, `agent review`, `agent capabilities`, `agent serve` | MockBackend unless the native backend is selected; `serve` supports custom NDJSON and MCP transports |
+| Planned | native constraints, analysis, manufacturing and library reads; PDF/EDN/ODB++ imports; the rest of the native ChangeSet operations | listed in `system capabilities` |
 
 The live command and schema source is `xpedition-cli reference --compact`.
 
@@ -95,12 +103,15 @@ The live command and schema source is `xpedition-cli reference --compact`.
 
 Agent integrations can use `xpedition-cli agent serve --transport stdio` for a
 newline-delimited JSON request/response stream. It exposes snapshot, query,
-review and capability methods over MockBackend.
+review and capability methods, on MockBackend unless a request selects the
+native backend.
 
 ## Native Xpedition: from the schematic to the fabrication package
 
-Every step below has run on a licensed Xpedition (XPED2604) against the example
-project; the runs are recorded in [docs/E2E.md](docs/E2E.md) and every fact learnt
+The stages below have run on a licensed Xpedition (XPED2604) against the example
+project -- apart from `pcb via` on its own and the guarded `library kicad-import`,
+whose converter ran through an earlier entry point. The runs are recorded in
+[docs/E2E.md](docs/E2E.md) and every fact learnt
 about the automation in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Write
 commands are guarded: `--dry-run` returns a `confirm_token`, `--confirm <token>` acts.
 
@@ -108,8 +119,8 @@ commands are guarded: `--dry-run` returns a `confirm_token`, `--confirm <token>`
 |---|---|
 | Project and schematic | `project init`, `schematic draw`, `schematic show`, `schematic export`, `review run` |
 | Library | `library build` (parts from a design file), `library kicad-import` (cells from KiCad footprint libraries) |
-| Board | `pcb create`, `pcb annotate`, `pcb outline`, `pcb holes`, `pcb arrange`, `pcb pour`, `pcb rules`, `pcb route`, `pcb drc` |
-| By hand | `pcb geometry`, `pcb trace`, `pcb via`, `pcb unroute`, `pcb move`, `pcb labels`, `pcb stitch` (offline plan checks in `xpedition_cli.routing_plan`) |
+| Board | `pcb create`, `pcb annotate`, `pcb outline`, `pcb holes`, `pcb arrange`, `pcb placement`, `pcb pour`, `pcb rules`, `pcb route`, `pcb drc` |
+| By hand | `pcb geometry`, `pcb trace`, `pcb via`, `pcb unroute`, `pcb move`, `pcb labels`, `pcb stitch` (plans offline; the plan checks are in `xpedition_cli.routing_plan`) |
 | Pictures and output | `pcb render`, `pcb show [--top-view]`, `pcb export` (ODB++, Gerber, NC drill, centroid, BOM, manifest) |
 
 ## Machine Contract
@@ -125,9 +136,10 @@ commands are guarded: `--dry-run` returns a `confirm_token`, `--confirm <token>`
 
 ## Configuration
 
-The CLI has no login flow in this phase. It stores only the local confirmation
-secret, consumed-token ledger, audit JSONL and knowledge-base links under
-`~/.xpedition-cli/`. Set `XPEDITION_CLI_CONFIG_DIR` to isolate these files in
+The CLI has no login flow in this phase. It keeps its local state under
+`~/.xpedition-cli/`: the confirmation secret, the consumed-token ledger and its
+lock, the audit JSONL, knowledge-base links, the native session record
+(`session.json`) and placement locks. Set `XPEDITION_CLI_CONFIG_DIR` to isolate these files in
 tests or CI. Set `XPEDITION_NATIVE_COMMAND` to select an adapter when needed;
 setting it does not bypass COM registration or license checks.
 

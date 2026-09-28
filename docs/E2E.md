@@ -45,7 +45,8 @@ Two things about this run are worth stating plainly:
   behind those symbols are not real footprints.
 - The run covers **Designer only**. At that point Layout reads and writes had not
   been exercised against a real board, so `release_readiness.level` was `beta`.
-  The runs below closed that gap.
+  The runs below closed that gap. The level read `stable` on 2026-09-17 and is
+  `beta` again today; `release_readiness.reason` in `reference` says why.
 
 ## Recorded run — a four-sheet example schematic, 2026-09-12
 
@@ -161,7 +162,8 @@ forward annotation never swaps the cell of an existing part:
 
 Before the cell change the same passes left 10 nets open around the MCU: the
 router cannot reach 0.4 mm pads 0.25 mm apart with a 0.254 mm clearance rule,
-and the rules are read-only through automation.
+and the rules are read-only through Layout's own automation (`pcb rules` later
+set trace widths through Constraint Manager's).
 
 ## Recorded run — checked, 2026-09-14
 
@@ -257,12 +259,12 @@ every step through the CLI (`--dry-run`, then `--confirm`):
 
 Facts that cost a run each are in `COMPATIBILITY.md` ("Layout facts from the
 placement and routing round"): `LayerSelect` on inner layers only, no trace width
-through the automation, the arc format of the points array, `GetRect*` for
+through Layout's own automation (Constraint Manager's came later), the arc format of the points array, `GetRect*` for
 rectangles only, the save prompt when the outline was invalid.
 
 ## Recorded run: the fabrication package (2026-09-14, night)
 
-`pcb export --output 07_PCB/fab` on the 70 × 48 board: the first run closed and reopened
+`pcb export --output fab` on the 70 × 48 board: the first run closed and reopened
 the board to patch the setups (drill spans and outline into the ODB++ job, cell
 silkscreen and outline into the Gerber set), then NC drill (12 s), ODB++ (13 s) and
 Gerber (11 s) ran through their dialogs. Package: 11 Gerber files (top/bottom copper,
@@ -291,9 +293,9 @@ complete, 117 traces, 36 vias, the supply traces 19.685 th = 0.5 mm wide, the re
 DRC refusal now that the shape does not obstruct routing), `pcb drc` (15 s; 0 errors,
 11 `ViasUnderParts` warnings, `passes` true), `pcb render` top and bottom (16 s each;
 133 pads, 36 vias, 117 traces, 8 generated plane pieces, 52 holes, 199 silkscreen
-lines, 41 texts). Pictures: `07_PCB/board_render_top.png`, `board_render_bottom.png`.
+lines, 41 texts). Pictures: `board_render_top.png`, `board_render_bottom.png`.
 
-Then `pcb export --output 07_PCB/fab`: the first run closed and reopened the board
+Then `pcb export --output fab`: the first run closed and reopened the board
 to patch the setups, ran the three dialogs and gathered 16 Gerber files, 2 drill
 files, the ODB++ job, the centroid file and the BOM, but `checks.ok` was false — "the
 ODB++ job has no drill layer": the ODB++ dialog had written `d_1_4 INCLUDE NO` back
@@ -323,12 +325,13 @@ diagonal, the bottom VBAT group never tied to the battery connector). Round 2 (1
 items) closed every signal net; `pcb pour` on layers 1 and 4, then `pcb stitch`'s 16
 ground vias (two pads without room) closed GND. Batch DRC: 16 `TraceWidths` (0.3 mm
 stubs against a class that allows exactly 0.254) — `pcb rules --class "(Default)"
---expansion 0.5`; 3 `Hangers` (the runs under the test points) — `pcb unroute --at`
-and the runs drawn to their vias; then 0 errors, 2 `ViasUnderParts` warnings.
-`pcb labels` moved 41 designators (R202, R305 found no room). Result: 129 traces,
-41 vias (16 of them ground stitching), 18/18 nets, `pcb export` `checks.ok` on the
-first run. Pictures `07_PCB/board_render_top.png`, `board_render_bottom.png`; the
-plans in `06_脚本与工具/handroute/`.
+--width <w> --expansion 0.5` (the command requires `--width`; the typical width given
+in this run was not recorded); 3 `Hangers` (the runs under the test points) —
+`pcb unroute --at` and the runs drawn to their vias; then 0 errors, 2 `ViasUnderParts`
+warnings. `pcb labels` moved 41 designators (R202, R305 found no room). Result: 129
+traces, 41 vias (16 of them ground stitching), 18/18 nets, `pcb export` `checks.ok` on
+the first run. Pictures `board_render_top.png`, `board_render_bottom.png`; the
+trace plans were kept with the project, outside this repository.
 
 ## Recorded run: the hand layout replayed for a screen recording (2026-09-15, afternoon)
 
@@ -361,16 +364,20 @@ installation:
   exercised. A run against the finished board wrote `PCB-backup-20260917-153700.zip`
   beside the project — 1.9 MB, 128 entries, the `.pcb` file included, `LogFiles`
   and `*.bak` left out — before deleting the folder; `pcb annotate` then rebuilt
-  the board (39 parts, 18 nets) and `flow_demo.py` redrew it in full.
+  the board (39 parts, 18 nets) and a replay script kept outside this repository
+  redrew it in full.
 - `E_TIMEOUT` is a declared error code that no test reached. It now has one at the
   backend (`subprocess.TimeoutExpired` becomes `E_TIMEOUT`, retryable) and one at
   the CLI boundary (an adapter that never answers exits 8).
 
-With those in place the release gate reads: functional contract coverage 107 of
-107 commands, contract tests across success, validation, usage, confirmation,
-conflict, not-found, backend-unavailable and timeout paths, empty results, paging,
-the output envelope, exit codes and the stdout/stderr boundary, and the live runs
-recorded above. `release_readiness.level` is `stable`.
+With those in place the release gate read, on 2026-09-17: functional contract
+coverage 107 of 107 commands, contract tests across success, validation, usage,
+confirmation, conflict, not-found, backend-unavailable and timeout paths, empty
+results, paging, the output envelope, exit codes and the stdout/stderr boundary,
+and the live runs recorded above. `release_readiness.level` was `stable`. The
+commands added since (`reference` lists 116 today) include the native placement
+path, which the 2026-09-19 run below covers only in part; the level is `beta` now,
+and `release_readiness.reason` in `reference` says why.
 
 ## Recorded run: selected placement on a disposable board, 2026-09-19
 
@@ -427,10 +434,11 @@ Three faults came up on the way and are fixed:
   `session stop` reported it closed while that dialog held `Quit`. The stop now
   answers the known questions and checks that the application went.
 
-## Not claimed by `stable`
+## What the recorded runs do not cover
 
 - Every recorded run comes from one Windows installation of XPED2604. A second
-  machine has not repeated them, and CI has never run.
+  machine has not repeated them, and no CI job runs these commands against a
+  licensed Xpedition.
 - Symbols and cells are generated or converted from an open-source library rather
   than taken from a production central library; part numbers are placeholders.
 - The Xpedition automation surface is what this installation exposes; another

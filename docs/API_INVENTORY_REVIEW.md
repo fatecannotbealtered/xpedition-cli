@@ -1,5 +1,9 @@
 # API inventory review handoff
 
+*Historical record: written for pull request #9 before it was merged on 2026-09-18;
+kept as the design and evidence record. The current contract is
+`xpedition-cli reference`.*
+
 Implementation verified on Windows: `323dcd4ca908edbf73af8302624ea5c6373409ba`.
 This document changes no execution behavior. The PR remains draft/unmerged.
 

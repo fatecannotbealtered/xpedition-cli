@@ -977,9 +977,25 @@ SCHEMAS.update(placement_contract.SCHEMAS)
 
 
 def _param(
-    name: str, type_name: str, required: bool = False, multiple: bool = False
+    name: str,
+    type_name: str,
+    required: bool = False,
+    multiple: bool = False,
+    choices: tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    return {"name": name, "type": type_name, "required": required, "multiple": multiple}
+    param: dict[str, Any] = {
+        "name": name,
+        "type": type_name,
+        "required": required,
+        "multiple": multiple,
+    }
+    if choices:
+        param["choices"] = list(choices)
+    return param
+
+
+# what `--kind` accepts on the session commands (main.py resolves both names of each)
+SESSION_KINDS = ("pcb", "layout", "schematic", "designer")
 
 
 DEFAULT_SORT = "the order the project or design stores them; stable between calls"
@@ -1132,7 +1148,8 @@ def commands() -> list[dict[str, Any]]:
         ),
         _command(
             "session logs",
-            "Read bounded local session log lines",
+            "Read bounded lines of session.log in the config folder; this version writes "
+            "nothing to it, so the page is empty unless something else does",
             "session_logs",
             ["xpedition-cli session logs --compact"],
             params=[_param("limit", "integer"), _param("offset", "integer")],
@@ -1147,7 +1164,7 @@ def commands() -> list[dict[str, Any]]:
                 "xpedition-cli session start --backend native_xpedition --kind designer "
                 "--project ./board.prj --compact",
             ],
-            params=[_param("kind", "enum"), _param("project", "path")],
+            params=[_param("kind", "enum", choices=SESSION_KINDS), _param("project", "path")],
         ),
         _command(
             "kb list",
@@ -1196,7 +1213,7 @@ def commands() -> list[dict[str, Any]]:
             "Attach to an Xpedition Layout or Designer instance that is already running",
             "session_lifecycle",
             ["xpedition-cli session attach --backend native_xpedition --kind designer --compact"],
-            params=[_param("kind", "enum")],
+            params=[_param("kind", "enum", choices=SESSION_KINDS)],
         ),
         _command(
             "session open",
@@ -1206,7 +1223,7 @@ def commands() -> list[dict[str, Any]]:
                 "xpedition-cli session open --backend native_xpedition --kind designer "
                 "--project ./board.prj --compact"
             ],
-            params=[_param("kind", "enum"), _param("project", "path", True)],
+            params=[_param("kind", "enum", choices=SESSION_KINDS), _param("project", "path", True)],
         ),
         _command(
             "session stop",
@@ -1219,7 +1236,7 @@ def commands() -> list[dict[str, Any]]:
                 "--confirm <confirm_token> --compact",
             ],
             permission="write",
-            params=[_param("kind", "enum")],
+            params=[_param("kind", "enum", choices=SESSION_KINDS)],
             blast_radius="the running Xpedition application; unsaved design work is lost",
             dry_run_schema="session_stop_preview",
         ),
@@ -1461,7 +1478,7 @@ def commands() -> list[dict[str, Any]]:
                 "xpedition-cli bom compare --project ./base.json "
                 "--other-project ./other.json --compact"
             ],
-            params=[_param("project", "path", True), _param("other_project", "path", True)],
+            params=[_param("project", "path", True), _param("other-project", "path", True)],
         ),
     ]
     result.extend(
@@ -1885,7 +1902,7 @@ def commands() -> list[dict[str, Any]]:
                 params=[
                     _param("project", "path", True),
                     _param("scheme", "string"),
-                    _param("top_view", "boolean"),
+                    _param("top-view", "boolean"),
                     _param("output", "path"),
                 ],
                 blast_radius=(
@@ -2206,7 +2223,7 @@ def commands() -> list[dict[str, Any]]:
                 "analysis_run",
                 [_mock_example("analysis run", "--kind all")],
                 params=[
-                    _param("kind", "enum"),
+                    _param("kind", "enum", choices=("all", "erc", "drc", "dfm")),
                     _param("project", "path"),
                     _param("limit", "integer"),
                     _param("offset", "integer"),
@@ -2415,10 +2432,9 @@ def release_readiness() -> dict[str, Any]:
         # is unexplained; `reason` says what the recorded runs do cover.
         "live_smoke_status": "missing",
         "reason": (
-            "The original 107-command release recorded command-level and native evidence; "
-            "neither the added offline pin workflows nor the metadata inventory extend that "
-            "native evidence or validate target Xpedition behavior. The contract "
-            "tests cover success, validation, usage, confirmation, conflict, not-found, "
+            "Every public command has command-level tests, and the offline pin workflows "
+            "and the type-library inventory have no native evidence of their own. The "
+            "contract tests cover success, validation, usage, confirmation, conflict, not-found, "
             "backend-unavailable and timeout paths, empty results, paging, the output "
             "envelope, exit codes and the stdout/stderr boundary; and docs/E2E.md "
             "records the whole chain on a licensed installation — a schematic drawn and "
