@@ -102,9 +102,7 @@ def doctor(options: dict[str, Any]) -> dict[str, Any]:
     status = NativeBackend().status()
     session = recorded_session()
     recorded = read_state()
-    crashed = session.get("state") == "crashed"
-    stale = recorded.get("state") == "stale"
-    ready = bool(status.get("available")) and not crashed
+    ready = bool(status.get("available"))
     live = running_applications(ready)
     running = [
         name for name, on in (("Layout", live["layout"]), ("Designer", live["designer"])) if on
@@ -113,15 +111,8 @@ def doctor(options: dict[str, Any]) -> dict[str, Any]:
         {
             "check": "xpedition",
             "status": "pass" if ready else "fail",
-            "fix": None
-            if ready
-            else (
-                "session stop, then session start: the recorded process is gone"
-                if crashed
-                else native_fix(status)
-            ),
-            "message": (session.get("reason") if crashed else status.get("reason"))
-            or f"adapter ready; SDD_HOME {status.get('sdd_home')}",
+            "fix": None if ready else native_fix(status),
+            "message": status.get("reason") or f"adapter ready; SDD_HOME {status.get('sdd_home')}",
         },
         {
             "check": "applications",
@@ -150,7 +141,8 @@ def doctor(options: dict[str, Any]) -> dict[str, Any]:
             ),
         },
     ]
-    if stale:
+    # what this tool recorded about the process it drives, when that needs acting on
+    if recorded.get("state") == "stale":
         checks.append(
             {
                 "check": "session",
@@ -158,6 +150,16 @@ def doctor(options: dict[str, Any]) -> dict[str, Any]:
                 "fix": "session stop, then session start",
                 "message": f"a call to {recorded.get('timed_out_method')} timed out; the "
                 "application may be mid-operation",
+            }
+        )
+    elif session.get("state") == "crashed":
+        kind = "schematic" if recorded.get("domain") == "schematic" else "pcb"
+        checks.append(
+            {
+                "check": "session",
+                "status": "warn",
+                "fix": f"session start --kind {kind}",
+                "message": session.get("reason") or "the recorded process is gone",
             }
         )
     if options.get("project"):

@@ -135,3 +135,17 @@ def test_design_text_that_would_write_its_own_records_is_refused():
         H.library_texts(_design([block]))
     assert caught.value.code == "E_VALIDATION"
     assert caught.value.details["fields"][0]["value"].startswith("AO3401")
+
+
+def test_a_generated_cell_carries_its_reference_designator() -> None:
+    """Without one the placed part had no designator on the silkscreen at all."""
+    design = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    plan, texts = H.library_texts(design)
+    chip = plan.cells["CLI_0402"]
+    assert chip.refdes is not None and chip.refdes_assembly is not None
+    # above the body and its pads, centred
+    assert chip.refdes.x == 0 and chip.refdes.y > max(pin.y for pin in chip.pins) + 0.5
+    assert plan.cells["CLI_HOLE_M2"].refdes is None  # a hole's designator means nothing
+    block = texts["cells"].split('.PACKAGE_CELL "CLI_0402"')[1].split(".PACKAGE_CELL")[0]
+    assert "TEXT_TYPE REF_DES" in block and "SILKSCREEN_MNT_LYR" in block
+    assert "ASSEMBLY_MNT_LYR" in block

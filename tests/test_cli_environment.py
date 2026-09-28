@@ -122,3 +122,16 @@ def test_changelog_filters_by_version(cli) -> None:
     code, payload = cli("changelog", "--since", "1.0.0")
     assert all(entry["version"] != "1.0.0" for entry in payload["data"]["entries"])
     assert payload["data"]["since"] == "1.0.0"
+
+
+def test_a_recorded_process_that_is_gone_does_not_stop_doctor_probing(cli, adapter) -> None:
+    from xpedition_cli.session import record_native_start
+
+    record_native_start({"pid": 999999, "domain": "schematic"})
+    adapter.on("health", {"application_running": True, "designer_application_running": False})
+    _, payload = cli("doctor")
+    checks = {check["check"]: check for check in payload["data"]["checks"]}
+    assert checks["xpedition"]["status"] == "pass"
+    assert checks["applications"]["message"] == "running: Layout"
+    assert checks["session"]["status"] == "warn"
+    assert checks["session"]["fix"] == "session start --kind schematic"

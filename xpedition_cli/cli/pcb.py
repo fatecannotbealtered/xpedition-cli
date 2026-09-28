@@ -390,19 +390,43 @@ def rules(options: dict[str, Any]) -> dict[str, Any]:
 
 
 def _design_zones(options: dict[str, Any]) -> dict[str, str]:
-    """Zone labels per sheet from a design file: `sheets[].zone`, else its `number`."""
+    """Zone labels for the arrange's groups, from the design file's `sheets[].zone`.
+
+    The arrange groups parts by the sheet their reference designator encodes (C201 is
+    group 2), which is not always the sheet they are drawn on: the demo numbers its
+    first sheet of parts 1xx and draws it on sheet 2. So each sheet's label goes to the
+    group most of its parts fall in, not to the group with the sheet's own number.
+    """
+    from collections import Counter
+
+    from .. import schematic_layout
+    from ..board_layout import group_of
+
     if not options.get("design"):
         return {}
     _design_file, design = read_design(options, "pcb arrange")
-    zones: dict[str, str] = {}
+    labels: dict[int, str] = {}
     for index, sheet in enumerate(design.get("sheets") or [], 1):
-        if not isinstance(sheet, dict):
-            continue
-        number_text = str(sheet.get("number") or index)
-        key = number_text.lstrip("0") or number_text
-        label = str(sheet.get("zone") or "").strip()
-        if label:
-            zones[key] = label
+        if isinstance(sheet, dict) and str(sheet.get("zone") or "").strip():
+            try:
+                labels[int(sheet.get("number") or index)] = str(sheet["zone"]).strip()
+            except (TypeError, ValueError):
+                continue
+    try:
+        parts = schematic_layout.plan(design).parts
+    except schematic_layout.DesignError:
+        parts = []
+    by_sheet: dict[int, list[str]] = {}
+    for part in parts:
+        by_sheet.setdefault(int(part.get("sheet") or 0), []).append(str(part["refdes"]))
+    zones: dict[str, str] = {}
+    for sheet_number, label in sorted(labels.items()):
+        refs = by_sheet.get(sheet_number)
+        if refs:
+            key = Counter(group_of(ref) for ref in refs).most_common(1)[0][0]
+        else:
+            continue  # a sheet with no parts has no group on the board
+        zones.setdefault(key, label)
     return zones
 
 

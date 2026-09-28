@@ -137,8 +137,8 @@ def test_designer_connect_draws_a_wire_between_the_two_pins() -> None:
     assert (ax, ay, bx, by) == (10, 20, 60, 20) and (cx, cy, dx, dy) == (60, 20, 60, 50)
     assert pin_a is not None and pin_b is None and pin_c is None and pin_d is not None
     assert wire == 7
-    # the label sits beside the first pin, not at the sheet's origin
-    assert block.label[1:] == ("3V3", 12, 22)
+    # the label sits over the first segment's middle, not at the sheet's origin
+    assert block.label[1:] == ("3V3", 35, 22)
 
 
 def test_designer_connect_follows_the_points_it_is_given() -> None:
@@ -731,3 +731,42 @@ def test_the_health_probe_changes_nothing_on_a_running_layout(monkeypatch) -> No
     assert result["application_running"] is True
     assert written == []
     assert "dialog_suppression" not in result
+
+
+def test_designer_snapshot_lists_every_sheet_not_only_the_open_one() -> None:
+    """SchematicSheetDocuments lists open windows; a 4-sheet design read as one sheet."""
+
+    class Strings:
+        def __init__(self, items: list[str]) -> None:
+            self.items = items
+
+        def GetCount(self) -> int:
+            return len(self.items)
+
+        def GetItem(self, index: int) -> str:
+            return self.items[index - 1]
+
+    class Documents(_Collection):
+        def GetAvailableSchematics(self) -> Strings:
+            return Strings(["Schematic1"])
+
+        def GetAvailableSheets(self, schematic: str) -> Strings:
+            assert schematic == "Schematic1"
+            return Strings(["1", "2", "3", "4"])
+
+    part = _Component("R1", 100, 200, [("1", "3V3")])
+    part.UID = "$1I12@3"  # a UID starts with the number of the sheet the part is on
+
+    class App:
+        def GetActiveDesign(self) -> str:
+            return "demo"
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection([part])
+
+        def SchematicSheetDocuments(self) -> Documents:
+            return Documents([SimpleNamespace(Name="Schematic1.1")])
+
+    result = _designer_snapshot(App(), {})
+    assert [sheet["number"] for sheet in result["sheets"]] == [1, 2, 3, 4]
+    assert result["sheets"][0]["name"] == "Schematic1.1"

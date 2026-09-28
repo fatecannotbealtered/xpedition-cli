@@ -370,7 +370,41 @@ def _com_error(exc: Exception, action: str) -> AdapterError:
         return AdapterError(
             "E_AUTH", "Xpedition rejected the automation license", {"action": action}
         )
-    return AdapterError("E_SERVER", f"Xpedition COM operation failed: {text}", {"action": action})
+    return AdapterError(
+        "E_SERVER", f"Xpedition COM operation failed: {_com_text(exc)}", {"action": action}
+    )
+
+
+def _com_text(exc: Exception) -> str:
+    """What the application said: its EXCEPINFO source and description when it gave
+    them, not the whole com_error tuple."""
+    args = getattr(exc, "args", ())
+    info = args[2] if len(args) > 2 and isinstance(args[2], tuple) else ()
+    if len(info) > 2 and info[2]:
+        source = str(info[1] or "Xpedition").strip()
+        return f"{source}: {str(info[2]).strip()}"
+    if len(args) > 1 and isinstance(args[1], str) and args[1].strip():
+        return args[1].strip()
+    return str(exc)
+
+
+def _propget(obj: Any, dispid: int, *args: Any) -> Any:
+    """A property that takes arguments, read through its dispid.
+
+    Read by name, pywin32 fetches the property without them and hands the arguments
+    to the result's default member instead -- `doc.Nets(1)` is `doc.Nets.Item(1)`.
+    """
+    import pythoncom
+
+    try:
+        value = obj._oleobj_.Invoke(dispid, 0, pythoncom.DISPATCH_PROPERTYGET, 1, *args)
+    except Exception as exc:
+        raise _com_error(exc, f"read property {dispid}") from exc
+    if type(value).__name__ == "PyIDispatch":
+        import win32com.client
+
+        return win32com.client.Dispatch(value)
+    return value
 
 
 def _active_object(client: Any) -> Any:
@@ -1001,17 +1035,21 @@ def _designer_snapshot(app: Any, params: dict[str, Any]) -> dict[str, Any]:
             if sheet is not None and sheet not in entry["sheets"]:
                 entry["sheets"].append(sheet)
             pins_by_net.setdefault(identity, set()).add(f"{record['refdes']}.{pin['number']}")
+    # every sheet of the schematic: SchematicSheetDocuments alone lists only the
+    # ones open in a window, which read a four-sheet design as one sheet
     sheets: list[dict[str, Any]] = []
     try:
-        for sheet in _items(app.SchematicSheetDocuments()):
-            sheets.append(
-                {
-                    "name": str(_value(sheet, "Name", default="")),
-                    "full_name": str(_value(sheet, "FullName", default="")),
-                }
-            )
-    except Exception:
-        pass
+        numbers = _sheet_numbers(app)
+    except AdapterError:
+        numbers = {}
+    for number in sorted(numbers):
+        sheets.append(
+            {
+                "number": number,
+                "name": f"{numbers[number]}.{number}",
+                "parts": sum(1 for record in parts if record.get("sheet") == number),
+            }
+        )
     connections = [
         {"net": name, "pins": sorted(pins)}
         for name, pins in sorted(pins_by_net.items())
@@ -1182,7 +1220,7 @@ def _wire_between_pins(
     block: Any, first: Any, second: Any, operation: dict[str, Any], client: Any
 ) -> tuple[Any, tuple[int, int]]:
     """A wire from one pin to the other, through `points` when the operation names them,
-    else one horizontal and one vertical segment; the net and the first pin's point."""
+    else one horizontal and one vertical segment; the net, and where its label goes."""
     wire = _constants(client, ["VD_WIRE"])["VD_WIRE"]
     start, end = _pin_point(first), _pin_point(second)
     middle = [
@@ -1210,7 +1248,10 @@ def _wire_between_pins(
             net = net if net is not None else created
     except Exception as exc:
         raise _com_error(exc, "add_schematic_net") from exc
-    return net, start
+    # the label goes over the middle of the first segment, clear of the part at its end
+    (ax, ay), (bx, by) = route[0], route[1]
+    label = ((ax + bx) // 2, ay + 2) if ay == by else (ax + 2, (ay + by) // 2)
+    return net, label
 
 
 def _apply_designer_operation(
@@ -1319,12 +1360,12 @@ def _apply_designer_operation(
             if not separator or refdes not in components:
                 raise AdapterError("E_NOT_FOUND", f"schematic pin {pin_id!r} was not found")
             pin_objects.append(_designer_pin(components[refdes], number))
-        net, start = _wire_between_pins(block, pin_objects[0], pin_objects[1], operation, client)
-        # beside the first pin unless the operation places the label itself
+        net, label = _wire_between_pins(block, pin_objects[0], pin_objects[1], operation, client)
+        # over the wire's first segment unless the operation places the label itself
         label_at = (
             operation
             if "x" in operation or "y" in operation
-            else {**operation, "x": start[0] + 2, "y": start[1] + 2}
+            else {**operation, "x": label[0], "y": label[1]}
         )
         _label_schematic_net(net, str(operation.get("net", "")), label_at)
         deferred_nets.pop(str(operation.get("net", "")), None)
@@ -4349,6 +4390,18 @@ def _constraint_design(project_path: Path, board: str) -> tuple[Any, Any]:
     return auto, design
 
 
+CES_DESIGN_NETS = 1610743811  # IDesign.Nets([in, optional] long p_nNetMask = 1)
+CES_NET_MASK = 1 | 4  # NM_Nets | NM_PowerNets: the default mask left out GND and +5V
+
+
+def _ces_nets(design: Any) -> dict[str, Any]:
+    """Every net of the loaded design by name, the power nets included."""
+    nets: dict[str, Any] = {}
+    for net in _collection(_propget(design, CES_DESIGN_NETS, CES_NET_MASK)):
+        nets.setdefault(str(net.Name), net)
+    return nets
+
+
 def _collection(obj: Any) -> list[Any]:
     try:
         count = int(obj.Count)
@@ -4420,7 +4473,7 @@ def _net_rules(params: dict[str, Any], client: Any) -> dict[str, Any]:
     try:
         classes = design.NetClasses
         existing = {str(item.Name): item for item in _collection(classes)}
-        all_nets = {str(net.Name): net for net in _collection(design.Nets)}
+        all_nets = _ces_nets(design)
         membership: dict[str, list[str]] = {name: [] for name in existing}
         for name, net in all_nets.items():
             try:
@@ -5584,14 +5637,45 @@ def _hole_records(doc: Any) -> list[dict[str, Any]]:
     return records
 
 
+LAYOUT_PADSTACK_NAMES = 227  # Document.PadstackNames(type, pin class, pattern, central)
+_HOLE_PADSTACK = re.compile(
+    r"^(?:MH-C(?P<a>\d+(?:\.\d+)?)-NONPLATED|TH_Round_(?P<b>\d+(?:\.\d+)?)_Nonplated)$"
+)
+
+
+def _mounting_hole_padstack(doc: Any, diameter: float) -> str:
+    """The central library's non-plated round padstack of this diameter.
+
+    The dry run checks it too: Layout only refuses a missing padstack when the hole
+    is put, after the token was issued for a plan that could never be placed.
+    """
+    names = [str(name) for name in (_propget(doc, LAYOUT_PADSTACK_NAMES, -1, -1, "*", True) or ())]
+    sizes: dict[float, str] = {}
+    for name in names:
+        match = _HOLE_PADSTACK.match(name)
+        if match:
+            sizes.setdefault(float(match.group("a") or match.group("b")), name)
+    for size, name in sizes.items():
+        if abs(size - diameter) < 1e-6:
+            return name
+    raise AdapterError(
+        "E_NOT_FOUND",
+        f"the central library has no non-plated {diameter:g} mm mounting-hole padstack",
+        {
+            "diameter": diameter,
+            "available": sorted(sizes),
+            "hint": "pick one of the available diameters; library build creates the "
+            "MH-C<d>-NONPLATED padstack a design's mounting holes need",
+        },
+    )
+
+
 def _mounting_holes(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Read, and with `apply` place, mounting holes: one in each corner of the board
     outline, `inset` mm from both edges, through `Document.PutMountingHoleEx` with the
     central library's `MH-C<diameter>-NONPLATED` padstack (the library build and the
     KiCad import both create the 2.2 mm one). A corner that already has a hole within
     0.5 mm is left alone."""
-    from .library_hkp import _num
-
     pcb_path = _layout_board_path(params)
     try:
         diameter = float(params.get("diameter") or MOUNTING_HOLE_DIAMETER_MM)
@@ -5606,7 +5690,7 @@ def _mounting_holes(params: dict[str, Any], client: Any) -> dict[str, Any]:
     _doc, prompts = _open_layout_document(app, pcb_path)
     doc = _licensed_document(app)
     board = _board_rect(doc)
-    padstack = f"MH-C{_num(diameter)}-NONPLATED"
+    padstack = _mounting_hole_padstack(doc, diameter)
     existing = _hole_records(doc)
     corners = [
         (board[0] + inset, board[1] + inset),

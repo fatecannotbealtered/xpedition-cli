@@ -246,14 +246,14 @@ def test_arrange_is_dangerous_only_when_the_board_is_routed(cli, adapter, board)
     assert code == 0
 
 
-def test_arrange_takes_zone_labels_from_the_design(cli, adapter, board, tmp_path) -> None:
-    design = tmp_path / "design.json"
-    design.write_text(
-        json.dumps({"sheets": [{"number": 2, "zone": "POWER"}, {"number": 3}]}), encoding="utf-8"
-    )
+def test_arrange_takes_zone_labels_from_the_design(cli, adapter, board) -> None:
+    """A sheet's label goes to the group its parts fall in: the demo draws its 1xx parts
+    on sheet 2, so the POWER label belongs to group 1, not to sheet 1's OVERVIEW."""
+    design = Path(__file__).resolve().parents[1] / "examples" / "demo-sensor-board.json"
     adapter.on("arrange_components", {"pcb": "Board.pcb", "plan": [], "digest": "d", "routing": {}})
     cli("pcb", "arrange", "--project", str(board), "--design", str(design), "--dry-run")
-    assert adapter.last("arrange_components")["zones"] == {"2": "POWER"}
+    zones = adapter.last("arrange_components")["zones"]
+    assert zones == {"1": "POWER", "2": "MCU / SENSOR", "3": "IO / TEST"}
 
 
 def test_move_one_part(cli, adapter, board) -> None:

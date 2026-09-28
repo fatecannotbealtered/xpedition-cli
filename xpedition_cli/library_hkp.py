@@ -355,6 +355,33 @@ def _mounting_hole(stock: _Stock, name: str, drill: float) -> Cell:
 
 def build_package(stock: _Stock, key: str, pin_count: int) -> Cell:
     """A placeholder cell for a package key; `HDR`, `SOIC`, `TSSOP` take the pin count."""
+    return with_refdes(_package(stock, key, pin_count))
+
+
+REFDES_STROKE = 0.12
+
+
+def with_refdes(cell: Cell) -> Cell:
+    """The cell with its reference designator: on the silkscreen above the body and its
+    pads, and on the assembly layer at the body's centre.
+
+    Without one the placed part carries no reference designator at all -- nothing on
+    the silkscreen for `pcb labels` to move, and none in the fabrication outputs. A
+    mounting hole keeps none; its designator means nothing on the board.
+    """
+    if cell.refdes is not None or cell.mechanical:
+        return cell
+    x1, y1, x2, y2 = cell.body
+    top = max([y2, *(pin.y + 0.5 for pin in cell.pins)])
+    height = 0.8 if x2 - x1 >= 1.5 else 0.6
+    centre = round((x1 + x2) / 2, 3)
+    cell.refdes = RefDesText(centre, round(top + 0.3 + height / 2, 3), height, REFDES_STROKE)
+    inside = round(min(0.8, max(0.3, (y2 - y1) * 0.6)), 3)
+    cell.refdes_assembly = RefDesText(centre, round((y1 + y2) / 2, 3), inside, 0.1)
+    return cell
+
+
+def _package(stock: _Stock, key: str, pin_count: int) -> Cell:
     key = key.upper()
     if key == "0402":
         return _chip(stock, "CLI_0402", 1.0, (0.6, 0.55), (1.0, 0.5), 0.5)
