@@ -14,6 +14,7 @@ is available.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -2605,7 +2606,10 @@ def _tool_log(path: Path) -> dict[str, Any]:
             re.I,
         )
     ]
-    return {"path": str(path), "errors": errors, "lines": lines[-40:]}
+    # a warning is not a failure, but it can mean data was changed on the way in: an
+    # invalid Value is stored as 0 ("无效的值 ... (对于特性 \"Value\")")
+    warnings = [line.strip() for line in lines if re.search(r"警告|warning", line, re.I)]
+    return {"path": str(path), "errors": errors, "warnings": warnings[:40], "lines": lines[-40:]}
 
 
 REJECTED_CELL = re.compile(r'(?:无法添加单元|unable to add cell|cannot add cell)\s*"([^"]+)"', re.I)
@@ -2656,6 +2660,122 @@ def _ensure_prj_list(project_path: Path, list_name: str, entry: str) -> bool:
     return True
 
 
+LIBRARY_EXPORT_WORKERS = 6
+LIBRARY_EXPORT_TIMEOUT = 120.0
+
+
+def _library_export(params: dict[str, Any]) -> dict[str, Any]:
+    """The central library as HKP text: each parts and cell partition and the padstacks.
+
+    `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP` run with `-a -u mm` (plain text,
+    millimetres), several at once, into a cache folder under `cache`; a database whose
+    size and time are those of the last export is not exported again. Nothing in the
+    library is written. Symbols need no export: their files are text already, under
+    the `symbols` folder returned.
+    """
+    project = params.get("project")
+    if not project:
+        raise AdapterError("E_USAGE", "library_export requires the project path")
+    project_path = Path(str(project)).expanduser().resolve()
+    if not project_path.is_file():
+        raise AdapterError("E_NOT_FOUND", "project file was not found", {"path": str(project_path)})
+    lmc, root = _central_library(project_path)
+    if not lmc.is_file():
+        raise AdapterError("E_NOT_FOUND", "the central library was not found", {"path": str(lmc)})
+    cache_root = params.get("cache")
+    if not cache_root:
+        raise AdapterError("E_USAGE", "library_export requires a cache folder")
+    digest = hashlib.sha1(str(lmc).casefold().encode("utf-8")).hexdigest()[:16]
+    cache = Path(str(cache_root)).expanduser() / digest
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise AdapterError("E_IO", f"cannot create the cache folder: {exc}") from exc
+    kinds = [str(k) for k in params.get("kinds") or ("parts", "cells", "padstacks")]
+    wanted = params.get("partitions")
+    chosen = {str(p).casefold() for p in wanted} if wanted else None
+    sources: list[tuple[str, str, Path]] = []
+    if "parts" in kinds:
+        sources += [("parts", f.stem, f) for f in sorted((root / "PartsDBLibs").glob("*.pdb"))]
+    if "cells" in kinds:
+        sources += [("cells", f.stem, f) for f in sorted((root / "CellDBLibs").glob("*.cel"))]
+    if chosen is not None:
+        sources = [item for item in sources if item[1].casefold() in chosen]
+    if "padstacks" in kinds and (root / "Layout" / "PadstackDB.psk").is_file():
+        sources.append(("padstacks", "", root / "Layout" / "PadstackDB.psk"))
+    index_path = cache / "index.json"
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        if not isinstance(index, dict):
+            index = {}
+    except (OSError, ValueError):
+        index = {}
+    tools = {"parts": "PartsDB2HKP", "cells": "CellDB2HKP", "padstacks": "PadstackDB2HKP"}
+
+    def output_for(kind: str, partition: str) -> Path:
+        stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", partition) or kind
+        return cache / f"{kind}-{stem}.hkp"
+
+    def export(item: tuple[str, str, Path]) -> dict[str, Any]:
+        kind, partition, source = item
+        output = output_for(kind, partition)
+        record: dict[str, Any] = {"kind": kind, "partition": partition, "path": str(output)}
+        try:
+            info = source.stat()
+        except OSError as exc:
+            return {**record, "error": f"cannot read {source.name}: {exc}"}
+        current = [int(info.st_mtime_ns), int(info.st_size)]
+        if index.get(str(source)) == current and output.is_file():
+            return {**record, "cached": True, "stamp": current}
+        arguments = ["-i", str(source), "-o", str(output), "-u", "mm", "-a"]
+        log = output.with_suffix(".log")
+        if kind != "parts":
+            arguments += ["-l", str(log)]
+        try:
+            if output.exists():
+                output.unlink()
+            run = _run_library_tool(tools[kind], arguments, timeout=LIBRARY_EXPORT_TIMEOUT)
+        except (AdapterError, OSError) as exc:
+            return {**record, "error": str(exc)}
+        if run["exit_code"] != 0 or run["dialogs"] or not output.is_file():
+            return {
+                **record,
+                "error": f"{tools[kind]} failed",
+                "exit_code": run["exit_code"],
+                "dialogs": run["dialogs"],
+                "log": _tool_log(log)["errors"] if kind != "parts" else [],
+            }
+        return {**record, "cached": False, "stamp": current}
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(LIBRARY_EXPORT_WORKERS) as pool:
+        results = list(pool.map(export, sources))
+    files = []
+    failed = []
+    for (_kind, _partition, source), result in zip(sources, results, strict=True):
+        if "error" in result:
+            index.pop(str(source), None)
+            failed.append(result)
+            continue
+        index[str(source)] = result.pop("stamp")
+        files.append(result)
+    try:
+        index_path.write_text(json.dumps(index, indent=1), encoding="utf-8")
+    except OSError:
+        pass
+    return {
+        "project": str(project_path),
+        "library": str(lmc),
+        "root": str(root),
+        "symbols": str(root / "SymbolLibs"),
+        "files": files,
+        "failed": failed,
+        "exported": sum(1 for item in files if not item.get("cached")),
+        "_untrusted": ["project", "library", "root", "symbols", "files", "failed"],
+    }
+
+
 def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Import generated padstacks, cells and parts into the project's central library.
 
@@ -2701,6 +2821,35 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                     reopen = True
         except Exception as exc:
             raise _com_error(exc, "close_project_for_library") from exc
+    symbols = params.get("symbols") or {}
+    if not isinstance(symbols, dict):
+        raise AdapterError("E_USAGE", "library_import symbols must map symbol names to file text")
+    symbols_written: list[str] = []
+    if symbols:
+        target = root / "SymbolLibs" / partition / "sym"
+        if not str(target).isascii():
+            raise AdapterError(
+                "E_VALIDATION",
+                "Designer cannot load new symbol files from a folder whose path has "
+                "non-ASCII characters; keep the project and its library on an ASCII path",
+                {"path": str(target)},
+            )
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            folder = target.resolve()
+            for name, text in symbols.items():
+                path = (target / f"{name}.1").resolve()
+                if path.parent != folder:
+                    raise AdapterError(
+                        "E_VALIDATION",
+                        "a symbol name must be a plain file name",
+                        {"symbol": str(name)[:80], "_untrusted": ["symbol"]},
+                    )
+                path.write_text(str(text), encoding="utf-8")
+                symbols_written.append(str(name))
+        except OSError as exc:
+            raise AdapterError("E_IO", f"cannot write symbol files: {exc}") from exc
+    replace = bool(params.get("replace", True))
     steps: list[dict[str, Any]] = []
     padstack_db = root / "Layout" / "PadstackDB.psk"
     jobs = [
@@ -2736,13 +2885,16 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                 src,
                 "-o",
                 str(root / "PartsDBLibs" / f"{partition}.pdb"),
-                "-r",
+                # -r replaces a part of the same number; without it the database keeps
+                # the part it holds and drops the new one without a word
+                *(["-r"] if replace else []),
                 "-l",
                 log,
             ],
         ),
     ]
     registered = False
+    symbols_registered = False
     cells: list[str] = []
     cells_missing: list[str] = []
     try:
@@ -2768,6 +2920,11 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
             s["step"] == "parts" and s["exit_code"] != 0 for s in steps
         ):
             registered = _ensure_prj_pdb(project_path, f"PartsDBLibs\\{partition}.pdb")
+            if symbols_written:
+                # Designer searches the symbol partitions its .prj lists
+                symbols_registered = _ensure_prj_list(
+                    project_path, "Symbols", f"SymbolLibs\\{partition}"
+                )
             cells = _sync_prj_cells(project_path, root)
             wanted = [str(item) for item in params.get("cell_partitions") or []]
             if wanted:
@@ -2789,6 +2946,8 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "steps": steps,
         "failed": failed,
         "pdb_registered": registered,
+        "symbols_written": symbols_written,
+        "symbols_registered": symbols_registered,
         "cells_registered": cells,
         "cells_missing": cells_missing,
         # a part whose cell partition is missing has no footprint: packaging and the
@@ -7854,6 +8013,8 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             return _clone_project(params, client)
         if method == "library_import":
             return _library_import(params, client)
+        if method == "library_export":
+            return _library_export(params)
         if method == "kicad_import":
             return _kicad_import(params, client)
         if method == "pcb_create":

@@ -60,6 +60,7 @@ class Padstack:
     mask: str | None = None
     hole: str | None = None
     clearance: str | None = None
+    paste: str | None = None  # a paste window other than the pad (an exposed pad's)
 
 
 @dataclass(frozen=True)
@@ -472,6 +473,22 @@ def _clean_number(value: str) -> str:
     return " ".join(str(value).split()) or "PART"
 
 
+# The library's Value property is a number with an SI multiplier: the parts database
+# keeps 10k as 10K and 4.7k as 4.7K, and stores anything else -- 100nF, 10k 1%, 3.3V --
+# as 0, with no more than a warning in its log.
+_VALUE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([pnuµmkKMG]?)(?:F|H|R|Ω|[oO]hms?)?(?=$|[\s/,;_])")
+
+
+def library_value(text: str, whole: bool = False) -> str | None:
+    """The numeric Value a component value begins with (`10k 1%` -> `10k`, `100nF/16V`
+    -> `100n`), or None when it does not begin with one (`LED-GREEN`, `3.3V`). With
+    `whole`, only a value that is nothing else (`100nF`, not `100nF/16V`)."""
+    match = _VALUE.match(str(text))
+    if match is None or (whole and str(text)[match.end() :].strip()):
+        return None
+    return match.group(1) + match.group(2).replace("µ", "u")
+
+
 def _kicad_cell(spec: str, root: Any, cache: dict[str, Cell], library: LibraryPlan) -> Cell:
     """The cell standing for the KiCad footprint `spec` (`Library:Name`), read from the
     footprint folder `root` (or the one `kicad_footprints.default_root` finds). The cell is
@@ -578,7 +595,9 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
                 pin_numbers=numbers,
                 part_type=PART_TYPES.get(prefix, "Misc"),
                 description=f"{kind} {number} (placeholder part)",
-                properties={"Value": number},
+                properties=(
+                    {"Value": numeric} if (numeric := library_value(number)) is not None else {}
+                ),
             )
         library.mapping.append(
             {
@@ -696,8 +715,8 @@ def render_padstacks(plan: LibraryPlan) -> str:
                 f'...BOTTOM_PAD "{stack.pad}"',
                 f'...TOP_SOLDERMASK_PAD "{stack.mask}"',
                 f'...BOTTOM_SOLDERMASK_PAD "{stack.mask}"',
-                f'...TOP_SOLDERPASTE_PAD "{stack.pad}"',
-                f'...BOTTOM_SOLDERPASTE_PAD "{stack.pad}"',
+                f'...TOP_SOLDERPASTE_PAD "{stack.paste or stack.pad}"',
+                f'...BOTTOM_SOLDERPASTE_PAD "{stack.paste or stack.pad}"',
             ]
         elif stack.kind == "PIN_THROUGH":
             lines += [

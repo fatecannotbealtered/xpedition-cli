@@ -172,6 +172,12 @@ _LIMIT = Param("limit", "integer", description="at most this many items")
 _OFFSET = Param("offset", "integer", description="skip this many items first")
 _QUERY = Param("query", "string", description="keep items whose text contains this, any case")
 _REPLACE = Param("replace", "boolean", description="replace the output file if it exists")
+_PARTITIONS = Param(
+    "partition",
+    "string",
+    multiple=True,
+    description="only these central-library partitions",
+)
 _PACE = Param(
     "pace",
     "number",
@@ -195,6 +201,12 @@ def _placement_schema() -> dict[str, Any]:
 
 def _edit_schema() -> dict[str, Any]:
     from ..edit_operations import input_schema
+
+    return input_schema()
+
+
+def _parts_schema() -> dict[str, Any]:
+    from ..library_parts import input_schema
 
     return input_schema()
 
@@ -470,6 +482,151 @@ def _build() -> list[Command]:
             ),
             dry_run_schema="library_import_preview",
             dangerous_when="a library's partition exists already: the dry run marks it",
+        ),
+        Command(
+            "library list",
+            "library:list_items",
+            "What the project's central library holds, one kind at a time: parts, cells, "
+            "symbols or padstacks, read through the stock converters (cached until a "
+            "database changes)",
+            "library_list",
+            (
+                "xpedition-cli library list --project X.prj --compact",
+                "xpedition-cli library list --project X.prj --kind cells --query SOIC --compact",
+            ),
+            "library",
+            needs="xpedition",
+            params=(
+                _project(),
+                Param(
+                    "kind",
+                    "enum",
+                    choices=("parts", "cells", "symbols", "padstacks"),
+                    description="what to list (parts)",
+                ),
+                _PARTITIONS,
+                _QUERY,
+                _LIMIT,
+                _OFFSET,
+                _TIMEOUT,
+            ),
+            sort="by partition, then name or part number",
+        ),
+        Command(
+            "library show",
+            "library:show",
+            "One part in full -- pin map, symbol pins, cell lands and their padstacks, and "
+            "what is wrong with it -- or one cell and the parts that use it",
+            "library_show",
+            (
+                "xpedition-cli library show --project X.prj --part TPS7A2033PDBVR --compact",
+                "xpedition-cli library show --project X.prj --cell SOIC127P600X175-8N --compact",
+            ),
+            "library",
+            needs="xpedition",
+            params=(
+                _project(),
+                Param("part", "string", description="a part number"),
+                Param("cell", "string", description="a cell name"),
+                _TIMEOUT,
+            ),
+            extra={"mutually_exclusive": [["part", "cell"]]},
+        ),
+        Command(
+            "library check",
+            "library:check",
+            "Check the central library: parts against their cells, symbols and pin maps, "
+            "cells against the padstacks, symbols with repeated pin names, part numbers in "
+            "two partitions; most severe first",
+            "library_check",
+            ("xpedition-cli library check --project X.prj --compact",),
+            "library",
+            needs="xpedition",
+            params=(_project(), _PARTITIONS, _QUERY, _LIMIT, _OFFSET, _TIMEOUT),
+            sort="high, medium, low; then by rule and item",
+        ),
+        Command(
+            "library add",
+            "library:add",
+            "Add parts to the central library from a parts file: each part's symbol (a box "
+            "or a built-in kind), footprint (an IPC-7351B family from datasheet dimensions, "
+            "lands given one by one -- several may share a pin --, a placeholder package, a "
+            "cell the library holds or an imported KiCad footprint) and pin map. What the "
+            "library holds already is left alone when identical",
+            "library_add",
+            (
+                *_write_examples("library add --project X.prj --file parts.json"),
+                "xpedition-cli library add --project X.prj --file parts.json --dangerous "
+                "--confirm <confirm_token> --compact",
+            ),
+            "library",
+            needs="xpedition",
+            tier="dangerous",
+            params=(
+                _project(),
+                Param("file", "path", True, description="the parts file (JSON)"),
+                Param(
+                    "partition",
+                    "string",
+                    description="the partition for the parts, over the file's (PartQuest)",
+                ),
+                Param(
+                    "kicad-root",
+                    "path",
+                    description="folder of the KiCad .pretty libraries a kicad footprint "
+                    "names; the KiCad installation's by default",
+                ),
+            ),
+            blast_radius=(
+                "the project's central library gains the parts with their symbols, cells and "
+                "padstacks, and the .prj its symbol, parts and cell lists; a part, cell, "
+                "padstack or pad of the same name and other content is replaced, and every "
+                "part that uses it changes with it; Designer's project is closed and "
+                "reopened meanwhile"
+            ),
+            dry_run_schema="library_add_preview",
+            dangerous_when="the file replaces something the library holds: the dry run "
+            "lists it under replaces",
+            extra={"file_json_schema": _parts_schema()},
+        ),
+        Command(
+            "library render",
+            "library:render",
+            "A PNG per part, its symbol beside its footprint (lands numbered, silkscreen, "
+            "assembly and placement outlines, a 1 mm bar): from the library, or from a "
+            "parts file before it is added",
+            "library_render",
+            (
+                "xpedition-cli library render --file parts.json --output parts.png --compact",
+                "xpedition-cli library render --project X.prj --part TPS7A2033PDBVR "
+                "--output part.png --compact",
+            ),
+            "library",
+            needs="xpedition",
+            params=(
+                Param(
+                    "project",
+                    "path",
+                    description="the project's .prj: needed for --part, and for a parts file "
+                    "that names cells the library holds",
+                ),
+                Param("part", "string", description="a part number in the library"),
+                Param("file", "path", description="a parts file, not added yet"),
+                Param(
+                    "output",
+                    "path",
+                    True,
+                    description="the PNG; with several parts, <stem>-<part>.png beside it",
+                ),
+                Param(
+                    "kicad-root",
+                    "path",
+                    description="folder of the KiCad .pretty libraries a kicad footprint names",
+                ),
+                _REPLACE,
+                _TIMEOUT,
+            ),
+            extra={"mutually_exclusive": [["part", "file"]]},
         ),
         # -- schematic -------------------------------------------------------------
         Command(

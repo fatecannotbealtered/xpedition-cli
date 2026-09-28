@@ -204,3 +204,116 @@ class FakeAdapter:
                 argv, 0, json.dumps({"ok": False, "error": error}), ""
             )
         return subprocess.CompletedProcess(argv, 0, json.dumps({"ok": True, "data": data}), "")
+
+
+# -- a central library ------------------------------------------------------------------
+
+LIBRARY_PARTS = {
+    "partition": "PartQuest",
+    "parts": [
+        {
+            "number": "RES-10K",
+            "description": "resistor 10k 0402",
+            "prefix": "R",
+            "value": "10k",
+            "symbol": {"kind": "RES"},
+            "footprint": {"family": "chip", "size": "0402"},
+        },
+        {
+            "number": "MCU-8",
+            "description": "microcontroller, SOIC-8",
+            "prefix": "U",
+            "symbol": {
+                "left": [["1", "VDD"], ["2", "PA0"], ["3", "PA1"], ["4", "GND"]],
+                "right": [["8", "PB0"], ["7", "PB1"], ["6", "SWDIO"], ["5", "SWCLK"]],
+            },
+            "footprint": {
+                "family": "gullwing",
+                "pins": 8,
+                "pitch": 1.27,
+                "span": {"nominal": 6.0, "tolerance": 0.2},
+                "terminal": [0.4, 1.27],
+                "lead_width": [0.31, 0.51],
+                "body": [3.9, 4.9],
+                "height": 1.75,
+            },
+        },
+    ],
+}
+
+
+class FakeLibrary:
+    """A central library as the adapter's `library_export` hands it over: HKP texts in a
+    cache folder and symbol files, all written by the tool's own library writers.
+
+    `absorb` is a `library_import` handler: it merges what an import sends, the way the
+    converters merge into the databases, so a later export shows the new parts.
+    """
+
+    def __init__(self, folder, spec: dict[str, Any] | None = None) -> None:
+        from pathlib import Path
+
+        from xpedition_cli import library_parts
+
+        self.folder = Path(folder)
+        self.cache = self.folder / "cache"
+        self.symbols = self.folder / "SymbolLibs"
+        self.cache.mkdir(parents=True, exist_ok=True)
+        self.texts = {"parts": "", "cells": "", "padstacks": ""}
+        plan = library_parts.plan(spec or LIBRARY_PARTS)
+        self.merge("PartQuest", plan.texts(), plan.symbols)
+
+    def merge(self, partition: str, texts: dict[str, str], symbols: dict[str, str]) -> None:
+        for kind in ("parts", "cells"):
+            if texts.get(kind):
+                path = self.cache / f"{kind}-{partition}.hkp"
+                old = path.read_text(encoding="utf-8") if path.exists() else ""
+                path.write_text(old + "\n" + texts[kind], encoding="utf-8")
+        if texts.get("padstacks"):
+            path = self.cache / "padstacks-.hkp"
+            old = path.read_text(encoding="utf-8") if path.exists() else ""
+            path.write_text(old + "\n" + texts["padstacks"], encoding="utf-8")
+        folder = self.symbols / partition / "sym"
+        folder.mkdir(parents=True, exist_ok=True)
+        for name, text in symbols.items():
+            (folder / f"{name}.1").write_text(text, encoding="utf-8")
+
+    def export(self, params: dict[str, Any]) -> dict[str, Any]:
+        wanted = params.get("partitions")
+        files = []
+        for path in sorted(self.cache.glob("*.hkp")):
+            kind, _, partition = path.stem.partition("-")
+            if kind not in (params.get("kinds") or ["parts", "cells", "padstacks"]):
+                continue
+            if kind != "padstacks" and wanted and partition not in wanted:
+                continue
+            files.append({"kind": kind, "partition": partition, "path": str(path), "cached": True})
+        return {
+            "project": params["project"],
+            "library": str(self.folder / "Lib.lmc"),
+            "root": str(self.folder),
+            "symbols": str(self.symbols),
+            "files": files,
+            "failed": [],
+            "exported": 0,
+        }
+
+    def absorb(self, params: dict[str, Any]) -> dict[str, Any]:
+        self.merge(
+            params["partition"],
+            {k: params.get(k) or "" for k in ("parts", "cells", "padstacks")},
+            params.get("symbols") or {},
+        )
+        return {
+            "project": params["project"],
+            "library": str(self.folder / "Lib.lmc"),
+            "partition": params["partition"],
+            "steps": [],
+            "failed": [],
+            "pdb_registered": True,
+            "symbols_written": sorted(params.get("symbols") or {}),
+            "symbols_registered": bool(params.get("symbols")),
+            "cells_registered": [],
+            "cells_missing": [],
+            "ok": True,
+        }

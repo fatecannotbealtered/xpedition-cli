@@ -18,8 +18,11 @@ def _paged() -> list:
     ]
 
 
-def test_every_command_that_declares_paging_pages(cli, adapter, project) -> None:
+def test_every_command_that_declares_paging_pages(cli, adapter, project, tmp_path) -> None:
+    from fakes import FakeLibrary
+
     adapter.on("verify", {"scheme": "full", "findings": [], "logs": []})
+    adapter.on("library_export", FakeLibrary(tmp_path / "Lib").export)
     checked = []
     for command in _paged():
         code, result = cli(*command.path.split(), "--project", str(project), "--limit", "1")
@@ -38,6 +41,8 @@ def test_every_command_that_declares_paging_pages(cli, adapter, project) -> None
         "schematic nets",
         "schematic check",
         "bom export",
+        "library list",
+        "library check",
     }
 
 
