@@ -4088,6 +4088,53 @@ def _remove_board(client: Any, project_path: Path, pcb_relative: str, name: str)
     }
 
 
+def _release_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
+    """Close the project in Designer and its board in Layout, so its files can be
+    replaced; each only if it is the one open there."""
+    project = params.get("project")
+    if not project:
+        raise AdapterError("E_USAGE", "release_project requires the project path")
+    project_path = Path(str(project)).expanduser().resolve()
+    designer_closed = False
+    try:
+        app = _viewdraw_application(client, attach_only=True)
+    except AdapterError:
+        app = None
+    if app is not None:
+        designer_closed = _close_if_open(app, project_path)
+    board = None
+    layout_closed = False
+    try:
+        board = _layout_board_path({"project": str(project_path)})
+    except AdapterError:
+        board = None
+    if board is not None and board.exists():
+        layout_closed = _close_board_if_open(client, board)
+        if layout_closed:
+            _settle(2.0)  # Layout lets go of the folder a moment after the close
+    return {
+        "project": str(project_path),
+        "designer_closed": designer_closed,
+        "layout_closed": layout_closed,
+        "board": str(board) if board else None,
+        "_untrusted": ["project", "board"],
+    }
+
+
+def _reopen_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
+    """Open the project in Designer again, when Designer is running."""
+    project = params.get("project")
+    if not project:
+        raise AdapterError("E_USAGE", "reopen_project requires the project path")
+    project_path = Path(str(project)).expanduser().resolve()
+    try:
+        app = _viewdraw_application(client, attach_only=True)
+    except AdapterError:
+        return {"project": str(project_path), "reopened": False, "_untrusted": ["project"]}
+    _ensure_project(app, project_path)
+    return {"project": str(project_path), "reopened": True, "_untrusted": ["project"]}
+
+
 def _board_counts(doc: Any) -> dict[str, Any]:
     """How many components and nets the board holds now."""
     counts: dict[str, Any] = {}
@@ -8361,6 +8408,10 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             return _library_import(params, client)
         if method == "library_export":
             return _library_export(params)
+        if method == "release_project":
+            return _release_project(params, client)
+        if method == "reopen_project":
+            return _reopen_project(params, client)
         if method == "kicad_import":
             return _kicad_import(params, client)
         if method == "pcb_create":

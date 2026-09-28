@@ -77,6 +77,7 @@ def test_reference_marks_the_dangerous_writes(capsys) -> None:
         "pcb annotate",
         "library import",
         "library add",
+        "project restore",
         "schematic draw",
     }
     for path in dangerous:

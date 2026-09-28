@@ -409,6 +409,52 @@ def _build() -> list[Command]:
             "project",
             params=(_project(),),
         ),
+        Command(
+            "project backup",
+            "project:backup",
+            "Zip the project folder -- the .prj, the schematic database, the board and the "
+            "central library when it lives there -- beside the folder, with a manifest",
+            "project_backup",
+            (
+                "xpedition-cli project backup --project X.prj --compact",
+                "xpedition-cli project backup --project X.prj --output D:/backups/x.zip --compact",
+            ),
+            "project",
+            params=(
+                _project(),
+                Param(
+                    "output",
+                    "path",
+                    description="the .zip; <folder>-backups/<project>-<time>.zip beside the "
+                    "project folder by default",
+                ),
+            ),
+        ),
+        Command(
+            "project restore",
+            "project:restore",
+            "Make the project folder what a backup holds: the dry run lists the files it "
+            "adds, replaces and removes; the confirmed run closes the project, zips the "
+            "folder as it is first, restores and opens the project again",
+            "project_restore",
+            (
+                "xpedition-cli project restore --project X.prj --backup x.zip --dry-run --compact",
+                "xpedition-cli project restore --project X.prj --backup x.zip --dangerous "
+                "--confirm <confirm_token> --compact",
+            ),
+            "project",
+            tier="dangerous",
+            params=(
+                _project(),
+                Param("backup", "path", True, description="a .zip project backup made"),
+            ),
+            blast_radius=(
+                "every file of the project folder the backup differs from -- schematic, "
+                "board, library -- is replaced or removed; the folder is zipped first"
+            ),
+            dry_run_schema="project_restore_preview",
+            dangerous_when="always: it replaces and removes the project's files",
+        ),
         # -- library ---------------------------------------------------------------
         Command(
             "library build",

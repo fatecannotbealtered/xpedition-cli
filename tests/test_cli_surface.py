@@ -26,7 +26,7 @@ def test_every_command_is_declared_once_with_a_handler_that_exists() -> None:
     import importlib
 
     paths = [command.path for command in commands()]
-    assert len(paths) == len(set(paths)) == 52
+    assert len(paths) == len(set(paths)) == 54
     for command in commands():
         module_name, _, function = command.handler.partition(":")
         module = importlib.import_module(f"xpedition_cli.cli.{module_name}")

@@ -20,7 +20,7 @@ def test_unfiltered_reference_remains_complete():
     full = reference()
     assert select_reference(full) is full
     assert "selection" not in full
-    assert len(full["commands"]) == 52
+    assert len(full["commands"]) == 54
 
 
 @pytest.mark.parametrize(
