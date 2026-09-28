@@ -426,6 +426,17 @@ def test_show_and_export_pass_their_options_on(cli, adapter, project, tmp_path) 
         "2",
     )
     assert code == 0 and adapter.last("export_pdf")["color"] == 2
+    assert "replace" not in adapter.last("export_pdf")
+    code, _ = cli(
+        "schematic",
+        "export",
+        "--project",
+        str(project),
+        "--output",
+        str(tmp_path / "b.pdf"),
+        "--replace",
+    )
+    assert code == 0 and adapter.last("export_pdf")["replace"] is True
     for argv in (
         ["schematic", "show", "--project", str(project), "--sheet", "0"],
         ["schematic", "show", "--project", str(project), "--output", "x.jpg"],

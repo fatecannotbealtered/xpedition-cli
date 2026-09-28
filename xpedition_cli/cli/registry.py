@@ -816,6 +816,7 @@ def _build() -> list[Command]:
                 Param("output", "path", description="the new .pdf (beside the .prj by default)"),
                 Param("color", "integer", description="sch2pdf colour mode, 0 to 4"),
                 Param("schematic", "string", description="which schematic; the first by default"),
+                _REPLACE,
             ),
             blast_radius="one new PDF; an existing file is never replaced",
         ),

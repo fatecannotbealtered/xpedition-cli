@@ -419,4 +419,6 @@ def export(options: dict[str, Any]) -> dict[str, Any]:
         params["color"] = color
     if text(options, "schematic"):
         params["schematic"] = text(options, "schematic")
+    if options.get("replace"):
+        params["replace"] = True
     return native().invoke("export_pdf", params, timeout_seconds=600.0)

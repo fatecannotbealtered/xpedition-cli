@@ -2089,7 +2089,7 @@ def _export_pdf(params: dict[str, Any]) -> dict[str, Any]:
         raise AdapterError(
             "E_CONFLICT",
             "output file already exists",
-            {"path": str(output_path), "hint": "choose another output path or remove the file"},
+            {"path": str(output_path), "hint": "--replace, or another --output"},
         )
     try:
         color = int(params.get("color", 1))
