@@ -35,22 +35,39 @@ CHAR_WIDTH = 6
 # parts; a partition the library does not register cannot be packaged, so it is the
 # default.
 PARTITION = "PartQuest"
+# Every sheet the planner draws is landscape, in sheet units (10 mil).
 SHEET_SIZES = {
     "A": (1100, 850),
     "B": (1700, 1100),
     "C": (2200, 1700),
     "D": (3400, 2200),
+    "E": (4400, 3400),
     "A4": (1169, 827),
     "A3": (1654, 1169),
+    "A2": (2339, 1654),
+    "A1": (3311, 2339),
+    "A0": (4681, 3311),
 }
-# Designer's border symbol and VDSHEET_* size code for each sheet size.
+# Designer's border symbol and `VdSheetSize` page code for each sheet size. The border
+# symbols without a suffix are the landscape ones (`borders.ini`: CSHEETL is
+# Borders:csheet.1, CSHEETP is csheet_p.1), so the page must be landscape too. The
+# enum's plain family (0-10) is not "the size": its ANSI codes are portrait pages --
+# VDSHEET_CSIZE printed a landscape C border on a 17 x 22 in page and lost the right
+# 500 units of every sheet, the title block with them -- so the ANSI sizes and every
+# size not yet drawn use the landscape family (VDSHEET_AL_SIZE = 11 ... A0L = 20). A4
+# and A3 keep their plain codes, which are recorded printing landscape (842 x 595 and
+# 1190 x 842 pt).
 SHEET_BORDERS = {
-    "A": ("asheet", 0),
-    "B": ("bsheet", 1),
-    "C": ("csheet", 2),
-    "D": ("dsheet", 3),
-    "A4": ("a4sheet", 5),
-    "A3": ("a3sheet", 6),
+    "A": ("asheet", 11),  # VDSHEET_AL_SIZE
+    "B": ("bsheet", 12),  # VDSHEET_BL_SIZE
+    "C": ("csheet", 13),  # VDSHEET_CL_SIZE
+    "D": ("dsheet", 14),  # VDSHEET_DL_SIZE
+    "E": ("esheet", 15),  # VDSHEET_EL_SIZE
+    "A4": ("a4sheet", 5),  # VDSHEET_A4_SIZE, recorded landscape
+    "A3": ("a3sheet", 6),  # VDSHEET_A3_SIZE, recorded landscape
+    "A2": ("a2sheet", 18),  # VDSHEET_A2L_SIZE
+    "A1": ("a1sheet", 19),  # VDSHEET_A1L_SIZE
+    "A0": ("a0sheet", 20),  # VDSHEET_A0L_SIZE
 }
 NC_ORIENTATION = {"left": 0, "right": 2, "top": 3, "bottom": 1}
 # Designer's `VdOrigin`: which corner of an attribute's text sits at its location.
@@ -106,6 +123,7 @@ class Plan:
     partition: str = PARTITION
     # generated symbol name -> [(pin number, pin name)], for the parts database
     symbol_pins: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    sheet_size: str = ""
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -117,6 +135,9 @@ class Plan:
             "symbols": sorted(self.symbols),
             "issues": self.issues,
             "usable": {str(n): box for n, box in sorted(self.usable.items())},
+            # only a measured title block is kept out of `usable`; on other sizes the
+            # usable area runs into the title block in the lower right
+            "usable_measured": self.sheet_size in SHEET_BORDER_USABLE,
         }
 
 
@@ -823,7 +844,7 @@ def plan(design: dict[str, Any]) -> Plan:
             f"partition {partition!r} is not a plain identifier: a letter, then letters, "
             "digits and _"
         )
-    result = Plan(partition=partition)
+    result = Plan(partition=partition, sheet_size=size)
     boxed = bool(design.get("boxed_labels", True))
     total = len(design["sheets"])
     status = str(design.get("status", "")).strip()

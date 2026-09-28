@@ -44,13 +44,21 @@ border lines: keep 20 units clear of them and clear of the title block.
 | `bsheet` | ANSI B, 17 × 11 in | 1700 × 1100 |
 | `csheet` | ANSI C, 22 × 17 in | 2200 × 1700 |
 | `dsheet` | ANSI D, 34 × 22 in | 3400 × 2200 |
+| `esheet` | ANSI E, 44 × 34 in | 4400 × 3400 |
 | `a4sheet` | A4, 297 × 210 mm | 1169 × 827 |
 | `a3sheet` | A3, 420 × 297 mm | 1654 × 1169 |
 | `a2sheet` | A2, 594 × 420 mm | 2339 × 1654 |
 | `a1sheet` | A1, 841 × 594 mm | 3311 × 2339 |
 | `a0sheet` | A0, 1189 × 841 mm | 4681 × 3311 |
 
-`_p` variants are portrait. A coordinate such as (20000, 20000) is 200 inches
+`_p` variants are portrait. A landscape border needs a landscape page: the page is
+Designer's `VdSheetSize`, whose plain ANSI codes (`VDSHEET_CSIZE` …) are portrait
+pages, so a C border set with one printed with its right 500 units and the title
+block cut off. `schematic draw` sets the landscape page for every size (the `L`
+codes; A4 and A3 keep their plain codes, recorded printing landscape). Only A4 and
+A3 have a measured title block; on other sizes the planner's usable area does not
+leave it out (`summary.usable_measured` is false), so keep the lower-right corner
+clear. A coordinate such as (20000, 20000) is 200 inches
 off every sheet: Designer accepts it and the netlist is still right, but a
 human opening the sheet sees an empty border and `Fit All` shrinks the drawing
 to a dot. Read the border in use before placing; when it is unknown, assume B

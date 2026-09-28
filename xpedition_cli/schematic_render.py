@@ -70,6 +70,7 @@ FONTS = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 )
 SCALE = 2.0  # pixels per sheet unit
+MAX_EDGE = 4096  # pixels on a picture's long side: an A0 sheet at 2 px/unit is 9362 wide
 OVERLAP_AREA = 1.0  # square units two texts may share before they count as colliding
 TOUCH = 0.5  # units a line may run inside a text's edge before it crosses the text
 
@@ -703,11 +704,13 @@ def render(
         existing = [str(path) for path in targets.values() if path.exists()]
         if existing:
             raise FileExistsError(existing[0])
+    width, height = L.SHEET_SIZES[sheet_size]
+    scale = min(scale, MAX_EDGE / max(width, height))
     pictures = []
     for number in chosen:
         image, info = render_sheet(plan, number, sheet_size, scale)
         path = targets[number]
         path.parent.mkdir(parents=True, exist_ok=True)
         image.convert("RGB").save(path, "PNG")
-        pictures.append({**info, "path": str(path)})
+        pictures.append({**info, "scale": round(scale, 3), "path": str(path)})
     return pictures

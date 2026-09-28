@@ -103,7 +103,10 @@ schematic; the rules below are the non-negotiable subset.
   `rule:*` from a `--rules` file.
   `bom export` and `bom validate` read the live part numbers.
 - `schematic export --backend native_xpedition --project X.prj --output X.pdf`
-  renders what a reviewer will see: only what is inside the border.
+  renders what a reviewer will see: only what is inside the border, on a page of
+  the sheet's size. It reads each page's size back from the PDF (`pages`); every
+  sheet this tool draws is landscape, so a portrait page in `warnings` is a sheet
+  printed clipped. Say so rather than hand the PDF over.
 - Real footprints come from KiCad's library, not from placeholders: run
   `library kicad-import --libraries Package_SO,Resistor_SMD` once for the libraries
   the design needs (each `.pretty` library becomes a cell partition; its dry run

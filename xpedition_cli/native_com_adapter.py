@@ -1722,12 +1722,19 @@ def _export_pdf(params: dict[str, Any]) -> dict[str, Any]:
         raise AdapterError("E_IO", f"cannot start sch2pdf: {exc}") from exc
     stdout = completed.stdout.decode("utf-8", "replace")
     exported = completed.returncode == 0 and output_path.is_file()
+    from . import pdf_pages
+
+    # each page's size, read back from the file: a page smaller than its border is
+    # printed clipped, and nothing else says so
+    pages = pdf_pages.pages(output_path.read_bytes()) if output_path.is_file() else []
     return {
         "exported": exported,
         "format": "pdf",
         "path": str(output_path),
         "size": output_path.stat().st_size if output_path.is_file() else 0,
         "sheets": _sch2pdf_sheets(stdout),
+        "pages": pages,
+        "warnings": pdf_pages.warnings(pages),
         "exit_code": completed.returncode,
         "messages": [line.strip() for line in stdout.splitlines() if line.strip()][-8:],
         "_untrusted": ["path", "sheets", "messages"],

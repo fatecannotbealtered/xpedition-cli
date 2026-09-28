@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Sheet sizes `E`, `A2`, `A1` and `A0`, on their landscape borders and pages
+  (`VDSHEET_EL_SIZE` 15, `A2L_SIZE` 18 to `A0L_SIZE` 20); an ISO drawing could not grow
+  past A3. Their title blocks are not measured yet, and the plan says so:
+  `summary.usable_measured` is false for every size but A4 and A3, whose usable area
+  runs into the title block.
+- `schematic export` reads each page's size and orientation back from the PDF
+  (`pages`) and warns about a portrait page, which is a landscape sheet printed
+  clipped. The first sign of a wrong page used to be a person opening the file.
 - `schematic render --design FILE --output preview.png` draws every planned sheet as
   a PNG before anything is drawn in Designer: the generated symbols, wires, net
   labels, power, ground and no-connect symbols, part attributes and text on the
@@ -79,6 +87,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It is not `ok` now, `--package` does not run, and a hint names
   `library kicad-import`.
 - The adapter's default partition is the planner's `PartQuest`, not `Case`.
+- An ANSI sheet was drawn on a portrait page. The planner set the page with the plain
+  `VdSheetSize` codes, whose ANSI members are portrait pages, under the landscape
+  border symbols: a C sheet printed as 1224 x 1584 pt with its right 500 units, the
+  title block among them, cut off, and nothing reported it. A, B (the default), C and
+  D now use the landscape codes (`VDSHEET_AL_SIZE` 11 to `DL_SIZE` 14), as `borders.ini`
+  pairs `csheet.1` with CSHEETL. A4 and A3 keep their plain codes, recorded printing
+  landscape. The new codes are read from the type library and still need a recorded
+  draw and export.
 - A generated power symbol wrote its net name through its own bar: the name was
   anchored by its upper centre above the bar, so it hung across it, in Designer as
   in the preview. It is anchored by its lower centre now, as the stock `pwr_bar` is.

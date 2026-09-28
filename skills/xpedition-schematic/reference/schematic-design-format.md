@@ -34,8 +34,11 @@ Contents
 }
 ```
 
-- `sheet_size`: `A`, `B`, `C`, `D`, `A4` or `A3`. Every sheet gets that border
-  and page size; `A4` suits a review draft.
+- `sheet_size`: `A`, `B`, `C`, `D`, `E`, `A4`, `A3`, `A2`, `A1` or `A0` (default
+  `B`), always landscape. Every sheet gets that border and a landscape page of
+  the same size; `A4` suits a review draft. Only A4 and A3 have a measured title
+  block: on the other sizes `summary.usable_measured` is false and the usable
+  area runs into the title block, so keep the lower-right corner clear.
 - `partition` (optional, default `PartQuest`, the partition a stock central
   library registers for symbols, cells and parts; one it does not register
   cannot be packaged): the library partition the generated symbols go to. It
