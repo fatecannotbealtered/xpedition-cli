@@ -198,7 +198,19 @@ Net names: ASCII `UPPER_SNAKE_CASE`; rails by voltage (`+5V`, `+3V3`) or role
   net's wire (Designer would refuse the draw, or merge the two nets).
 - DS-16: pin names on a top or bottom edge fit the pin pitch; wider ones overlap
   into one unreadable row.
+- DS-17: no text collides with another text, has a line (a wire, a symbol's
+  graphics) drawn through it, or lands on another net label's box; a block's
+  frame may surround text but not cut through it. DS-07 also covers net labels
+  and part attributes that run past the drawable area.
 - Grid: every position and wire point is a multiple of 10.
+
+Every part that is not a two-terminal one (IC and connector boxes, test points,
+holes, transistors) gets its refdes and part number placed by the planner,
+horizontal whatever the part's orientation, at the first spot beside it where
+they collide with nothing (the refdes above or left first, the part number right
+or below first). A box with pin names on its top or bottom edge is a row taller,
+so those names stay clear of the side pins' names. `schematic render --design
+FILE --output preview.png` shows the result, sheet by sheet, before a draw.
 
 Two kinds of result. DS-06, the grid, a wire that is not orthogonal, a reference
 designator used twice anywhere in the design and a treatment for a pin the

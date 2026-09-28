@@ -215,7 +215,8 @@ that could be read as active-low, use `_DP` / `_DN`. Designer's automatic
   (`no Part Number: R in Parts DataBase`, verified).
 - Values: `10k`, `4.7k`, `100nF`, `10uF/10V`, `2.2uH`; tolerance, power and
   voltage rating only when they matter to the circuit.
-- REFDES above or left of the body, value below or right; text never crosses a
+- REFDES above or left of the body, value below or right (the planner places
+  them for every part that is not two-terminal); text never crosses a
   wire, a pin or other text.
 - Unused pins get `No_Connect`; an open pin without it fails review.
 - Sheet titles, descriptions, block titles and notes are written in the
@@ -260,7 +261,7 @@ one command that clears it.
 | DS-04 | no pin in two intended nets | L2 | `schematic draw` plan (a pin in two nets is rejected by the planner) |
 | DS-05 | read-back netlist equals intent | L2 | `schematic draw` result `netlist.matches` |
 | DS-06 | unused pins marked no-connect | L2 | `review run` rule `cli/open-pin` (no-connect marks are recognised) |
-| DS-07 | all coordinates inside the border | L2b | `schematic draw --dry-run` issue `DS-07` |
+| DS-07 | all coordinates inside the border, net labels and part texts included | L2b | `schematic draw --dry-run` issue `DS-07` |
 | DS-08 | no overlapping symbol boxes | L2b | `schematic draw --dry-run` issue `DS-08` |
 | DS-09 | refdes prefix matches the device class | L2 | `review run` rule `cli/refdes-prefix` |
 | DS-10 | every part number exists in the PDB | L2 | `review run` rule `cli/missing-part-number`; `package` verdict |
@@ -270,6 +271,7 @@ one command that clears it.
 | DS-14 | every IC supply net has a capacitor to ground; every I2C line a pull-up | L2 | `review run` rules `cli/decoupling`, `cli/i2c-pullup` |
 | DS-15 | no label box, power or ground symbol lands on another net's wire end | L2b | `schematic draw --dry-run` issue `DS-15` |
 | DS-16 | pin names on a top or bottom edge are readable at the pin pitch | L2b | `schematic draw --dry-run` issue `DS-16` |
+| DS-17 | no text collides with another text, a line or another net's label box | L2b | `schematic draw --dry-run` issue `DS-17`; `schematic render` boxes it in red |
 
 ## 9. Tool status
 

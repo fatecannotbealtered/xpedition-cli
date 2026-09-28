@@ -360,7 +360,7 @@
         },
         {
           "kind": "ladder",
-          "x": 240,
+          "x": 200,
           "y": 560,
           "path": [
             "power:+3V3",
@@ -451,7 +451,7 @@
           "refdes": "U202",
           "symbol": "TSENS",
           "value": "TSENS-I2C-SOIC8",
-          "x": 960,
+          "x": 920,
           "y": 440,
           "pins": {
             "1": "power:+3V3",
@@ -464,7 +464,7 @@
         },
         {
           "kind": "ladder",
-          "x": 1060,
+          "x": 1030,
           "y": 640,
           "path": [
             "power:+3V3",
@@ -581,7 +581,8 @@
           "symbol": "TP",
           "value": "TP",
           "x": 740,
-          "y": 620,
+          "orientation": 2,
+          "y": 600,
           "pins": {
             "1": "power:+3V3"
           }
@@ -592,9 +593,9 @@
           "symbol": "TP",
           "value": "TP",
           "x": 820,
-          "y": 620,
+          "y": 600,
           "pins": {
-            "1": "label:I2C_SDA"
+            "1": "label:SENSOR_ALERT_N"
           }
         },
         {
@@ -602,10 +603,10 @@
           "refdes": "TP303",
           "symbol": "TP",
           "value": "TP",
-          "x": 900,
-          "y": 620,
+          "x": 920,
+          "y": 600,
           "pins": {
-            "1": "label:I2C_SCL"
+            "1": "label:I2C_SDA"
           }
         },
         {
@@ -613,10 +614,10 @@
           "refdes": "TP304",
           "symbol": "TP",
           "value": "TP",
-          "x": 980,
-          "y": 620,
+          "x": 990,
+          "y": 600,
           "pins": {
-            "1": "label:SENSOR_ALERT_N"
+            "1": "label:I2C_SCL"
           }
         },
         {
@@ -625,7 +626,7 @@
           "symbol": "TP",
           "value": "TP",
           "x": 1060,
-          "y": 620,
+          "y": 600,
           "pins": {
             "1": "label:PWM_OUT"
           }

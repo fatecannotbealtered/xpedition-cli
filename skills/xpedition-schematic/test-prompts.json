@@ -48,5 +48,10 @@
     "id": "bom-request-boundary",
     "prompt": "Export the BOM of this design as CSV.",
     "expected": "Not this Skill: bom export belongs to xpedition-cli."
+  },
+  {
+    "id": "preview-before-drawing",
+    "prompt": "Here is the design file; draw it in the running Designer project X.prj.",
+    "expected": "Read the entry Skill and this Skill; run schematic draw --dry-run and schematic render --design FILE --output preview.png, look at every sheet's picture and read the issues (DS-17 texts that collide, DS-07 texts off the sheet); fix the design and render again until clean; only then confirm the draw with --dangerous and the token (the request covers sheets holding only template content), and report done on netlist.matches."
   }
 ]

@@ -79,7 +79,11 @@ schematic; the rules below are the non-negotiable subset.
   symbol; both join by a stub ending on the symbol origin.
 - To draw a whole schematic, describe it in the design format of
   `reference/schematic-design-format.md` and run `schematic draw --design FILE
-  --dry-run`; read `preview.summary.issues`, then confirm with `--dangerous
+  --dry-run`; read `preview.summary.issues`. Before confirming, `schematic render
+  --design FILE --output preview.png` draws every planned sheet as a PNG, with the
+  drawable area dashed and each finding boxed in red: look at every sheet, fix
+  the design until the issues are gone (DS-17 is a text that collides with
+  another text, a line or a label's box), then confirm with `--dangerous
   --confirm <token>`: every sheet drawn is wiped first. Report done only when the
   result's `netlist.matches` is true. It is false for a planned net that reads
   back wrong (`differences`, `links_broken`) and also for wiring the plan never

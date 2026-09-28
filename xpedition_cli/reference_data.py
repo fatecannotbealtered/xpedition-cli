@@ -466,6 +466,24 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
         "untrusted_fields": ["pcb", "prompts"],
     },
+    "schematic_render": {
+        "shape": "object",
+        "fields": ["design", "pictures", "issues", "summary", "_untrusted"],
+        "items_shape": [
+            "sheet",
+            "path",
+            "width",
+            "height",
+            "parts",
+            "symbols",
+            "wires",
+            "labels",
+            "texts",
+            "issues",
+            "issues_marked",
+        ],
+        "untrusted_fields": ["design", "pictures", "issues"],
+    },
     "pcb_metrics": {
         "shape": "object",
         "fields": [
@@ -1717,6 +1735,31 @@ def commands() -> list[dict[str, Any]]:
                     _param("output", "path"),
                 ],
                 blast_radius="the Designer window comes to the front; one new PNG at --output",
+            ),
+            _command(
+                "schematic render",
+                "A picture of every planned sheet of a design, drawn from the plan before "
+                "anything is drawn in Designer: the generated symbols, wires, net labels, "
+                "power, ground and no-connect symbols, part attributes and text on the "
+                "sheet frame, with the drawable area dashed and the plan's findings (DS-07, "
+                "DS-08, DS-15, DS-16 and DS-17, texts that collide) boxed in red. One PNG "
+                "per sheet: --output itself for one sheet, <stem>-sheet<N>.png for several. "
+                "Pure: works from the design file, no Designer",
+                "schematic_render",
+                [
+                    "xpedition-cli schematic render --design ./design.json --output "
+                    "./preview.png --compact",
+                    "xpedition-cli schematic render --design ./design.json --sheets 3 "
+                    "--output ./sheet3.png --replace --compact",
+                ],
+                params=[
+                    _param("design", "path", True),
+                    _param("output", "path", True),
+                    _param("sheets", "string", multiple=True),
+                    _param("scale", "number"),
+                    _param("replace", "boolean"),
+                ],
+                blast_radius="one PNG per planned sheet at --output",
             ),
             _command(
                 "pcb info",

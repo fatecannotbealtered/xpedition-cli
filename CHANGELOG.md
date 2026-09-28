@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `schematic render --design FILE --output preview.png` draws every planned sheet as
+  a PNG before anything is drawn in Designer: the generated symbols, wires, net
+  labels, power, ground and no-connect symbols, part attributes and text on the
+  sheet frame, with the drawable area dashed and the plan's findings boxed in red.
+  The only picture of a draw was a capture of Designer's window after the sheets had
+  been wiped. On the recorded 41-part design it shows the collisions below.
+- DS-17 measures readability: a text that collides with another text, has a wire or
+  a symbol's graphics drawn through it, or lands on another net label's box is an
+  issue of the plan, and DS-07 now covers net labels and part attributes that run
+  past the drawable area. Nothing checked text: the recorded 41-part design, drawn
+  with a clean plan, has a refdes crossed by a ground bar, a `+3V3` on a capacitor's
+  refdes, two pin names written over each other and a label off the sheet.
+- The planner places the refdes and part number of every part that is not
+  two-terminal (IC and connector boxes, test points, holes, transistors), horizontal
+  whatever the part's orientation, at the first spot beside the part where they
+  collide with nothing. Designer's default put a box's part number under its
+  lower-left corner, where the wire from a bottom-edge ground pin runs through any
+  part number longer than a few characters. This uses the attribute placement the
+  two-terminal parts already had; a live draw of it is still to be recorded.
 - `pcb metrics` measures how good a placement and its routing are, from `pcb
   geometry`'s file and without Layout: per net the ratsnest (the shortest tree
   through its pins, as if unrouted) and how often signal airwires cross; parts whose
@@ -60,6 +79,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It is not `ok` now, `--package` does not run, and a hint names
   `library kicad-import`.
 - The adapter's default partition is the planner's `PartQuest`, not `Case`.
+- A generated power symbol wrote its net name through its own bar: the name was
+  anchored by its upper centre above the bar, so it hung across it, in Designer as
+  in the preview. It is anchored by its lower centre now, as the stock `pwr_bar` is.
+- A box with pin names on its top or bottom edge wrote them over the names of the
+  side pins in the row beside that edge (`VDD` over the first left pin's name). Such
+  a box is a row taller now, which moves its side pins; a design that packed parts
+  closely may see DS-07 or DS-08 where it did not.
+- The example designs plan clean again under DS-17: the pull-up of sheet 3, the
+  sensor and its capacitor, and the test points of sheet 4 moved, and the rail's test
+  point is turned pin-up under its power symbol.
 
 ## [1.0.0] - 2026-09-28
 

@@ -142,7 +142,9 @@ class Symbol:
             "Z 10",
             "i 11",
             "U 0 0 10 0 1 0 FORWARD_PCB=0",
-            f"U 0 26 {TEXT_ATTRIBUTE + 2} 0 4 3 NETNAME={self.netname}",
+            # the name above the bar, as the stock pwr_bar has it (VDALIGN_LC: its lower
+            # centre at the location); anchored by its upper centre it hung through the bar
+            f"U 0 22 {TEXT_ATTRIBUTE + 2} 0 6 3 NETNAME={self.netname}",
             f"U 0 0 10 0 3 0 NAME_PLACEHOLDER={self.name}",
             "l 2 -20 20 20 20",
             "P 10 0 0 0 20 0 1 0",
@@ -389,7 +391,12 @@ def box(
     longest = max([len(n) for _, n in left] + [0]) + max([len(n) for _, n in right] + [0])
     half_w = max(min_half_width, (longest * CHAR_WIDTH + 20) // 2)
     half_w = ((half_w + GRID - 1) // GRID) * GRID
-    rows = max(len(left), len(right), 1)
+    # Top and bottom pin names are written inside the body along its edge; a side pin
+    # in the row beside that edge put its own name on the same spot (VDD over the
+    # first left pin's name, in Designer too), so a shown name there takes a row
+    top_band = int(any(pname and pname != number for number, pname in top))
+    bottom_band = int(any(pname and pname != number for number, pname in bottom))
+    rows = max(len(left), len(right), 1) + top_band + bottom_band
     cols = max(len(top), len(bottom), 0)
     half_w = max(half_w, ((cols + 1) * GRID) // 2 + GRID)
     half_w = ((half_w + GRID - 1) // GRID) * GRID
@@ -404,7 +411,7 @@ def box(
                 continue
             ptype = pintypes.get(number, "BI")
             if side in ("left", "right"):
-                y = half_h - GRID * (index + 1)
+                y = half_h - GRID * (index + 1 + top_band)
                 if side == "left":
                     pins.append(
                         Pin(number, pname, -half_w - PIN_LEN_BOX, y, -half_w, y, side, ptype)

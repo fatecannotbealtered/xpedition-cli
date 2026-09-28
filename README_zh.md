@@ -57,6 +57,7 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 | 工程数据 | `project init`、`project info`、`project tree`、`project snapshot`、`project diff`、`design snapshot` | 两种后端；原生下 `project init --template` 复制模板工程，`project diff` 比对的是 MockBackend 文件和它的备份 |
 | 原理图读取 | `schematic sheets`、`components`、`pins`、`nets`、`connectivity`、`unconnected`、`power`、`interfaces`、`query` | 两种后端 |
 | 原理图绘制 | `schematic draw`、`schematic show`、`schematic export`、`library build`、`library kicad-import` | NativeBackend（见下节） |
+| 原理图预览 | `schematic render` | 离线，基于设计文件：每页规划画成一张 PNG，规划发现的问题用红框标出 |
 | 引脚规划 | `schematic pin-plan`、`schematic pin-check` | 离线，基于提供的快照 |
 | PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`tracks`、`vias`、`layers`、`stackup`、`zones`、`keepouts`、`query` | 两种后端；原生下 `layers`、`stackup`、`zones`、`keepouts` 会被拒绝（尚未读取），`pcb info` 里它们的计数为 null |
 | PCB 设计 | `pcb create`、`annotate`、`outline`、`holes`、`arrange`、`placement`、`move`、`rules`、`pour`、`route`、`trace`、`via`、`unroute`、`labels`、`geometry`、`render`、`show`、`drc`、`export` | NativeBackend（见下节） |

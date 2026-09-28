@@ -60,6 +60,7 @@ NC_ORIENTATION = {"left": 0, "right": 2, "top": 3, "bottom": 1}
 # planner means its x as where the text starts, so it says so.
 ORIGIN_UPPER_LEFT = 1  # VDALIGN_UL
 ORIGIN_MIDDLE_LEFT = 2  # VDALIGN_ML
+ORIGIN_MIDDLE_RIGHT = 8  # VDALIGN_MR
 TWO_TERMINAL = {
     "RES": lambda: S.resistor("RES"),
     "CAP": lambda: S.capacitor("CAP"),
@@ -398,6 +399,31 @@ class _SheetPlanner:
                         "origin": ORIGIN_UPPER_LEFT,
                     },
                 ]
+        else:
+            # Every other part -- IC and connector boxes, test points, holes, transistors
+            # -- gets both attributes placed and horizontal, whatever its orientation:
+            # Designer's defaults put a box's part number under its lower-left corner,
+            # where the wire from a bottom-edge ground pin runs through it, and turn a
+            # rotated part's text with it. These are first choices beside the part;
+            # `schematic_render.place_attributes` moves each to the first spot where it
+            # collides with nothing once the sheet is planned.
+            x1, y1, x2, y2 = placed.bbox()
+            attributes = [
+                {
+                    "name": "Ref Designator",
+                    "x": x1,
+                    "y": y2 + S.TEXT_ATTRIBUTE,
+                    "orientation": 0,
+                    "origin": ORIGIN_MIDDLE_RIGHT,
+                },
+                {
+                    "name": "Part Number",
+                    "x": x2,
+                    "y": y2 + S.TEXT_ATTRIBUTE,
+                    "orientation": 0,
+                    "origin": ORIGIN_MIDDLE_LEFT,
+                },
+            ]
         self.op(
             op="place_part",
             refdes=refdes,
@@ -483,7 +509,8 @@ class _SheetPlanner:
             lx, ly = x + 4, y - LABEL_HEIGHT - 4
         box = (lx - 2, ly - 2, lx + width + 2, ly + LABEL_HEIGHT + 2)
         if self.boxed:
-            self.op(op="box", x1=box[0], y1=box[1], x2=box[2], y2=box[3])
+            # `role` and `net` tell a label's own box from a frame drawn around a block
+            self.op(op="box", x1=box[0], y1=box[1], x2=box[2], y2=box[3], role="label", net=net)
             self.coverage.append((net, f"label box {net}", box))
         return {"net": net, "x": lx, "y": ly}
 
@@ -533,6 +560,7 @@ class _SheetPlanner:
             self.plan.issues.append(
                 {
                     "check": "DS-16",
+                    "sheet": self.sheet,
                     "object": refdes,
                     "side": side,
                     "pins": [p.number for p in too_wide],
@@ -842,6 +870,12 @@ def plan(design: dict[str, Any]) -> Plan:
         result.sheets.append({"number": number, "title": sheet_title, "parts": len(planner.placed)})
     result.symbols = dict(library.files)
     result.symbol_pins = dict(library.pins)
+    # DS-17 reads the finished plan: every text where Designer will draw it, against
+    # every other text, every line and every label box
+    from . import schematic_render
+
+    schematic_render.place_attributes(result, size)
+    result.issues += schematic_render.plan_text_overlaps(result, size)
     return result
 
 

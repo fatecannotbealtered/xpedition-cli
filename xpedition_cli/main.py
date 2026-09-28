@@ -2301,6 +2301,57 @@ def _sheets_option(options: dict[str, Any], planned: list[int]) -> list[int] | N
     return chosen
 
 
+def _schematic_render(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
+    """`schematic render`: a picture of every planned sheet of a design, drawn from the
+    plan before anything is drawn in Designer, with the plan's findings boxed in red."""
+    from . import schematic_layout, schematic_render
+
+    design_file, design = _read_design(options, "schematic render")
+    if not options.get("output"):
+        raise CLIError("E_USAGE", "schematic render requires --output PATH.png")
+    output = Path(str(options["output"])).expanduser().resolve()
+    if output.suffix.lower() != ".png":
+        raise CLIError("E_VALIDATION", "--output must end in .png", {"path": str(output)})
+    try:
+        plan = schematic_layout.plan(design)
+    except schematic_layout.DesignError as exc:
+        raise CLIError(
+            "E_VALIDATION", f"design cannot be drawn: {exc}", {"design": str(design_file)}
+        ) from exc
+    planned = [int(sheet["number"]) for sheet in plan.sheets]
+    chosen = _sheets_option(options, planned)
+    try:
+        scale = float(options.get("scale") or schematic_render.SCALE)
+    except ValueError as exc:
+        raise CLIError("E_VALIDATION", "--scale is pixels per sheet unit") from exc
+    if not 0.5 <= scale <= 6:
+        raise CLIError("E_VALIDATION", "--scale must be between 0.5 and 6")
+    try:
+        import PIL  # noqa: F401
+    except ImportError as exc:
+        raise CLIError(
+            "E_CONFIG",
+            "schematic render draws with Pillow, which is not installed",
+            {"hint": 'python -m pip install "pillow>=12.3"'},
+        ) from exc
+    size = str(design.get("sheet_size", "B")).upper()
+    try:
+        pictures = schematic_render.render(
+            plan, size, output, chosen, scale, replace=bool(options.get("replace"))
+        )
+    except FileExistsError as exc:
+        raise CLIError("E_CONFLICT", "output file already exists", {"path": str(exc)}) from exc
+    sheets = set(chosen or planned)
+    issues = [issue for issue in plan.issues if issue.get("sheet", 0) in sheets]
+    return {
+        "design": str(design_file),
+        "pictures": pictures,
+        "issues": issues,
+        "summary": {"sheets": len(pictures), "issues": len(issues)},
+        "_untrusted": ["design", "pictures", "issues"],
+    }
+
+
 def _ops_for_sheets(ops: list[dict[str, Any]], chosen: list[int]) -> list[dict[str, Any]]:
     """The operations of the chosen sheets: each sheet's run from its `open_sheet`."""
     kept: list[dict[str, Any]] = []
@@ -3558,6 +3609,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     if positionals[0] == "schematic" and len(positionals) > 1 and positionals[1] == "draw":
         return _schematic_draw(positionals, options)
 
+    if positionals[0] == "schematic" and len(positionals) > 1 and positionals[1] == "render":
+        return _schematic_render(positionals, options)
     if positionals[0] == "schematic" and len(positionals) > 1 and positionals[1] == "show":
         return _schematic_show(positionals, options)
 
@@ -4101,6 +4154,7 @@ Commands:
   schematic sheets|components|pins|nets|connectivity|power|interfaces|unconnected|query|apply
                                   inspect normalized schematic data
   schematic draw|show|export     draw, show or export a schematic in Designer (native)
+  schematic render               picture a design's planned sheets before drawing (offline)
   library build|kicad-import     build a design's parts or import KiCad footprints (native)
   pcb placement-plan             plan explicit local origin transforms from observations
   pcb placement                  preview/confirm selected native placements

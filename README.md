@@ -65,6 +65,7 @@ without saving it, so save hand edits in Layout first. See [SECURITY.md](SECURIT
 | Project data | `project init`, `project info`, `project tree`, `project snapshot`, `project diff`, `design snapshot` | both; natively `project init --template` copies a template project, and `project diff` compares a MockBackend file with its backup |
 | Schematic reads | `schematic sheets`, `components`, `pins`, `nets`, `connectivity`, `unconnected`, `power`, `interfaces`, `query` | both |
 | Schematic drawing | `schematic draw`, `schematic show`, `schematic export`, `library build`, `library kicad-import` | NativeBackend (see below) |
+| Schematic preview | `schematic render` | offline, from a design file: a PNG per planned sheet with the plan's findings boxed |
 | Pin planning | `schematic pin-plan`, `schematic pin-check` | offline, against a supplied snapshot |
 | PCB reads | `pcb info`, `components`, `footprints`, `nets`, `tracks`, `vias`, `layers`, `stackup`, `zones`, `keepouts`, `query` | both; natively `layers`, `stackup`, `zones` and `keepouts` are refused (not read yet) and `pcb info` reports their counts as null |
 | PCB design | `pcb create`, `annotate`, `outline`, `holes`, `arrange`, `placement`, `move`, `rules`, `pour`, `route`, `trace`, `via`, `unroute`, `labels`, `geometry`, `render`, `show`, `drc`, `export` | NativeBackend (see below) |
