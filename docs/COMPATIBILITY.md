@@ -1,16 +1,15 @@
 # Compatibility matrix
 
-This document records the backends that have actually been verified. A
-capability is not advertised as native support until a licensed Xpedition
-environment passes the smoke loop described in [`E2E.md`](E2E.md).
+This document records what has actually been verified against a licensed
+Xpedition. A capability is not advertised until a licensed environment has run it;
+the runs are in [`E2E.md`](E2E.md). The tests fake the adapter at its JSON
+boundary and prove the CLI's side only.
 
 | Backend | Version / environment | Status | Notes |
 |---|---|---|---|
-| MockBackend | xpedition-cli 1.0.x, Python 3.10–3.12 | verified | Offline JSON project model, schematic/PCB/constraint/analysis/manufacturing/library reads, ChangeSet validation/preview/apply, snapshot, BOM and review. |
 | NativeBackend — Designer | Xpedition Standard XPED2604 on Windows 11, `Viewdraw.Application`, pywin32 bridge | reads and writes verified | Attach, schematic snapshot, `AddPartInstance` placement, net creation, labels and coordinate read-back all confirmed against a running Designer session. The R1/C1 smoke loop of [`E2E.md`](E2E.md) is recorded against a hand-built minimal library, not the stock one — see below. |
 | NativeBackend — Layout | Xpedition Standard XPED2604, `MGCPCB.ExpeditionPCBApplication` | reads and writes verified | Board creation, forward annotation, `Components`/`Nets` reads, placement, routing by the router and by hand, pours, Batch DRC and fabrication outputs, all through the adapter; recorded in [`E2E.md`](E2E.md) from 2026-09-14 on boards built from a template, with cells generated or converted by the CLI rather than a production library. Bottom-side placement has not been exercised. |
-| ExchangeBackend | JSON / CSV / BOM / IPC-2581 XML | verified | Import and normalization use the normalized project model with dry-run/confirm writes. |
-| ExchangeBackend | PDF / EDN / ODB++ | planned | Format-specific parsers are not enabled yet. |
+| Central library | the `*DB2HKP` and `HKP2*DB` converters of XPED2604 | reads and writes verified | Parts, cells and padstacks exported as text and parsed; parts added with IPC-7351B cells, rounded-rectangle pads and pins of several lands, packaged, annotated, routed and checked (see The central library as text). |
 
 ## A stock installation ships no component library
 
@@ -28,7 +27,7 @@ is answered by Designer itself:
 
 The first smoke loop in `E2E.md` therefore ran against a hand-built library, and
 the CLI now generates the parts a design needs (`library build`, with cells from
-`library kicad-import`). Placement against a symbol that *does* exist
+`library import`). Placement against a symbol that *does* exist
 (`builtin:espl1`) succeeds and reads back with correct coordinates, so the write
 path is not what is missing.
 
@@ -83,7 +82,7 @@ Useful when a library has to be built rather than imported:
 |---|---|---|
 | Library Manager | `common/win64/bin/LibraryManager.exe` | COM `LibraryManager.Application`, **read-only** — the object model exposes no Add/Create for symbols, cells or parts |
 | Cell / Padstack editors | reached via `ActiveLibrary.CellEditor` / `.PadstackEditor` | yes — `OpenDatabase`, `NewPartition`, `NewCell(eCellType)`, `SaveActiveDatabase`, `SuppressTrivialDialogs` |
-| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build` and `library kicad-import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "KiCad footprints as cells" below) |
+| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build` and `library import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "KiCad footprints as cells" below) |
 | PCB Footprint Expert 26 (Siemens) | `lm_fpe/` | IPC-7351B generator with populated `.fpx` libraries for SM/TH discretes, semiconductors, connectors and BGA |
 
 Schematic symbols are plain ASCII (`SymbolLibs/<partition>/sym/<name>.<version>`),
@@ -128,7 +127,7 @@ The recorded run is in [`E2E.md`](E2E.md).
 to a background process, but making the window topmost and releasing it works.
 `--output` captures the window through GDI into a PNG encoded in-process.
 
-`project init --backend native_xpedition --template TPL.prj --project NEW.prj`
+`project create --template TPL.prj --project NEW.prj`
 (adapter method `clone_project`) creates a project the only way Designer allows
 without a GUI: copy a known-good project folder without `Templates`, `Work`,
 `LogFiles`, `ProjectBackup`, `Thumbnail` and `*.bak`, rename the `.prj`, rewrite
@@ -142,7 +141,7 @@ ASCII path (see the facts below).
 Designer's `Generate PDF` (command 34622) is a dialog, but the installation
 ships `common/win64/bin/sch2pdf.exe`, a console program that renders a project
 straight from its database and works while Designer still has the project
-open. `schematic export --backend native_xpedition --project X.prj --output
+open. `schematic export --project X.prj --output
 X.pdf` runs it through the adapter method `export_pdf`. Facts that matter:
 
 - It prints the area inside each sheet's border and nothing else; objects
@@ -177,7 +176,7 @@ X.pdf` runs it through the adapter method `export_pdf`. Facts that matter:
 | Chinese text | `AddText` accepts Unicode and Designer draws Chinese titles and notes correctly on screen. The project stores them in the system code page (GBK here), and `sch2pdf` writes those bytes as Latin-1 glyphs, so a PDF shows mojibake; the text is recoverable by re-encoding Latin-1 to GBK, which is what a review pipeline has to do when it extracts notes |
 | Verification | `RunDesignIntegrityChecks` is a database integrity test (22 layer/object tests). The schematic ERC is the `Full Verification` command (34155; `Quick Verification` 46461) with the rules of the project's `Verify.ini`; it writes `LogFiles/vdrc.log` (`SEVERITY` / `GROUP` headers, then `<rule> - [flatnet : X, component: R1($2I5), pin: $1P10] message`) and `LogFiles/grc.log` (graphical checks). The adapter method `verify` runs it and parses both |
 | Reading a design back | `net.LogicalNetName` gives the net name, `net.UID` the `$<sheet>N<id>` id of an unlabelled net; a component's `UID` `$<sheet>I<id>` tells its sheet; `component.Attributes` holds the instance attributes (Part Number, VALUE …) but not the symbol's DEVICE/PART_NAME; pin names and types are not exposed on the connection's pin object; the symbol name of an instance is not exposed at all — a no-connect mark is recognised by geometry, a refdes-less symbol sitting on the pin end |
-| Non-ASCII paths | a project whose folder path contains Chinese characters opens, reads back and shows its sheets, but `AddPartInstance` reports every symbol file written after the copy as `not found, empty or a block`, before and after a reopen; the same project on an ASCII path finds them at once. Keep projects and their central library on ASCII paths; `schematic draw` and `project init --template` refuse others with `E_VALIDATION` |
+| Non-ASCII paths | a project whose folder path contains Chinese characters opens, reads back and shows its sheets, but `AddPartInstance` reports every symbol file written after the copy as `not found, empty or a block`, before and after a reopen; the same project on an ASCII path finds them at once. Keep projects and their central library on ASCII paths; `schematic draw` and `project create --template` refuse others with `E_VALIDATION` |
 | Pins on wire corners | a symbol pin placed where a stub and a bar meet end-to-end does not connect: Designer merges the two segments into one polyline and the pin sits on a vertex. A pin on a free wire end or on a T junction connects. The planner therefore runs a shared ground bar one stub past the last pin and puts the ground symbol on the free end |
 | Creating a project | there is no automation call; copy a project folder as described above. The iCDB `database` folder copies cleanly while the project is closed, and the copy opens under a new `.prj` name |
 | Pin types and ERC | `drc-BI-POWER` / `drc-BI-GROUND` fire for every pin typed `BI` on a net that also carries a `POWER` or `GROUND` typed pin, except on resistors and capacitors, which the verification exempts. Pins typed `ANALOG` pass: the generated inductor, diode, LED, switch, battery, thermistor, MOSFET drain/source and test-point pins are `ANALOG`, and the demo design verifies with no warning |
@@ -204,7 +203,7 @@ session. `pcb create` runs it. Facts that cost time:
   "Board1"`) rather than the board design (`ConfigType "PCB"`); the GUI wizard
   picks the board design itself. `pcb create` lists the board design first.
 - Template names are the folders under `<library>/Templates/Layout`. A project
-  cloned without that folder (what `project init --template` does, 24 MB per
+  cloned without that folder (what `project create --template` does, 24 MB per
   template) offers none; `pcb create` copies the requested one from
   `SDD_HOME/standard/templates/dxdesigner/TemplateLibrary/Templates/Layout`.
 - `-l` is the log file; it is not a mode flag. Wrong options show the usage in
@@ -343,7 +342,7 @@ Autorouting (verified on XPED2604, `pcb route`):
 - Route passes leave the fine-pitch pads alone and never report why; the
   clearance rule above is the reason.
 
-Batch DRC and hazards (verified on XPED2604, `pcb drc`):
+Batch DRC and hazards (verified on XPED2604, `pcb check`):
 
 - No automation call runs Batch DRC. Its engine, `common/win64/bin/DrcDriver.exe`
   (`-p PcbFilename [-q]`), refuses to start from a command line ("无法从命令行运行
@@ -421,7 +420,8 @@ Forward annotation after a library change (verified the hard way):
 | Fact | Detail |
 |---|---|
 | `Component.Extrema` | the placement outline only; the reference designator text above it is not included, so a planner that packs parts by their extents puts the labels of neighbours on top of each other |
-| `RoutePass.LayerSelect(n, bool)` | accepts the **inner** layers only (2 and 3 on a four-layer board); 1 and 4 are "invalid parameters" — the outer layers are always the router's. `pcb route --layers 1,4` therefore disables 2 and 3. A handful of traces still landed on layer 3 in the first run; a second run after `--unroute` is the check |
+| `RoutePass.LayerSelect(eType, layer)` | the first argument is an `EPcbARLayerSelectType` -- 0 bottom up, 1 top down, 2 add layer, 3 remove layer -- not a layer number. Called as `(layer, wanted)`, layer 2 read as "add" and 3 as "remove" and the outer layers were refused, which an earlier release took for "the router always owns the outer layers". `PassType` resets every setting, so it goes first; then each layer the pass may not use is removed with `LayerSelect(3, n)`. A net unrouted and routed again with `--layers 1,4` lay on layers 1 and 4 only |
+| `RoutePass.Items(8, None)` | routes the nets that are selected (`EPcbARItemsType` 8), after `doc.UnSelectAllNets()` and `net.Selected = True` for each one named: `pcb route --nets` |
 | `TraceSegment` | has `Point1X/Y`, `Point2X/Y`, `Geometry`, no `Width`; a `Trace`'s width is `Geometry.LineWidth` (thousandths of an inch). Trace widths cannot be set through Layout's automation (`NetClass.MinTraceWidth` and friends are read-only): see the Constraint Manager section |
 | `PutPlaneShape(..., bRouteObstruct, ...)` | with `bRouteObstruct` true (the earlier default) the shape blocks the autorouter on its layer — a board with pours on the outer layers routed nothing — and laid over traces already routed the call fails with "DRC 违反"; false lets traces through and the plane data flows around them. `PlaneShape.RouteObstructed` can be cleared afterwards too |
 | Outer pours and the router | with the pours in place the router counts a plane net as routed while the regenerated copper leaves pins cut off (5 GND pins here) and a Fanout pass does not add vias for them; pour the outer layers after routing instead |
@@ -478,7 +478,7 @@ Forward annotation after a library change (verified the hard way):
 KiCad ships its footprint library as text (`share/kicad/footprints/<library>.pretty/*.kicad_mod`,
 155 libraries and 15 450 footprints in KiCad 9 here) under CC-BY-SA 4.0 with the KiCad library
 exception. `xpedition_cli.kicad_footprints` turns each `.pretty` folder into one cell partition
-and `library kicad-import` (the adapter's `kicad_import`) feeds them through
+and `library import` (the adapter's `kicad_import`) feeds them through
 `HKP2PadstackDB` / `HKP2CellDB`; a design then names a footprint as its package
 (`"packages": {"RES": "kicad:Resistor_SMD:R_0603_1608Metric"}`) and `library build` writes
 parts that reference the cell and registers its partition in `LIST 2dCellLibraries`. The whole
@@ -497,3 +497,41 @@ library takes about a quarter of an hour. Facts that cost time:
 | Coordinates | KiCad's Y points down, Xpedition's up: every Y is negated; rotations are counter-clockwise on screen in both, so angles stay |
 | Same pad number twice | every copper land of a number stays, as a pad of that pin (a MOSFET's drain leads and paddle), and forward annotation puts them all on its net; only a pad lying wholly inside a larger one of its number (a thermal pad's via or a copper paste window) is dropped, reported as `inside_same_number`; paste-only, back-side and `connect` pads are dropped too |
 | Merge | `HKP2PadstackDB … -m` and `HKP2CellDB … -m` add to what exists, replacing same-named entries and registering the partition in the `.lmc`; Layout and Designer may stay open with the project (Designer's project is closed and reopened by the adapter as for `library build`) |
+
+## Board data Layout exposes (verified 2026-09-29)
+
+Parameterised properties cannot be read by late binding (`doc.LayerStack(True)`
+raises "参数不可选"); the adapter invokes them by dispid with
+`DISPATCH_PROPERTYGET`.
+
+| Read | How |
+|---|---|
+| Stackup | `Document.LayerStack` (dispid 157, argument true): each `LayerProperties` has `Type`, `Usage`, `Name`, `Description`, `Thickness(unit)` (dispid 1) and, for insulation, the dielectric constant. The stock four-layer template is 1.7476 mm |
+| Net classes | `Document.NetClasses` (dispid 24, `"*"`): each class's nets, and `MinTraceWidth` / `TypicalTraceWidth` / `ExpansionTraceWidth` (dispids 7, 8, 9) per layer with the scheme `"(Master)"` and unit 4 (mm) |
+| Keepouts | `Document.Obstructs` (41) and `PlacementObstructs` (40) with `(-1, 0, 0)`; `PutObstruct(layer, width, npoints, points, type, filled, None, unit)` makes one |
+| Padstacks the library holds | `Document.PadstackNames` (227: type, pin class, pattern, from the central library); mounting holes are `MH-C<d>-NONPLATED` or `TH_Round_<d>_Nonplated`, so `pcb holes` offers only the diameters the library has |
+| Nets for rules | Constraint Manager's `IDesign.Nets` (dispid 1610743811) with the mask `NM_Nets \| NM_PowerNets` (1 \| 4): `NM_AllNets` (15) lists every net twice, and without the power bit supply nets are missing |
+
+## The central library as text (verified 2026-09-29)
+
+| Fact | Detail |
+|---|---|
+| Export | `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP` with `-a` (plain text) and `-u mm` export a partition in under a second, several at once; `LMCDB2HKP` hangs and is not used (partitions are the files in `PartsDBLibs` and `CellDBLibs`). They read while Designer holds the project |
+| Merge | `HKP2PartsDB` always merges into the database it writes: parts it does not name stay. With `-r` a part of the same number is replaced; **without it the part the database holds is kept and the new one dropped, silently**. `HKP2CellDB` and `HKP2PadstackDB` with `-m` merge and replace same-named entries |
+| Value | the parts database's `Value` property is a number with an SI multiplier: `10k` is stored as `10K`, `4.7k` as `4.7K`, `1u` as `1u`; `10k 1%`, `100nF`, `3.3V` and `TPS7A2033` are stored as **0** with only a warning in the log (`无效的值 ... (对于特性 "Value")`). Other properties take any text; the library's own names include `Manufacturer Name` and `Manufacturer Part Number` |
+| Properties on symbols | the packager does not copy `Value`, `Part Number`, `Manufacturer Name`, `Manufacturer Part Number` and the other properties checked off in Library Manager's Property Definition Editor from the parts database to the symbols; its log lists them |
+| Pads | `RADIUS_CORNER_RECTANGLE` pads (width, height, radius) import, package, route and pass DRC; so do cells with several pins of one number, all on that pin's net |
+| Symbols | text files `SymbolLibs/<partition>/sym/<name>.<version>`, the highest version current; `V 54` files write coordinates 25400 times larger than `V 53` ones. A part names its symbol `partition:name` and maps the symbol's pin names (its `L` records) to cell pin numbers per slot |
+| Part numbers | two parts drawn with one value but different symbols made an earlier `library build` rename the second (`HDR-1X02 [HDRL]`) while the drawing kept the value: the packager then reported "the required symbol is not in the Parts DataBase" and packaged nothing |
+
+## Editing a drawn schematic (verified 2026-09-29)
+
+| Fact | Detail |
+|---|---|
+| Finding objects | `DesignComponents` gives the parts of every sheet, typed; `View.Query(mask, 0)` gives untyped objects whose methods late binding misreads, so their members are invoked by dispid (`IVdBox.GetLocation` 8, `Selected` 12). `GetConnections` and `GetSegments` are properties on this release, `IVdNet.Connections` an optional-argument property (dispid 23) |
+| Delete | select, then `Block.DeleteSelected(True)`; true also removes the wires the deletion leaves unconnected. It takes **everything** selected: an attribute just added or a label just moved stays selected, so every operation starts with `DeSelectAll` |
+| What a part leaves | a deleted part's stubs to power and ground symbols stay connected to those symbols, and a boxed label's box is a separate box object: the edit selects the wires only that part used, their power and ground symbols, and removes the boxes around their labels |
+| Rename | a label's `TextString` renames it; every label of the net, on every sheet, has to change or the net splits. A net a power symbol names reports that name as a label too |
+| Boxes | `IVdBox.SetLocation` changes the view's object but is **not saved** with the sheet (reopening the project shows the old box); a resized box is deleted and added again with `Block.AddBox`. Boxes land on the 10-unit grid |
+| Attributes | `FindAttribute(name)` is `None` when the part has none; `AddAttribute("Name=value", x, y, 0)` adds it hidden |
+| Backups | while Designer has the project open its iCDB server holds `database/icdb.dat` (permission denied on read); the project is closed for a backup and opened again |

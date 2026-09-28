@@ -28,6 +28,8 @@
 - 语言/分发：Python 3.10+ + PyInstaller 二进制和 npm 壳
 - 源码：`xpedition_cli/`；测试：`tests/`；Skill：`skills/xpedition-cli/SKILL.md`（入口）、`skills/xpedition-schematic/SKILL.md`（原理图）和 `skills/xpedition-pcb/SKILL.md`（板级）
 - 本地校验：`pytest -q && ruff check xpedition_cli tests && ruff format --check xpedition_cli tests`
-- 后端：MockBackend（离线 JSON）与 NativeBackend（通过 Windows COM 适配器驱动正版
-  Xpedition）。从原理图到打板资料的整条链记录在 `docs/E2E.md`，证据来自一台 XPED2604 的
-  Windows 安装；还没有第二台机器复现过。
+- 只有一个后端：通过 Windows COM 适配器（`xpedition_cli/native_com_adapter.py`，以子进程
+  运行）驱动正版 Xpedition。每条命令只在 `xpedition_cli/cli/registry.py` 里声明一次，
+  `reference`、`--help` 和参数解析都读它；处理函数按域放在 `xpedition_cli/cli/<域>.py`。
+  测试在适配器的 JSON 边界上伪造它（`tests/fakes.py`）。从原理图到打板资料的整条链记录在
+  `docs/E2E.md`，证据来自一台 XPED2604 的 Windows 安装；还没有第二台机器复现过。

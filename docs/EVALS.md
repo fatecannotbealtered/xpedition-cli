@@ -1,7 +1,9 @@
 # Skill evaluations across models
 
 How the three Skills (`xpedition-cli`, `xpedition-schematic`, `xpedition-pcb`) were
-checked on different models, as SKILL-SPEC §9 asks. Each round asks whether Haiku
+checked on different models, as SKILL-SPEC §9 asks. Rounds 1 and 2 evaluated the
+1.0.0 Skills; 1.0.1 rewrote them for its command tree, and the round for 1.0.1
+is recorded last. Each round asks whether Haiku
 gets enough guidance, whether Sonnet finds the Skills clear, and whether Opus
 over-explains. The Skills changed after round 1. This file records what each
 round measured and what changed as a result.

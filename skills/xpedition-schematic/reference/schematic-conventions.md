@@ -245,38 +245,39 @@ that could be read as active-low, use `_DP` / `_DN`. Designer's automatic
 - Nets crossing sheets use off-page connectors; power symbols are global through
   `NETNAME` and need none.
 - Leftovers are defects: no orphan symbols, test placements or unused labels on
-  a delivered sheet. Start on a clean sheet: Select All plus `DeleteSelected`
-  wipes a sheet (§9); there is no per-object delete.
+  a delivered sheet. A draw starts each sheet clean (Select All plus
+  `DeleteSelected`, §9); `schematic edit`'s `delete_component` removes one part with
+  the wires, power symbols and label boxes only it used.
 
 ## 8. Checklist before reporting done
 
-Read the design back with `schematic connectivity` and `project snapshot`,
-then check. Classes: L2 is decidable from the netlist, L2b from geometry,
+Read the design back with `schematic components` and `schematic nets`, then
+check. Classes: L2 is decidable from the netlist, L2b from geometry,
 manual needs an engineer.
 
 Run `library build --package` after a redraw, before reading the design back or
 reviewing it. A schematic that has changed since it was last packaged cannot be
-read: `review run`, `bom export` and `schematic components` all stop on the same
+read: `schematic check`, `bom export` and `schematic components` all stop on the same
 COM type mismatch until it is re-packaged. Being unpackaged is a normal state to
 be in halfway through a design, not a failure — the error names the cause and the
 one command that clears it.
 
 | ID | Check | Class | How |
 |---|---|---|---|
-| DS-01 | every component has a refdes | L2 | the native snapshot (`project snapshot --backend native_xpedition`): components without a refdes are counted in `metadata.unnamed_symbols` |
-| DS-02 | every net has a name | L2 | `review run` rule `cli/unnamed-net` (nets of three or more pins) |
-| DS-03 | no single-pin net | L2 | `review run` rule `cli/single-pin-net` |
+| DS-01 | every component has a refdes | L2 | `schematic components`: a part without a refdes is not listed; `schematic draw` refuses one |
+| DS-02 | every net has a name | L2 | `schematic check` rule `cli/unnamed-net` (nets of three or more pins) |
+| DS-03 | no single-pin net | L2 | `schematic check` rule `cli/single-pin-net` |
 | DS-04 | no pin in two intended nets | L2 | `schematic draw` plan (a pin in two nets is rejected by the planner) |
 | DS-05 | read-back netlist equals intent | L2 | `schematic draw` result `netlist.matches` |
-| DS-06 | unused pins marked no-connect | L2 | `review run` rule `cli/open-pin` (no-connect marks are recognised) |
+| DS-06 | unused pins marked no-connect | L2 | `schematic check` rule `cli/open-pin` (no-connect marks are recognised) |
 | DS-07 | all coordinates inside the border, net labels and part texts included | L2b | `schematic draw --dry-run` issue `DS-07` |
 | DS-08 | no overlapping symbol boxes | L2b | `schematic draw --dry-run` issue `DS-08` |
-| DS-09 | refdes prefix matches the device class | L2 | `review run` rule `cli/refdes-prefix` |
-| DS-10 | every part number exists in the PDB | L2 | `review run` rule `cli/missing-part-number`; `package` verdict |
+| DS-09 | refdes prefix matches the device class | L2 | `schematic check` rule `cli/refdes-prefix` |
+| DS-10 | every part number exists in the PDB | L2 | `schematic check` rule `cli/missing-part-number`; `library build --package` verdict |
 | DS-11 | signal flow, grouping, power up and ground down | manual | engineer review |
 | DS-12 | no leftover objects on the sheet | manual | engineer review |
-| DS-13 | Designer's own verification passes | L2 | `review run` on the live design: findings tagged `xpedition/verify:*` and `xpedition/grc:*` |
-| DS-14 | every IC supply net has a capacitor to ground; every I2C line a pull-up | L2 | `review run` rules `cli/decoupling`, `cli/i2c-pullup` |
+| DS-13 | Designer's own verification passes | L2 | `schematic check` on the live design: findings tagged `xpedition/verify:*` and `xpedition/grc:*` |
+| DS-14 | every IC supply net has a capacitor to ground; every I2C line a pull-up | L2 | `schematic check` rules `cli/decoupling`, `cli/i2c-pullup` |
 | DS-15 | no label box, power or ground symbol lands on another net's wire end | L2b | `schematic draw --dry-run` issue `DS-15` |
 | DS-16 | pin names on a top or bottom edge are readable at the pin pitch | L2b | `schematic draw --dry-run` issue `DS-16` |
 | DS-17 | no text collides with another text, a line or another net's label box | L2b | `schematic draw --dry-run` issue `DS-17`; `schematic render` boxes it in red |
@@ -289,15 +290,16 @@ hand; `reference --compact` is authoritative for the live command list.
 | Need | Covered by |
 |---|---|
 | Place a part | `place_component` with an explicit library partition; keep the returned object, because `DesignComponents` lags the placement. `AddPartInstance(partition, part, symbol, x, y)`: the part name is the visible Part Number |
-| Wire two pins with a label | `connect` draws one wire between two pins and labels it; the per-pin stub-and-label form runs through the adapter's `AddNet` + `AddLabel` and is not a ChangeSet operation |
+| Wire two pins with a label | `schematic edit`'s `connect` draws one wire between two pins and labels it; the per-pin stub-and-label form is what `schematic draw` draws |
 | Power symbols, ground, no-connects | `AddSymbolInstance(partition, symbol, x, y)` places refdes-less symbols without an orphan: stock `Globals:gnd`, `builtin:No_Connect` (set `Orientation` 0 / 2 / 3 / 1 for left / right / top / bottom pins) and one generated type-4 power symbol per net from `xpedition_cli.symbols.power_symbol`. A stub ending on the symbol origin joins the net |
 | Symbol generation | `xpedition_cli.symbols` writes `V 53` files per §2 for `schematic draw`; it is not a command of its own. Designer keeps the definition of a symbol it has placed, so a changed symbol needs a new name |
-| Clean sheet | `ExecuteCommandByID(57642)` (Select All) then `Block.DeleteSelected(False)`; keeps the border. There is no per-object delete |
+| Clean sheet | `ExecuteCommandByID(57642)` (Select All) then `Block.DeleteSelected(False)`; keeps the border |
+| Change a drawn sheet | `schematic edit`: place, move and delete a part, set a property, connect and disconnect a pin, rename a labelled net; every operation runs on its part's sheet and is read back |
 | Titles and notes | `Block.AddText(text, x, y)`, then `.Size` |
 | Whole sheets | `schematic draw --design FILE` (format: `reference/schematic-design-format.md`) plans IC blocks, ladders, chains, labels, power and ground symbols, no-connects, titles and notes, draws them, reopens the project and diffs the netlist read back |
 | Show the result | `schematic show --sheet N [--output sheet.png]`: activates the sheet, fits it, raises Designer's window and optionally captures it as PNG — the way to look at Chinese text, which a PDF garbles |
 | More sheets | the `New Sheet` command (34165) adds one; close and reopen the project before reading the design back afterwards |
-| PDF | `schematic export --backend native_xpedition --project X.prj --output X.pdf`; only what is inside the border is printed |
+| PDF | `schematic export --project X.prj --output X.pdf`; only what is inside the border is printed |
 | The §8 checklist | its How column names the command for each item; DS-11 and DS-12 stay with an engineer |
 
 ## 10. Sources

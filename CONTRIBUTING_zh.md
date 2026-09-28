@@ -21,16 +21,21 @@ python -m xpedition_cli.main --help
 测试时使用 `XPEDITION_CLI_CONFIG_DIR` 隔离确认 secret 和审计目录。不要使用生产工程文件；
 正版 E2E 只能执行 [`docs/E2E.md`](docs/E2E.md) 中的临时工程流程。
 
-## 新增命令或后端
+## 新增命令
 
 1. 先读 `.agent/CLI-SPEC.md` 和 `.agent/SEC-SPEC.md` 的相关章节。
-2. 在 `xpedition_cli/` 下增加领域模型或后端操作。
-3. 在 `xpedition_cli/reference_data.py` 注册命令、schema、examples、权限等级和爆炸半径。
-4. 外部值必须在 `_untrusted` 中标记；所有写操作都先 `--dry-run`，再用单次 `--confirm <token>` 执行，会毁掉成果的还要加 `--dangerous`。
-5. 为成功、非法输入、错误、envelope、退出码及 stdout/stderr 边界增加命令级测试，保持 FCC guard 通过。
+2. 在 `xpedition_cli/cli/registry.py` 里声明一次：路径、处理函数（`xpedition_cli/cli/`
+   下的 `模块:函数`）、描述、输出 schema、examples、阶段、需要运行什么、权限等级、参数，
+   写命令还要写爆炸半径和 dry-run schema。`reference`、`--help` 和参数解析都读这一条。
+3. 在 `xpedition_cli/reference_data.py` 加输出 schema，功能代码放在 `xpedition_cli/` 下；
+   凡是和 Xpedition 打交道的，都走 `xpedition_cli/native_com_adapter.py` 里的适配器方法。
+4. 外部值必须在 `_untrusted` 中标记；所有写操作都先 `--dry-run`，再用单次 `--confirm <token>` 执行，
+   会毁掉成果的还要加 `--dangerous`；写完要读回结果。
+5. 为成功、非法输入、错误、envelope、退出码及 stdout/stderr 边界增加命令级测试（用
+   `tests/fakes.py` 伪造适配器），保持 FCC guard 通过。
 6. 同步修改两个 README、受影响的 Skill 和 `CHANGELOG.md`。
 
-没有经过授权环境的记录，不要宣称 NativeBackend 或新的 Xpedition 版本可用。`.agent/*`、
+没有在授权安装上跑过并记录（`docs/E2E.md`），不要宣称某项能力或新的 Xpedition 版本可用。`.agent/*`、
 `contract/contract.json` 和生成代码只能通过 `scripts/sync-spec.js` 保持同步，不要手改规范副本或生成文件。
 
 ## Pull Request

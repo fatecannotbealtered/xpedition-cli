@@ -18,16 +18,13 @@ finish and mask colour to the board house (`pcb export` takes no such options);
 pass on any the person names separately.
 
 `checks` covers what the package contains, not the board's design rules, so run
-`pcb drc` first: a board that does not pass is not ready to send.
-
-`manufacturing artifacts` and `manufacturing verify` read the artifact records a
-MockBackend project stores (the native backend refuses them: nothing reads those
-records from Xpedition yet), and `manufacturing bom` lists BOM rows built from
-the components; none of them produces files.
+`pcb check` first: a board whose `clean` is false is not ready to send. The BOM
+for purchasing comes from the schematic (`bom export --group`, in
+xpedition-schematic); the package's `bom.csv` lists what the board places.
 
 ```bash
-xpedition-cli pcb drc --backend native_xpedition --project X.prj --compact
-xpedition-cli pcb export --backend native_xpedition --project X.prj --output ./fab --dry-run --compact
+xpedition-cli pcb check --project X.prj --compact
+xpedition-cli pcb export --project X.prj --output ./fab --dry-run --compact
 ```
 
 Confirm with the same arguments and the returned token.

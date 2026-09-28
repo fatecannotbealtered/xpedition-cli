@@ -28,7 +28,10 @@ This repo is an **AI-native CLI tool**: designed for AI agents first.
 - Language / distribution: Python 3.10+ + PyInstaller binary and npm wrapper
 - Source: `xpedition_cli/`; tests: `tests/`; Skills: `skills/xpedition-cli/SKILL.md` (entry), `skills/xpedition-schematic/SKILL.md` (schematic) and `skills/xpedition-pcb/SKILL.md` (board)
 - Local checks: `pytest -q && ruff check xpedition_cli tests && ruff format --check xpedition_cli tests`
-- Backends: MockBackend (offline JSON) and NativeBackend (a licensed Xpedition
-  installation through the Windows COM adapter). The whole schematic-to-fabrication
-  chain is recorded in `docs/E2E.md`, from one Windows installation of XPED2604;
-  no second installation has repeated it.
+- One backend: a licensed Xpedition installation through the Windows COM adapter
+  (`xpedition_cli/native_com_adapter.py`, run as a subprocess). Every command is
+  declared once in `xpedition_cli/cli/registry.py`, which `reference`, `--help`
+  and the parser all read; handlers live in `xpedition_cli/cli/<domain>.py`.
+  Tests fake the adapter at its JSON boundary (`tests/fakes.py`). The whole
+  schematic-to-fabrication chain is recorded in `docs/E2E.md`, from one Windows
+  installation of XPED2604; no second installation has repeated it.

@@ -71,29 +71,18 @@ stdout. Diagnostics belong on stderr:
 {"ok":true,"schema_version":"1.0","data":{"ready":true},"meta":{"duration_ms":0}}
 ```
 
-The current bridge implements `health`, `start`, `attach`, `open`,
-`snapshot`, `save`, `close`, controlled component placement/move and
-schematic net operations used by `apply_changeset`, and the project-level
-methods behind the guarded commands: `clone_project`, `draw`, `show`,
-`verify`, `export_pdf`, `package`, `library_import`, `kicad_import` (every KiCad
-`.pretty` footprint library as a cell partition, through the stock HKP converters;
-`library kicad-import`), `pcb_create` (JobWizard's command line),
-`forward_annotate` (Layout's Project Integration), `board_outline` (rounded corners
-through the points array), `mounting_holes` (`PutMountingHoleEx`), `arrange_components`,
-`placement_batch` (`pcb placement`: the selected parts previewed, then moved one at a
-time with the placement DRC on and each read back), `show_board` (`pcb show`: the board
-window to the front under a display scheme, fitted, optionally captured to a PNG),
-`plane_pour` (`bRouteObstruct` false, so the copper flows around traces), `route_board`
-(`LayerSelect` for the inner layers; a second round after the planes regenerate),
-`net_rules` (a net class and its trace widths through the `ConstraintsAuto` server, then
-`ProjectIntegration.SynchCES`), `render_board` (the board's geometry drawn to a PNG by
-`xpedition_cli.board_render`), `board_geometry` (the same data as JSON), `hand_route`
-(`PutTrace` / `PutVia` where the person says), `unroute_nets` (by net, all, or one item
-at a point), `move_component` (with the placement DRC on), `tidy_labels` (silkscreen
-designators moved beside their parts), `batch_drc` and `manufacturing_output` (the ODB++ /
-Gerber / NC drill dialogs with their setups patched while the board is closed, gathered
-into a package folder). It
-supports the PCB `MGCPCB.ExpeditionPCBApplication` and schematic
+The bridge implements `health`, `start`, `attach`, `open`, `save`, `close`,
+`snapshot` (the schematic or the board as the CLI's project model), and the
+methods behind the commands:
+
+| Area | Methods |
+|---|---|
+| Projects | `clone_project` (`project create`), `release_project` and `reopen_project` (Designer and Layout let go of a project for `project backup` and `project restore`) |
+| Library | `library_export` (the parts, cell and padstack databases as HKP text through `*DB2HKP -a -u mm`, cached until a database changes), `library_import` (`library build` and `library add`: symbol files written, the HKP texts merged through `HKP2*DB`, `-r` only when a part is to be replaced, the `.prj` lists updated), `kicad_import` (`library import`), `package` |
+| Schematic | `draw` (every partition a placed part comes from listed in the `.prj`), `apply_changeset` (`schematic edit`: place, move and delete a part with the wires only it used, set a property, create a net, connect and disconnect a pin, rename a labelled net and its label boxes), `verify` (Designer's verification), `show`, `export_pdf` |
+| Board | `pcb_create` (JobWizard's command line), `forward_annotate` (Project Integration), `board_outline`, `mounting_holes` (only padstacks the library has), `net_rules` (`ConstraintsAuto`, then `SynchCES`), `arrange_components`, `placement_batch` and `move_component` (with the placement DRC on, each part read back), `tidy_labels`, `plane_pour`, `route_board` (`RoutePass` per pass; `LayerSelect(3, n)` removes the layers a pass may not use; `Items(8)` routes the selected nets), `hand_route`, `unroute_nets`, `board_info` (stackup, net classes, keepouts), `board_geometry` (optionally narrowed to parts or nets), `render_board`, `show_board`, `batch_drc`, `manufacturing_output` |
+
+It supports the PCB `MGCPCB.ExpeditionPCBApplication` and schematic
 `Viewdraw.Application` COM classes. The bridge attaches to an already running
 Xpedition process when possible; otherwise `start` or `open` creates one
 through the launcher. Layout's own questions while a board opens (a stale lock,
@@ -119,12 +108,12 @@ examples. A failed token exchange is returned as a structured error.
 ## Placement is not transactional
 
 `AddPartInstance` puts the symbol on the sheet before the reference designator
-is assigned, and neither the component nor the block exposes a delete entry
-point in this API. When the refdes assignment fails — a power or ground symbol
-rejects one outright — the instance cannot be rolled back. The adapter reports
+is assigned. When the refdes assignment fails — a power or ground symbol rejects
+one outright — the instance is on the sheet without a name. The adapter reports
 that case with `orphan_placed`, the library/device/symbol it came from and the
-coordinates, so the caller can remove it in Designer; it never reports the
-operation as applied.
+coordinates; it never reports the operation as applied. An orphan is removed by
+selecting it and `Block.DeleteSelected`, which is how `schematic edit` deletes a
+part.
 
 ## End-to-end evidence
 

@@ -1,28 +1,34 @@
-# Local placement tasks
+# Moving a set of parts
 
-Obtain the input schemas and preconditions of `pcb placement-plan` and
-`pcb placement` from `reference`. The native path has been smoke-tested on one
-disposable board, top side only (`reference`'s `release_readiness` says what that
-covers); that is
-not a reason to assume native compatibility or bypass engineer authorization.
+`pcb move --file task.json` moves a selection of parts in one task: translate,
+rotate, align and distribute, applied in order to the parts' current positions,
+which it reads from the board. The file's schema is in `reference --command "pcb
+move"` (`file_json_schema`); an example:
 
-Prefer an explicit selected set and local transforms when adjusting an existing
-layout. Do not use whole-board arrangement as a substitute for a small edit: it
-has different effects on placement and routing. Determine the intended order,
-anchor and coordinate origin before planning; origin spacing is not body clearance.
+```json
+{
+  "schema_version": "1.0",
+  "unit": "mm",
+  "selection": ["R1", "R2", "R3"],
+  "steps": [
+    {"op": "align", "axis": "y", "anchor": "R2"},
+    {"op": "distribute", "axis": "x", "start": 10, "end": 30}
+  ]
+}
+```
 
-The native path reads a running Xpedition Layout session; `placement-plan` is
-offline and needs none. Check `doctor`'s `native_session` for what is attached
-before previewing, and start Layout explicitly rather than letting the command
-activate it.
+Name the selection explicitly and decide the order, the anchor and the origin
+before writing the steps: the distance between origins is not the clearance
+between bodies. Never use `pcb arrange` for a small edit: it places the whole
+board again and deletes the routing.
 
-Preview, inspect every before/target and the native evidence status, then confirm
-only within the user's authorization. Do not override fixed/locked states. Check
-per-item results as well as the outer envelope. A failed or missing response can
-leave earlier changes or an unplaced part; do not replay or silently reconstruct
-the original write. Read the observed state and plan the remaining work explicitly.
+The dry run lists each part's position before and after; confirm only within the
+user's authorization. A part fixed or locked in Layout is refused, not moved. The
+result reports every part: moved, refused, or `unknown` when the response did not
+say. After a failure some parts may have moved already: read the board back
+(`pcb geometry --refdes ...`) and plan what is left; never replay the token or
+rebuild the original task blindly.
 
-Native placement DRC is not full-board DRC. Moving a component does not repair its
-traces. Inspect routing, render the board, run the appropriate native checks, and
-record remaining warnings before handing off. Successful coordinate read-back
-is not a save/close/reopen durability test or a hardware sign-off.
+Moving a part does not move its traces. Look at the board (`pcb render`), run
+`pcb check`, and route again where it broke. The moves have been verified on the
+top side of a board only.

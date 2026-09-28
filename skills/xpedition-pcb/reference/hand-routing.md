@@ -1,10 +1,13 @@
 # Routing by hand
 
-For the person's layout, when the autorouter's is not good enough. Native
-commands name `--backend native_xpedition --project X.prj`; every write is a
-dry run first, then the same command with `--confirm <confirm_token>`.
+For the person's layout, when the autorouter's is not good enough. Every
+command takes `--project X.prj`; every write is a dry run first, then the same
+command with `--confirm <confirm_token>`. To route only some nets automatically,
+`pcb route --nets VBAT,+3V3` leaves the rest alone.
 
-`pcb geometry --output board.json` gives every pad, pin, trace, via and plane;
+`pcb geometry --output board.json` gives every pad, pin, trace, via, plane and
+keepout (`--refdes` and `--nets` narrow it for reading; a plan needs the whole
+board);
 plan the traces yourself (a `PlanBuilder` from `xpedition_cli.routing_plan`
 resolves pin names and checks angles and clearances; `pcb stitch --geometry
 board.json --net GND` plans the ground vias without Layout, a plan to draw with
@@ -27,7 +30,7 @@ then stitch every ground pad with a via. A 39-part board took two rounds this
 way: 129 traces, 41 vias, DRC clean.
 
 ```bash
-xpedition-cli pcb geometry --backend native_xpedition --project X.prj --output board.json --compact
+xpedition-cli pcb geometry --project X.prj --output board.json --compact
 xpedition-cli pcb stitch --geometry board.json --net GND --output stitch.json --compact
-xpedition-cli pcb trace --backend native_xpedition --project X.prj --file plan.json --geometry board.json --dry-run --compact
+xpedition-cli pcb trace --project X.prj --file plan.json --geometry board.json --dry-run --compact
 ```

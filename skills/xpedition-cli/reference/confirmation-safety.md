@@ -52,4 +52,4 @@ No licensed Xpedition application or production design is used by these tests.
 
 The tests include spawned processes, threads, concurrent secret initialization,
 process termination, persisted replay rejection, corrupted stores, failed writes,
-legacy records, expired tokens and real CLI invocations on temporary Mock projects.
+legacy records, expired tokens and real CLI invocations against a faked adapter.

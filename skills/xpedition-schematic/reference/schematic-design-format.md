@@ -50,7 +50,7 @@ Contents
   `{"RES": "0603", "U302": "TSSOP20", "CMP": "kicad:Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"}`.
   Stock keys are `0402`, `0603`, `0805`, `SOT23`, `TP`, `HOLE`, `HDR<n>`,
   `SOIC<n>` and `TSSOP<n>`; a `kicad:Library:Footprint` key takes the cell from a
-  KiCad library imported with `library kicad-import`. Without an entry a part
+  KiCad library imported with `library import`. Without an entry a part
   gets a placeholder package for its kind and pin count.
 - `kicad_footprints` (optional): the KiCad footprint folder that `kicad:` keys
   are read from to check their pads against the symbol's pins. Without it the
@@ -117,6 +117,24 @@ Symbol files are generated from these definitions and named by content, so a
 changed definition is always a new symbol to Designer. They are written into
 the project's central library, which must live on an ASCII path: Designer does
 not find new symbol files under a path with other characters.
+
+### Parts of the central library
+
+A symbol may name a part the project's central library holds -- one added with
+`library add`, with its real footprint -- instead of defining a box:
+
+```json
+"LDO": {"part": "TPS7A2033PDBVR"}
+```
+
+Blocks place it like any symbol, by its pin numbers; the drawing uses the
+library's own symbol and carries the library's part number, whatever the block's
+`value` says, and `library build` makes no placeholder for it. `schematic render`,
+`schematic draw` and `library build` read those parts from the library, so they
+need `--project` (render only then). A part the library lacks stops the plan with
+its number: add it first. Two parts with one value are one part number, so they
+must share a symbol and a package; the planner refuses a value drawn with two
+different symbols, and `library build` one that needs two different cells.
 
 ## 3. Blocks: IC and connector
 

@@ -1,250 +1,166 @@
 ---
 name: xpedition-pcb
-version: "1.0.0"
-description: "Handles board work in Xpedition Layout through the xpedition-cli tool: builds the board from a drawn schematic, forward-annotates it and brings it up to date after the schematic or a footprint changes, then the outline, mounting holes, placement, copper pours, net classes and trace widths, autorouting or planned hand routing, DRC, board renders and screenshots, and the fabrication package (Gerber, NC drill, ODB++, centroid). Use when the user asks to lay out, place or move parts on, route, DRC-check, render or export the PCB of an Xpedition project, including a part move given in mm, even without the word Xpedition. Not for the schematic, pin planning or footprint mapping (xpedition-schematic), or for install, doctor, sessions and Layout connection failures, project creation, the BOM and ChangeSet writes (the xpedition-cli Skill, loaded before this one)."
+version: "1.0.1"
+description: "Handles board work in Xpedition Layout through the xpedition-cli tool: builds the board from a drawn schematic, forward-annotates it and brings it up to date after the schematic or a footprint changes, then the outline, mounting holes, net classes and trace widths, placement and moving parts, copper pours, autorouting (all nets or named ones) or planned hand routing, DRC plus board rules, placement metrics, the stackup and board data, renders and screenshots, and the fabrication package (Gerber, NC drill, ODB++, centroid). Use when the user asks to lay out, place or move parts on, route, check, measure, render or export the PCB of an Xpedition project, including a part move given in mm, even without the word Xpedition. Not for the schematic or the BOM (xpedition-schematic), or for install, sessions and Layout connection failures, projects, backups and the design library (the xpedition-cli Skill, loaded before this one)."
 license: MIT
 user-invocable: true
-metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.0"}}
+metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.1"}}
 ---
 
 # xpedition-pcb
 
 Read `../xpedition-cli/SKILL.md` before running any command. It carries what
 every xpedition-cli task needs and this Skill does not repeat: the install, the
-first step (`context`, `doctor`, `reference`), native sessions, the dry-run →
-confirm recipe, the error decision tree, the security boundary and the
-`_untrusted` rule. If that file is missing, STOP CHECKPOINT: tell the user the
-xpedition-cli entry Skill is not installed and, once they agree, install the
-family with `npx skills add fatecannotbealtered/xpedition-cli -y -g`.
-
-This Skill covers the board in Xpedition Layout, from packaging a drawn
-schematic to the fabrication package.
+first step (`context`, `doctor`, `reference`), sessions, backups, the design
+library, the dry-run → confirm recipe, the error decision tree, the security
+boundary and the `_untrusted` rule. If that file is missing, STOP CHECKPOINT:
+tell the user the xpedition-cli entry Skill is not installed and, once they
+agree, install the family with `npx skills add fatecannotbealtered/xpedition-cli -y -g`.
 
 ## When to use
 
-Use this Skill for:
-
-- turning a drawn schematic into a board: package the parts, create the board,
-  forward-annotate;
-- the first layout: outline, mounting holes, placement, pours, net classes,
-  autorouting and DRC;
-- routing by hand, moving parts and small local placement adjustments;
-- looking at a board and reading it back;
+- turning a drawn schematic into a board: create it, forward-annotate;
+- the first layout: outline, holes, net classes, placement, pours, routing,
+  checks;
+- moving parts, routing by hand, measuring whether a change made it better;
+- looking at the board and reading it back;
 - the fabrication package.
 
-Do not use it for the schematic, pin planning or footprint mapping
-(xpedition-schematic), or for the BOM or creating a project (xpedition-cli).
-Never present an autorouted board or a generated placement as signed off: both
-are starting points for a person.
+Not for the schematic or the BOM (xpedition-schematic), or for projects, backups
+and the library (xpedition-cli). Never present an autorouted board or a generated
+placement as signed off: both are starting points for a person.
 
 ## Before a board task
 
-`pcb *` commands run in Xpedition Layout, except `pcb stitch` and
-`pcb placement-plan`, which work from files. Check `doctor`'s `native_session` for
-what is attached and start Layout explicitly with `session start --backend
-native_xpedition --kind pcb`. `--backend` defaults to `mock`, so every native
-command names `--backend native_xpedition --project X.prj`; the short forms in
-the prose leave both out. Read `reference/pcb-conventions.md` before touching a
-board: the rules in this Skill are its non-negotiable subset, and only a
-company rule changes them. `reference --compact` stays the source of truth for
-commands and parameters. When `context` lists a knowledge-base document for
-board work, read it first: its rules replace the design defaults, here and in
-the conventions, and settle the TBDs; the verified facts and the write safety
-rules stand (see Company knowledge base in the entry Skill).
-
-Every write is shown as its dry run: inspect the preview, then run the same
-command with `--confirm <confirm_token>` in place of `--dry-run`. The token is
-bound to the arguments, so change nothing else.
+`pcb *` commands run in Layout, except `pcb stitch` and `pcb metrics --geometry`,
+which work from files, and `pcb create`, which needs Designer. Start Layout with
+`session start --kind pcb`. Every command takes `--project X.prj` (or the board's
+`.pcb`). Read `reference/pcb-conventions.md` before touching a board: the rules
+here are its non-negotiable subset, and only a company rule changes them. When
+`context` lists a knowledge-base document for board work, read it first.
 
 While a board opens, Layout may ask about a stale lock, database recovery or
-forward annotation; the adapter answers them and lists what it pressed under
-`prompts`. If a result carries a prompt you did not expect, read it before
-going on.
-
-A MockBackend read needs no Layout:
-
-```bash
-xpedition-cli pcb info --backend mock --project ./demo-project.json --compact
-```
+forward annotation; the adapter answers and lists what it pressed under
+`prompts`. Read a prompt you did not expect before going on.
 
 ## From the schematic to a board
 
-Three guarded steps, each `--dry-run` then `--confirm`, then a read-back:
-`library build --design FILE --package` (padstacks, cells and parts for every
-part — placeholder cells unless the design names KiCad footprints — imported into
-the project's central library, then packaged), `pcb create` (the board from the
-library's `4 Layer Template` through JobWizard; `--template` for another), `pcb
-annotate` (Layout's forward annotation: the packaged parts and nets arrive
-unplaced), then `pcb info` and `pcb components` to read the board back. Report
-done only when `pcb annotate` says `outcome: annotated` (`annotated_on_open` and
-`in_synch` count too) with no `errors`, and the counts match the schematic.
+The schematic is drawn and packaged (`library build --package`, in
+xpedition-schematic). Then, each a dry run and a confirm:
 
-`FILE` is the design file the schematic was drawn from. Its `packages` choose
-the footprints; see the drawing conventions in `../xpedition-schematic/SKILL.md`.
-
-```bash
-xpedition-cli session start --backend native_xpedition --kind pcb --compact
-xpedition-cli library build --backend native_xpedition --project X.prj --design design.json --package --dry-run --compact
-xpedition-cli pcb create --backend native_xpedition --project X.prj --dry-run --compact
-xpedition-cli pcb annotate --backend native_xpedition --project X.prj --dry-run --compact
-xpedition-cli pcb info --backend native_xpedition --project X.prj --compact
-xpedition-cli pcb components --backend native_xpedition --project X.prj --compact
-```
+1. `pcb create`: the board from the library's `4 Layer Template` through
+   JobWizard (`--template` for another).
+2. `session start --kind pcb`, then `pcb annotate`: the packaged parts and nets
+   arrive, unplaced. Done only on `outcome: annotated` (`annotated_on_open` and
+   `in_synch` count too) with no `errors`, and counts matching the schematic.
+3. `pcb info`: the board in numbers -- components, nets, the stackup with each
+   layer's thickness, the net classes with their widths.
 
 ## First layout
 
-Forward-annotated parts are invisible until placed. The first layout is a
-handful of commands in this order; 1–7 are guarded writes, each `--dry-run` then
-`--confirm`, and 8–9 are reads to run directly:
+In this order; the writes are each a dry run and a confirm:
 
-1. `pcb outline --width W --height H --radius 3`: a rectangle from the origin
-   with rounded corners, replacing the board's outline.
-2. `pcb holes`: a mounting hole in each corner; do it before the arrangement so
-   the planner keeps the corners clear (`--replace` once the outline has grown).
-3. `pcb arrange --design FILE`: one cluster per IC with its parts around it,
-   decoupling nearest, rows and columns on one pitch, centres on a 0.5 mm grid,
-   room above every part for its designator, clusters in rows by sheet,
-   connectors on the side edges with their designators inward, test points
-   along the bottom, a zone label per sheet from the design file's `zone`;
-   `--all` to move parts that are already placed; each part of a cluster stands
-   beside the IC pin it connects to, its own pad facing that pin. Its dry run
-   sizes the board: `summary.outside` names parts the outline could not hold,
-   which means a bigger outline (steps 1 and 2 again), not a smaller gap — 70 ×
-   48 mm held the 39-part board of the recorded end-to-end run on real
-   footprints, with room for every designator. A confirmed arrange deletes every
-   trace and via on the board first and reports what it removed; on a routed
-   board its dry run says `dangerous` and the confirm needs `--dangerous`.
-4. `pcb pour --net GND --layer 2`: a copper plane inset from the outline,
-   rounded like it; `--replace` after the outline changed.
-5. `pcb rules --class POWER --nets VBAT,+3V3 --width 0.5`: a net class with its
-   trace widths on every layer, written through Constraint Manager; supply nets
-   get 0.5 mm, signals keep the template's 0.254 mm; the result must say
-   `seen_by_layout`.
-6. `pcb route --layers 1,4`: Layout's autorouter on the outer layers only:
-   Route at effort 1–5, Via Min, Smooth; `--unroute` to start over.
-7. `pcb pour --net GND --layer 1` and `--layer 4`, the outer-layer ground
-   pours: after routing, never before: a pour in place makes the router count
-   the ground net as done while the copper leaves pins cut off.
-8. `pcb drc`: Layout's Batch DRC, every hazard listed with its kind, objects
-   and position; `errors` and `warnings` apart, `passes` when there are no
-   errors.
-9. `pcb render --output board.png`: the board drawn from its geometry in KiCad's
-   colours, `--side bottom` for the other side.
+1. `pcb outline --width W --height H --radius 3`: the outline, a rectangle from
+   the origin.
+2. `pcb holes --diameter 3.2`: a mounting hole in each corner, before the
+   arrangement so the corners stay clear. Only sizes the library's padstacks have
+   are accepted; the refusal lists them.
+3. `pcb rules --class POWER --nets VBAT,+3V3 --width 0.5`: a net class with its
+   widths, through Constraint Manager; supplies 0.5 mm, signals keep the
+   template's 0.254 mm. The result must say `seen_by_layout`.
+4. `pcb arrange --design FILE`: one cluster per IC with its parts around it,
+   decoupling nearest, connectors on the edges, a zone label per sheet. Its dry
+   run sizes the board: `summary.outside` names parts the outline cannot hold,
+   which means a bigger outline (steps 1–2 again), not a smaller gap.
+5. `pcb labels`: every reference designator beside its part, clear of the others.
+6. `pcb pour --net GND --layer 2`: an inner ground plane.
+7. `pcb route --layers 1,4`: the autorouter on the outer layers (Route at effort
+   1–5, Via Min, Smooth); `--nets` routes only the nets named. The result says
+   `complete` and lists `unrouted` nets.
+8. `pcb pour --net GND --layer 1` and `--layer 4`: outer ground pours after
+   routing, never before: a pour in place makes the router count ground as done.
+9. `pcb check`: Layout's Batch DRC, every hazard with its kind, objects and
+   position, plus the board rules DRC does not cover (parts unplaced, off the
+   board or overlapping; decoupling capacitors far from their IC; connectors far
+   from an edge; acute corners; nets still open).
+10. `pcb render --output board.png`: look at it.
 
-The result of `pcb route` says `complete` and lists `unrouted` nets with their
-open count; a net that stays open next to a fine-pitch part is a rule problem
-(0.254 mm traces and clearances on the stock templates), not a router problem.
-Report a board as checked only when `pcb drc` says `passes` and you can name
-each warning kind and why it is acceptable (`ViasUnderParts` — vias under
-surface-mount bodies, tented — is; overlapping pads or partial nets are errors
-and are not).
-
-The placement is a starting point for a person, not a layout. `pcb arrange`
-lists each part's `x`/`y` in millimetres and `read_back` proves the placement.
+Report a board checked only when `pcb check` says `clean` and you can name every
+warning kind and why it is acceptable (`ViasUnderParts`, tented vias under a
+body, is; overlapping pads or open nets are not). A net that stays open beside a
+fine-pitch part is a rule problem (0.254 mm on the stock templates), not a router
+problem.
 
 ```bash
-xpedition-cli pcb outline --backend native_xpedition --project X.prj --width W --height H --radius 3 --dry-run --compact
-xpedition-cli pcb holes --backend native_xpedition --project X.prj --dry-run --compact
-# confirm the arrange only once its dry run leaves nothing in summary.outside
-xpedition-cli pcb arrange --backend native_xpedition --project X.prj --design design.json --dry-run --compact
-xpedition-cli pcb pour --backend native_xpedition --project X.prj --net GND --layer 2 --dry-run --compact
-xpedition-cli pcb rules --backend native_xpedition --project X.prj --class POWER --nets VBAT,+3V3 --width 0.5 --dry-run --compact
-xpedition-cli pcb route --backend native_xpedition --project X.prj --layers 1,4 --dry-run --compact
-xpedition-cli pcb pour --backend native_xpedition --project X.prj --net GND --layer 1 --dry-run --compact
-xpedition-cli pcb pour --backend native_xpedition --project X.prj --net GND --layer 4 --dry-run --compact
-xpedition-cli pcb drc --backend native_xpedition --project X.prj --compact
-xpedition-cli pcb render --backend native_xpedition --project X.prj --output board.png --compact
+xpedition-cli pcb outline --project X.prj --width 60 --height 45 --radius 3 --dry-run --compact
+xpedition-cli pcb holes --project X.prj --dry-run --compact
+xpedition-cli pcb rules --project X.prj --class POWER --nets VBAT,+3V3 --width 0.5 --dry-run --compact
+xpedition-cli pcb arrange --project X.prj --design design.json --dry-run --compact
+xpedition-cli pcb route --project X.prj --layers 1,4 --dry-run --compact
+xpedition-cli pcb check --project X.prj --compact
+xpedition-cli pcb render --project X.prj --output board.png --compact
 ```
 
 ## Moving parts
 
-One part: `pcb move --refdes R1 --to x,y --rotate 90`. Its traces stay where
-they were, so check the routing afterwards (`pcb drc`, `pcb render`) and route
-again where it broke; Layout refuses a position that touches another part.
-Several parts, aligned or distributed: use the selected-placement workflow
-(`pcb placement-plan`, `pcb placement`) and read `reference/placement-tasks.md`,
-which states its native evidence and partial-execution boundaries. Never use
-`pcb arrange` for a small edit.
+One part: `pcb move --refdes R1 --to x,y --rotate 90` (millimetres). A set,
+aligned or distributed: `pcb move --file task.json`; read
+`reference/placement-tasks.md`. Traces stay where they were: check and route
+again afterwards. Never use `pcb arrange` for a small edit.
+
+## Measuring a layout
+
+DRC says whether a board breaks a rule, not whether its placement is good.
+`pcb metrics` measures it: the ratsnest per net and in total, crossings, parts
+overlapping, outside or unplaced, each decoupling capacitor's distance to its IC,
+connectors' distance to an edge, density, and the routing's length, vias and
+sharp corners. Measure before a change, keep the result, measure after with
+`--baseline`: `delta` gives each value before and after, lower is better for all
+but `density`. Say a layout got better only from those numbers.
 
 ```bash
-xpedition-cli pcb components --backend native_xpedition --project X.prj --compact
-xpedition-cli pcb move --backend native_xpedition --project X.prj --refdes R12 --to 34,35.5 --dry-run --compact
+xpedition-cli pcb metrics --project X.prj --output before.json --compact
+xpedition-cli pcb metrics --project X.prj --baseline before.json --compact
 ```
 
-## Measuring the layout
-
-DRC says whether a board breaks a rule, not whether its placement is good. `pcb
-metrics` measures that from `pcb geometry`'s file, without Layout: the ratsnest
-per net and in total (the airwires as if nothing were routed) and how often
-signal airwires cross; parts whose extents overlap, leave the board or are not
-placed; each decoupling capacitor's distance to the nearest IC pin on its rail;
-connectors' distance to the edge; density; and the routing's length, vias and
-corners sharper than 90°. Before a placement change, save the measurement; after
-it, measure again against it: `delta` gives each summary value before and after,
-and lower is better for all but `density`. Say a layout got better only from
-those numbers.
-
-- `overlaps`, `outside` and `unplaced` are 0 before routing.
-- `decoupling_max_mm` is checked against DP-03 (2 mm unless a company rule says
-  otherwise).
-- Keep a move that brought the ratsnest or the crossings down without making the
-  overlaps, the parts outside or the decoupling distance worse.
-
-Extents stand in for courtyards, and supply nets are recognised by name (listed
-in `ratsnest.supply_nets`): check that list before trusting the signal numbers.
-
-```bash
-xpedition-cli pcb geometry --backend native_xpedition --project X.prj --output before.json --compact
-xpedition-cli pcb metrics --geometry before.json --output metrics.json --compact
-xpedition-cli pcb geometry --backend native_xpedition --project X.prj --output after.json --compact
-xpedition-cli pcb metrics --geometry after.json --baseline metrics.json --compact
-```
+`pcb geometry` is the board as data (outline, parts, pads, traces, vias, planes,
+keepouts, open nets); `--refdes` and `--nets` narrow it, `--output` keeps it for
+`pcb metrics --geometry`, `pcb stitch` and hand routing.
 
 ## Looking at the board
 
-`pcb show --output board.png` puts the board in front of the person; look at it
-yourself too. Layout opens the stock templates under the `Loc: Assembly Bottom`
-display scheme, which hides top-side parts, so a board that "looks empty" after
-annotation or placement usually needs this, not a fix; `pcb show` switches to
-`Loc: All On` (or `--scheme`). When the person looks at Layout's own screen,
-`pcb show --top-view`: the stock schemes draw the pours as outlines and every
-layer at once, so a poured, routed board looks bare and crowded until that
-scheme is picked.
+`pcb render --output board.png` draws the board from its data and needs no
+screen. `pcb show --output board.png` brings Layout's window to the front for the
+person and captures it; it captures black while the desktop is locked. The stock
+templates open under a display scheme that hides top-side parts, so a board that
+"looks empty" after annotation usually needs `pcb show`, not a fix; `--top-view`
+shows pours filled and one layer at a time for someone at Layout's screen.
 
-`pcb render --output board.png` needs no screen, unlike `pcb show --output`,
-which captures a black PNG while the desktop is locked. A render does not
-overwrite an existing file without `--replace`.
+## After a footprint changed
 
-## After a cell changed
+Annotating again keeps a part's old cell: Layout never swaps the cell of an
+existing component. Recreate the board: `project backup`, then `pcb create
+--replace`, `pcb annotate`, and the first layout again -- a few minutes, all
+through the CLI.
 
-After `library build` changed a cell that is already on the board, annotate
-again and the part keeps its old cell: Layout never swaps the cell of an
-existing component. Recreate the board instead: `pcb create --replace`, then
-`pcb annotate`, `pcb outline`, `pcb holes`, `pcb arrange`, `pcb pour`, `pcb
-rules`, `pcb route`, the outer pours — about three minutes, all through the CLI.
-
-STOP CHECKPOINT: `pcb create --replace` archives the existing layout folder to a
-zip beside the project and deletes it. Confirm only with the user's go-ahead for
-that board (the confirm needs `--dangerous`), and report the archive path.
+STOP CHECKPOINT: `pcb create --replace` archives the layout folder to a zip
+beside the project and deletes it; confirm only with the user's go-ahead for that
+board (the confirm needs `--dangerous`), and report the archive's path.
 
 ## Handing over
 
-Placeholder cells are placeholders: right pin count and rough size, nothing a
-factory can use. Say so when handing over, and keep real cells from the
-company's library as the follow-up. With a fabrication package, also say that its
-README leaves board thickness, finish and mask colour to the board house
-(`pcb export` takes no such options); pass on any the person named separately.
+Placeholder cells (`CLI_*`) are placeholders: right pin count, rough size,
+nothing a factory can use; say so, and add the real parts to the library as the
+follow-up. For the fabrication package read `reference/fabrication.md`.
 
-STOP CHECKPOINT: ask the user before confirming a board write they have not
-asked for, and before any that discards work: `pcb arrange` on a routed board (a
-confirmed arrange deletes every trace and via first; `--all` also moves the parts
-already placed), `pcb route --unroute`, `pcb unroute`, `pcb annotate --unroute`,
-`pcb pour --replace` or `pcb holes --replace` on pours or holes that were there
-before this task (redoing the ones this layout just made, after the outline grew,
-is part of the first layout), or any confirm whose preview lists something it
-deletes or removes. The ones whose preview says `dangerous` -- routing
-deleted with no archive, a layout replaced -- also need `--dangerous` next to the
-token; add it only after the user agreed to that loss.
+STOP CHECKPOINT: ask before confirming a board write the user has not asked for,
+and before any that discards work: `pcb arrange` on a routed board (it deletes
+every trace and via first; `--all` also moves placed parts), `pcb route
+--unroute`, `pcb unroute`, `pcb annotate --unroute`, `pcb pour --replace` or `pcb
+holes --replace` on work from before this task, or any confirm whose preview
+lists something it deletes. Those whose preview says `dangerous` also need
+`--dangerous`, added only after the user agreed to that loss; back the project up
+first (`project backup`).
 
 ## References
 
@@ -252,24 +168,21 @@ token; add it only after the user agreed to that loss.
 | --- | --- |
 | Any board edit | `reference/pcb-conventions.md` |
 | Routing a net or a board by hand | `reference/hand-routing.md` |
+| Moving a set of parts | `reference/placement-tasks.md` |
 | Sending the board out | `reference/fabrication.md` |
-| Aligning or distributing a set of parts | `reference/placement-tasks.md` |
 
 ## Eval Scenarios
 
 - Entry first: read `../xpedition-cli/SKILL.md` before any command; with it
   missing, stop and ask before installing the family.
-- Schematic to board: package, create and annotate with a dry run each; done
-  only on `outcome: annotated` (`annotated_on_open`, `in_synch`) with matching
-  counts.
+- Schematic to board: create and annotate with a dry run each; done only on
+  `outcome: annotated` with matching counts.
 - First layout: the outline grown until the arrange dry run leaves nothing
-  outside, holes before the arrangement, the outer ground pours only after
-  routing, and "checked" only when `pcb drc` passes with every warning kind
-  explained.
-- Work that goes: a confirmed arrange deletes all routing and `pcb create
-  --replace` archives the layout; both stop for the user, and `--dangerous` is
-  added only after the user agreed.
+  outside, holes before the arrangement, outer pours only after routing, and
+  "checked" only when `pcb check` says `clean` with every warning explained.
+- Work that goes: an arrange on a routed board and `pcb create --replace` stop for
+  the user, with a backup first; `--dangerous` only after the user agreed.
 - One part: `pcb move`, never `pcb arrange`, and the routing checked afterwards.
-- Better or worse: `pcb metrics` saved before a placement change and compared
-  with `--baseline` after it; the answer quotes the deltas, not an impression.
-- Boundary: a schematic drawing or BOM request is not this Skill's.
+- Better or worse: `pcb metrics` saved before the change, compared with
+  `--baseline` after it; the answer quotes the deltas.
+- Boundary: a schematic or BOM request is not this Skill's.

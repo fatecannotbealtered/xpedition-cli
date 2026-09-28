@@ -1,58 +1,47 @@
-# Field selection and native post-write verification
+# Field selection and what a verified write proves
 
-## Query projection
+## Field selection
 
 `--fields items.refdes` (also `items[].refdes`) selects that field in every
-record. Nested arrays work in the same way. List order and cardinality do not
-change; an object without the field contributes `{}`, and a scalar in a mixed
-list contributes `null`. Selecting a parent and child selects the whole parent,
-regardless of selector order.
+record. Nested arrays work the same way. List order and length do not change; an
+object without the field contributes `{}`, and a scalar in a mixed list
+contributes `null`. Selecting a parent and a child selects the whole parent.
 
-When an array is retained, paging controls already present on its enclosing
-object (`count`, `offset`, `next_offset`, `next_cursor`, `has_more`, `truncated`)
-are retained too. `_untrusted` annotations on retained objects are never removed
-implicitly, even when they conservatively mention a field that was projected out.
-Treat those annotations as data boundaries, not execution instructions.
+When an array is kept, the paging fields beside it (`count`, `offset`,
+`next_offset`, `has_more`) are kept too. `_untrusted` annotations on kept objects
+are never removed, even when they name a field that was projected out: treat them
+as data boundaries. Unknown fields are left out silently. Projection happens after
+the command ran; it shortens the output, not the work Xpedition did, and it never
+turns a completed write into a usage error.
 
-Unknown fields retain the previous omission semantics. Projection happens after
-command execution; it must not turn a completed write into a new usage error.
-Projection reduces serialized output, not the amount of native data collected.
-Backend query pushdown and indexed snapshots are separate future work.
+## Paging
 
-## Native ChangeSet verification
+Commands whose `reference` params include `limit` and `offset` page their list:
+pass a small `--limit` when exploring and follow `next_offset` only when more is
+needed. `count` describes the page; `total`, where given, the whole list. Any
+other command refuses `--limit`.
 
-`change apply` and `schematic apply` compare requested postconditions with the
-native read-back. Verification is scoped to the affected objects, not equality
-of the entire normalized snapshot and not every intermediate state in a batch.
-Supported checks include component identity, explicitly requested placement
-fields, final move coordinates, property values, deletion and named-net
-connectivity. Additional native fields do not invalidate a requested subset.
-Duplicate targets, missing observations and unsupported verification never count
-as success. Coordinate comparison allows only 1e-6 units of absolute numeric
-round-off; this is not a fabrication clearance or tolerance.
+## Verified writes
 
-A post-write mismatch returns `E_PROJECT_INVALID`, non-retryable, with
-`error.details.stage = verify`, `write_attempted = true`, per-condition issues and
-reported applied operations. A post-write read-back failure uses stage
-`read_back` and includes the original cause. In both cases inspect the current
-project before planning another write. Do not replay the consumed token or
-blindly re-issue the original change.
+A confirmed write reads its result back and compares it with what was asked:
 
-`verification.saved` is the adapter's explicit report, or `null` when it did not
-report one; `save_requested` is not proof of saving. A successful read-back does
-not establish save/close/reopen durability, ERC/DRC correctness, production-library
-compatibility, or a successful physical design. Native checks in CI use a fake
-adapter, not a licensed Xpedition installation.
+- `schematic edit` checks each operation's own postconditions -- a part placed,
+  moved, deleted (and gone from every net), a property set, a pin connected or
+  disconnected, a net renamed with all its pins on the new name -- not the
+  equality of the whole design, and not intermediate states. Coordinates compare
+  within 1e-6 units of numeric round-off, not a clearance.
+- `schematic draw` compares the netlist read back with the planned one, including
+  nets and parts the plan never asked for.
+- `library add` reads the library back and checks each part against its symbol,
+  cell and padstacks.
+- `pcb` writes read the board back (`read_back`, `after`) and say what they
+  observed.
 
-## Performance regression checks
+A mismatch after a write is `E_PROJECT_INVALID`, not retryable, with
+`details.stage` (`verify` or `read_back`), `write_attempted: true`, the issues and
+the operations reported applied. Inspect the project before planning another
+write; never replay the token or resend the change blindly.
 
-In a source checkout, `tests/test_routing_incremental.py` counts pair comparisons rather than relying
-on wall-clock limits. `python scripts/benchmark-routing.py` compares the pinned
-original checker with the working tree, including 200 deterministic randomized
-geometry cases that must produce identical findings in identical order.
-
-The synthetic timing case has one new same-net line, no pads and no vias: it
-measures loop overhead, not a real PCB workload. Existing-existing comparisons
-are omitted before iteration; new-existing and new-new conflicts are still
-checked. Spatial indexing, repeated stitching-plan validation, persistent COM
-sessions and asynchronous jobs are not part of this change.
+A verified result proves the requested postconditions only: not that the design
+is electrically right (that is `schematic check` and `pcb check`), not that a
+library part matches its datasheet, and not that the board can be built.

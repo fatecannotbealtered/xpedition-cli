@@ -1,6 +1,6 @@
 <h1 align="center">xpedition-cli</h1>
 
-<p align="center"><strong>面向 AI Agent 的 Xpedition 设计控制层：JSON 优先，ChangeSet 写入受 dry-run 保护</strong></p>
+<p align="center"><strong>面向 Agent 的 Siemens Xpedition 控制工具：从设计描述到布好线的板子和制造文件，每次写入先预览、后核验</strong></p>
 
 <p align="center"><a href="README.md">English</a> · <a href="README_zh.md">中文</a></p>
 
@@ -10,11 +10,12 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-7C3AED?style=for-the-badge"></a>
 </p>
 
-`xpedition-cli` 是 Siemens Xpedition 数据的命令层。MockBackend 可离线使用；
-NativeBackend 通过可选的 Windows COM 适配器驱动正版 Xpedition，已经把一个工程从空白原理图
-一路做到布线完成的板子和整套打板资料（见 `docs/E2E.md`）。这些证据来自同一台 Windows 机器，
-封装是转换来的开源库，料号是占位值。CLI 不直接修改 Xpedition 私有数据库，
-所有写命令都要先 `--dry-run` 再 `--confirm <token>`。
+`xpedition-cli` 在 Windows 上通过自动化接口驱动已授权的 Xpedition：原理图在
+Designer 里，板子在 Layout 里。Agent 写好原理图的描述，把缺的器件加进工程自己的
+库，画图、打包、建板、布局、布线、检查、导出，一共 54 条命令，每条都只回一个 JSON
+信封。整条链路在一台装有 XPED2604 的 Windows 上跑通，记录在
+[docs/E2E.md](docs/E2E.md)。CLI 从不直接改 Xpedition 的私有数据库，所有写命令都要
+先 `--dry-run` 再 `--confirm <token>`。
 
 ## Agent 安装
 
@@ -27,123 +28,93 @@ xpedition-cli doctor --compact
 xpedition-cli reference --compact
 ```
 
-第一行从本仓库的默认分支安装 CLI 和 Windows 适配器（`[native]`）；要固定到某个发布版本，
-在末尾加上 tag，例如 `...xpedition-cli@v1.0.0`。在代码检出目录中用
-`python -m pip install -e ".[native]"` 效果相同。每次打 tag 发版还会把独立二进制发布到 npm，
-包名 `@fateforge/xpedition-cli`。它不带 Windows 适配器，只能用于 MockBackend、离线规划和
-文件类命令；要驱动 Xpedition，必须在 Windows 上用 pip 安装。MockBackend 不需要 CLI 登录；Native
-Xpedition 的凭据和许可证留在经过验证的 Xpedition 环境内，详见
-[NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)。
+第一行从本仓库默认分支安装 CLI 和它的 Windows 适配器（`[native]`）；要固定版本就在
+末尾加发布 tag，例如 `...xpedition-cli@v1.0.1`。在源码目录里
+`python -m pip install -e ".[native]"` 效果相同。每次发布还会在 npm 上发布独立二进制
+`@fateforge/xpedition-cli`；它不带 Windows 适配器，只能跑不需要 Xpedition 的命令
+（`reference` 里 `needs: none` 的：预览、规划、按文件计算指标、工程备份）。CLI 没有
+登录流程，Xpedition 自己的许可留在用户的安装里（见[原生适配器协议](docs/NATIVE_ADAPTER.md)）。
 
-## 它做什么
+## 能做什么
 
-CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。ChangeSet 描述放置器件、
-创建网络、连接引脚、移动或删除器件、设置属性等受控操作。应用 ChangeSet 必须先拿到
-预览 token，替换已有文件时自动生成备份，随后原子保存并回读验证。
+十二步，每步几条命令（`reference` 里的 `workflow` 列着）：
 
-风险等级：**T2**。对 MockBackend，爆炸半径是明确指定的那个本地 JSON 文件。对 NativeBackend，
-爆炸半径是指定的那个 Xpedition 工程：一次确认过的写入可以画原理图、摆器件、增删布线。
-会毁掉成果的写操作，除了 token 还要加 `--dangerous`：`schematic draw`、`pcb unroute`、
-`pcb create --replace`（会先把已有布局目录打包成工程旁边的 zip，再删除它）、有布线时的
-`pcb arrange`、`pcb route --unroute`、`pcb annotate --unroute`，以及导入到已存在分区的
-`library kicad-import`。`pcb annotate`、改动了输出设置的 `pcb export`，以及对一块板第一次
-运行的 `pcb show --top-view`，都会不存盘地关闭并重新打开板子，所以先在 Layout 里保存手工改动。
-参见 [SECURITY_zh.md](SECURITY_zh.md)。
-
-## 能力
-
-| 领域 | 命令 | 后端 |
-|---|---|---|
-| 工程数据 | `project init`、`project info`、`project tree`、`project snapshot`、`project diff`、`design snapshot` | 两种后端；原生下 `project init --template` 复制模板工程，`project diff` 比对的是 MockBackend 文件和它的备份 |
-| 原理图读取 | `schematic sheets`、`components`、`pins`、`nets`、`connectivity`、`unconnected`、`power`、`interfaces`、`query` | 两种后端 |
-| 原理图绘制 | `schematic draw`、`schematic show`、`schematic export`、`library build`、`library kicad-import` | NativeBackend（见下节） |
-| 原理图预览 | `schematic render` | 离线，基于设计文件：每页规划画成一张 PNG，规划发现的问题用红框标出 |
-| 引脚规划 | `schematic pin-plan`、`schematic pin-check` | 离线，基于提供的快照 |
-| PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`tracks`、`vias`、`layers`、`stackup`、`zones`、`keepouts`、`query` | 两种后端；原生下 `layers`、`stackup`、`zones`、`keepouts` 会被拒绝（尚未读取），`pcb info` 里它们的计数为 null |
-| PCB 设计 | `pcb create`、`annotate`、`outline`、`holes`、`arrange`、`placement`、`move`、`rules`、`pour`、`route`、`trace`、`via`、`unroute`、`labels`、`geometry`、`render`、`show`、`drc`、`export` | NativeBackend（见下节） |
-| PCB 规划 | `pcb stitch`、`pcb placement-plan`、`pcb metrics` | 离线，基于文件；`pcb metrics` 给布局打量化指标，并能和之前的结果对比 |
-| 约束与分析 | `constraints ...`、`analysis run|results|erc|drc|dfm` | MockBackend；原生后端下会被拒绝（请用 `review run` 和 `pcb drc`） |
-| 制造与库读取 | `manufacturing ...`、`library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend；原生后端下会被拒绝，`manufacturing bom` 除外，它读的是元件 |
-| 变更控制 | `change validate`、`change preview`、`change apply`、`change history`、`change rollback`、`schematic apply` | MockBackend；原生下 `change apply` 能放置和移动器件，`schematic apply` 还能建网络、连引脚 |
-| 审查与 BOM | `review run`、`bom export|normalize|group|variants|missing|duplicates|validate|compare` | 两种后端；原生下 `review run` 还会跑 Designer 自带的校验 |
-| 环境 | `context`、`doctor`、`reference`、`changelog`、`system capabilities`、`system license`、`system api-inventory` | 本地探针；`api-inventory` 在 Windows 上读取 COM 类型库 |
-| 知识库 | `kb list`、`kb add`、`kb remove` | 本地记录公司规则文档的链接，由 Agent 去读 |
-| 会话 | `session status`、`session logs`、`session start`、`session attach`、`session open`、`session stop` | start/attach/open/stop 驱动 Xpedition；`session logs` 读取的日志本版本从不写入 |
-| Exchange 文件 | `exchange inspect`、`exchange import` | JSON/CSV/BOM/IPC-2581；PDF/EDN/ODB++ 仍不可用 |
-| Agent 桥接 | `agent snapshot`、`agent query`、`agent review`、`agent capabilities`、`agent serve` | 默认 MockBackend，选了原生后端时走原生；`serve` 支持自定义 NDJSON 和 MCP transport |
-| 规划中 | 约束、分析、制造和库读取的原生实现；PDF/EDN/ODB++ 导入；其余原生 ChangeSet 操作 | 列在 `system capabilities` 里 |
-
-实时命令和 schema 以 `xpedition-cli reference --compact` 为准。
-
-## Agent 工作流
-
-1. 运行 `context`、`doctor`、`reference`，确认后端和发布就绪等级。
-2. 离线工作时显式使用 `--backend mock` 和 `--project PATH`。
-3. 在 Agent 步骤之间传递 JSON 时使用 `--compact` 和 `--fields`。
-4. 创建新的 MockBackend 工程时先运行 `project init --dry-run`，检查预览后使用相同参数确认。
-5. 应用 ChangeSet 前先校验和预览：
-
-   ```bash
-   xpedition-cli change validate --changeset ./changeset.json --compact
-   xpedition-cli change apply --backend mock --project ./demo-project.json --changeset ./changeset.json --dry-run --compact
-   xpedition-cli change apply --backend mock --project ./demo-project.json --changeset ./changeset.json --confirm <confirm_token> --backup --compact
-   ```
-
-6. 应用后检查 `verification`，并在下一次写入前重新读取 `project snapshot`。
-7. 使用 `change history` 查看本地操作记录。回滚同样必须先预览，再使用一次性确认 token。
-
-Agent 集成可使用 `xpedition-cli agent serve --transport stdio`，通过 NDJSON
-请求/响应流访问 snapshot、query、review 和 capability 方法；除非请求选了原生后端，否则走 MockBackend。
-
-## 原生 Xpedition：从原理图到打板资料
-
-下面各阶段都在有许可的 Xpedition（XPED2604）上对示例工程跑通过；例外是单独运行的
-`pcb via`，以及带门禁的 `library kicad-import`（它背后的转换器是通过早先的入口跑的）。过程记录在
-[docs/E2E.md](docs/E2E.md)，自动化接口的每条事实在 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
-写命令都有门禁：`--dry-run` 返回 `confirm_token`，`--confirm <token>` 才执行。
-
-| 阶段 | 命令 |
+| 步骤 | 命令 |
 |---|---|
-| 工程与原理图 | `project init`、`schematic draw`、`schematic show`、`schematic export`、`review run` |
-| 库 | `library build`（零件来自设计文件）、`library kicad-import`（封装由 KiCad 封装库转换） |
-| 板子 | `pcb create`、`pcb annotate`、`pcb outline`、`pcb holes`、`pcb arrange`、`pcb placement`、`pcb pour`、`pcb rules`、`pcb route`、`pcb drc` |
-| 手工布线 | `pcb geometry`、`pcb trace`、`pcb via`、`pcb unroute`、`pcb move`、`pcb labels`、`pcb stitch`（离线规划；计划检查在 `xpedition_cli.routing_plan`） |
-| 出图与出资料 | `pcb render`、`pcb show [--top-view]`、`pcb export`（ODB++、Gerber、钻孔、坐标、BOM、清单） |
+| 检查机器，启动 Designer 或 Layout | `doctor`、`session start` |
+| 从模板建工程 | `project create` |
+| 把设计要用的器件放进库 | `library list`、`library add`、`library render`、`library import` |
+| 先预览设计，再画原理图 | `schematic render`、`schematic draw` |
+| 生成占位器件并打包 | `library build`、`library check` |
+| 检查原理图和 BOM | `schematic check`、`bom check`、`schematic export` |
+| 备份、建板、把原理图同步进板子 | `project backup`、`pcb create`、`pcb annotate` |
+| 板框、安装孔、网络类 | `pcb outline`、`pcb holes`、`pcb rules` |
+| 布局和丝印位号 | `pcb arrange`、`pcb move`、`pcb labels` |
+| 布线和铺铜 | `pcb route`、`pcb trace`、`pcb via`、`pcb stitch`、`pcb pour` |
+| 检查、度量、看图 | `pcb check`、`pcb geometry`、`pcb metrics`、`pcb render` |
+| 制造文件 | `pcb export`、`bom export` |
+
+另外还有：`schematic edit` 在已画好的图上定点修改（放置、移动、删除元件，改属性，
+连接或断开引脚，改网络名）；读取类命令（`schematic components|nets|sheets`、
+`pcb info`、`library show`）；把窗口带到前台（`schematic show`、`pcb show`）；
+`project restore`；会话（`session status|stop`）；知识库（`kb list|add|remove`）；
+自描述（`context`、`doctor`、`reference`、`changelog`、`version`）。
+
+**自建设计库。** `library add` 读一个器件文件：每个器件一个符号（带命名、带类型引脚的
+方框，或内置种类）、一个封装和引脚对应。封装可以按 IPC-7351B 从数据手册尺寸生成
+（chip、molded、鸥翼、J 形引脚、带散热焊盘的 QFN/DFN、通孔），可以逐个给焊盘（多个
+焊盘可以共用一个引脚号），也可以用库里已有的封装或导入的 KiCad 封装。预览会说清楚
+每一项是新增、保留（内容相同就不动）还是会覆盖；导入后读回库再逐个检查。设计里直接
+写器件编号就能用：`"symbols": {"LDO": {"part": "TPS7A2033PDBVR"}}`。
+
+每次写入都会读回结果：画图对照计划核对网表，编辑逐条核验，`library add` 逐个检查
+器件，`pcb` 写命令报告它读回的状态。风险等级 **T2**。会毁掉没有归档的成果的写入，
+除了 token 还要加 `--dangerous`：`schematic draw`、`pcb unroute`、
+`pcb create --replace`（它会先把版图目录压缩到工程旁边）、在已布线的板上
+`pcb arrange`、`pcb route --unroute`、`pcb annotate --unroute`、导入到已有分区的
+`library import`、会覆盖库里内容的 `library add`，以及 `project restore`。做这些之前
+可以先用 `project backup` 把整个工程打包。见 [SECURITY.md](SECURITY.md)。
+
+实时的命令和 schema 以 `xpedition-cli reference --compact` 为准。
 
 ## 机器契约
 
-- 默认输出 JSON，stdout 只包含一个 envelope。
-- 成功和失败都包含 `ok`、`schema_version` 和 `meta.duration_ms`。
-- 错误使用 [`contract/contract.json`](contract/contract.json) 中统一的 `E_*`、退出码和 `retryable` 映射。
-- 日志和诊断走 stderr；`--json` 是 `--format json` 的兼容别名，`text` 面向人，`raw` 返回 payload。
-- 来自工程文件的项目和审查字段通过 `_untrusted` 标记。
-- ID 使用字符串，时间使用 ISO 8601 UTC。
+- 默认输出 JSON，stdout 里只有一个信封。
+- 成功和失败都带 `ok`、`schema_version` 和 `meta.duration_ms`。
+- 错误码 `E_*`、退出码和 `retryable` 的对应关系见
+  [`contract/contract.json`](contract/contract.json)。
+- 日志和诊断走 stderr。`--json` 是 `--format json` 的兼容别名；`--format text` 给人看，
+  `raw` 只返回数据本身。
+- 来自设计、库或文件的值都列在 `_untrusted` 里。
+- ID 是字符串，时间是 ISO 8601 UTC。
+- 未知选项、缺少必填项、格式不对的值，在执行任何动作之前就会被拒绝。
 
 ## 配置
 
-本阶段没有登录流程。CLI 的本地状态都在 `~/.xpedition-cli/` 下：确认 secret、已消费 token
-记录及其锁文件、审计 JSONL、知识库链接、原生会话记录（`session.json`）和摆放任务的锁文件。
-测试或 CI 可设置 `XPEDITION_CLI_CONFIG_DIR` 隔离这些文件。Native
-适配器可通过 `XPEDITION_NATIVE_COMMAND` 指定；设置该变量不会绕过 COM 注册或许可证检查。
+CLI 的本地状态放在 `~/.xpedition-cli/`：确认密钥、已用 token 账本和它的锁、审计
+JSONL、知识库链接、会话记录（`session.json`）和库导出缓存。设
+`XPEDITION_CLI_CONFIG_DIR` 可以把这些文件隔离开。设 `XPEDITION_NATIVE_COMMAND` 可以
+指定适配器，但它绕不过 COM 注册和许可；找不到安装位置时设 `XPEDITION_SDD_HOME`。
 
-公司自己的规则（布局规则、绘图约定、评审清单）留在公司知识库里。
-`kb add --name NAME --url URL --about TEXT`（写操作：先 dry-run 再 confirm）把适用的文档记到
-`knowledge-base.json`，`context` 把它们列给 Agent，由 Agent 用自己的工具去读（飞书 wiki 用
-lark-cli）。CLI 本身从不读取文档。
+公司自己的规则（布局规则、画图规范、评审清单）留在公司的知识库里。
+`kb add --name 名字 --url 链接 --about 说明`（写命令：先预览再确认）记录哪篇文档适用，
+`context` 把它们列给 agent，agent 用自己的工具去读。CLI 从不抓取文档内容。
 
-## 项目结构
+## 目录结构
 
 ```text
 xpedition-cli/
-├── xpedition_cli/       # CLI 边界、模型、ChangeSet、后端、契约
-├── tests/               # 命令级契约和 FCC 测试
-├── skills/xpedition-cli/        # 入口 Skill：安装、会话、工程、ChangeSet
-├── skills/xpedition-schematic/  # 原理图 Skill：Designer 绘图、评审、引脚
-├── skills/xpedition-pcb/        # 板级 Skill：Layout、布线、DRC、制造输出
-├── contract/            # vendored 机器契约真源
-├── scripts/             # 规范、版本和 npm 壳工具
-├── docs/                # 兼容性、E2E 和开源清单
-└── .agent/              # 固定版本的 AI 原生 CLI 规范
+├── xpedition_cli/               # CLI 边界、命令注册表、规划器、设计库、适配器
+│   └── cli/                     # 每个命令域一个模块；registry.py 列出全部命令
+├── tests/                       # 命令级契约测试和 FCC 测试（伪造的适配器）
+├── skills/xpedition-cli/        # 入口 Skill：安装、会话、工程、设计库、安全
+├── skills/xpedition-schematic/  # 原理图 Skill：画图、编辑、检查、BOM
+├── skills/xpedition-pcb/        # 版图 Skill：Layout、布局、布线、检查、制造文件
+├── contract/                    # 规范的机器契约副本
+├── examples/                    # 设计文件和一个布局任务
+├── scripts/                     # 规范、版本和 npm 包装脚本
+├── docs/                        # 兼容性、E2E、原生适配器、评测
+└── .agent/                      # 固定版本的 AI 原生 CLI 规范
 ```
 
 ## 开发
@@ -157,23 +128,22 @@ node scripts/check-version.js
 node scripts/check-spec.js --local-only
 ```
 
-当前 `reference.release_readiness.level` 为 `beta`：每条公开命令都有命令级测试，
-契约测试覆盖失败路径和边界行为而不只是正常路径，正版 Xpedition 上的真实运行记录在
-[`docs/E2E.md`](docs/E2E.md)；离 `stable` 还差什么，`reference` 里写着。这个等级说的是
-这些证据，不等于承诺换一台机器上的 Xpedition 自动化行为完全一致。
+测试在 CLI 唯一跨越的进程边界上伪造适配器，驱动的是真实的 CLI，不需要 Xpedition。
+`reference.release_readiness.level` 是 `beta`：每条公开命令都有命令级测试，对授权
+Xpedition 的实测记录在 [`docs/E2E.md`](docs/E2E.md)；`reference` 写明了离 `stable`
+还差什么。这个等级说的是这些证据，不保证自动化接口在另一台安装上表现完全一样。
 
 ## 链接
 
 - [Agent 入口](AGENTS_zh.md)
-- [Skill](skills/xpedition-cli/SKILL.md)（入口），以及 [xpedition-schematic](skills/xpedition-schematic/SKILL.md) 和 [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
-- [CLI 契约](.agent/CLI-SPEC.md)
-- [安全策略](SECURITY_zh.md)
+- [Skills](skills/xpedition-cli/SKILL.md)：入口 Skill，以及 [xpedition-schematic](skills/xpedition-schematic/SKILL.md) 和 [xpedition-pcb](skills/xpedition-pcb/SKILL.md)
+- [CLI 契约](.agent/CLI-SPEC_zh.md)
+- [安全策略](SECURITY.md)
 - [兼容性矩阵](docs/COMPATIBILITY.md)
-- [NativeBackend 适配器协议](docs/NATIVE_ADAPTER.md)
-- [MCP transport](docs/MCP.md)
-- [E2E 说明](docs/E2E.md)
+- [原生适配器协议](docs/NATIVE_ADAPTER.md)
+- [E2E 记录](docs/E2E.md)
 - [Skill 跨模型评测](docs/EVALS.md)
-- [变更记录](CHANGELOG.md)
-- [贡献说明](CONTRIBUTING_zh.md)
-- [第三方声明](NOTICE_zh.md)
+- [更新日志](CHANGELOG.md)
+- [贡献指南](CONTRIBUTING.md)
+- [第三方声明](NOTICE.md)
 - [MIT 许可证](LICENSE)

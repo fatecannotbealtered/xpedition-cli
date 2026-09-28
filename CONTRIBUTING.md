@@ -23,21 +23,27 @@ Use `XPEDITION_CLI_CONFIG_DIR` for an isolated confirmation secret and audit
 directory during tests. Do not use production design files; native E2E is
 limited to the disposable sequence in [`docs/E2E.md`](docs/E2E.md).
 
-## Adding a command or backend
+## Adding a command
 
 1. Read the relevant sections of `.agent/CLI-SPEC.md` and `.agent/SEC-SPEC.md`.
-2. Add the domain model/backend operation under `xpedition_cli/`.
-3. Register the command, schema, examples, permission tier and blast radius in
-   `xpedition_cli/reference_data.py`.
+2. Declare it once in `xpedition_cli/cli/registry.py`: its path, handler
+   (`module:function` under `xpedition_cli/cli/`), description, output schema,
+   examples, stage, what it needs running, permission tier, parameters and, for a
+   write, its blast radius and dry-run schema. `reference`, `--help` and the
+   parser all read that entry.
+3. Add its output schema to `xpedition_cli/reference_data.py` and the work under
+   `xpedition_cli/`; anything that talks to Xpedition goes through an adapter
+   method in `xpedition_cli/native_com_adapter.py`.
 4. Keep external values marked in `_untrusted` and gate every mutating action
    behind `--dry-run` then a single-use `--confirm <token>`, with `--dangerous`
-   as well when it destroys work.
-5. Add command-level tests for success, invalid input, errors, envelope shape,
-   exit code and stdout/stderr behavior. The FCC guard must remain green.
+   as well when it destroys work. Read the result back after a write.
+5. Add command-level tests (the adapter is faked with `tests/fakes.py`) for
+   success, invalid input, errors, envelope shape, exit code and stdout/stderr
+   behavior. The FCC guard must remain green.
 6. Update both READMEs, the affected Skills and `CHANGELOG.md`.
 
-Do not claim NativeBackend or a new Xpedition version until a recorded licensed
-smoke test proves it. Keep `.agent/*`, `contract/contract.json`, and generated
+Do not claim a capability or a new Xpedition version until a recorded run on a
+licensed installation proves it (`docs/E2E.md`). Keep `.agent/*`, `contract/contract.json`, and generated
 contract code synchronized through `scripts/sync-spec.js`; never hand-edit a
 vendored spec or generated module.
 

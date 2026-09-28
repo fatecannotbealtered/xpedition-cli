@@ -2,66 +2,66 @@
   {
     "id": "entry-skill-first",
     "prompt": "Use xpedition-pcb to check the board in the running Layout session.",
-    "expected": "Read ../xpedition-cli/SKILL.md first and run context, doctor and reference as it says; check doctor's native_session for Layout before a native command."
+    "expected": "Read ../xpedition-cli/SKILL.md and run its first step before pcb check --project X.prj."
   },
   {
     "id": "schematic-to-board",
-    "prompt": "The schematic of the demo sensor board is drawn in Designer from design.json. Turn it into a board in Layout.",
-    "expected": "Start Layout with session start --backend native_xpedition --kind pcb; run library build --design design.json --package, pcb create and pcb annotate with --backend native_xpedition --project X.prj, each --dry-run then the same command with --confirm and the returned token; read back with pcb info and pcb components; report done only when pcb annotate says outcome annotated (annotated_on_open or in_synch also count) with no errors and the counts match the schematic."
+    "prompt": "The schematic of the demo sensor board is drawn and packaged. Turn it into a board.",
+    "expected": "pcb create dry run and confirm, session start --kind pcb, pcb annotate dry run and confirm; done only on outcome annotated with matching counts; pcb info to read the board back."
   },
   {
     "id": "first-layout",
     "prompt": "Place the parts on the new board, route it and tell me whether it is clean.",
-    "expected": "Draw the outline and the holes first, dry-run pcb arrange and grow the outline (holes --replace) until summary.outside is empty, then confirm the arrange; pour GND on layer 2, set the POWER class and check seen_by_layout, route layers 1 and 4, pour the outer layers only after routing, then run pcb drc; call the board checked only when drc passes and every warning kind is named with why it is acceptable; present the placement as a starting point for a person, not a signed-off layout."
+    "expected": "Outline, holes, rules, then pcb arrange dry run (grow the outline while summary.outside is not empty), labels, inner pour, pcb route, outer pours after routing, pcb check; clean only when pcb check says clean and every warning kind is explained."
   },
   {
     "id": "fabrication-package",
     "prompt": "Send this board out for fabrication.",
-    "expected": "Read reference/fabrication.md; run pcb drc, then pcb export --output DIR --dry-run and confirm with the same arguments and the returned token; report the package ready only when drc passes and checks.ok is true, naming any problems; say the README leaves thickness, finish and mask colour to the board house, and pass on any the user gave separately."
+    "expected": "Read reference/fabrication.md; pcb check first, then pcb export --output DIR --dry-run and confirm; ready only when checks.ok is true; say what the README leaves to the board house."
   },
   {
     "id": "rebuild-after-cell-change",
-    "prompt": "I changed the footprint of U3 and rebuilt the library. Update the board.",
-    "expected": "Explain that annotating again keeps the old cell, so the board is recreated with pcb create --replace; stop and ask before confirming it because it archives the layout folder to a zip and deletes it; with the user's go-ahead confirm with --dangerous as well as the token; report the archive path; then annotate, outline, holes, arrange, pour, rules, route and the outer pours again."
+    "prompt": "I changed the footprint of U3 in the library. Update the board.",
+    "expected": "Annotating keeps the old cell; project backup, then pcb create --replace (STOP CHECKPOINT, --dangerous after the user agrees, report the archive), annotate and lay out again."
   },
   {
     "id": "arrange-on-routed-board",
     "prompt": "Two parts are still unplaced on the routed board. Run the arrange so they get placed.",
-    "expected": "Stop and ask first: a confirmed pcb arrange deletes every trace and via on the board before placing (its dry run says dangerous and the confirm would need --dangerous), so the routing would have to be redone. Offer pcb move for the two parts instead."
+    "expected": "A confirmed arrange deletes all routing first; prefer pcb move for the two parts; if the arrange is still wanted, project backup and stop for the user's agreement before --dangerous."
   },
   {
     "id": "small-local-move",
     "prompt": "Move R12 two millimetres to the left, nothing else.",
-    "expected": "Read R12's position with pcb components, then pcb move --refdes R12 --to <new x,y> with a dry run first; never pcb arrange for a small edit; confirm only with the user's authorization; its traces do not move with it, so check the routing afterwards with pcb drc or pcb render."
+    "expected": "Read R12's position (pcb geometry --refdes R12), pcb move --refdes R12 --to <x-2,y> dry run and confirm, then check the routing around it."
   },
   {
     "id": "board-looks-empty",
     "prompt": "I annotated the board but Layout shows nothing on it. Is it broken?",
-    "expected": "Not broken: forward-annotated parts are unplaced until placed, and the stock templates open under the Loc: Assembly Bottom scheme that hides top-side parts. Check placement with pcb components, and use pcb show (Loc: All On) or pcb render to look; do not try to repair the board."
+    "expected": "Not broken: annotated parts are unplaced until placed, and the stock display scheme hides top-side parts; pcb info counts them, pcb show changes the scheme."
   },
   {
-    "id": "hand-route-a-net",
-    "prompt": "The autorouter gave VBAT a long detour. Route it by hand.",
-    "expected": "Read reference/hand-routing.md; pcb geometry --output board.json; remove the detour with pcb unroute (its confirm deletes routing that is not archived and needs --dangerous, so ask first); plan the trace (PlanBuilder, 0.5 mm for a supply net), pcb trace --file plan.json --geometry board.json --dry-run, check the nearest pins and the offline check, confirm with the user's authorization, then read opens_after and look with pcb render."
-  },
-  {
-    "id": "schematic-request-boundary",
-    "prompt": "Draw a schematic for a 5 V to 3.3 V regulator with an I2C sensor.",
-    "expected": "Not this Skill: schematic drawing belongs to xpedition-schematic (its drawing conventions and design format); read ../xpedition-schematic/SKILL.md. Run no pcb command."
-  },
-  {
-    "id": "bom-request-boundary",
-    "prompt": "Export the BOM of this design as CSV.",
-    "expected": "Not this Skill: bom export belongs to xpedition-cli. Only inside a fabrication package does pcb export write bom.csv."
-  },
-  {
-    "id": "entry-skill-missing",
-    "prompt": "Check the board in the running Layout session. (The entry Skill is not installed here: ../xpedition-cli/SKILL.md does not exist.)",
-    "expected": "Stop before any command: the entry Skill this one builds on is missing. Tell the user and, once they agree, install the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+    "id": "route-some-nets",
+    "prompt": "Route only VBAT and +3V3 for now; I will do the signals by hand.",
+    "expected": "pcb route --nets VBAT,+3V3 dry run and confirm; the other nets stay unrouted; hand routing per reference/hand-routing.md."
   },
   {
     "id": "measure-a-placement-change",
     "prompt": "Move C12 next to U3's supply pin and tell me whether the layout got better.",
-    "expected": "Read the entry Skill and this Skill; export pcb geometry and save pcb metrics --output as the baseline; preview pcb move with a dry run and confirm it within the user's request; export pcb geometry again and run pcb metrics --baseline; report the delta (C12's decoupling distance, the ratsnest and the crossings) and that overlaps and outside stayed 0, instead of calling it better without numbers."
+    "expected": "pcb metrics --output before.json first, the move, then pcb metrics --baseline before.json; answer from the deltas (decoupling distance, ratsnest, crossings, overlaps)."
+  },
+  {
+    "id": "stackup-question",
+    "prompt": "How thick is this board and what trace width does the POWER class use?",
+    "expected": "pcb info: thickness_mm, the stackup, and net_classes with their widths per layer."
+  },
+  {
+    "id": "schematic-request-boundary",
+    "prompt": "Draw a schematic for a 5 V to 3.3 V regulator with an I2C sensor.",
+    "expected": "Schematic work belongs to xpedition-schematic."
+  },
+  {
+    "id": "entry-skill-missing",
+    "prompt": "Check the board in the running Layout session. (The entry Skill is not installed here: ../xpedition-cli/SKILL.md is missing.)",
+    "expected": "STOP CHECKPOINT: tell the user the entry Skill is missing and, once they agree, install the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
   }
 ]
