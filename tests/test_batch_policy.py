@@ -1,68 +1,35 @@
-"""Paging a command does not do is refused, review pages count, batches can stop early."""
+"""Paging a command does not do is refused, check pages count, batches can stop early."""
 
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 
 import pytest
 
-from xpedition_cli import main as cli
 from xpedition_cli import native_com_adapter as adapter
-
-
-def run(capsys, *argv: str) -> tuple[int, dict]:
-    code = cli.main(list(argv))
-    return code, json.loads(capsys.readouterr().out)
-
-
-@pytest.fixture
-def project(tmp_path):
-    path = tmp_path / "project.json"
-    bom = [{"refdes": f"R{i}", "part_number": "", "quantity": 1} for i in (1, 2, 3)]
-    path.write_text(json.dumps({"project": "demo", "bom": bom}), encoding="utf-8")
-    return str(path)
+from xpedition_cli.backends.native_xpedition import native_fix
 
 
 @pytest.mark.parametrize(
     "argv",
-    [
-        ["bom", "validate", "--backend", "mock"],
-        ["doctor"],
-        ["project", "info", "--backend", "mock"],
-    ],
+    [["bom", "check"], ["doctor"], ["project", "info"], ["schematic", "sheets"]],
 )
-def test_limit_on_a_command_that_does_not_page_is_refused(capsys, project, argv) -> None:
-    code, result = run(capsys, *argv, "--project", project, "--limit", "1")
+def test_limit_on_a_command_that_does_not_page_is_refused(cli, project, argv) -> None:
+    code, result = cli(*argv, "--project", str(project), "--limit", "1")
     assert code == 2 and result["error"]["code"] == "E_USAGE"
     assert "takes no --limit" in result["error"]["message"]
 
 
-def test_continue_on_error_is_refused_where_there_is_no_batch(capsys, project) -> None:
-    argv = ["review", "run", "--backend", "mock", "--project", project]
-    code, result = run(capsys, *argv, "--continue-on-error", "false")
+def test_continue_on_error_is_refused_where_there_is_no_batch(cli, project) -> None:
+    code, result = cli(
+        "schematic", "check", "--project", str(project), "--continue-on-error", "false"
+    )
     assert code == 2 and result["error"]["code"] == "E_USAGE"
 
 
-def test_a_draw_confirm_without_dangerous_is_refused_before_the_token_is_spent(
-    capsys, tmp_path
-) -> None:
-    from pathlib import Path
-
-    design = Path(__file__).resolve().parents[1] / "examples" / "demo-sensor-board.json"
-    prj = tmp_path / "p.prj"
-    prj.write_text("", encoding="utf-8")
-    argv = ["schematic", "draw", "--project", str(prj), "--design", str(design)]
-    _, dry = run(capsys, *argv, "--dry-run")
-    assert dry["data"]["preview"]["dangerous"] is True
-    code, result = run(capsys, *argv, "--confirm", dry["data"]["confirm_token"])
-    assert code == 5 and result["error"]["code"] == "E_CONFIRMATION_REQUIRED"
-
-
-def test_a_review_page_says_how_many_it_holds(capsys, project) -> None:
-    code, result = run(
-        capsys, "review", "run", "--backend", "mock", "--project", project, "--limit", "1"
-    )
+def test_a_check_page_says_how_many_it_holds(cli, adapter, project) -> None:
+    adapter.on("verify", {"scheme": "full", "findings": [], "logs": []})
+    code, result = cli("schematic", "check", "--project", str(project), "--limit", "1")
     assert code == 0
     assert result["data"]["count"] == len(result["data"]["findings"]) <= 1
 
@@ -133,4 +100,4 @@ def test_unroute_stops_at_the_first_failed_net_when_told(monkeypatch) -> None:
     ],
 )
 def test_doctor_names_the_fix_for_the_reason_given(status, fix) -> None:
-    assert fix in cli._native_fix(status)
+    assert fix in native_fix(status)

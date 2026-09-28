@@ -6,8 +6,8 @@ import json
 import pytest
 from test_placement import Driver, observations, task
 
-from xpedition_cli import backends
 from xpedition_cli import main as cli
+from xpedition_cli.cli import common
 from xpedition_cli.errors import CLIError
 from xpedition_cli.placement import execute_placement, plan_placement
 
@@ -63,45 +63,12 @@ class Native:
 
 def native_args(inputs):
     file, _, project = inputs
-    return (
-        "pcb",
-        "placement",
-        "--backend",
-        "native_xpedition",
-        "--project",
-        str(project),
-        "--file",
-        str(file),
-    )
-
-
-def test_offline_plan_is_a_read_only_cli_command(inputs, monkeypatch, capsys):
-    def unexpected(*args, **kwargs):
-        raise AssertionError("offline planner must not construct a native backend")
-
-    monkeypatch.setattr(backends, "NativeBackend", unexpected)
-    file, observation, project = inputs
-    old = project.read_bytes()
-    code, result, _ = invoke(
-        capsys,
-        "pcb",
-        "placement-plan",
-        "--file",
-        str(file),
-        "--input",
-        str(observation),
-        "--compact",
-    )
-    assert code == 0 and result["ok"]
-    assert result["data"]["summary"]["changed_count"] == 3
-    assert result["data"]["validation"]["native_smoke"] == "missing"
-    assert project.read_bytes() == old
-    assert not (project.parent / "config" / "confirm.secret").exists()
+    return ("pcb", "move", "--project", str(project), "--file", str(file))
 
 
 def test_batch_write_roundtrip_is_three_adapter_calls_not_per_part(inputs, monkeypatch, capsys):
     fake = Native(inputs[2])
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     args = native_args(inputs)
     code, preview, _ = invoke(capsys, *args, "--dry-run")
     assert code == 0 and not fake.driver.calls
@@ -119,7 +86,7 @@ def test_batch_write_roundtrip_is_three_adapter_calls_not_per_part(inputs, monke
 @pytest.mark.parametrize("change", ["position", "identity", "file"])
 def test_stale_preview_or_changed_task_never_executes(inputs, monkeypatch, capsys, change):
     fake = Native(inputs[2])
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     args = native_args(inputs)
     code, preview, _ = invoke(capsys, *args, "--dry-run")
     assert code == 0
@@ -141,7 +108,7 @@ def test_stale_preview_or_changed_task_never_executes(inputs, monkeypatch, capsy
 )
 def test_cli_reports_nonretryable_partial_failures(inputs, monkeypatch, capsys, mode):
     fake = Native(inputs[2], mode)
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     args = native_args(inputs)
     _, preview, _ = invoke(capsys, *args, "--dry-run")
     code, result, _ = invoke(capsys, *args, "--confirm", preview["data"]["confirm_token"])
@@ -152,7 +119,7 @@ def test_cli_reports_nonretryable_partial_failures(inputs, monkeypatch, capsys, 
 
 def test_apply_timeout_is_unknown_not_permission_to_retry(inputs, monkeypatch, capsys):
     fake = Native(inputs[2])
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     args = native_args(inputs)
     _, preview, _ = invoke(capsys, *args, "--dry-run")
     fake.timeout = True
@@ -165,7 +132,7 @@ def test_apply_timeout_is_unknown_not_permission_to_retry(inputs, monkeypatch, c
 
 def test_cli_does_not_trust_adapter_verification_boolean(inputs, monkeypatch, capsys):
     fake = Native(inputs[2])
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     args = native_args(inputs)
     _, preview, _ = invoke(capsys, *args, "--dry-run")
     fake.bad_result = True
@@ -176,7 +143,7 @@ def test_cli_does_not_trust_adapter_verification_boolean(inputs, monkeypatch, ca
 def test_inconsistent_preview_cannot_issue_a_confirmation(inputs, monkeypatch, capsys):
     fake = Native(inputs[2])
     fake.bad_preview = True
-    monkeypatch.setattr(backends, "NativeBackend", lambda: fake)
+    monkeypatch.setattr(common, "NativeBackend", lambda: fake)
     code, result, _ = invoke(capsys, *native_args(inputs), "--dry-run")
     assert code != 0 and result["error"]["code"] == "E_SERVER"
     assert not (inputs[2].parent / "config" / "confirm.secret").exists()
@@ -185,54 +152,24 @@ def test_inconsistent_preview_cannot_issue_a_confirmation(inputs, monkeypatch, c
 @pytest.mark.parametrize(
     "args",
     [
-        ("pcb", "placement", "--file", "--dry-run"),
-        ("pcb", "placement", "--file=a", "--file=b", "--dry-run"),
-        ("pcb", "placement", "--all", "--dry-run"),
-        ("pcb", "placement-plan", "--confirm", "ct_invalid"),
-        ("pcb", "placement-plan", "--file=a", "--input=b", "extra"),
-        ("pcb", "placement-plan", "--file=a", "--input="),
+        ("pcb", "move", "--file", "--dry-run"),
+        ("pcb", "move", "--project", "b.prj", "--file=a", "--file=b", "--dry-run"),
+        ("pcb", "move", "--project", "b.prj", "--all", "--dry-run"),
+        ("pcb", "move", "--project", "b.prj", "--file=a", "--input=b", "--dry-run"),
     ],
 )
 def test_bad_options_fail_before_files_or_backend(inputs, monkeypatch, capsys, args):
-    from xpedition_cli import placement_command
-
     def unexpected(*args, **kwargs):
-        raise AssertionError("invalid options reached input reading")
+        raise AssertionError("invalid options reached the backend")
 
-    monkeypatch.setattr(placement_command, "read_json", unexpected)
+    monkeypatch.setattr(common, "NativeBackend", unexpected)
     code, result, _ = invoke(capsys, *args)
     assert code == 2 and result["error"]["code"] == "E_USAGE"
 
 
-def test_reference_declares_input_output_safety_and_evidence(inputs, capsys):
-    code, result, _ = invoke(capsys, "reference", "--compact")
+def test_reference_publishes_the_task_schema(inputs, capsys):
+    code, result, _ = invoke(capsys, "reference", "--command", "pcb move", "--compact")
     assert code == 0
-    data = result["data"]
-    commands = {c["path"]: c for c in data["commands"]}
-    for path in ("pcb placement-plan", "pcb placement"):
-        c = commands[path]
-        assert c["output_schema"] in data["schemas"]
-        assert c["input_json_schema"]["additionalProperties"] is False
-        assert c["verification"]["native_smoke"] == "missing"
-    assert commands["pcb placement"]["dry_run_output_schema"] in data["schemas"]
-    for name in ("dry-run", "confirm"):
-        assert (
-            "pcb placement"
-            in next(f for f in data["global_flags"] if f["name"] == name)["applies_to"]
-        )
-
-
-def test_release_readiness_is_beta_while_the_native_smoke_is_incomplete(inputs, capsys):
-    code, result, _ = invoke(capsys, "reference", "--compact")
-    assert code == 0
-    readiness = result["data"]["release_readiness"]
-    # A top-side smoke is recorded; bottom-side is not, and one partial apply is
-    # unexplained, so this stays short of `verified` and the level stays beta.
-    assert readiness["level"] == "beta"
-    assert readiness["live_smoke_status"] == "missing"
-    assert "placement" in readiness["reason"]
-    assert "bottom-side" in readiness["reason"]
-    code, result, _ = invoke(capsys, "doctor", "--compact")
-    assert code == 0
-    check = next(c for c in result["data"]["checks"] if c["check"] == "release_readiness")
-    assert "beta" in json.dumps(check)
+    [command] = result["data"]["commands"]
+    assert command["file_json_schema"]["additionalProperties"] is False
+    assert command["dry_run_output_schema"] in result["data"]["schemas"]

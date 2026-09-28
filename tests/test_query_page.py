@@ -5,9 +5,8 @@ import random
 from collections.abc import Sequence
 
 import pytest
-from test_cli_contract import payload, run_cli
+from fakes import schematic_snapshot
 
-from xpedition_cli import main as cli
 from xpedition_cli import query_page as paging
 from xpedition_cli.errors import CLIError
 
@@ -114,69 +113,54 @@ def test_invalid_page_parameters_fail_before_consumption(options):
     assert error.value.code == "E_VALIDATION"
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        ("schematic", "components"),
-        ("schematic", "query"),
-        ("library", "search"),
-        ("agent", "query"),
-    ],
-)
-def test_cli_queries_scan_records_once_and_stop_at_page(tmp_path, monkeypatch, capsys, command):
-    monkeypatch.setenv("XPEDITION_CLI_CONFIG_DIR", str(tmp_path / "config"))
-    path = tmp_path / "project.json"
-    records = [{"refdes": f"R{i}", "marker": "QUERY_MATCH"} for i in range(200)]
-    path.write_text(
-        json.dumps({"project": "paging", "components": records, "library": {"parts": records}}),
-        encoding="utf-8",
-    )
-    original = json.dumps
+def test_cli_queries_scan_records_once_and_stop_at_page(cli, adapter, project, monkeypatch):
+    design = schematic_snapshot()
+    part = design["components"][2]
+    design["components"] = [
+        {**part, "refdes": f"R{i}", "description": "QUERY_MATCH"} for i in range(200)
+    ]
+    adapter.on("snapshot", lambda params: design)
+    original = paging.json.dumps
     calls = 0
 
     def count(item, *args, **kwargs):
         nonlocal calls
-        if isinstance(item, dict) and (
-            item.get("marker") == "QUERY_MATCH"
-            or isinstance(item.get("value"), dict)
-            and item["value"].get("marker") == "QUERY_MATCH"
-        ):
+        if isinstance(item, dict) and item.get("description") == "QUERY_MATCH":
             calls += 1
         return original(item, *args, **kwargs)
 
     monkeypatch.setattr(paging.json, "dumps", count)
-    code = cli.main([*command, "--project", str(path), "--query", "QUERY_MATCH", "--limit", "1"])
-    streams = capsys.readouterr()
-    assert code == 0, streams.out
-    result = json.loads(streams.out)["data"]
+    code, envelope = cli(
+        "schematic",
+        "components",
+        "--project",
+        str(project),
+        "--query",
+        "QUERY_MATCH",
+        "--limit",
+        "1",
+    )
+    assert code == 0, envelope
+    result = envelope["data"]
     assert result["count"] == 1 and result["has_more"] is True
     assert calls == 2
 
 
-@pytest.mark.parametrize(
-    "command", [("schematic", "components"), ("library", "parts"), ("agent", "query")]
-)
-def test_cli_page_metadata_remains_stable(tmp_path, command):
-    path = tmp_path / "project.json"
-    rows = [{"refdes": "R1", "value": "match"}, {"refdes": "R2", "value": "match"}]
-    path.write_text(
-        json.dumps({"project": "demo", "components": rows, "library": {"parts": rows}}),
-        encoding="utf-8",
-    )
-    result = run_cli(
-        *command,
+def test_cli_page_metadata_remains_stable(cli, adapter, project):
+    code, envelope = cli(
+        "schematic",
+        "components",
         "--project",
-        str(path),
+        str(project),
         "--query",
-        "match",
+        "RES-4K7",
         "--limit",
         "1",
         "--offset",
         "1",
-        config_dir=tmp_path / "config",
     )
-    assert result.returncode == 0, result.stdout
-    data = payload(result)["data"]
+    assert code == 0, envelope
+    data = envelope["data"]
     assert (data["count"], data["offset"], data["next_offset"], data["has_more"]) == (
         1,
         1,

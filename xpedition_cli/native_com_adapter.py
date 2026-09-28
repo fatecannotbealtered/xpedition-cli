@@ -399,10 +399,7 @@ def _active_object(client: Any) -> Any:
             # satisfy a `pcb` command, and the reverse is equally true.
             "application": "Xpedition Layout",
             "serves_commands": "pcb *",
-            "hint": (
-                "start Xpedition Layout, or run: "
-                "xpedition-cli session start --backend native_xpedition --kind pcb"
-            ),
+            "hint": "start it: xpedition-cli session start --kind pcb --project X.prj",
         },
     )
 
@@ -439,11 +436,8 @@ def _viewdraw_active(client: Any) -> Any:
         {
             "progids": ["Viewdraw.Application", "Viewdraw.Application.60"],
             "application": "Xpedition Designer (DxDesigner)",
-            "serves_commands": "schematic *, agent snapshot",
-            "hint": (
-                "start Xpedition Designer, or run: "
-                "xpedition-cli session start --backend native_xpedition --kind schematic"
-            ),
+            "serves_commands": "schematic *, library *, bom *",
+            "hint": "start it: xpedition-cli session start --kind schematic --project X.prj",
             # "not found" is the usual reason, not the only one; say what failed
             "causes": causes,
             "_untrusted": ["causes"],
@@ -1176,6 +1170,49 @@ def _label_schematic_net(net: Any, name: str, operation: dict[str, Any]) -> None
         raise _com_error(exc, "label_schematic_net") from exc
 
 
+def _pin_point(pin: Any) -> tuple[int, int]:
+    try:
+        point = _com_member(pin, "GetLocation")
+        return int(point.X), int(point.Y)
+    except Exception as exc:
+        raise _com_error(exc, "pin_location") from exc
+
+
+def _wire_between_pins(
+    block: Any, first: Any, second: Any, operation: dict[str, Any], client: Any
+) -> tuple[Any, tuple[int, int]]:
+    """A wire from one pin to the other, through `points` when the operation names them,
+    else one horizontal and one vertical segment; the net and the first pin's point."""
+    wire = _constants(client, ["VD_WIRE"])["VD_WIRE"]
+    start, end = _pin_point(first), _pin_point(second)
+    middle = [
+        (int(point[0]), int(point[1]))
+        for point in operation.get("points") or []
+        if isinstance(point, (list, tuple)) and len(point) == 2
+    ]
+    if not middle and start[0] != end[0] and start[1] != end[1]:
+        middle = [(end[0], start[1])]
+    route = [start, *middle, end]
+    route = [point for index, point in enumerate(route) if index == 0 or point != route[index - 1]]
+    net = None
+    last = len(route) - 2
+    try:
+        for index, (a, b) in enumerate(zip(route, route[1:], strict=False)):
+            created = block.AddNet(
+                a[0],
+                a[1],
+                b[0],
+                b[1],
+                first if index == 0 else None,
+                second if index == last else None,
+                wire,
+            )
+            net = net if net is not None else created
+    except Exception as exc:
+        raise _com_error(exc, "add_schematic_net") from exc
+    return net, start
+
+
 def _apply_designer_operation(
     app: Any,
     operation: dict[str, Any],
@@ -1282,8 +1319,14 @@ def _apply_designer_operation(
             if not separator or refdes not in components:
                 raise AdapterError("E_NOT_FOUND", f"schematic pin {pin_id!r} was not found")
             pin_objects.append(_designer_pin(components[refdes], number))
-        net = _add_schematic_net(block, operation, pin_objects[0], pin_objects[1], client)
-        _label_schematic_net(net, str(operation.get("net", "")), operation)
+        net, start = _wire_between_pins(block, pin_objects[0], pin_objects[1], operation, client)
+        # beside the first pin unless the operation places the label itself
+        label_at = (
+            operation
+            if "x" in operation or "y" in operation
+            else {**operation, "x": start[0] + 2, "y": start[1] + 2}
+        )
+        _label_schematic_net(net, str(operation.get("net", "")), label_at)
         deferred_nets.pop(str(operation.get("net", "")), None)
         return {
             "type": kind,
@@ -2711,7 +2754,7 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         # board would fail on it later, so the build has not succeeded
         "ok": not failed and not cells_missing,
         **(
-            {"hint": "import those KiCad libraries with library kicad-import, then build again"}
+            {"hint": "import those KiCad libraries with library import, then build again"}
             if cells_missing
             else {}
         ),
@@ -7406,11 +7449,21 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
                     design_name = str(params.get("design") or "")
                 deferred_nets: dict[str, dict[str, Any]] = {}
                 applied = []
+                sheets_saved: list[int] = []
                 for item in operations:
                     if not isinstance(item, dict):
                         raise AdapterError(
                             "E_CHANGESET_INVALID", "each native operation must be an object"
                         )
+                    if item.get("sheet") is not None:
+                        wanted = int(item["sheet"])
+                        current = _active_sheet(app)
+                        if current is not None and current != wanted:
+                            # every drawing call goes to the active view: save the sheet
+                            # being left before another one takes over
+                            app.ActiveDocument.Save()
+                            sheets_saved.append(current)
+                        _ensure_sheet(app, wanted)
                     result = _apply_designer_operation(
                         app, item, client, design_name, deferred_nets
                     )
@@ -7449,12 +7502,20 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
                     doc.Save()
                 except Exception as exc:
                     raise _com_error(exc, "save_after_changeset") from exc
+            saved = False
             if bool(params.get("save", True)) and domain == "schematic":
                 try:
-                    app.CloseProject()
-                except Exception:
-                    pass
-            return {"applied": applied, "count": len(applied), "domain": domain}
+                    app.ActiveDocument.Save()
+                    sheets_saved.append(_active_sheet(app))
+                    saved = True
+                except Exception as exc:
+                    raise _com_error(exc, "save_after_edit") from exc
+            elif bool(params.get("save", True)):
+                saved = True
+            result = {"applied": applied, "count": len(applied), "domain": domain, "saved": saved}
+            if domain == "schematic":
+                result["sheets_saved"] = sorted({item for item in sheets_saved if item is not None})
+            return result
         if method == "package":
             return _package_design(params)
         if method == "export_pdf":

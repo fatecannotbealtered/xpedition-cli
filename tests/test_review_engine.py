@@ -119,7 +119,7 @@ def test_run_review_merges_extra_findings_and_sorts_by_severity():
             "confidence": 1.0,
         }
     ]
-    report = R.run_review(project, None, extra)
+    report = R.run_review(project, extra)
     assert report["summary"]["total"] == 1
     assert report["findings"][0]["source"] == "xpedition/grc:x"
     assert report["summary"]["valid"] is False

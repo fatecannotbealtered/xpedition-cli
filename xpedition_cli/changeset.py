@@ -1,12 +1,16 @@
+"""Schematic operations projected onto a design as read, before Designer is asked.
+
+`schematic edit` projects every operation here first: a missing part, pin or net,
+or a part that exists already, is refused before anything is written, and the
+projection is what the design read back afterwards is verified against.
+"""
+
 from __future__ import annotations
 
 import copy
-import json
-from pathlib import Path
 from typing import Any
 
 from .errors import CLIError
-from .models import save_project
 
 SUPPORTED_OPERATIONS = {
     "place_component",
@@ -15,38 +19,7 @@ SUPPORTED_OPERATIONS = {
     "move_component",
     "delete_component",
     "set_property",
-    "place_pcb_component",
-    "move_pcb_component",
-    "create_track",
-    "create_via",
-    "create_zone",
 }
-
-
-def load_changeset(path: str | None) -> tuple[dict[str, Any], Path]:
-    if not path:
-        raise CLIError("E_USAGE", "--changeset is required")
-    changeset_path = Path(path).expanduser().resolve()
-    try:
-        raw = json.loads(changeset_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise CLIError(
-            "E_NOT_FOUND", "changeset file was not found", {"path": str(changeset_path)}
-        ) from exc
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CLIError(
-            "E_CHANGESET_INVALID", f"cannot read changeset: {exc}", {"path": str(changeset_path)}
-        ) from exc
-    if not isinstance(raw, dict):
-        raise CLIError("E_CHANGESET_INVALID", "changeset must be a JSON object")
-    operations = raw.get("operations")
-    if not isinstance(operations, list) or not operations:
-        raise CLIError("E_CHANGESET_INVALID", "changeset.operations must be a non-empty array")
-    if not raw.get("project"):
-        raise CLIError("E_CHANGESET_INVALID", "changeset.project is required")
-    for index, operation in enumerate(operations):
-        validate_operation(operation, index)
-    return raw, changeset_path
 
 
 def validate_operation(operation: Any, index: int = 0) -> None:
@@ -66,11 +39,6 @@ def validate_operation(operation: Any, index: int = 0) -> None:
         "move_component": ("refdes", "x", "y"),
         "delete_component": ("refdes",),
         "set_property": ("refdes", "name", "value"),
-        "place_pcb_component": ("refdes", "footprint", "x", "y"),
-        "move_pcb_component": ("refdes", "x", "y"),
-        "create_track": ("net", "layer", "points"),
-        "create_via": ("net", "x", "y"),
-        "create_zone": ("name", "layer", "polygon"),
     }
     missing = [key for key in required[operation_type] if key not in operation]
     if missing:
@@ -89,28 +57,6 @@ def validate_operation(operation: Any, index: int = 0) -> None:
         )
 
 
-def validate_changeset(changeset: dict[str, Any]) -> dict[str, Any]:
-    issues: list[dict[str, Any]] = []
-    for index, operation in enumerate(changeset.get("operations", [])):
-        try:
-            validate_operation(operation, index)
-        except CLIError as error:
-            issues.append({"index": index, "code": error.code, "message": error.message})
-    return {
-        "valid": not issues,
-        "project": str(changeset.get("project", "")),
-        "base_revision": str(changeset.get("base_revision", "")) or None,
-        "operation_count": len(changeset.get("operations", [])),
-        "operations": [
-            str(item.get("type", ""))
-            for item in changeset.get("operations", [])
-            if isinstance(item, dict)
-        ],
-        "issues": issues,
-        "_untrusted": ["project", "operations", "issues[].message"],
-    }
-
-
 def _find_component(project: dict[str, Any], refdes: str) -> dict[str, Any]:
     for component in project["components"]:
         if str(component.get("refdes")) == str(refdes):
@@ -123,22 +69,6 @@ def _find_net(project: dict[str, Any], name: str) -> dict[str, Any]:
         if str(net.get("name")) == str(name):
             return net
     raise CLIError("E_NOT_FOUND", f"net {name!r} was not found", {"net": str(name)})
-
-
-def _find_pcb_component(project: dict[str, Any], refdes: str) -> dict[str, Any]:
-    for component in project["pcb"]["components"]:
-        if str(component.get("refdes")) == str(refdes):
-            return component
-    raise CLIError(
-        "E_NOT_FOUND", f"PCB component {refdes!r} was not found", {"refdes": str(refdes)}
-    )
-
-
-def _find_pcb_net(project: dict[str, Any], name: str) -> dict[str, Any]:
-    for net in project["pcb"]["nets"]:
-        if str(net.get("name")) == str(name):
-            return net
-    return _find_net(project, name)
 
 
 def _validate_pin(project: dict[str, Any], pin: str) -> None:
@@ -289,145 +219,8 @@ def apply_operations(
                     "after": {name: operation["value"]},
                 }
             )
-        elif operation_type == "place_pcb_component":
-            refdes = str(operation["refdes"])
-            if any(str(item.get("refdes")) == refdes for item in result["pcb"]["components"]):
-                raise CLIError(
-                    "E_CONFLICT", f"PCB component {refdes!r} already exists", {"refdes": refdes}
-                )
-            component = {
-                "refdes": refdes,
-                "footprint": str(operation["footprint"]),
-                "part_number": str(operation.get("part_number", "")),
-                "x": operation["x"],
-                "y": operation["y"],
-                "rotation": operation.get("rotation", 0),
-                "side": str(operation.get("side", "top")),
-            }
-            result["pcb"]["components"].append(component)
-            changes.append(
-                {
-                    "action": "place_pcb_component",
-                    "resource": "pcb_component",
-                    "id": refdes,
-                    "before": None,
-                    "after": component,
-                }
-            )
-        elif operation_type == "move_pcb_component":
-            refdes = str(operation["refdes"])
-            component = _find_pcb_component(result, refdes)
-            before = {"x": component.get("x"), "y": component.get("y")}
-            component["x"] = operation["x"]
-            component["y"] = operation["y"]
-            changes.append(
-                {
-                    "action": "move_pcb_component",
-                    "resource": "pcb_component",
-                    "id": refdes,
-                    "before": before,
-                    "after": {"x": component["x"], "y": component["y"]},
-                }
-            )
-        elif operation_type == "create_track":
-            net_name = str(operation["net"])
-            _find_pcb_net(result, net_name)
-            points = copy.deepcopy(operation["points"])
-            if not isinstance(points, list) or len(points) < 2:
-                raise CLIError(
-                    "E_CHANGESET_INVALID", "track.points must contain at least two points"
-                )
-            track = {
-                "net": net_name,
-                "layer": str(operation["layer"]),
-                "points": points,
-                "width": operation.get("width"),
-            }
-            result["pcb"]["tracks"].append(track)
-            changes.append(
-                {
-                    "action": "create_track",
-                    "resource": "track",
-                    "id": net_name,
-                    "before": None,
-                    "after": track,
-                }
-            )
-        elif operation_type == "create_via":
-            net_name = str(operation["net"])
-            _find_pcb_net(result, net_name)
-            via = {
-                "net": net_name,
-                "x": operation["x"],
-                "y": operation["y"],
-                "start_layer": str(operation.get("start_layer", "TOP")),
-                "end_layer": str(operation.get("end_layer", "BOTTOM")),
-            }
-            result["pcb"]["vias"].append(via)
-            changes.append(
-                {
-                    "action": "create_via",
-                    "resource": "via",
-                    "id": net_name,
-                    "before": None,
-                    "after": via,
-                }
-            )
-        elif operation_type == "create_zone":
-            zone = {
-                "name": str(operation["name"]),
-                "layer": str(operation["layer"]),
-                "polygon": copy.deepcopy(operation["polygon"]),
-                "net": operation.get("net"),
-            }
-            if zone["net"] is not None:
-                _find_pcb_net(result, str(zone["net"]))
-            if not isinstance(zone["polygon"], list) or len(zone["polygon"]) < 3:
-                raise CLIError(
-                    "E_CHANGESET_INVALID", "zone.polygon must contain at least three points"
-                )
-            result["pcb"]["zones"].append(zone)
-            changes.append(
-                {
-                    "action": "create_zone",
-                    "resource": "zone",
-                    "id": zone["name"],
-                    "before": None,
-                    "after": zone,
-                }
-            )
     result["revision"] = _next_revision(str(project.get("revision", "R00")))
     return result, changes
-
-
-def preview_changes(project: dict[str, Any], changeset: dict[str, Any]) -> dict[str, Any]:
-    expected = changeset.get("base_revision")
-    current = str(project.get("revision", "R00"))
-    if expected and str(expected) != current:
-        raise CLIError(
-            "E_CONFLICT",
-            "changeset base revision does not match project",
-            {"expected": str(expected), "current": current},
-        )
-    projected, changes = apply_operations(project, changeset["operations"])
-    return {
-        "project": str(changeset["project"]),
-        "base_revision": current,
-        "result_revision": projected["revision"],
-        "operation_count": len(changeset["operations"]),
-        "changes": changes,
-        "risk": {"tier": "T1", "blast_radius": "local project file selected by --project"},
-        "_untrusted": ["project", "changes", "risk.blast_radius"],
-    }
-
-
-def persist_changes(
-    project: dict[str, Any], project_path: Path | None, backup: bool
-) -> tuple[dict[str, Any], str | None]:
-    if project_path is None:
-        raise CLIError("E_CONFIG", "change apply requires --project so the result can be persisted")
-    backup_path = save_project(project, project_path, backup=backup)
-    return project, backup_path
 
 
 def verify_project(project: dict[str, Any]) -> dict[str, Any]:
@@ -470,8 +263,6 @@ def bom_rows(project: dict[str, Any]) -> list[dict[str, Any]]:
                 "dnp": bool(component.get("dnp", False)),
                 "lifecycle": component.get("lifecycle"),
                 "datasheet": component.get("datasheet"),
-                "source": component.get("source", "mock"),
-                "revision": component.get("revision"),
             }
         )
     return rows

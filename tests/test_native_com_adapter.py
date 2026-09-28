@@ -31,8 +31,8 @@ class _Collection:
 
 
 class _Connection:
-    def __init__(self, number: str, net: str) -> None:
-        self.CompPin = SimpleNamespace(Number=number)
+    def __init__(self, number: str, net: str, x: int = 0, y: int = 0) -> None:
+        self.CompPin = SimpleNamespace(Number=number, GetLocation=SimpleNamespace(X=x, Y=y))
         self.Net = SimpleNamespace(Name=net)
 
 
@@ -92,20 +92,26 @@ def test_designer_snapshot_maps_components_nets_and_connections() -> None:
     assert result["connections"] == [{"net": "3V3", "pins": ["C1.1", "R1.1"]}]
 
 
-def test_designer_connect_uses_vendor_add_net() -> None:
+def test_designer_connect_draws_a_wire_between_the_two_pins() -> None:
     class Block:
+        def __init__(self) -> None:
+            self.segments: list[tuple] = []
+
         def AddNet(self, *args: object) -> object:
-            self.arguments = args
+            self.segments.append(args)
             return SimpleNamespace(
                 GetSegments=lambda: _Collection([SimpleNamespace()]),
                 AddLabel=lambda *label_args: setattr(self, "label", label_args),
             )
 
     first = _Component("R1", 0, 0, [("1", "")])
+    first._connections = _Collection([_Connection("1", "", 10, 20)])
     second = _Component("C1", 100, 0, [("1", "")])
+    second._connections = _Collection([_Connection("1", "", 60, 50)])
+    block = Block()
 
     class App:
-        ActiveView = SimpleNamespace(Block=Block())
+        ActiveView = SimpleNamespace(Block=block)
 
         def DesignComponents(self, *_args: object) -> _Collection:
             return _Collection([first, second])
@@ -126,6 +132,55 @@ def test_designer_connect_uses_vendor_add_net() -> None:
         "applied": True,
     }
     assert not pending
+    # one horizontal and one vertical segment, the pins at the two ends
+    [(ax, ay, bx, by, pin_a, pin_b, wire), (cx, cy, dx, dy, pin_c, pin_d, _)] = block.segments
+    assert (ax, ay, bx, by) == (10, 20, 60, 20) and (cx, cy, dx, dy) == (60, 20, 60, 50)
+    assert pin_a is not None and pin_b is None and pin_c is None and pin_d is not None
+    assert wire == 7
+    # the label sits beside the first pin, not at the sheet's origin
+    assert block.label[1:] == ("3V3", 12, 22)
+
+
+def test_designer_connect_follows_the_points_it_is_given() -> None:
+    class Block:
+        def __init__(self) -> None:
+            self.segments: list[tuple] = []
+
+        def AddNet(self, *args: object) -> object:
+            self.segments.append(args[:4])
+            return SimpleNamespace(
+                GetSegments=lambda: _Collection([SimpleNamespace()]),
+                AddLabel=lambda *label_args: None,
+            )
+
+    first = _Component("R1", 0, 0, [])
+    first._connections = _Collection([_Connection("1", "", 0, 0)])
+    second = _Component("C1", 0, 0, [])
+    second._connections = _Collection([_Connection("2", "", 30, 30)])
+    block = Block()
+
+    class App:
+        ActiveView = SimpleNamespace(Block=block)
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection([first, second])
+
+    client = SimpleNamespace(constants=SimpleNamespace(VD_WIRE=7))
+    _apply_designer_operation(
+        App(),
+        {
+            "type": "connect",
+            "net": "N",
+            "pins": ["R1.1", "C1.2"],
+            "points": [[0, 30]],
+            "x": 5,
+            "y": 5,
+        },
+        client,
+        "demo",
+        {},
+    )
+    assert block.segments == [(0, 0, 0, 30), (0, 30, 30, 30)]
 
 
 def test_component_location_reads_the_property_form() -> None:
@@ -298,7 +353,7 @@ def test_schematic_placement_requires_an_explicit_library() -> None:
     assert caught.value.details["missing"] == ["library"]
 
 
-PACKAGER_LOG = """
+PACKAGER_LOG = r"""
                                     Packager
      Common Data Base has been read
 

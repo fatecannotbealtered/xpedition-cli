@@ -1,13 +1,12 @@
-"""Deterministic schematic review on the normalized project model.
+"""The rules behind `schematic check`, on the design as Designer reads it back.
 
-Three layers of findings, told apart by `source`:
+Two layers of findings, told apart by `source`:
 
-- `mock/project` — structural checks that any project file must pass;
-- `cli/<rule>` — schematic rules decidable from the netlist alone: open pins,
-  dangling labels, unnamed junctions, decoupling, I2C pull-ups, naming;
-- `xpedition/verify:<rule>` and `xpedition/grc:<check>` — the product's own
-  verification, passed in by the caller when a live design is reviewed;
-- `rule:<id>` — custom rules from a JSON file.
+- `cli/<rule>` -- rules decidable from the netlist alone: duplicate reference
+  designators and net names, open pins, single-pin and unnamed nets, missing part
+  numbers, decoupling, I2C pull-ups, net names, reference-designator prefixes;
+- `xpedition/verify:<rule>` and `xpedition/grc:<check>` -- Designer's own
+  verification, passed in by the caller.
 
 The netlist rules only use what a snapshot carries: components with pins that
 name their net (or `no_connect`), nets flagged `unnamed`, and connections.
@@ -15,14 +14,11 @@ name their net (or `no_connect`), nets flagged `unnamed`, and connections.
 
 from __future__ import annotations
 
-import json
 import re
 from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 from .changeset import verify_project
-from .errors import CLIError
 
 GROUND_NAMES = {"GND", "AGND", "PGND", "DGND", "VSS", "GROUND", "0V", "EARTH"}
 POWER_NAMES = {"VCC", "VDD", "VBUS", "VBAT", "VSYS", "VIN", "VRAW", "AVDD", "DVDD", "VPP", "VREF"}
@@ -269,29 +265,8 @@ def schematic_findings(project: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-def _load_rules(path: str | None) -> list[dict[str, Any]]:
-    if not path:
-        return []
-    rules_path = Path(path).expanduser().resolve()
-    try:
-        value = json.loads(rules_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise CLIError(
-            "E_NOT_FOUND", "rules file was not found", {"path": str(rules_path)}
-        ) from exc
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CLIError(
-            "E_VALIDATION", f"rules file must be valid JSON: {exc}", {"path": str(rules_path)}
-        ) from exc
-    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
-        raise CLIError("E_VALIDATION", "rules file must contain an array of rule objects")
-    return value
-
-
 def run_review(
-    project: dict[str, Any],
-    rules_path: str | None = None,
-    extra_findings: list[dict[str, Any]] | None = None,
+    project: dict[str, Any], extra_findings: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     checks = verify_project(project)
     findings: list[dict[str, Any]] = []
@@ -301,7 +276,7 @@ def run_review(
                 "severity": "high",
                 "refdes": refdes,
                 "net": None,
-                "source": "mock/project",
+                "source": "cli/structure",
                 "finding": "duplicate reference designator",
                 "evidence": [refdes],
                 "suggestion": "assign a unique refdes before export",
@@ -314,7 +289,7 @@ def run_review(
                 "severity": "high",
                 "refdes": None,
                 "net": net,
-                "source": "mock/project",
+                "source": "cli/structure",
                 "finding": "duplicate net name",
                 "evidence": [net],
                 "suggestion": "merge or rename duplicate nets",
@@ -327,7 +302,7 @@ def run_review(
                 "severity": "high",
                 "refdes": None,
                 "net": net,
-                "source": "mock/project",
+                "source": "cli/structure",
                 "finding": "connection references a missing net",
                 "evidence": [net],
                 "suggestion": "create the net before connecting pins",
@@ -335,22 +310,6 @@ def run_review(
             }
         )
     findings.extend(schematic_findings(project))
-    for rule in _load_rules(rules_path):
-        rule_id = str(rule.get("id", "custom-rule"))
-        findings.append(
-            {
-                "severity": str(rule.get("severity", "info")),
-                "refdes": rule.get("refdes"),
-                "net": rule.get("net"),
-                "source": f"rule:{rule_id}",
-                "finding": str(rule.get("finding", "custom rule reported a finding")),
-                "evidence": list(rule.get("evidence", []))
-                if isinstance(rule.get("evidence", []), list)
-                else [],
-                "suggestion": str(rule.get("suggestion", "review the rule output")),
-                "confidence": float(rule.get("confidence", 0.5)),
-            }
-        )
     for finding in extra_findings or []:
         if isinstance(finding, dict):
             findings.append(finding)
@@ -369,7 +328,6 @@ def run_review(
         counts[severity] = counts.get(severity, 0) + 1
     return {
         "project": project["project"],
-        "revision": project["revision"],
         "findings": findings,
         "summary": {"total": len(findings), "by_severity": counts, "valid": not findings},
         "_untrusted": [

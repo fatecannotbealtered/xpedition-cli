@@ -1,4 +1,4 @@
-"""`library kicad-import`: a gated write whose dry run reads only files."""
+"""`library import`: a gated write whose dry run reads only files."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def setup(tmp_path):
         ),
         encoding="utf-8",
     )
-    args = ["library", "kicad-import", "--project", str(project), "--root", str(root)]
+    args = ["library", "import", "--project", str(project), "--root", str(root)]
     return {"args": args, "cells": library_root / "CellDBLibs"}
 
 
@@ -71,7 +71,7 @@ def test_mistakes_are_refused_before_anything_runs(capsys, setup, extra, code, e
 
 
 def test_a_project_is_required(capsys) -> None:
-    code, result = run(capsys, "library", "kicad-import", "--dry-run")
+    code, result = run(capsys, "library", "import", "--dry-run")
     assert code == 2 and result["error"]["code"] == "E_USAGE"
 
 
@@ -99,7 +99,7 @@ def native(tmp_path, monkeypatch):
 
 
 def test_the_confirmed_run_reports_each_library(capsys, setup, native) -> None:
-    args = [*setup["args"], "--backend", "native_xpedition"]
+    args = setup["args"]
     _, dry = run(capsys, *args, "--dry-run")
     code, result = run(capsys, *args, "--confirm", dry["data"]["confirm_token"])
     assert code == 0, result
@@ -121,7 +121,7 @@ def test_the_confirmed_run_reports_each_library(capsys, setup, native) -> None:
 
 
 def test_a_partition_imported_since_the_dry_run_refuses_the_token(capsys, setup, native) -> None:
-    args = [*setup["args"], "--backend", "native_xpedition"]
+    args = setup["args"]
     _, dry = run(capsys, *args, "--dry-run")
     (setup["cells"] / "Resistor_SMD.cel").write_bytes(b"cel")
     token = dry["data"]["confirm_token"]
@@ -132,7 +132,7 @@ def test_a_partition_imported_since_the_dry_run_refuses_the_token(capsys, setup,
 
 def test_merging_into_a_partition_that_exists_needs_dangerous(capsys, setup, native) -> None:
     (setup["cells"] / "Package_SO.cel").write_bytes(b"cel")
-    args = [*setup["args"], "--backend", "native_xpedition"]
+    args = setup["args"]
     _, dry = run(capsys, *args, "--dry-run")
     assert dry["data"]["preview"]["dangerous"] is True
     token = dry["data"]["confirm_token"]
@@ -144,7 +144,7 @@ def test_merging_into_a_partition_that_exists_needs_dangerous(capsys, setup, nat
 
 
 def test_stopping_at_the_first_failure_is_passed_on(capsys, setup, native) -> None:
-    args = [*setup["args"], "--backend", "native_xpedition", "--continue-on-error", "false"]
+    args = [*setup["args"], "--continue-on-error", "false"]
     _, dry = run(capsys, *args, "--dry-run")
     code, _ = run(capsys, *args, "--confirm", dry["data"]["confirm_token"])
     assert code == 0
@@ -154,7 +154,7 @@ def test_stopping_at_the_first_failure_is_passed_on(capsys, setup, native) -> No
 
 
 def test_the_token_binds_the_batch_policy(capsys, setup, native) -> None:
-    args = [*setup["args"], "--backend", "native_xpedition"]
+    args = setup["args"]
     _, dry = run(capsys, *args, "--dry-run")
     token = dry["data"]["confirm_token"]
     code, result = run(capsys, *args, "--continue-on-error", "false", "--confirm", token)

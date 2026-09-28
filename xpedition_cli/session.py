@@ -170,62 +170,27 @@ def _pid_alive_windows(pid: int) -> bool:
         kernel32.CloseHandle(handle)
 
 
-def status(backend: str = "mock") -> dict[str, Any]:
-    path = _state_path()
-    state: dict[str, Any] = {}
-    if path.exists():
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(value, dict):
-                state = value
-        except (OSError, json.JSONDecodeError):
-            state = {}
+def status() -> dict[str, Any]:
+    """The session this tool recorded, with a started process checked for being alive."""
+    state = read_state()
     state_name = str(state.get("state", "not_started"))
     pid = state.get("pid")
-    if backend == "native_xpedition" and state_name in {"started", "attached", "running"}:
-        if pid is not None and not _pid_alive(pid):
-            state_name = "crashed"
+    if state_name in {"started", "attached", "running"} and pid is not None and not _pid_alive(pid):
+        state_name = "crashed"
     return {
-        "backend": backend,
         "state": state_name,
         "session_id": str(state["session_id"]) if state.get("session_id") is not None else None,
         "pid": pid,
         "xpedition_process": bool(state.get("xpedition_process", False))
-        and (backend != "native_xpedition" or pid is None or _pid_alive(pid)),
+        and (pid is None or _pid_alive(pid)),
         "reason": (
-            "MockBackend is file based and does not start an Xpedition process"
-            if backend == "mock"
-            else (
-                (
-                    "recorded native startup failed"
-                    if state.get("error_code")
-                    else "recorded native process is no longer running"
-                )
-                if state_name == "crashed"
-                else None
+            (
+                "recorded native startup failed"
+                if state.get("error_code")
+                else "recorded native process is no longer running"
             )
+            if state_name == "crashed"
+            else None
         ),
         "_untrusted": ["session_id", "pid", "reason"],
-    }
-
-
-def logs(limit: int | None = None, offset: int = 0) -> dict[str, Any]:
-    path = config_dir() / "session.log"
-    lines: list[str] = []
-    if path.exists():
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            lines = []
-    offset = max(0, int(offset))
-    end = len(lines) if limit is None else min(len(lines), offset + max(0, int(limit)))
-    items = lines[offset:end]
-    next_offset = end if end < len(lines) else None
-    return {
-        "items": items,
-        "count": len(items),
-        "offset": offset,
-        "next_offset": next_offset,
-        "has_more": next_offset is not None,
-        "_untrusted": ["items"],
     }

@@ -1,3 +1,5 @@
+"""`reference --command | --domain | --schema`: a self-contained slice, never a second catalog."""
+
 from __future__ import annotations
 
 import copy
@@ -5,23 +7,24 @@ import json
 from pathlib import Path
 
 import pytest
-from test_cli_contract import payload, run_cli
 
-from xpedition_cli import main as cli
+from xpedition_cli.backends import native_xpedition
 from xpedition_cli.errors import CLIError
 from xpedition_cli.reference_data import reference
 from xpedition_cli.reference_query import SELECTOR_FLAGS, select_reference
+
+CONTRACT = Path(__file__).resolve().parent.parent / "contract" / "contract.json"
 
 
 def test_unfiltered_reference_remains_complete():
     full = reference()
     assert select_reference(full) is full
     assert "selection" not in full
-    assert len(full["commands"]) > 100
+    assert len(full["commands"]) == 47
 
 
 @pytest.mark.parametrize(
-    "path", ["pcb trace", "pcb move", "schematic draw", "change apply", "context"]
+    "path", ["pcb trace", "pcb move", "schematic draw", "schematic edit", "context"]
 )
 def test_command_keeps_success_and_preview_schemas(path):
     full = reference()
@@ -39,6 +42,7 @@ def test_command_keeps_success_and_preview_schemas(path):
         "global_flags",
         "error_codes",
         "exit_codes",
+        "workflow",
     ):
         assert selected[key] == full[key]
     selected["commands"][0]["description"] = "test mutation"
@@ -83,19 +87,14 @@ def test_unknown_and_broken_schema_are_distinguished():
         ("--command", "  pcb   move  "),
     ],
 )
-def test_reference_selectors_through_cli(tmp_path, args):
-    result = run_cli("reference", *args, "--compact", config_dir=tmp_path / "config")
-    assert result.returncode == 0, result.stdout
-    data = payload(result)["data"]
+def test_reference_selectors_through_cli(cli, capsys, args):
+    code, envelope = cli("reference", *args, "--compact")
+    assert code == 0, envelope
+    data = envelope["data"]
     assert data["selection"]["kind"] in {"command", "domain", "schema"}
     assert len(data["commands"]) < len(reference()["commands"])
-    assert result.stderr == ""
-    contract = json.loads(
-        (Path(__file__).resolve().parent.parent / "contract/contract.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert set(payload(result)) == set(contract["envelope"]["success_keys"])
+    contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    assert set(envelope) == set(contract["envelope"]["success_keys"])
 
 
 @pytest.mark.parametrize(
@@ -112,51 +111,40 @@ def test_reference_selectors_through_cli(tmp_path, args):
         (("--domain", "--compact"), "E_USAGE"),
     ],
 )
-def test_bad_selectors_are_structured_errors(tmp_path, args, code):
-    result = run_cli("reference", *args, config_dir=tmp_path / "config")
-    error = payload(result)["error"]
+def test_bad_selectors_are_structured_errors(cli, args, code):
+    exit_code, envelope = cli("reference", *args)
+    error = envelope["error"]
     assert error["code"] == code and error["retryable"] is False
-    assert result.returncode == (3 if code == "E_NOT_FOUND" else 2)
+    assert exit_code == (3 if code == "E_NOT_FOUND" else 2)
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        ["project", "init"],
-        ["pcb", "move"],
-        ["agent", "serve"],
-        ["version"],
-    ],
-)
-def test_reference_flags_cannot_be_ignored_by_a_different_command(tmp_path, command):
-    result = run_cli(
+@pytest.mark.parametrize("command", [["project", "create"], ["pcb", "move"], ["version"]])
+def test_reference_flags_cannot_be_ignored_by_a_different_command(cli, tmp_path, command):
+    code, envelope = cli(
         *command,
         "--command",
         "context",
         "--dry-run",
         "--project",
-        str(tmp_path / "must-not-exist.json"),
-        config_dir=tmp_path / "config",
+        str(tmp_path / "must-not-exist.prj"),
     )
-    assert result.returncode == 2 and payload(result)["error"]["code"] == "E_USAGE"
-    assert not (tmp_path / "must-not-exist.json").exists()
+    assert code == 2 and envelope["error"]["code"] == "E_USAGE"
+    assert not (tmp_path / "must-not-exist.prj").exists()
 
 
-def test_discovery_does_not_probe_native_or_load_project(monkeypatch):
+def test_discovery_does_not_probe_native_or_load_a_project(cli, monkeypatch):
     def unexpected(*args, **kwargs):
-        raise AssertionError("reference must not access the native backend")
+        raise AssertionError("reference must not reach the adapter")
 
-    monkeypatch.setattr(cli, "_backend", unexpected)
-    monkeypatch.setattr(cli, "NativeBackend", unexpected)
-    data = cli.dispatch(["reference"], {"command": "pcb trace", "backend": "native_xpedition"})
-    assert data["commands"][0]["path"] == "pcb trace"
+    monkeypatch.setattr(native_xpedition.subprocess, "run", unexpected)
+    code, envelope = cli("reference", "--command", "pcb trace")
+    assert code == 0 and envelope["data"]["commands"][0]["path"] == "pcb trace"
 
 
 def test_selector_metadata_is_single_sourced():
     entry = next(item for item in reference()["commands"] if item["path"] == "reference")
     assert {"--" + item["name"] for item in entry["params"]} == SELECTOR_FLAGS
-    assert SELECTOR_FLAGS <= cli.VALUE_FLAGS
-    assert all(len(item["mutually_exclusive_with"]) == 2 for item in entry["params"])
+    assert entry["mutually_exclusive"] == [["command", "domain", "schema"]]
 
 
 def test_targeted_reference_has_bounded_relative_output_cost():

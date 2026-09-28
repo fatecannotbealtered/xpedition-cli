@@ -9,7 +9,7 @@ from typing import Any
 
 from ..contract_gen import CODES
 from ..errors import CLIError
-from ..models import normalise_project, snapshot
+from ..models import normalise_project
 from ..session import read_state, record_native_timeout
 
 # `--quiet` is a global flag, and the adapter runs as a subprocess several call
@@ -79,10 +79,10 @@ def native_fix(status: dict[str, Any]) -> str:
 
 
 class NativeBackend:
-    """Boundary for a licensed Xpedition automation adapter.
+    """The boundary to the Xpedition automation adapter.
 
-    The prototype refuses to pretend that a native adapter exists. A future
-    implementation can call the configured, audited automation entry point.
+    Every command reaches Designer or Layout through one subprocess call to the
+    adapter: a JSON request on stdin, one JSON object on stdout.
     """
 
     name = "native_xpedition"
@@ -187,55 +187,6 @@ class NativeBackend:
             normalise_project(value, observed=True),
             Path(project_path).expanduser().resolve() if project_path else None,
         )
-
-    def snapshot(self, project: dict[str, Any]) -> dict[str, Any]:
-        return snapshot(project)
-
-    def capabilities(self) -> dict[str, Any]:
-        return {
-            "backend": self.name,
-            "available": bool(self.status()["available"]),
-            "licensed": "unknown",
-            "operations": [
-                "snapshot",
-                "start",
-                "attach",
-                "open",
-                "save",
-                "close",
-                "place_component",
-                "place_pcb_component",
-                "move_component",
-                "move_pcb_component",
-                "create_net",
-                "connect",
-                "draw",
-                "show",
-                "verify",
-                "export_pdf",
-                "package",
-                "clone_project",
-                "library_import",
-                "kicad_import",
-                "pcb_create",
-                "forward_annotate",
-                "arrange_components",
-                "placement_batch",
-                "show_board",
-                "board_outline",
-                "mounting_holes",
-                "manufacturing_output",
-                "net_rules",
-                "render_board",
-                "hand_route",
-                "unroute_nets",
-                "board_geometry",
-                "tidy_labels",
-                "plane_pour",
-                "route_board",
-                "batch_drc",
-            ],
-        }
 
     def invoke(
         self, method: str, params: dict[str, Any] | None = None, timeout_seconds: float = 30.0

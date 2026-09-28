@@ -2,8 +2,8 @@
 
 Each of these used to answer "fine" about a result that was not: a design whose two
 sheets both had an R201, a drawn schematic carrying a net the plan never asked for,
-a library build with parts but no cells for them, and native reads that answered
-from empty defaults. The export package's own checks are in test_fab_package.
+and a library build with parts but no cells for them. The export package's own
+checks are in test_fab_package.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from xpedition_cli import main as cli
 from xpedition_cli import native_com_adapter as adapter
 from xpedition_cli import schematic_layout
 
@@ -154,73 +153,4 @@ def test_a_library_build_whose_parts_have_no_cells_has_not_succeeded(tmp_path, m
     )
     # every converter step passed; the parts still have no footprint to package with
     assert result["failed"] == [] and result["cells_missing"] == ["Package_SO"]
-    assert result["ok"] is False and "library kicad-import" in result["hint"]
-
-
-# -- native reads the snapshot cannot make --------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "command",
-    [
-        ["pcb", "layers"],
-        ["pcb", "stackup"],
-        ["pcb", "zones"],
-        ["pcb", "keepouts"],
-        ["library", "parts"],
-        ["library"],
-        ["constraints", "list"],
-        ["analysis", "results"],
-        ["analysis", "drc"],
-        ["manufacturing", "artifacts"],
-        ["manufacturing", "verify"],
-    ],
-)
-def test_a_native_read_the_snapshot_cannot_make_is_refused_not_empty(
-    tmp_path, monkeypatch, capsys, command
-):
-    monkeypatch.setenv("XPEDITION_CLI_CONFIG_DIR", str(tmp_path / "config"))
-
-    def unexpected(*args, **kwargs):
-        raise AssertionError("the refusal comes before any project is read")
-
-    monkeypatch.setattr(cli, "_backend", unexpected)
-    code = cli.main(
-        [*command, "--backend", "native_xpedition", "--project", str(tmp_path / "B.prj")]
-    )
-    result = json.loads(capsys.readouterr().out)
-    assert code == 4 and result["error"]["code"] == "E_BACKEND_UNAVAILABLE"
-    assert result["error"]["details"]["supported_backends"] == ["mock"]
-    assert result["error"]["details"]["hint"]
-
-
-def test_native_reads_the_snapshot_does_make_are_not_refused() -> None:
-    for command in (["pcb", "components"], ["bom", "export"], ["manufacturing", "bom"]):
-        positionals, options = cli.parse_argv([*command, "--backend", "native_xpedition"])
-        assert positionals == command and options["backend"] == "native_xpedition"
-
-
-def test_native_board_info_says_what_it_did_not_read(monkeypatch) -> None:
-    from xpedition_cli.models import normalise_project
-
-    board = normalise_project(
-        {
-            "project": "Board",
-            "pcb": {"components": [{"refdes": "R1"}], "nets": [{"name": "GND"}]},
-            "metadata": {"backend": "native_xpedition", "layer_count": 4},
-        },
-        observed=True,
-    )
-
-    class FakeNative:
-        name = "native_xpedition"
-
-        def load(self, path, domain=None):
-            return board, None
-
-    monkeypatch.setattr(cli, "_backend", lambda options: FakeNative())
-    info = cli.dispatch(["pcb", "info"], {"backend": "native_xpedition", "project": "B.pcb"})
-    assert info["component_count"] == 1 and info["layer_count"] == 4
-    # unknown, not zero: a board with keep-outs used to report none
-    assert info["zone_count"] is None and info["keepout_count"] is None
-    assert info["not_read"] == ["zones", "keepouts", "stackup"]
+    assert result["ok"] is False and "library import" in result["hint"]

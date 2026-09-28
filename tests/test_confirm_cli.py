@@ -27,17 +27,25 @@ def _run(args, config):
     )
 
 
-def _preview(target, config):
-    args = ["project", "init", "--project", str(target), "--name", "synthetic", "--compact"]
+LINK = "https://example.com/wiki/pcb-rules"
+
+
+def _preview(config):
+    """A local write (a knowledge-base binding) previewed; its args and token."""
+    args = ["kb", "add", "--name", "pcb", "--url", LINK, "--about", "layout rules", "--compact"]
     result = _run([*args, "--dry-run"], config)
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 0, result.stdout
     return args, json.loads(result.stdout)["data"]["confirm_token"]
 
 
-def test_competing_cli_confirms_create_one_mock_project(tmp_path):
+def _bound(config) -> dict:
+    path = config / "knowledge-base.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def test_competing_cli_confirms_apply_the_write_once(tmp_path):
     config = tmp_path / "config"
-    target = tmp_path / "synthetic.json"
-    args, token = _preview(target, config)
+    args, token = _preview(config)
     processes = []
     try:
         for _ in range(4):
@@ -63,7 +71,7 @@ def test_competing_cli_confirms_create_one_mock_project(tmp_path):
                 assert result["error"]["code"] == "E_CONFLICT"
                 assert result["error"]["retryable"] is False
         assert sum(result["ok"] for result in results) == 1
-        assert json.loads(target.read_text())["project"] == "synthetic"
+        assert LINK in json.dumps(_bound(config))
         recorded = json.loads((config / "confirm-consumed.json").read_text())
         assert hashlib.sha256(token.encode()).hexdigest() in recorded
         assert token not in (config / "audit.jsonl").read_text()
@@ -74,23 +82,21 @@ def test_competing_cli_confirms_create_one_mock_project(tmp_path):
             process.communicate(timeout=10)
 
 
-def test_alternate_spelling_fails_at_cli_before_project_creation(tmp_path):
+def test_an_alternate_spelling_of_the_token_fails_before_the_write(tmp_path):
     config = tmp_path / "config"
-    target = tmp_path / "synthetic.json"
-    args, token = _preview(target, config)
+    args, token = _preview(config)
     body, signature = token.rsplit(".", 1)
     result = _run([*args, "--confirm", body + "====." + signature], config)
     assert result.returncode == 6
     assert json.loads(result.stdout)["error"]["code"] == "E_CONFLICT"
-    assert not target.exists()
+    assert LINK not in json.dumps(_bound(config))
     # Rejecting the alternate representation did not consume the original.
     assert _run([*args, "--confirm", token], config).returncode == 0
 
 
 def test_storage_degradation_preserves_cli_json_and_never_prints_exception_contents(tmp_path):
     config = tmp_path / "config"
-    target = tmp_path / "synthetic.json"
-    args, token = _preview(target, config)
+    args, token = _preview(config)
     script = """
 import errno
 import sys
@@ -118,5 +124,5 @@ raise SystemExit(main(sys.argv[1:]))
     assert "ledger_write_failed" in result.stderr
     assert "private-fault-injection-message" not in result.stderr + result.stdout
     assert token not in result.stderr + result.stdout
-    assert target.exists()
+    assert LINK in json.dumps(_bound(config))
     assert not (config / "confirm-consumed.json").exists()

@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 from xpedition_cli import main as cli
+from xpedition_cli.cli.environment import changelog_changes
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -32,7 +33,7 @@ def test_a_repeated_heading_counts_every_time_and_an_entry_keeps_its_lines() -> 
 
 - Third feature, from a later section
 """
-    changes = cli._changelog_changes(body)
+    changes = changelog_changes(body)
     assert changes["added"] == [
         "First feature, described over two lines.",
         "Second feature; with a nested point",

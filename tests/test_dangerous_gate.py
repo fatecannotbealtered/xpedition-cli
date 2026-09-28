@@ -44,22 +44,24 @@ def run(capsys, *argv: str) -> tuple[int, dict]:
 
 
 def test_a_plural_flag_repeats_and_mixes_with_a_comma_list() -> None:
-    _, options = cli.parse_argv(["pcb", "unroute", "--nets", "A,B", "--nets", "C", "--nets", "A"])
+    _, options = cli.parse_argv(
+        ["pcb", "unroute", "--project", "b.pcb", "--nets", "A,B", "--nets", "C", "--nets", "A"]
+    )
     assert options["nets"] == "A,B,C,A"
-    _, options = cli.parse_argv(["context", "--fields", "version", "--fields", "backend"])
-    assert options["fields"] == "version,backend"
+    _, options = cli.parse_argv(["context", "--fields", "version", "--fields", "config"])
+    assert options["fields"] == "version,config"
 
 
 def test_a_singular_flag_given_twice_must_agree() -> None:
-    _, options = cli.parse_argv(["context", "--backend", "mock", "--backend", "mock"])
-    assert options["backend"] == "mock"
+    _, options = cli.parse_argv(["context", "--project", "a.prj", "--project", "a.prj"])
+    assert options["project"] == "a.prj"
     with pytest.raises(cli.CLIError) as caught:
         cli.parse_argv(["context", "--project", "a.json", "--project", "b.json"])
     assert caught.value.code == "E_USAGE"
 
 
 def test_dangerous_is_refused_on_a_query(capsys) -> None:
-    code, result = run(capsys, "project", "info", "--backend", "mock", "--dangerous")
+    code, result = run(capsys, "project", "info", "--project", "a.prj", "--dangerous")
     assert code == 2 and result["error"]["code"] == "E_USAGE"
 
 
@@ -73,7 +75,7 @@ def test_reference_marks_the_dangerous_writes(capsys) -> None:
         "pcb arrange",
         "pcb route",
         "pcb annotate",
-        "library kicad-import",
+        "library import",
         "schematic draw",
     }
     for path in dangerous:
@@ -81,8 +83,9 @@ def test_reference_marks_the_dangerous_writes(capsys) -> None:
         assert command["permission_tier"] == "dangerous" and command["type"] == "write"
         assert command["dangerous_when"]
         assert any("--dangerous" in example for example in command["examples"])
-    flag = next(f for f in result["data"]["global_flags"] if f["name"] == "dangerous")
-    assert set(flag["applies_to"]) == dangerous
+    for path, command in commands.items():
+        takes = any(param["name"] == "dangerous" for param in command["params"])
+        assert takes == (path in dangerous or path in {"pcb trace"}), path
     assert result["data"]["risk_tier"] == "T2"
     nets = next(p for p in commands["pcb unroute"]["params"] if p["name"] == "nets")
     assert nets["multiple"] is True
@@ -119,7 +122,7 @@ def native(tmp_path, monkeypatch):
 def board(tmp_path, pcb: str = "PCB\\demo.pcb"):
     project = tmp_path / "demo.prj"
     project.write_text(BOARD_PRJ.format(pcb=pcb), encoding="utf-8")
-    return ["--backend", "native_xpedition", "--project", str(project)]
+    return ["--project", str(project)]
 
 
 def applied(state) -> list[dict]:

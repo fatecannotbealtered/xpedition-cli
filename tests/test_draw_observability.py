@@ -17,6 +17,7 @@ import pytest
 
 from xpedition_cli import main as cli
 from xpedition_cli.backends import native_xpedition
+from xpedition_cli.cli.schematic import annotate_operations
 
 
 def test_operations_carry_their_index_and_sheet() -> None:
@@ -26,7 +27,7 @@ def test_operations_carry_their_index_and_sheet() -> None:
         {"op": "open_sheet", "number": 3},
         {"op": "wire", "label": "VCC"},
     ]
-    annotated = cli._annotate_operations(ops)
+    annotated = annotate_operations(ops)
     assert [entry["index"] for entry in annotated] == [0, 1, 2, 3]
     # The sheet an operation lands on is the last one opened before it.
     assert [entry["sheet"] for entry in annotated] == [1, 1, 3, 3]
@@ -35,12 +36,13 @@ def test_operations_carry_their_index_and_sheet() -> None:
 
 
 def test_a_malformed_sheet_number_does_not_break_the_annotation() -> None:
-    annotated = cli._annotate_operations([{"op": "open_sheet", "number": "two"}, {"op": "wire"}])
+    annotated = annotate_operations([{"op": "open_sheet", "number": "two"}, {"op": "wire"}])
     assert [entry["sheet"] for entry in annotated] == [0, 0]
 
 
 def test_dry_run_publishes_the_planned_operations(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.setenv("XPEDITION_CLI_CONFIG_DIR", str(tmp_path / "config"))
+    (tmp_path / "p.prj").write_text("", encoding="utf-8")
     design = tmp_path / "design.json"
     design.write_text(
         json.dumps(

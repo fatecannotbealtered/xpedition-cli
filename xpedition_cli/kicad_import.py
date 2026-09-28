@@ -1,4 +1,4 @@
-"""`library kicad-import`: KiCad footprint libraries as cell partitions of a central library.
+"""`library import`: KiCad footprint libraries as cell partitions of a central library.
 
 Every `.pretty` folder becomes one cell partition named after it; the conversion runs
 in the native adapter through the stock HKP converters (`_kicad_import`). This module

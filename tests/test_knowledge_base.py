@@ -258,7 +258,13 @@ def test_the_kb_commands_are_declared_by_reference(capsys) -> None:
     declared = {c["path"]: c for c in result["data"]["commands"]}
     assert declared["kb list"]["permission_tier"] == "read"
     assert declared["kb add"]["permission_tier"] == "write"
-    assert {p["name"] for p in declared["kb add"]["params"]} == {"name", "url", "about"}
+    assert {p["name"] for p in declared["kb add"]["params"]} == {
+        "name",
+        "url",
+        "about",
+        "dry-run",
+        "confirm",
+    }
     for path in ("kb add", "kb remove"):
         assert declared[path]["dry_run_output_schema"] == "kb_change_preview"
         assert "config directory" in declared[path]["blast_radius"]

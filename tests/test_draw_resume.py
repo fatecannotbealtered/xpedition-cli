@@ -20,6 +20,8 @@ from xpedition_cli import main as cli
 from xpedition_cli import native_com_adapter as adapter
 from xpedition_cli import schematic_layout
 from xpedition_cli.backends import native_xpedition
+from xpedition_cli.cli import schematic as schematic_cli
+from xpedition_cli.cli.common import sheets_option
 from xpedition_cli.errors import CLIError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +31,7 @@ DEMO = ROOT / "examples" / "demo-sensor-board.json"
 @pytest.fixture(autouse=True)
 def isolated_config(tmp_path, monkeypatch):
     monkeypatch.setenv("XPEDITION_CLI_CONFIG_DIR", str(tmp_path / "config"))
+    (tmp_path / "p.prj").write_text("", encoding="utf-8")
 
 
 def demo_ops() -> list[dict]:
@@ -41,12 +44,12 @@ def demo_ops() -> list[dict]:
 
 def test_a_chosen_sheet_keeps_its_whole_run_and_nothing_else() -> None:
     ops = demo_ops()
-    kept = cli._ops_for_sheets(ops, [2, 3])
-    sheets = {entry["sheet"] for entry in cli._annotate_operations(kept)}
+    kept = schematic_cli.ops_for_sheets(ops, [2, 3])
+    sheets = {entry["sheet"] for entry in schematic_cli.annotate_operations(kept)}
     assert sheets == {2, 3}
     assert kept[0] == {"op": "open_sheet", "number": 2}
     # each sheet's run is intact: open, wipe, ..., save
-    everything = cli._annotate_operations(ops)
+    everything = schematic_cli.annotate_operations(ops)
     expected = [entry for entry in everything if entry["sheet"] in (2, 3)]
     assert len(kept) == len(expected)
     assert [op["op"] for op in kept].count("save") == 2
@@ -57,19 +60,19 @@ def test_a_chosen_sheet_keeps_its_whole_run_and_nothing_else() -> None:
     [(None, None), ("3", [3]), (" 3, 2,3", [2, 3])],
 )
 def test_sheets_are_read_as_a_sorted_set(raw, chosen) -> None:
-    assert cli._sheets_option({"sheets": raw}, [1, 2, 3, 4]) == chosen
+    assert sheets_option({"sheets": raw}, [1, 2, 3, 4]) == chosen
 
 
 @pytest.mark.parametrize("raw", ["two", "1,x", ",", ""])
 def test_sheets_that_are_not_numbers_are_refused(raw) -> None:
     with pytest.raises(CLIError) as caught:
-        cli._sheets_option({"sheets": raw}, [1, 2, 3, 4])
+        sheets_option({"sheets": raw}, [1, 2, 3, 4])
     assert caught.value.code == "E_VALIDATION"
 
 
 def test_a_sheet_the_design_does_not_list_is_refused() -> None:
     with pytest.raises(CLIError) as caught:
-        cli._sheets_option({"sheets": "3,7"}, [1, 2, 3, 4])
+        sheets_option({"sheets": "3,7"}, [1, 2, 3, 4])
     assert caught.value.code == "E_VALIDATION"
     assert caught.value.details["sheets"] == [7]
     assert caught.value.details["design_sheets"] == [1, 2, 3, 4]
@@ -124,7 +127,7 @@ def native(tmp_path, monkeypatch):
 def draw(capsys, tmp_path, sheets: str, *extra: str) -> tuple[int, dict]:
     return run(
         capsys,
-        "schematic", "draw", "--backend", "native_xpedition", "--project", str(tmp_path / "p.prj"),
+        "schematic", "draw", "--project", str(tmp_path / "p.prj"),
         "--design", str(DEMO), "--sheets", sheets, *extra,
     )  # fmt: skip
 
