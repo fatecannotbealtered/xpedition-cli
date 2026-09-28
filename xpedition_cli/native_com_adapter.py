@@ -4088,7 +4088,7 @@ def _remove_board(client: Any, project_path: Path, pcb_relative: str, name: str)
     }
 
 
-def _release_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
+def _let_go_of_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Close the project in Designer and its board in Layout, so its files can be
     replaced; each only if it is the one open there."""
     project = params.get("project")
@@ -4121,8 +4121,8 @@ def _release_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
     }
 
 
-def _reopen_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
-    """Open the project in Designer again, when Designer is running."""
+def _take_up_project(params: dict[str, Any], client: Any) -> dict[str, Any]:
+    """Open the project in Designer again, when Designer is running (`reopen_project`)."""
     project = params.get("project")
     if not project:
         raise AdapterError("E_USAGE", "reopen_project requires the project path")
@@ -8409,9 +8409,9 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
         if method == "library_export":
             return _library_export(params)
         if method == "release_project":
-            return _release_project(params, client)
+            return _let_go_of_project(params, client)
         if method == "reopen_project":
-            return _reopen_project(params, client)
+            return _take_up_project(params, client)
         if method == "kicad_import":
             return _kicad_import(params, client)
         if method == "pcb_create":
