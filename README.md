@@ -66,11 +66,11 @@ without saving it, so save hand edits in Layout first. See [SECURITY.md](SECURIT
 | Schematic reads | `schematic sheets`, `components`, `pins`, `nets`, `connectivity`, `unconnected`, `power`, `interfaces`, `query` | both |
 | Schematic drawing | `schematic draw`, `schematic show`, `schematic export`, `library build`, `library kicad-import` | NativeBackend (see below) |
 | Pin planning | `schematic pin-plan`, `schematic pin-check` | offline, against a supplied snapshot |
-| PCB reads | `pcb info`, `components`, `footprints`, `nets`, `tracks`, `vias`, `layers`, `stackup`, `zones`, `keepouts`, `query` | both; natively only components, footprints, nets, tracks and vias are read, and the rest come back empty |
+| PCB reads | `pcb info`, `components`, `footprints`, `nets`, `tracks`, `vias`, `layers`, `stackup`, `zones`, `keepouts`, `query` | both; natively `layers`, `stackup`, `zones` and `keepouts` are refused (not read yet) and `pcb info` reports their counts as null |
 | PCB design | `pcb create`, `annotate`, `outline`, `holes`, `arrange`, `placement`, `move`, `rules`, `pour`, `route`, `trace`, `via`, `unroute`, `labels`, `geometry`, `render`, `show`, `drc`, `export` | NativeBackend (see below) |
 | PCB planning | `pcb stitch`, `pcb placement-plan` | offline, from files |
-| Constraints/analysis | `constraints ...`, `analysis run|results|erc|drc|dfm` | MockBackend; natively `analysis run` is refused and the reads come back empty (use `review run` and `pcb drc`) |
-| Manufacturing/library reads | `manufacturing ...`, `library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend; natively they come back empty |
+| Constraints/analysis | `constraints ...`, `analysis run|results|erc|drc|dfm` | MockBackend; refused on the native backend (use `review run` and `pcb drc`) |
+| Manufacturing/library reads | `manufacturing ...`, `library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend; refused on the native backend, except `manufacturing bom`, which reads the components |
 | Change control | `change validate`, `change preview`, `change apply`, `change history`, `change rollback`, `schematic apply` | MockBackend; natively `change apply` places and moves parts, and `schematic apply` also creates nets and connects pins |
 | Review and BOM | `review run`, `bom export|normalize|group|variants|missing|duplicates|validate|compare` | both; natively `review run` adds Designer's own verification |
 | Environment | `context`, `doctor`, `reference`, `changelog`, `system capabilities`, `system license`, `system api-inventory` | local probe; `api-inventory` reads COM type libraries on Windows |

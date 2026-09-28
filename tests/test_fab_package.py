@@ -92,10 +92,12 @@ def test_outputs_are_read_back_with_counts_and_emptiness(tmp_path: Path) -> None
     job = F.odb_job(odb)
     assert job["drill"] and job["profile"] and job["step"] == "board"
     assert [layer["features"] for layer in job["layers"]] == [2, None]
-    verdict = F.checks(list(files.values()), holes, job)
+    verdict = F.checks(list(files.values()), holes, job, layer_count=4)
     assert not verdict["ok"]
     assert "Gerber EtchLayer4Bottom is missing or empty" in verdict["problems"]
     assert "Gerber has no top silkscreen" in verdict["problems"]
+    assert "Gerber has no file for inner layer L2" in verdict["problems"]
+    assert "Gerber has no file for inner layer L3" in verdict["problems"]
 
 
 def test_package_folder_holds_renamed_copies_manifest_readme_centroid_and_bom(
@@ -168,5 +170,97 @@ def test_package_folder_holds_renamed_copies_manifest_readme_centroid_and_bom(
         and manifest["centroid_rows"] == 3
         and manifest["bom_rows"] == 3
     )
+    # the BOM lists the unplaced hole, the centroid file does not: not ready to build
+    assert manifest["unplaced"] == ["H1"]
+    assert any(p.startswith("1 part is not placed") for p in manifest["checks"]["problems"])
+    # the README claims no rule value it did not read, and says what the coordinates are
+    assert "0.254" not in readme and "元件原点坐标" in readme
     assert str(target / "README.md") in manifest["files"]
     assert (target / "manifest.json").is_file()
+
+
+def _gerber(folder: Path, name: str, draws: int = 2) -> None:
+    body = "".join(f"X{i}Y{i}D03*\n" for i in range(draws))
+    (folder / f"{name}.gdo").write_text(f"G04 {name}*\nD10*\n{body}M02*\n")
+
+
+def _full_set(folder: Path, layers: int, bottom: str) -> None:
+    folder.mkdir(exist_ok=True)
+    for name in ("EtchLayer1Top", bottom, "SoldermaskTop", "SoldermaskBottom", "SilkscreenTop"):
+        _gerber(folder, name)
+    _gerber(folder, F.OUTLINE_FILE)
+
+
+def test_a_requested_format_that_produced_nothing_fails_the_checks() -> None:
+    # an export that wrote nothing used to pass: every check looked only at files it had
+    verdict = F.checks([], [], {"present": False}, requested=["gerber", "ncdrill", "odb"])
+    assert verdict["ok"] is False
+    assert verdict["problems"] == [
+        "Gerber was requested but no Gerber file of this run has any draws",
+        "NC drill was requested but this run wrote no drill file",
+        "ODB++ was requested but this run wrote no ODB++ job",
+    ]
+    # nothing requested, nothing expected
+    assert F.checks([], [], {"present": False}, requested=[]) == {"ok": True, "problems": []}
+
+
+def test_an_output_run_that_did_not_finish_fails_the_checks() -> None:
+    runs = [{"format": "odb", "finished": True}, {"format": "gerber", "finished": False}]
+    verdict = F.checks([], [], {"present": False}, runs=runs)
+    assert verdict["problems"] == ["the gerber output did not finish in time"]
+
+
+def test_copper_is_checked_against_the_board_layer_count(tmp_path: Path) -> None:
+    two = tmp_path / "two"
+    _full_set(two, 2, "EtchLayer2Bottom")
+    # a two-layer board's bottom copper is EtchLayer2Bottom, not the four-layer name
+    assert F.checks(F.gerber_files(two), [], {"present": False}, layer_count=2)["ok"] is True
+    four = tmp_path / "four"
+    _full_set(four, 4, "EtchLayer4Bottom")
+    _gerber(four, "EtchLayer2Neg", draws=0)  # a solid plane: no draws, not empty
+    _gerber(four, "EtchLayer3", draws=0)  # a signal layer with no copper
+    files = F.gerber_files(four)
+    assert {item.name: item.empty for item in files}["EtchLayer2Neg"] is False
+    problems = F.checks(files, [], {"present": False}, layer_count=4)["problems"]
+    assert len(problems) == 1 and problems[0].startswith("inner layer L3 has no copper")
+    assert "3 copper layers" in problems[0]
+
+
+def test_a_two_layer_package_keeps_one_file_per_copper_layer(tmp_path: Path) -> None:
+    gerber = tmp_path / "Gerber"
+    _full_set(gerber, 2, "EtchLayer2Bottom")
+    _gerber(gerber, "EtchLayerBottom")  # Layout writes the outer copper twice
+    manifest = F.write_package(
+        tmp_path / "fab", "Two", {"width": 20, "height": 10}, 2, gerber, None, None, []
+    )
+    copied = sorted(Path(path).name for path in manifest["files"] if "gerber" in path)
+    assert "EtchLayer2Bottom.gbr" in copied and "EtchLayerBottom.gbr" not in copied
+    assert "EtchLayerBottom" in manifest["skipped"]
+
+
+def test_an_earlier_exports_files_stay_out_of_the_package(tmp_path: Path) -> None:
+    import os
+    import time
+
+    gerber, drill, odb = _outputs(tmp_path)
+    old = time.time() - 3600
+    for path in [*gerber.glob("*.gdo"), *drill.glob("*.ncd"), odb / "matrix" / "matrix"]:
+        os.utime(path, (old, old))
+    manifest = F.write_package(
+        tmp_path / "fab",
+        "Demo",
+        {"width": 70, "height": 48},
+        4,
+        gerber,
+        drill,
+        odb,
+        [],
+        requested=["gerber", "ncdrill", "odb"],
+        since=time.time(),
+    )
+    assert len(manifest["stale"]) == 4  # two Gerber files, one drill file, the ODB++ job
+    assert manifest["gerber"] == [] and manifest["drill"] == [] and not manifest["odb"]["present"]
+    assert not (tmp_path / "fab" / "gerber").exists()
+    problems = manifest["checks"]["problems"]
+    assert "Gerber was requested but no Gerber file of this run has any draws" in problems
+    assert "ODB++ was requested but this run wrote no ODB++ job" in problems

@@ -224,6 +224,7 @@ def parse_argv(argv: list[str]) -> tuple[list[str], dict[str, Any]]:
     validate_reference_options(positionals, options)
     _reject_a_guard_flag_that_does_not_apply(positionals, options)
     _reject_paging_that_does_not_apply(positionals, options)
+    _refuse_a_native_read_it_cannot_make(positionals, options)
     if tuple(positionals[:2]) in pin_assignment.COMMANDS:
         pin_assignment.validate_argv(argv)
         options["fields"] = pin_assignment.protected_fields(options.get("fields"))
@@ -281,6 +282,56 @@ def _reject_a_guard_flag_that_does_not_apply(
                 },
             )
         return
+
+
+# Reads the native snapshot does not make yet. Answered from the project model's empty
+# defaults they said "the board has no keep-outs" or "the library is empty" about a
+# board and a library that have both; the native backend refuses them instead, and the
+# hint names what does read that data.
+_NATIVE_UNREAD: dict[tuple[str, str], str] = {
+    **{
+        ("pcb", verb): "pcb info reports the layer count; pcb geometry reads the outline, "
+        "the generated planes and the holes"
+        for verb in ("layers", "stackup", "zones", "keepouts")
+    },
+    **{
+        ("library", verb): "the central library is not read yet; library build --dry-run "
+        "reports what a design's parts need"
+        for verb in ("search", "parts", "symbols", "footprints", "padstacks", "models", "validate")
+    },
+    **{
+        ("constraints", verb): "Constraint Manager is not read yet; pcb rules writes net "
+        "classes and trace widths"
+        for verb in ("list", "query", "validate", "export")
+    },
+    **{
+        ("analysis", verb): "no native analysis is stored; review run runs Designer's "
+        "verification and pcb drc runs Layout's Batch DRC"
+        for verb in ("results", "erc", "drc", "dfm")
+    },
+    **{
+        ("manufacturing", verb): "manufacturing records are not read yet; pcb export "
+        "writes the package and checks it in its manifest"
+        for verb in ("artifacts", "verify")
+    },
+}
+_DEFAULT_VERBS = {"library": "search", "analysis": "results", "manufacturing": "verify"}
+
+
+def _refuse_a_native_read_it_cannot_make(positionals: list[str], options: dict[str, Any]) -> None:
+    if str(options.get("backend", "mock")) != "native_xpedition" or not positionals:
+        return
+    domain = positionals[0]
+    verb = positionals[1] if len(positionals) > 1 else _DEFAULT_VERBS.get(domain, "")
+    hint = _NATIVE_UNREAD.get((domain, verb))
+    if hint is None:
+        return
+    raise CLIError(
+        "E_BACKEND_UNAVAILABLE",
+        f"{domain} {verb} is not read from Xpedition yet; on the native backend it would "
+        "only answer with empty defaults",
+        {"backend": "native_xpedition", "supported_backends": ["mock"], "hint": hint},
+    )
 
 
 def _reject_paging_that_does_not_apply(positionals: list[str], options: dict[str, Any]) -> None:
@@ -3572,7 +3623,7 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
         pcb = _pcb_data(project)
         verb = positionals[1] if len(positionals) > 1 else ""
         if verb == "info":
-            return {
+            info = {
                 "project": project["project"],
                 "revision": project["revision"],
                 "component_count": len(pcb["components"]),
@@ -3586,6 +3637,12 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
                 "stackup_count": len(pcb["stackup"]),
                 "_untrusted": ["project"],
             }
+            if backend.name == "native_xpedition":
+                # counts of what the native snapshot does not read are unknown, not zero
+                info["layer_count"] = project.get("metadata", {}).get("layer_count")
+                info.update({"zone_count": None, "keepout_count": None, "stackup_count": None})
+                info["not_read"] = ["zones", "keepouts", "stackup"]
+            return info
         pcb_keys = {
             "components",
             "footprints",

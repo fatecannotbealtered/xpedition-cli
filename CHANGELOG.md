@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `library kicad-import` names the footprints the converter refused or crashed on:
+  `dropped` and `dropped_samples` on each library and `dropped_footprints` in the
+  summary. A library that imported without them read as plain success, and a design
+  naming one of them got no cell.
+
+### Changed
+
+- On the native backend, reads the snapshot does not make are refused with
+  `E_BACKEND_UNAVAILABLE` and a hint naming the command that does read that data:
+  `library`, `constraints`, stored `analysis` results, `manufacturing
+  artifacts|verify` and `pcb layers|stackup|zones|keepouts`. They answered from the
+  project model's empty defaults, which said "no keep-outs" or "the library is
+  empty" about a board and a library that had both. `pcb info` reports the board's
+  layer count and null for the counts it does not read, listed in `not_read`.
+
+### Fixed
+
+- `schematic draw`'s netlist check walked only the planned nets, so a drawing with a
+  template's leftover part wired to a no-connect pin still matched. It now reports
+  `extra_nets` (a net the plan never named that holds a planned pin),
+  `unplanned_components` (a part the design does not place) and
+  `no_connects_joined` (a no-connect pin that shares a net), and `netlist.matches`
+  is false when any of them is not empty. A junction the plan asks for with a
+  `none` node is not an extra net.
+- The planner refuses a reference designator used on two sheets, as it already did
+  within one. The expected netlist had put one pin on two nets.
+- `pcb export`'s `checks` passed a package that was not what was asked for. A
+  requested format that produced nothing is now a problem (an export that wrote
+  no file at all passed), as are an output run that did not finish, a copper layer
+  the board's layer count needs, and parts the BOM lists but the board has not
+  placed (`unplaced`). The copper is checked for the board's layer count: a
+  two-layer board's bottom is `EtchLayer2Bottom`, not a missing `EtchLayer4Bottom`,
+  its package no longer carries the bottom copper twice, and every inner layer
+  needs a file. A negative plane with no draws is a solid plane and is packaged.
+  Files an earlier export left in Layout's output folders stay out of the package
+  and are listed in `stale`. The README no longer states a 0.254 mm minimum it did
+  not read, and says the centroid file gives each part's cell origin.
+- `library build` reported `ok` while `cells_missing` named a cell partition the
+  library does not have, and then packaged a design whose parts had no footprint.
+  It is not `ok` now, `--package` does not run, and a hint names
+  `library kicad-import`.
+- The adapter's default partition is the planner's `PartQuest`, not `Case`.
+
 ## [1.0.0] - 2026-09-28
 
 ### Added

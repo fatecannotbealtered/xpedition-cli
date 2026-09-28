@@ -158,6 +158,12 @@ evidence that a CLI operation is safe or implemented.
 - Selecting a backend does not mean every command supports it. Treat declared
   unavailability as a capability boundary; never substitute mock analysis for
   an upstream check. Capability discovery does not need to open a design.
+- On the native backend, the reads nothing takes from Xpedition yet -- `library`,
+  `constraints`, stored `analysis` results, `manufacturing artifacts|verify` and
+  `pcb layers|stackup|zones|keepouts` -- are refused with `E_BACKEND_UNAVAILABLE`
+  and a hint naming the command that does read that data; `pcb info` reports
+  those counts as null under `not_read`. An empty list from a native read means
+  the design has none.
 
 ## Read recipes
 

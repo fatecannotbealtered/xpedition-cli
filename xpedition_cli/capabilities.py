@@ -129,8 +129,8 @@ class CapabilityRegistry:
                 NativeBackend().status().get("automation_command_configured")
             ),
             "capabilities": self.as_dict(),
-            # What is not there yet: these reads return empty data on the native
-            # backend, and the adapter implements only part of the ChangeSet set.
+            # What is not there yet: these reads are refused on the native backend,
+            # and the adapter implements only part of the ChangeSet set.
             "planned_command_domains": [
                 "native_constraints",
                 "native_analysis",

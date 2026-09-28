@@ -201,14 +201,17 @@ Net names: ASCII `UPPER_SNAKE_CASE`; rails by voltage (`+5V`, `+3V3`) or role
 - Grid: every position and wire point is a multiple of 10.
 
 Two kinds of result. DS-06, the grid, a wire that is not orthogonal, a reference
-designator used twice on one sheet and a treatment for a pin the symbol does not
-have make the design undrawable: the dry run refuses it with `E_VALIDATION` and
-issues no token. DS-07, DS-08, DS-15 and DS-16 are reported in `summary.issues`
-and the draw still runs, so read them. The planner does not check that a
-reference designator is unique across sheets; keep the refdes numbering per
-sheet (R1xx on sheet 1, R2xx on sheet 2) so they cannot collide.
+designator used twice anywhere in the design and a treatment for a pin the
+symbol does not have make the design undrawable: the dry run refuses it with
+`E_VALIDATION` and issues no token. DS-07, DS-08, DS-15 and DS-16 are reported in
+`summary.issues` and the draw still runs, so read them. Numbering the refdes per
+sheet (R1xx on sheet 1, R2xx on sheet 2) keeps them from colliding.
 After drawing, the adapter reopens the project, reads every net back and
-compares it with the plan (`netlist.matches`, `differences`, `links_broken`).
+compares it with the plan: `differences` and `links_broken` for planned nets
+that read back wrong, `extra_nets` for nets the plan never named that hold a
+planned pin, `unplanned_components` for parts the design does not place, and
+`no_connects_joined` for no-connect pins that share a net. `netlist.matches` is
+true only when all five are empty.
 
 ## 8. Geometry the planner uses
 

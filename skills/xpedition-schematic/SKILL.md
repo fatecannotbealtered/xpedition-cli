@@ -81,7 +81,12 @@ schematic; the rules below are the non-negotiable subset.
   `reference/schematic-design-format.md` and run `schematic draw --design FILE
   --dry-run`; read `preview.summary.issues`, then confirm with `--dangerous
   --confirm <token>`: every sheet drawn is wiped first. Report done only when the
-  result's `netlist.matches` is true.
+  result's `netlist.matches` is true. It is false for a planned net that reads
+  back wrong (`differences`, `links_broken`) and also for wiring the plan never
+  asked for: `extra_nets` (a net holding a planned pin), `unplanned_components`
+  (a part the design does not place, often a template's leftover) and
+  `no_connects_joined` (a pin marked no-connect that shares a net). Fix those in
+  the design or on the sheet; do not report them as done.
 - Then `schematic show --sheet N` to put the sheet in front of the person, and
   `--output sheet.png` to look at it yourself before saying it is done.
 - Review before handing over: `review run --backend native_xpedition --project
@@ -99,7 +104,8 @@ schematic; the rules below are the non-negotiable subset.
   `library kicad-import --libraries Package_SO,Resistor_SMD` once for the libraries
   the design needs (each `.pretty` library becomes a cell partition; its dry run
   lists them with their footprint counts and the partitions that exist already;
-  all 155 take about fifteen minutes), then name footprints in the design file's
+  all 155 take about fifteen minutes; each library's `dropped` counts footprints
+  the converter refused, which a design cannot use), then name footprints in the design file's
   `packages` by symbol kind or refdes with `kicad:` keys, e.g. `"RES":
   "kicad:Resistor_SMD:R_0603_1608Metric"`, `"CMP":
   "kicad:Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"`, `"BATCON":
@@ -155,8 +161,11 @@ Package the parts after a draw, before reading the design back or reviewing it:
 schematic that has changed since it was last packaged cannot be read — `review
 run`, `bom export` and `schematic components` stop on a COM type mismatch until
 it is re-packaged — and a draw whose library partition has no parts database yet
-warns `library_not_built`. §8 of `reference/schematic-conventions.md` has the
-checklist. The same step starts a board in xpedition-pcb.
+warns `library_not_built`. A build whose parts name a cell partition the library
+does not have reports it in `cells_missing` with `ok: false`, and `--package` does
+not run: import that KiCad library with `library kicad-import` and build again. §8
+of `reference/schematic-conventions.md` has the checklist. The same step starts a
+board in xpedition-pcb.
 
 STOP CHECKPOINT: `library build --package` writes the project's central library
 and the parts-database list of its `.prj`; confirm it within the user's go-ahead

@@ -100,6 +100,8 @@ class Plan:
     usable: dict[int, list[int]] = field(default_factory=dict)
     parts: list[dict[str, Any]] = field(default_factory=list)
     sheets: list[dict[str, Any]] = field(default_factory=list)
+    # `REFDES.PIN` of every pin the design marks no-connect, checked after the draw
+    no_connects: list[str] = field(default_factory=list)
     partition: str = PARTITION
     # generated symbol name -> [(pin number, pin name)], for the parts database
     symbol_pins: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
@@ -311,8 +313,17 @@ class _Placed:
 
 
 class _SheetPlanner:
-    def __init__(self, plan: Plan, library: _Library, width: int, height: int, boxed: bool) -> None:
+    def __init__(
+        self,
+        plan: Plan,
+        library: _Library,
+        width: int,
+        height: int,
+        boxed: bool,
+        sheet: int = 0,
+    ) -> None:
         self.plan = plan
+        self.sheet = sheet
         self.partition = plan.partition
         self.library = library
         self.width = width
@@ -336,6 +347,14 @@ class _SheetPlanner:
     ) -> _Placed:
         if refdes in self.placed:
             raise DesignError(f"reference designator {refdes!r} is used twice")
+        # Designer numbers one design, so a refdes names one part across all sheets; two
+        # parts under one name put one pin on two nets in the expected netlist
+        other = next((p for p in self.plan.parts if p["refdes"] == refdes), None)
+        if other is not None:
+            raise DesignError(
+                f"reference designator {refdes!r} is used on sheet {other.get('sheet')} and "
+                f"sheet {self.sheet}"
+            )
         if x % GRID or y % GRID:
             raise DesignError(f"{refdes}: position ({x}, {y}) is off the {GRID}-unit grid")
         symbol = self.library.symbol(symbol_name)
@@ -399,6 +418,7 @@ class _SheetPlanner:
                 "x": x,
                 "y": y,
                 "orientation": orientation,
+                "sheet": self.sheet,
             }
         )
         return placed
@@ -553,6 +573,7 @@ class _SheetPlanner:
             ref = f"{refdes}.{pin.number}"
             if kind == "nc":
                 self.no_connect(px, py, side)
+                self.plan.no_connects.append(ref)
             elif kind == "label":
                 self.wire(
                     [(px, py), (ex, ey)],
@@ -783,7 +804,7 @@ def plan(design: dict[str, Any]) -> Plan:
     date = str(design.get("date", "")).strip()
     for index, sheet in enumerate(design["sheets"], start=1):
         number = int(sheet.get("number", index))
-        planner = _SheetPlanner(result, library, width, height, boxed)
+        planner = _SheetPlanner(result, library, width, height, boxed, number)
         planner.op(op="open_sheet", number=number)
         planner.op(op="wipe_sheet")
         border, code = SHEET_BORDERS[size]
@@ -835,6 +856,10 @@ def plan_to_params(design: dict[str, Any], project: str) -> dict[str, Any]:
         "verify": {
             "nets": {name: sorted(pins) for name, pins in result.nets.items()},
             "links": [list(link) for link in result.links],
+            # what the read-back must not show beyond the nets: parts the plan did not
+            # place, and connections on pins it marked no-connect
+            "parts": sorted(str(part["refdes"]) for part in result.parts),
+            "no_connect": sorted(result.no_connects),
         },
         "summary": result.summary(),
     }

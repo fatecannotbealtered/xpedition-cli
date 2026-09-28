@@ -19,9 +19,9 @@ analysis function (the result did label its engine `mock`). The explicit native
 combination now fails with non-retryable `E_BACKEND_UNAVAILABLE` before reading a
 project. This is an intentional compatibility tightening, not a new native engine.
 
-Native stored analysis reads (`analysis results/erc/drc/dfm`) are not disabled,
-but the native snapshot never fills `analysis`, so on NativeBackend they return an
-empty list. The native `pcb drc` and `review run` entry points remain separate
+Native stored analysis reads (`analysis results/erc/drc/dfm`) were left enabled
+here, but the native snapshot never fills `analysis`, so they returned an empty
+list; since 1.0.0 the CLI refuses them on NativeBackend instead. The native `pcb drc` and `review run` entry points remain separate
 capabilities; they are not interchangeable with every analysis kind, and this patch
 does not claim a native DFM runner exists.
 

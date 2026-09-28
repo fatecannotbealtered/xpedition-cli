@@ -712,6 +712,8 @@ def _snapshot(app: Any, client: Any) -> dict[str, Any]:
             "metadata": {
                 "backend": "native_xpedition",
                 "source": "MGCPCB.ExpeditionPCBApplication",
+                # the board's layers are not read as records yet; their count is
+                "layer_count": int(_value(doc, "LayerCount", default=0) or 0) or None,
                 "_untrusted": ["project", "components", "nets"],
             },
         }
@@ -2307,16 +2309,80 @@ def _compare_netlist(
         a, b = str(link[0]), str(link[1])
         if not pin_net.get(a) or pin_net.get(a) != pin_net.get(b):
             broken.append([a, b])
+    extra, unplanned, joined = _beyond_the_plan(snapshot, verify, pin_net)
     return {
-        "matches": not differences and not broken,
+        "matches": not differences and not broken and not extra and not unplanned and not joined,
         "nets_checked": len(expected),
         "differences": differences,
         "links_checked": len(verify.get("links") or []),
         "links_broken": broken,
+        "extra_nets": extra,
+        "unplanned_components": unplanned,
+        "no_connects_joined": joined,
     }
 
 
+def _beyond_the_plan(
+    snapshot: dict[str, Any], verify: dict[str, Any], pin_net: dict[str, str]
+) -> tuple[list[dict[str, Any]], list[str], list[dict[str, Any]]]:
+    """What the read-back holds that the plan does not ask for.
+
+    Walking the expected nets finds a planned pin on the wrong net, but not a net the
+    plan never named: a template's leftover wiring, a planned pin wired into an
+    unnamed junction, a no-connect pin joined to something. Those come back here as
+    nets beyond the plan (with at least one planned pin), parts the plan did not
+    place, and no-connect pins that share a net with another pin.
+    """
+    expected = verify.get("nets") or {}
+    parts = verify.get("parts")
+    planned = (
+        {str(item) for item in parts}
+        if parts is not None
+        # a request from before `parts` was sent: the parts its nets name
+        else {str(pin).rsplit(".", 1)[0] for pins in expected.values() for pin in pins}
+    )
+    groups: dict[str, set[str]] = {}
+    for ref, identity in pin_net.items():
+        groups.setdefault(str(identity), set()).add(str(ref))
+    linked = {
+        frozenset((str(link[0]), str(link[1])))
+        for link in verify.get("links") or []
+        if len(link) == 2
+    }
+    extra: list[dict[str, Any]] = []
+    for identity, pins in sorted(groups.items()):
+        if identity in expected or len(pins) < 2:
+            continue
+        if not any(pin.rsplit(".", 1)[0] in planned for pin in pins):
+            continue
+        # an unnamed junction the plan asked for joins exactly the pins of its links
+        if all(
+            any(frozenset((pin, other)) in linked for other in pins if other != pin) for pin in pins
+        ):
+            continue
+        extra.append({"net": identity, "pins": sorted(pins)})
+    unplanned: list[str] = []
+    if parts is not None:
+        present = {
+            str(component.get("refdes"))
+            for component in snapshot.get("components", [])
+            if component.get("refdes")
+        }
+        unplanned = sorted(present - planned)
+    joined: list[dict[str, Any]] = []
+    for ref in verify.get("no_connect") or []:
+        identity = pin_net.get(str(ref))
+        if identity is not None and len(groups.get(str(identity), ())) > 1:
+            joined.append(
+                {"pin": str(ref), "net": str(identity), "pins": sorted(groups[str(identity)])}
+            )
+    return extra, unplanned, joined
+
+
 LIBRARY_TOOL_TIMEOUT = 300.0
+# the partition the planner writes symbols and parts to when a design names none; the
+# stock central library registers it (schematic_layout.PARTITION)
+DEFAULT_PARTITION = "PartQuest"
 
 
 def _close_if_open(app: Any, project_path: Path) -> bool:
@@ -2497,7 +2563,7 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
     project_path = Path(str(project)).expanduser().resolve()
     if not project_path.is_file():
         raise AdapterError("E_NOT_FOUND", "project file was not found", {"path": str(project_path)})
-    partition = str(params.get("partition") or "Case")
+    partition = str(params.get("partition") or DEFAULT_PARTITION)
     if not re.match(r"^[A-Za-z][A-Za-z0-9_]*$", partition):
         raise AdapterError(
             "E_USAGE", "partition must be a plain identifier", {"partition": partition}
@@ -2618,7 +2684,14 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "pdb_registered": registered,
         "cells_registered": cells,
         "cells_missing": cells_missing,
-        "ok": not failed,
+        # a part whose cell partition is missing has no footprint: packaging and the
+        # board would fail on it later, so the build has not succeeded
+        "ok": not failed and not cells_missing,
+        **(
+            {"hint": "import those KiCad libraries with library kicad-import, then build again"}
+            if cells_missing
+            else {}
+        ),
         "_untrusted": ["project", "library", "steps"],
     }
 
@@ -2816,6 +2889,9 @@ def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                 continue
             cell_db = library_root / "CellDBLibs" / f"{partition}.cel"
             record["ok"] = _import_kicad_partition(plan, work, lmc, padstack_db, cell_db, record)
+            # footprints the converter refused or crashed on are not in the partition; the
+            # library still imported, but a design that names one of them has no cell
+            record["dropped"] = len(record.get("rejected", [])) + len(record.get("crashed", []))
             record["cells"] = len(plan.cells)
             record["seconds"] = round(time.monotonic() - started, 1)
             if not record["ok"]:
@@ -2850,6 +2926,7 @@ def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         "root": str(root),
         "libraries": len(pretties),
         "cells": sum(int(p["cells"]) for p in partitions if p["ok"] and "skipped" not in p),
+        "dropped": sum(int(p.get("dropped") or 0) for p in partitions),
         "partitions": partitions,
         "failed": failed,
         "skipped": skipped,
@@ -4085,6 +4162,9 @@ def _manufacturing_output(params: dict[str, Any], client: Any) -> dict[str, Any]
     }
     if not apply:
         return result
+    # an output folder keeps an earlier export's files; anything older than this run
+    # did not come from it and stays out of the package
+    since = time.time()
     closed = False
     runs: list[dict[str, Any]] = []
     prompts: list[dict[str, Any]] = []
@@ -4155,6 +4235,9 @@ def _manufacturing_output(params: dict[str, Any], client: Any) -> dict[str, Any]
             output_root / "NCDrill" if "ncdrill" in formats else None,
             odb_dir if "odb" in formats else None,
             components,
+            requested=list(formats),
+            runs=runs,
+            since=since,
         )
     except OSError as exc:
         raise AdapterError("E_IO", f"cannot write the package: {exc}") from exc
@@ -6626,7 +6709,7 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
     ops = params.get("ops")
     if not isinstance(ops, list) or not ops:
         raise AdapterError("E_USAGE", "draw requires a non-empty list of operations")
-    library = str(params.get("library") or "Case")
+    library = str(params.get("library") or DEFAULT_PARTITION)
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", library):
         raise AdapterError(
             "E_VALIDATION",

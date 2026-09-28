@@ -67,7 +67,9 @@ def test_capability_discovery_ignores_invalid_design_contents(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["results", "erc", "drc", "dfm"])
-def test_native_stored_analysis_reads_are_not_disabled(monkeypatch, kind):
+def test_stored_analysis_reads_still_serve_a_backend_that_stores_them(monkeypatch, kind):
+    # The CLI refuses these on the native backend, whose snapshot stores no analysis
+    # (test_quality_gates); a backend that does store results is still read.
     observed = normalise_project(
         {
             "project": "observed",

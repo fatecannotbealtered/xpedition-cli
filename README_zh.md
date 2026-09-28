@@ -58,11 +58,11 @@ CLI 负责标准化工程快照、BOM、连通性和确定性的审查结果。C
 | 原理图读取 | `schematic sheets`、`components`、`pins`、`nets`、`connectivity`、`unconnected`、`power`、`interfaces`、`query` | 两种后端 |
 | 原理图绘制 | `schematic draw`、`schematic show`、`schematic export`、`library build`、`library kicad-import` | NativeBackend（见下节） |
 | 引脚规划 | `schematic pin-plan`、`schematic pin-check` | 离线，基于提供的快照 |
-| PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`tracks`、`vias`、`layers`、`stackup`、`zones`、`keepouts`、`query` | 两种后端；原生下只读元件、封装、网络、走线和过孔，其余返回空 |
+| PCB 读取 | `pcb info`、`components`、`footprints`、`nets`、`tracks`、`vias`、`layers`、`stackup`、`zones`、`keepouts`、`query` | 两种后端；原生下 `layers`、`stackup`、`zones`、`keepouts` 会被拒绝（尚未读取），`pcb info` 里它们的计数为 null |
 | PCB 设计 | `pcb create`、`annotate`、`outline`、`holes`、`arrange`、`placement`、`move`、`rules`、`pour`、`route`、`trace`、`via`、`unroute`、`labels`、`geometry`、`render`、`show`、`drc`、`export` | NativeBackend（见下节） |
 | PCB 规划 | `pcb stitch`、`pcb placement-plan` | 离线，基于文件 |
-| 约束与分析 | `constraints ...`、`analysis run|results|erc|drc|dfm` | MockBackend；原生下 `analysis run` 会被拒绝，读取命令返回空（请用 `review run` 和 `pcb drc`） |
-| 制造与库读取 | `manufacturing ...`、`library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend；原生下返回空 |
+| 约束与分析 | `constraints ...`、`analysis run|results|erc|drc|dfm` | MockBackend；原生后端下会被拒绝（请用 `review run` 和 `pcb drc`） |
+| 制造与库读取 | `manufacturing ...`、`library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend；原生后端下会被拒绝，`manufacturing bom` 除外，它读的是元件 |
 | 变更控制 | `change validate`、`change preview`、`change apply`、`change history`、`change rollback`、`schematic apply` | MockBackend；原生下 `change apply` 能放置和移动器件，`schematic apply` 还能建网络、连引脚 |
 | 审查与 BOM | `review run`、`bom export|normalize|group|variants|missing|duplicates|validate|compare` | 两种后端；原生下 `review run` 还会跑 Designer 自带的校验 |
 | 环境 | `context`、`doctor`、`reference`、`changelog`、`system capabilities`、`system license`、`system api-inventory` | 本地探针；`api-inventory` 在 Windows 上读取 COM 类型库 |

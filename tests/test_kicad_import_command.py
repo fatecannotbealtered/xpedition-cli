@@ -112,7 +112,12 @@ def test_the_confirmed_run_reports_each_library(capsys, setup, native) -> None:
         ("Resistor_SMD", False),
     ]
     assert items[1]["error"]["code"] == "E_IO"
-    assert result["data"]["summary"] == {"total": 2, "succeeded": 1, "failed": 1}
+    assert result["data"]["summary"] == {
+        "total": 2,
+        "succeeded": 1,
+        "failed": 1,
+        "dropped_footprints": 0,
+    }
 
 
 def test_a_partition_imported_since_the_dry_run_refuses_the_token(capsys, setup, native) -> None:
@@ -155,3 +160,27 @@ def test_the_token_binds_the_batch_policy(capsys, setup, native) -> None:
     code, result = run(capsys, *args, "--continue-on-error", "false", "--confirm", token)
     assert code == 6 and result["error"]["code"] == "E_CONFLICT"
     assert native == []
+
+
+def test_footprints_the_converter_dropped_are_named_not_hidden() -> None:
+    # a library that imported without some of its footprints used to read as plain
+    # success; a design naming one of those gets no cell
+    from xpedition_cli import kicad_import
+
+    record = {
+        "library": "Package_DFN_QFN",
+        "partition": "Package_DFN_QFN",
+        "cells": 40,
+        "padstacks": 12,
+        "issues": 0,
+        "ok": True,
+        "steps": [],
+        "rejected": ["QFN-24_Odd", "DFN-8_Odd"],
+        "crashed": ["WSON-6_Crash"],
+    }
+    result = kicad_import.results({"partitions": [record], "failed": [], "ok": True})
+    [item] = result["items"]
+    assert item["ok"] is True and item["dropped"] == 3
+    assert item["dropped_samples"] == ["QFN-24_Odd", "DFN-8_Odd", "WSON-6_Crash"]
+    assert result["summary"]["dropped_footprints"] == 3
+    assert result["summary"]["succeeded"] == 1 and result["summary"]["failed"] == 0

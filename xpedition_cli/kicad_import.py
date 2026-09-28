@@ -99,6 +99,11 @@ def results(adapter_result: dict[str, Any]) -> dict[str, Any]:
             "padstacks": record.get("padstacks"),
             "issues": record.get("issues"),
         }
+        dropped = [*(record.get("rejected") or []), *(record.get("crashed") or [])]
+        if dropped:
+            # imported, but without these: a design naming one of them gets no cell
+            item["dropped"] = len(dropped)
+            item["dropped_samples"] = dropped[:20]
         if record.get("skipped"):
             item["skipped"] = record["skipped"]
         if not item["ok"]:
@@ -109,7 +114,12 @@ def results(adapter_result: dict[str, Any]) -> dict[str, Any]:
         **adapter_result,
         "items": items,
         # attempted items only; with --continue-on-error false the rest are in `skipped`
-        "summary": {"total": len(items), "succeeded": succeeded, "failed": len(items) - succeeded},
+        "summary": {
+            "total": len(items),
+            "succeeded": succeeded,
+            "failed": len(items) - succeeded,
+            "dropped_footprints": sum(int(item.get("dropped") or 0) for item in items),
+        },
         "skipped": list(adapter_result.get("skipped") or []),
         "_untrusted": sorted({*adapter_result.get("_untrusted", []), "items"}),
     }

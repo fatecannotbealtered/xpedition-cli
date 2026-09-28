@@ -46,9 +46,8 @@ CELL_TYPES = (
 GERBER_DIR = "Output\\\\Gerber\\\\"  # as the setup file writes it (escaped backslashes)
 SILKSCREEN_FILES = (("SilkscreenTop", "Top"), ("SilkscreenBottom", "Bottom"))
 OUTLINE_FILE = "BoardOutline"
-# Layout's stock setups write the outer copper twice; the numbered file is kept
-GERBER_ALIASES = {"EtchLayerTop": "EtchLayer1Top", "EtchLayerBottom": "EtchLayer4Bottom"}
 GERBER_HEADER_BYTES = 400  # a file with only the header is empty
+STALE_TOLERANCE = 2.0  # seconds: file times are coarser than the run's start
 # fab-friendly description of each Gerber file Layout's default setup writes
 GERBER_LAYERS = {
     "EtchLayer1Top": "L1 顶层铜 (top copper)",
@@ -177,6 +176,7 @@ class OutputFile:
     draws: int  # Gerber draws/flashes, drill hits, or ODB++ features
     empty: bool
     note: str = ""
+    mtime: float = 0.0  # seconds since the epoch; tells this run's files from older ones
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -199,14 +199,17 @@ def gerber_files(folder: Path) -> list[OutputFile]:
             continue
         # coordinates are modal, so a line may carry only X, Y, I or J
         draws = len(re.findall(r"^(?:G0[123])?[XYIJ]-?\d", text, re.M))
+        stat = path.stat()
         files.append(
             OutputFile(
                 path.stem,
                 str(path),
-                path.stat().st_size,
+                stat.st_size,
                 draws,
-                draws == 0,
+                # a negative plane without draws is solid copper, not an empty layer
+                draws == 0 and not path.stem.endswith("Neg"),
                 GERBER_LAYERS.get(path.stem, ""),
+                stat.st_mtime,
             )
         )
     return files
@@ -224,9 +227,16 @@ def drill_files(folder: Path) -> list[OutputFile]:
         hits = len(re.findall(r"^[XY]-?\d+", text, re.M))
         tools = len(re.findall(r"^T\d+C", text, re.M))
         note = "非金属化孔 (non-plated)" if "NonPlated" in path.stem else "金属化孔 (plated)"
+        stat = path.stat()
         files.append(
             OutputFile(
-                path.stem, str(path), path.stat().st_size, hits, hits == 0, f"{note}, {tools} tools"
+                path.stem,
+                str(path),
+                stat.st_size,
+                hits,
+                hits == 0,
+                f"{note}, {tools} tools",
+                stat.st_mtime,
             )
         )
     return files
@@ -237,6 +247,7 @@ def odb_job(folder: Path) -> dict[str, Any]:
     matrix = folder / "matrix" / "matrix"
     if not matrix.is_file():
         return {"present": False, "job": str(folder)}
+    modified = matrix.stat().st_mtime
     text = matrix.read_text(encoding="latin-1", errors="replace")
     step = (
         next((p for p in (folder / "steps").iterdir() if p.is_dir()), None)
@@ -269,22 +280,77 @@ def odb_job(folder: Path) -> dict[str, Any]:
         "layers": layers,
         "drill": any(item["type"] == "DRILL" for item in layers),
         "profile": bool(step and (step / "profile").is_file()),
+        "modified": modified,
     }
 
 
+def copper_names(layer_count: int) -> tuple[set[str], set[str]]:
+    """The file names that carry the top and the bottom copper of a board of
+    `layer_count` layers (any bottom layer when the count is not known)."""
+    top = {"EtchLayer1Top", "EtchLayerTop"}
+    if layer_count >= 2:
+        return top, {f"EtchLayer{layer_count}Bottom", "EtchLayerBottom"}
+    return top, {"EtchLayerBottom"}
+
+
+def _is_bottom(name: str, layer_count: int) -> bool:
+    if layer_count >= 2:
+        return name in copper_names(layer_count)[1]
+    return bool(re.fullmatch(r"EtchLayer\d*Bottom", name))
+
+
 def checks(
-    gerbers: list[OutputFile], drills: list[OutputFile], odb: dict[str, Any]
+    gerbers: list[OutputFile],
+    drills: list[OutputFile],
+    odb: dict[str, Any],
+    *,
+    requested: list[str] | None = None,
+    layer_count: int = 0,
+    runs: list[dict[str, Any]] | None = None,
+    unplaced: list[str] | None = None,
 ) -> dict[str, Any]:
-    """What is still missing for a board house."""
+    """What is still missing for a board house.
+
+    `requested` names the formats this run was asked for: one that produced nothing is
+    a problem, not a format left out. With `layer_count`, the copper is checked layer
+    by layer; `runs` are the output commands this run started, each with `format` and
+    `finished`; `unplaced` are parts the BOM lists but the board has not placed.
+    """
     problems: list[str] = []
     names = {item.name for item in gerbers if not item.empty}
-    if gerbers:
-        for needed in ("EtchLayer1Top", "EtchLayer4Bottom", "SoldermaskTop", "SoldermaskBottom"):
-            if (
-                needed not in names
-                and needed.replace("Layer1Top", "LayerTop").replace("Layer4Bottom", "LayerBottom")
-                not in names
-            ):
+    present = {item.name for item in gerbers}
+    wanted = set(requested) if requested is not None else None
+    if wanted is not None:
+        if "gerber" in wanted and not names:
+            problems.append("Gerber was requested but no Gerber file of this run has any draws")
+        if "ncdrill" in wanted and not drills:
+            problems.append("NC drill was requested but this run wrote no drill file")
+        if "odb" in wanted and not odb.get("present"):
+            problems.append("ODB++ was requested but this run wrote no ODB++ job")
+    for run in runs or []:
+        if not run.get("finished", True):
+            problems.append(f"the {run.get('format', 'output')} output did not finish in time")
+    if names:
+        top, _bottom = copper_names(layer_count)
+        if not names & top:
+            problems.append("Gerber EtchLayer1Top is missing or empty")
+        if not any(_is_bottom(name, layer_count) for name in names):
+            bottom = f"EtchLayer{layer_count}Bottom" if layer_count >= 2 else "bottom copper"
+            problems.append(f"Gerber {bottom} is missing or empty")
+        for inner in range(2, layer_count):
+            positive, negative = f"EtchLayer{inner}", f"EtchLayer{inner}Neg"
+            if negative in present or positive in names:
+                continue
+            if positive in present:
+                problems.append(
+                    f"inner layer L{inner} has no copper in {positive}: the package leaves an "
+                    f"empty file out, so the board house would get {layer_count - 1} copper "
+                    "layers"
+                )
+            else:
+                problems.append(f"Gerber has no file for inner layer L{inner}")
+        for needed in ("SoldermaskTop", "SoldermaskBottom"):
+            if needed not in names:
                 problems.append(f"Gerber {needed} is missing or empty")
         if "SilkscreenTop" not in names and "GeneratedSilkscreenTop" not in names:
             problems.append("Gerber has no top silkscreen")
@@ -297,6 +363,13 @@ def checks(
             problems.append("the ODB++ job has no drill layer")
         if not odb.get("profile"):
             problems.append("the ODB++ job has no board profile")
+    if unplaced:
+        shown = ", ".join(unplaced[:10]) + (" …" if len(unplaced) > 10 else "")
+        count = "1 part is" if len(unplaced) == 1 else f"{len(unplaced)} parts are"
+        problems.append(
+            f"{count} not placed on the board ({shown}): the BOM lists them and the "
+            "centroid file does not"
+        )
     return {"ok": not problems, "problems": problems}
 
 
@@ -370,7 +443,7 @@ def readme(
         "（板框在 Gerber 的 BoardOutline 和 ODB++ 的 profile 里）",
         f"- 层数：{layer_count} 层；叠层按 Gerber 文件名的 L1…L{layer_count} 顺序，L1 为顶层",
         "- 板厚、表面处理、阻焊颜色：未指定，按板厂默认（常见 1.6 mm、有铅喷锡、绿油白字）",
-        "- 最小线宽/线距：0.254 mm（设计规则默认值）",
+        "- 最小线宽/线距：以 Gerber/ODB++ 中的实际图形为准",
         "- 孔：金属化孔见 ThruHolePlated，非金属化孔（安装孔）见 ThruHoleNonPlated；单位见文件头",
         "",
         "## ODB++",
@@ -397,7 +470,8 @@ def readme(
         "",
         "## 贴片",
         "",
-        "- `centroid.csv`：位号、中心坐标（mm，原点板框左下角）、旋转、面、封装",
+        "- `centroid.csv`：位号、元件原点坐标（mm，坐标原点在板框左下角；是封装的原点，"
+        "不一定是元件中心）、旋转、面、封装",
         "- `bom.csv`：按料号和封装汇总的清单；料号为设计文件中的值",
     ]
     if problems:
@@ -414,9 +488,17 @@ def write_package(
     drill_dir: Path | None,
     odb_dir: Path | None,
     components: list[dict[str, Any]],
+    *,
+    requested: list[str] | None = None,
+    runs: list[dict[str, Any]] | None = None,
+    since: float | None = None,
 ) -> dict[str, Any]:
     """Copy the outputs into `target` with board-house names, and write the manifest,
-    the README, the centroid file and the BOM. Returns the manifest."""
+    the README, the centroid file and the BOM. Returns the manifest.
+
+    With `since` (the epoch time the run started), files older than it are an earlier
+    export's leftovers: they stay out of the package and are listed under `stale`.
+    """
     import shutil
     import zipfile
 
@@ -424,14 +506,27 @@ def write_package(
     gerbers = gerber_files(gerber_dir) if gerber_dir and gerber_dir.is_dir() else []
     drills = drill_files(drill_dir) if drill_dir and drill_dir.is_dir() else []
     odb = odb_job(odb_dir) if odb_dir and odb_dir.is_dir() else {"present": False}
+    stale: list[str] = []
+    if since is not None:
+        cutoff = since - STALE_TOLERANCE
+        stale = [item.path for item in gerbers + drills if item.mtime < cutoff]
+        gerbers = [item for item in gerbers if item.mtime >= cutoff]
+        drills = [item for item in drills if item.mtime >= cutoff]
+        if odb.get("present") and float(odb.get("modified") or 0.0) < cutoff:
+            stale.append(str(odb.get("job")))
+            odb = {"present": False, "job": odb.get("job"), "stale": True}
     copied: list[str] = []
     skipped: list[str] = []
     names = {item.name for item in gerbers}
+    # Layout's stock setups write the outer copper twice; the numbered file is kept
+    aliases = {"EtchLayerTop": "EtchLayer1Top"}
+    if layer_count >= 2:
+        aliases["EtchLayerBottom"] = f"EtchLayer{layer_count}Bottom"
     if gerbers:
         (target / "gerber").mkdir(exist_ok=True)
         for item in gerbers:
             # an empty file, or a duplicate of a numbered copper file, stays behind
-            alias = GERBER_ALIASES.get(item.name)
+            alias = aliases.get(item.name)
             if item.empty or (alias and alias in names):
                 skipped.append(item.name)
                 continue
@@ -455,7 +550,18 @@ def write_package(
     bom = bom_rows(components)
     (target / "centroid.csv").write_text(_csv(centroid), encoding="utf-8")
     (target / "bom.csv").write_text(_csv(bom), encoding="utf-8")
-    verdict = checks(gerbers, drills, odb)
+    unplaced = sorted(
+        str(item.get("refdes", "")) for item in components if not item.get("placed", True)
+    )
+    verdict = checks(
+        gerbers,
+        drills,
+        odb,
+        requested=requested,
+        layer_count=layer_count,
+        runs=runs,
+        unplaced=unplaced,
+    )
     (target / "README.md").write_text(
         readme(board, size, layer_count, gerbers, drills, odb, verdict["problems"]),
         encoding="utf-8",
@@ -469,6 +575,8 @@ def write_package(
         "drill": [item.as_dict() for item in drills],
         "odb": odb,
         "skipped": skipped,
+        "stale": stale,
+        "unplaced": unplaced,
         "centroid_rows": len(centroid),
         "bom_rows": len(bom),
         "files": copied + [str(target / name) for name in ("centroid.csv", "bom.csv", "README.md")],
