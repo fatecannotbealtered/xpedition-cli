@@ -45,7 +45,9 @@ def test_a_repeated_heading_counts_every_time_and_an_entry_keeps_its_lines() -> 
 def test_every_entry_of_the_1_0_0_release_is_returned(capsys) -> None:
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     section = text[text.index("## [1.0.0]") :]
-    section = section[: re.search(r"^## \[", section[3:], re.MULTILINE).start() + 3]
+    following = re.search(r"^## \[", section[3:], re.MULTILINE)
+    if following:  # the oldest release runs to the link references
+        section = section[: following.start() + 3]
     written = sum(1 for line in section.splitlines() if line.startswith("- "))
     assert cli.main(["changelog", "--since", "0.9.0", "--compact"]) == 0
     entries = json.loads(capsys.readouterr().out)["data"]["entries"]
