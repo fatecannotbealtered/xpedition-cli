@@ -235,6 +235,89 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+DECOUPLING_LIMIT_MM = 5.0  # a capacitor farther than this from its IC's supply pin
+EDGE_LIMIT_MM = 5.0  # a connector farther than this from the nearest board edge
+
+
+def _rule(rule: str, severity: str, finding: str, **extra: Any) -> dict[str, Any]:
+    return {"rule": rule, "severity": severity, "finding": finding, **extra}
+
+
+def board_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
+    """What is wrong with a board beyond its DRC, from the same model the metrics use:
+    parts not placed, off the board or on top of each other, decoupling capacitors far
+    from the IC they serve, connectors far from an edge, acute trace corners, and nets
+    still open."""
+    metrics = measure(model)
+    findings: list[dict[str, Any]] = []
+    for refdes in metrics["parts"]["unplaced"]:
+        findings.append(_rule("unplaced", "high", "part is not placed", refdes=refdes))
+    for row in metrics["outside"]:
+        findings.append(
+            _rule(
+                "outside",
+                "high",
+                f"part reaches {row['beyond_mm']} mm past the board edge",
+                refdes=row["refdes"],
+            )
+        )
+    for row in metrics["overlaps"]:
+        findings.append(
+            _rule(
+                "overlap",
+                "medium",
+                f"{row['a']} and {row['b']} overlap by {row['mm2']} mm2",
+                refdes=row["a"],
+                other=row["b"],
+            )
+        )
+    for row in metrics["decoupling"]:
+        if row["mm"] > DECOUPLING_LIMIT_MM:
+            findings.append(
+                _rule(
+                    "decoupling",
+                    "medium",
+                    f"decoupling capacitor is {row['mm']} mm from {row['nearest']}'s "
+                    f"{row['net']} pin (limit {DECOUPLING_LIMIT_MM:g} mm)",
+                    refdes=row["capacitor"],
+                    net=row["net"],
+                )
+            )
+    for row in metrics["edge_parts"]:
+        if row["edge_mm"] > EDGE_LIMIT_MM:
+            findings.append(
+                _rule(
+                    "connector_edge",
+                    "low",
+                    f"connector is {row['edge_mm']} mm from the nearest board edge",
+                    refdes=row["refdes"],
+                )
+            )
+    for row in metrics["routing"]["acute_corners"]:
+        findings.append(
+            _rule(
+                "acute_corner",
+                "low",
+                f"trace corner of {row['degrees']} degrees",
+                net=row["net"],
+                at=row["at"],
+                layer=row["layer"],
+            )
+        )
+    for row in model.get("unrouted") or []:
+        findings.append(
+            _rule(
+                "unrouted",
+                "high",
+                f"net has {row['opens']} open connections",
+                net=row["net"],
+            )
+        )
+    order = {"high": 0, "medium": 1, "low": 2}
+    findings.sort(key=lambda row: (order.get(row["severity"], 3), row["rule"]))
+    return findings
+
+
 def measure(model: dict[str, Any]) -> dict[str, Any]:
     """The metrics of one board state (see the module docstring)."""
     components = [c for c in model.get("components") or [] if isinstance(c, dict)]

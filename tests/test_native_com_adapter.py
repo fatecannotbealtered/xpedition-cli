@@ -770,3 +770,67 @@ def test_designer_snapshot_lists_every_sheet_not_only_the_open_one() -> None:
     result = _designer_snapshot(App(), {})
     assert [sheet["number"] for sheet in result["sheets"]] == [1, 2, 3, 4]
     assert result["sheets"][0]["name"] == "Schematic1.1"
+
+
+def test_a_filtered_board_model_keeps_what_it_names_and_says_so() -> None:
+    model = {
+        "outline": [{"path": [[0, 0]]}],
+        "holes": [[1, 1, 3]],
+        "keepouts": [{"kind": "obstruct"}],
+        "components": [
+            {"refdes": "U1", "pins": [{"pin": "1", "net": "SDA"}]},
+            {"refdes": "R1", "pins": [{"pin": "1", "net": "GND"}]},
+            {"refdes": "C1", "pins": [{"pin": "1", "net": "VCC"}]},
+        ],
+        "pads": [
+            {"refdes": "U1", "net": "SDA"},
+            {"refdes": "R1", "net": "GND"},
+            {"refdes": "C1", "net": "VCC"},
+        ],
+        "traces": [{"net": "GND"}, {"net": "SDA"}],
+        "vias": [{"net": "GND"}],
+        "planes": [{"net": "GND"}],
+        "silk": [{"refdes": "U1"}],
+        "texts": [{"text": "U1"}],
+    }
+    assert native_adapter.filter_model(model, [], []) is model
+    filtered = native_adapter.filter_model(model, ["U1"], ["GND"])
+    assert [c["refdes"] for c in filtered["components"]] == ["U1", "R1"]
+    assert [pad["refdes"] for pad in filtered["pads"]] == ["U1", "R1"]
+    assert filtered["traces"] == [{"net": "GND"}] and filtered["vias"] == [{"net": "GND"}]
+    assert filtered["outline"] == model["outline"] and filtered["keepouts"] == model["keepouts"]
+    assert filtered["silk"] == [] and filtered["filter"] == {"refdes": ["U1"], "nets": ["GND"]}
+
+
+def test_a_route_pass_removes_the_layers_it_may_not_use() -> None:
+    """LayerSelect takes (EPcbARLayerSelectType, layer): 3 removes a layer. It used to
+    be called with (layer number, wanted), so layer 2 read as AddLayer."""
+
+    class Pass:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+
+        def __getattr__(self, name: str):
+            return lambda *args: self.calls.append((name, *args))
+
+    route_pass = Pass()
+    doc = SimpleNamespace(LayerCount=4, NewRoutePass=lambda: route_pass)
+    item = {"type": 1, "effort": (1, 5), "pass": "route"}
+    native_adapter._route_pass(doc, item, [1, 4], selected=True)
+    names = [call[0] for call in route_pass.calls]
+    assert names[0] == "PassType"  # it resets everything, so it goes first
+    assert ("Items", native_adapter.ROUTE_ITEMS_SELECTED_NETS, None) in route_pass.calls
+    assert [call for call in route_pass.calls if call[0] == "LayerSelect"] == [
+        ("LayerSelect", 3, 2),
+        ("LayerSelect", 3, 3),
+    ]
+    route_pass = Pass()
+    doc = SimpleNamespace(LayerCount=4, NewRoutePass=lambda: route_pass)
+    native_adapter._route_pass(doc, item, [], selected=False)
+    assert ("Items", native_adapter.ROUTE_ITEMS_ALL_NETS, None) in route_pass.calls
+    assert not [call for call in route_pass.calls if call[0] == "LayerSelect"]
+
+
+def test_obstruct_kinds_read_the_type_bits() -> None:
+    assert native_adapter._obstruct_kinds(8 | 32) == ["trace", "via"]
+    assert native_adapter._obstruct_kinds(0) == ["type 0"]

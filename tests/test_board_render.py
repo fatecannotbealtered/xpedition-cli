@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import pytest
+
 from xpedition_cli import board_render
 from xpedition_cli.board_render import Model, Shape, Text, flatten, model_from_dict
 
@@ -105,6 +107,7 @@ def test_render_writes_a_png_with_copper_silk_and_outline(tmp_path: Path) -> Non
         "holes": 2,
         "silk": 1,
         "texts": 2,
+        "keepouts": 0,
     }
     image = Image.open(output).convert("RGB")
     assert (image.width, image.height) == (result["width"], result["height"])
@@ -136,3 +139,21 @@ def test_render_bottom_side_mirrors_the_board(tmp_path: Path) -> None:
     # the bottom pad at x=30 appears mirrored at x=10 from the left, in blue, in front
     pixel = image.getpixel((int((40 - 30 + 2) * 10), int((30 - 20 + 2) * 10)))
     assert pixel[2] > 150 and pixel[0] < 120
+
+
+def test_keepouts_are_drawn_and_counted(tmp_path) -> None:
+    pytest.importorskip("PIL")
+    data = {
+        "layers": 2,
+        "outline": [{"path": [[0, 0, 0], [20, 0, 0], [20, 10, 0], [0, 10, 0], [0, 0, 0]]}],
+        "keepouts": [
+            {"path": [[5, 2, 0], [9, 2, 0], [9, 6, 0], [5, 6, 0], [5, 2, 0]], "kind": "obstruct"}
+        ],
+    }
+    result = board_render.render(board_render.model_from_dict(data), tmp_path / "k.png", scale=10)
+    assert result["counts"]["keepouts"] == 1
+    from PIL import Image
+
+    image = Image.open(result["path"]).convert("RGB")
+    colours = {image.getpixel((x, y)) for x in range(image.width) for y in range(image.height)}
+    assert any(r > 180 and b > 180 and g < 120 for r, g, b in colours)

@@ -818,8 +818,8 @@ def _build() -> list[Command]:
         Command(
             "pcb route",
             "pcb:route",
-            "Run Layout's autorouter passes over the board, then save; the dry run reports "
-            "how much is routed now",
+            "Run Layout's autorouter passes over the board, or only the nets named, on the "
+            "layers named, then save; the dry run reports how much is routed now",
             "pcb_route",
             (
                 *_write_examples('pcb route --project X.prj --passes "route:1-5,viamin,smooth"'),
@@ -837,6 +837,7 @@ def _build() -> list[Command]:
                     description="passes and their effort (route:1-5,viamin:1-3,smooth:1-3)",
                 ),
                 Param("layers", "string", description="layer numbers to route on, as 1,4"),
+                Param("nets", "string", multiple=True, description="route only these nets"),
                 Param("unroute", "boolean", description="delete every trace and via first"),
             ),
             blast_radius=(
@@ -973,7 +974,9 @@ def _build() -> list[Command]:
         Command(
             "pcb info",
             "pcb:info",
-            "The board in numbers: parts, footprints, nets, traces, vias and layers",
+            "The board in numbers, with its stackup (each layer's kind, name, thickness and "
+            "dielectric constant), its net classes (nets and trace widths per layer) and how "
+            "many keepouts it has",
             "pcb_info",
             ("xpedition-cli pcb info --project X.prj --compact",),
             "inspection",
@@ -984,15 +987,21 @@ def _build() -> list[Command]:
             "pcb geometry",
             "pcb:geometry",
             "The board as data: outline, parts with their origin, extents and pins, pads "
-            "with net and layer, traces with width, vias, planes, holes, silkscreen and "
-            "texts; to a JSON file with --output",
+            "with net and layer, traces with width, vias, planes, holes, keepouts, open "
+            "nets, silkscreen and texts; --refdes and --nets keep only what they name; to a "
+            "JSON file with --output",
             "pcb_geometry",
-            ("xpedition-cli pcb geometry --project X.prj --output board.json --compact",),
+            (
+                "xpedition-cli pcb geometry --project X.prj --output board.json --compact",
+                "xpedition-cli pcb geometry --project X.prj --refdes U1 --nets GND --compact",
+            ),
             "inspection",
             needs="layout",
             params=(
                 _board(),
                 Param("output", "path", description="write the model to this .json"),
+                Param("refdes", "string", multiple=True, description="only these parts"),
+                Param("nets", "string", multiple=True, description="only these nets"),
                 _REPLACE,
             ),
         ),
@@ -1043,17 +1052,18 @@ def _build() -> list[Command]:
             "How good the placement and routing are, as numbers to compare two states by: "
             "ratsnest length and crossings, overlaps, parts off the board, decoupling "
             "distances, connector-to-edge distances, density, trace length, vias and acute "
-            "corners; --baseline compares with an earlier result",
+            "corners; --baseline compares with an earlier result. From a geometry file, or "
+            "the live board with --project",
             "pcb_metrics",
             (
-                "xpedition-cli pcb metrics --geometry board.json --output metrics-before.json "
-                "--compact",
+                "xpedition-cli pcb metrics --project X.prj --output metrics-before.json --compact",
                 "xpedition-cli pcb metrics --geometry board.json --baseline metrics-before.json "
                 "--compact",
             ),
             "inspection",
             params=(
-                Param("geometry", "path", True, description="the file pcb geometry wrote"),
+                Param("geometry", "path", description="the file pcb geometry wrote"),
+                Param("project", "path", description="measure the live board instead (Layout)"),
                 Param("baseline", "path", description="an earlier pcb metrics --output"),
                 Param("output", "path", description="write the result to this .json"),
                 _REPLACE,
@@ -1063,7 +1073,9 @@ def _build() -> list[Command]:
             "pcb check",
             "pcb:check",
             "Run Layout's Batch DRC and list every hazard with its type, position, objects "
-            "and clearance; --no-run only reads the hazards already on the board",
+            "and clearance, and the board rules DRC does not cover: parts unplaced, off the "
+            "board or overlapping, decoupling far from its IC, connectors far from an edge, "
+            "acute corners, nets still open; --no-run only reads the hazards already there",
             "pcb_check",
             ("xpedition-cli pcb check --project X.prj --compact",),
             "inspection",

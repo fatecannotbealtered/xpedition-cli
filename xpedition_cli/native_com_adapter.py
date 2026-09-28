@@ -4623,6 +4623,159 @@ def _side_name(obj: Any) -> str:
     return "bottom" if int(_value(obj, "Side", default=1) or 1) == 2 else "top"
 
 
+LAYOUT_LAYER_STACK = 157  # Document.LayerStack([in] VARIANT_BOOL bIncludeInsulationLayer)
+LAYOUT_NET_CLASSES = 24  # Document.NetClasses([in] BSTR sNetClassName)
+LAYOUT_OBSTRUCTS = 41  # Document.Obstructs(eSelectType, eSelectOnly, nLayerOnly)
+LAYOUT_PLACEMENT_OBSTRUCTS = 40  # Document.PlacementObstructs(eSelectOnly, nLayerOnly)
+LAYER_PROPERTIES_THICKNESS = 1  # LayerProperties.Thickness([in] EPcbUnit)
+NET_CLASS_WIDTHS = {"minimum": 7, "typical": 8, "expansion": 9}  # NetClass.<kind>TraceWidth
+LAYER_KINDS = {0: "conductor", 1: "fabrication", 2: "user", 3: "insulation"}  # EPcbLayerType
+LAYER_USAGES = {1: "signal", 2: "plane", 3: "split_mixed", 4: "flooded_signal", 5: "plating"}
+OBSTRUCT_KINDS = {  # EPcbObstructType bits
+    1: "plane",
+    2: "plane_no_connect",
+    4: "test_point",
+    8: "trace",
+    16: "trace_via",
+    32: "via",
+    64: "panel",
+    128: "pad",
+    256: "tuning_pattern",
+}
+
+
+def _board_stackup(doc: Any) -> list[dict[str, Any]]:
+    """Every layer of the stackup from the top, conductors and insulation alike."""
+    layers: list[dict[str, Any]] = []
+    for layer in _items(_propget(doc, LAYOUT_LAYER_STACK, True)):
+        kind = LAYER_KINDS.get(int(_value(layer, "Type", default=-1) or 0), "other")
+        row: dict[str, Any] = {
+            "board_layer": _value(layer, "BoardLayer", default=None),
+            "kind": kind,
+        }
+        if kind == "conductor":
+            row["layer"] = _value(layer, "ConductorLayer", default=None)
+        properties = _value(layer, "LayerProperties", default=None)
+        if properties is not None:
+            try:
+                thickness = float(_propget(properties, LAYER_PROPERTIES_THICKNESS, UNIT_MM))
+            except AdapterError:
+                thickness = None
+            row.update(
+                {
+                    "name": str(_value(properties, "StackupLayerName", default="") or ""),
+                    "description": str(_value(properties, "Description", default="") or ""),
+                    "thickness_mm": round(thickness, 4) if thickness is not None else None,
+                }
+            )
+            if kind == "conductor":
+                row["usage"] = LAYER_USAGES.get(
+                    int(_value(properties, "LayerUsage", default=0) or 0), "other"
+                )
+            elif kind == "insulation":
+                row["dielectric_constant"] = _value(properties, "DielectricConstant", default=None)
+        layers.append(row)
+    return layers
+
+
+def _board_net_classes(doc: Any, layer_count: int) -> list[dict[str, Any]]:
+    """Each net class with its nets and, per conductor layer, its trace widths (mm)."""
+    classes: list[dict[str, Any]] = []
+    for net_class in _items(_propget(doc, LAYOUT_NET_CLASSES, "*")):
+        widths: dict[str, dict[str, float]] = {}
+        for layer in range(1, layer_count + 1):
+            row: dict[str, float] = {}
+            for kind, dispid in NET_CLASS_WIDTHS.items():
+                try:
+                    row[kind] = round(
+                        float(_propget(net_class, dispid, layer, MASTER_SCHEME, UNIT_MM)), 4
+                    )
+                except AdapterError:
+                    continue
+            widths[str(layer)] = row
+        classes.append(
+            {
+                "name": str(_value(net_class, "Name", default="")),
+                "nets": sorted(
+                    str(_value(net, "Name", default=""))
+                    for net in _items(_value(net_class, "Nets", default=None) or ())
+                ),
+                "widths": widths,
+            }
+        )
+    return classes
+
+
+def _obstruct_kinds(mask: int) -> list[str]:
+    return [name for bit, name in OBSTRUCT_KINDS.items() if mask & bit] or [f"type {mask}"]
+
+
+def _board_keepouts(doc: Any) -> list[dict[str, Any]]:
+    """The board's obstructs (route, via, plane ... keepouts) and placement keepouts,
+    each with its layer and outline; a part's own keepouts name the part."""
+    keepouts: list[dict[str, Any]] = []
+    for item in _items(_propget(doc, LAYOUT_OBSTRUCTS, -1, 0, 0)):
+        component = _value(item, "Component", default=None)
+        record = _geometry_record(
+            item.Geometry,
+            kind="obstruct",
+            obstructs=_obstruct_kinds(int(_value(item, "ObstructType", default=0) or 0)),
+            layer=_value(item, "Layer", default=None),
+            layer_name=str(_value(item, "LayerName", default="") or ""),
+            refdes=str(_value(component, "RefDes", default="")) if component is not None else None,
+        )
+        if record:
+            keepouts.append(record)
+    for item in _items(_propget(doc, LAYOUT_PLACEMENT_OBSTRUCTS, 0, 0)):
+        record = _geometry_record(
+            item.Geometry,
+            kind="placement",
+            obstructs=["placement"],
+            layer=_value(item, "Layer", default=None),
+            refdes=None,
+        )
+        if record:
+            keepouts.append(record)
+    return keepouts
+
+
+def _board_info(params: dict[str, Any], client: Any) -> dict[str, Any]:
+    """The board in numbers, with its stackup, net classes and keepouts."""
+    pcb_path = _layout_board_path(params)
+    app = _application(client, attach_only=not bool(params.get("start", True)))
+    _doc, prompts = _open_layout_document(app, pcb_path)
+    doc = _licensed_document(app)
+    layer_count = int(_value(doc, "LayerCount", default=0) or 0)
+    components = list(_items(_com_member(doc, "Components")))
+    placed = sum(1 for item in components if bool(_value(item, "Placed", default=False)))
+    stackup = _board_stackup(doc)
+    keepouts = _board_keepouts(doc)
+
+    def count(name: str) -> int | None:
+        collection = _com_member(doc, name)
+        try:
+            return int(collection.Count) if collection is not None else None
+        except Exception:
+            return None
+
+    thickness = [row["thickness_mm"] for row in stackup if row.get("thickness_mm") is not None]
+    return {
+        "pcb": str(pcb_path),
+        "component_count": len(components),
+        "placed_count": placed,
+        "net_count": count("Nets"),
+        "track_count": count("Traces"),
+        "via_count": count("Vias"),
+        "layer_count": layer_count,
+        "thickness_mm": round(sum(thickness), 4) if thickness else None,
+        "stackup": stackup,
+        "net_classes": _board_net_classes(doc, layer_count),
+        "keepout_count": len(keepouts),
+        "prompts": prompts,
+        "_untrusted": ["pcb", "stackup", "net_classes", "prompts"],
+    }
+
+
 def _board_model(doc: Any) -> dict[str, Any]:
     """Everything the renderer draws, in mm: outline, pads, vias, traces, planes,
     holes, silkscreen graphics and texts."""
@@ -4712,6 +4865,19 @@ def _board_model(doc: Any) -> dict[str, Any]:
         )
         if record:
             model["traces"].append(record)
+    try:
+        model["keepouts"] = _board_keepouts(doc)
+    except AdapterError:
+        model["keepouts"] = []
+    try:
+        # nets with connections still open, as the ratsnest counts them
+        model["unrouted"] = [
+            {"net": item["net"], "opens": item["opens"]}
+            for item in _route_status(doc)["unrouted"]
+            if item["opens"]
+        ]
+    except Exception:
+        model["unrouted"] = []
     for plane in _items(_com_member(doc, "PlaneShapes")):
         net = str(_value(plane.Net, "Name", default="")) if _value(plane, "Net") else ""
         layer = int(_value(plane, "Layer", default=1) or 1)
@@ -5402,6 +5568,52 @@ def _move_component(params: dict[str, Any], client: Any) -> dict[str, Any]:
     return result
 
 
+def filter_model(model: dict[str, Any], refdes: list[str], nets: list[str]) -> dict[str, Any]:
+    """The part of a board model named by reference designators and nets.
+
+    Kept whole: the outline, the holes and the keepouts, which every question about a
+    part or a net is asked against. Dropped: the silkscreen and texts. A filtered model
+    says so in `filter`; measuring or planning against it would miss the rest.
+    """
+    if not refdes and not nets:
+        return model
+    parts, names = set(refdes), set(nets)
+    components = [
+        item
+        for item in model.get("components", [])
+        if item.get("refdes") in parts
+        or any(pin.get("net") in names for pin in item.get("pins") or [])
+    ]
+    kept = {item.get("refdes") for item in components}
+    filtered = {
+        **model,
+        "components": components,
+        "pads": [
+            pad
+            for pad in model.get("pads", [])
+            if pad.get("refdes") in kept
+            and (not names or pad.get("net") in names or pad.get("refdes") in parts)
+        ],
+        "traces": [item for item in model.get("traces", []) if item.get("net") in names],
+        "vias": [item for item in model.get("vias", []) if item.get("net") in names],
+        "planes": [item for item in model.get("planes", []) if item.get("net") in names],
+        "unrouted": [
+            item
+            for item in model.get("unrouted", [])
+            if item.get("net") in names
+            or any(
+                item.get("net") == pin.get("net")
+                for component in components
+                for pin in component.get("pins") or []
+            )
+        ],
+        "silk": [],
+        "texts": [],
+        "filter": {"refdes": sorted(parts), "nets": sorted(names)},
+    }
+    return filtered
+
+
 def _board_geometry(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """The board's geometry as data (what `pcb render` draws, plus the components with
     their pins), written to `output` as JSON or returned inline."""
@@ -5452,6 +5664,7 @@ def _board_geometry(params: dict[str, Any], client: Any) -> dict[str, Any]:
             ]
         components.append(record)
     model["components"] = components
+    model = filter_model(model, params.get("refdes") or [], params.get("nets") or [])
     counts = {key: len(value) for key, value in model.items() if isinstance(value, list)}
     result: dict[str, Any] = {
         "pcb": str(pcb_path),
@@ -6411,7 +6624,12 @@ ROUTE_PASS_TYPES = {
     "removehangers": 7,
 }
 ROUTE_ITEMS_ALL_NETS = 0  # epcbARAllNetsItem
+ROUTE_ITEMS_SELECTED_NETS = 8  # epcbARSelectedNetsItem
 ROUTE_ORDER_AUTO = 0  # epcbARAutoOrder
+# RoutePass.LayerSelect(EPcbARLayerSelectType eType, long nLayer): 0 BottomUp, 1 TopDown,
+# 2 AddLayer, 3 RemoveLayer. It used to be called with (layer number, wanted), which
+# read layer 2 as AddLayer and 3 as RemoveLayer and refused the outer layers.
+ROUTE_LAYER_REMOVE = 3
 DEFAULT_ROUTE_PASSES = "route:1-5,viamin:1-3,smooth:1-3"
 
 
@@ -6494,30 +6712,69 @@ def _traces_by_layer(doc: Any) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _route_pass(doc: Any, item: dict[str, Any], layers: list[int], selected: bool) -> Any:
+    """One configured autorouter pass. `PassType` resets every parameter, so it goes
+    first; the layers the pass may not use are removed one by one."""
+    route_pass = doc.NewRoutePass()
+    route_pass.PassType(item["type"], item["effort"][0], item["effort"][1], False, False)
+    route_pass.Items(ROUTE_ITEMS_SELECTED_NETS if selected else ROUTE_ITEMS_ALL_NETS, None)
+    route_pass.Order(ROUTE_ORDER_AUTO, 0)
+    route_pass.Config(False, True)
+    if layers:
+        count = int(_value(doc, "LayerCount", default=0) or 0)
+        for number in range(1, count + 1):
+            if number not in layers:
+                route_pass.LayerSelect(ROUTE_LAYER_REMOVE, number)
+    return route_pass
+
+
+def _select_nets(doc: Any, names: list[str]) -> None:
+    """Select exactly the named nets (the route passes then work on those alone)."""
+    try:
+        doc.UnSelectAllNets()
+    except Exception as exc:
+        raise _com_error(exc, "unselect_nets") from exc
+    for name in names:
+        net = _find_net(doc, name)
+        try:
+            net.Selected = True
+        except Exception as exc:
+            raise _com_error(exc, f"select_net {name}") from exc
+
+
 def _route_board(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Run Layout's autorouter passes on the board (`Document.NewRoutePass`).
 
     Each pass object takes a type (`PassType`), the nets to work on (`Items`), an
     order and a configuration, and runs with `Go`; the stock passes for a first
     board are Route (effort 1 to 5), Via Min and Smooth. Without `apply` only the
-    routing state is reported. `layers` names the layers the passes may use: the outer
-    two are always the router's (`RoutePass.LayerSelect` calls them invalid), so the
-    list decides which inner layers join — `1,4` keeps every trace on the outside,
-    where a four-layer template otherwise routes on three layers.
+    routing state is reported. `layers` names the layers the passes may use (`1,4`
+    keeps every trace on the outside); `nets` limits the passes to those nets.
     """
     pcb_path = _layout_board_path(params)
     passes = parse_route_passes(str(params.get("passes") or DEFAULT_ROUTE_PASSES))
     layers = parse_route_layers(params.get("layers"))
+    nets = [str(name) for name in params.get("nets") or [] if str(name).strip()]
     unroute = bool(params.get("unroute", False))
     apply = bool(params.get("apply", False))
     app = _application(client, attach_only=not bool(params.get("start", True)))
     _doc, prompts = _open_layout_document(app, pcb_path)
     doc = _licensed_document(app)
+    if nets:
+        missing = []
+        for name in nets:
+            try:
+                _find_net(doc, name)
+            except AdapterError:
+                missing.append(name)
+        if missing:
+            raise AdapterError("E_NOT_FOUND", "the board has no such nets", {"nets": missing})
     before = _route_status(doc)
     result: dict[str, Any] = {
         "pcb": str(pcb_path),
         "passes": passes,
         "layers": layers,
+        "nets": nets,
         "unroute": unroute,
         "before": {key: value for key, value in before.items() if key != "unrouted"},
         "unrouted_before": [item["net"] for item in before["unrouted"]],
@@ -6535,21 +6792,14 @@ def _route_board(params: dict[str, Any], client: Any) -> dict[str, Any]:
             result["deleted"] = _delete_routing(doc)
         except Exception as exc:
             raise _com_error(exc, "delete_routing") from exc
+    if nets:
+        _select_nets(doc, nets)
     runs: list[dict[str, Any]] = []
     for item in passes:
         try:
-            route_pass = doc.NewRoutePass()
-            route_pass.PassType(item["type"], item["effort"][0], item["effort"][1], False, False)
-            route_pass.Items(ROUTE_ITEMS_ALL_NETS, None)
-            route_pass.Order(ROUTE_ORDER_AUTO, 0)
-            route_pass.Config(False, True)
-            if layers:
-                # LayerSelect takes the inner layers only (the outer two are always
-                # the router's and are "invalid parameters"), so `layers` decides
-                # which inner layers join; `1,4` keeps the routing on the outside
-                count = int(_value(doc, "LayerCount", default=0) or 0)
-                for number in range(2, count):
-                    route_pass.LayerSelect(number, number in layers)
+            route_pass = _route_pass(doc, item, layers, bool(nets))
+        except AdapterError:
+            raise
         except Exception as exc:
             raise _com_error(exc, f"route_pass {item['pass']}") from exc
         started = time.monotonic()
@@ -6580,17 +6830,7 @@ def _route_board(params: dict[str, Any], client: Any) -> dict[str, Any]:
             if item["pass"] not in ("route", "viamin", "smooth"):
                 continue
             try:
-                route_pass = doc.NewRoutePass()
-                route_pass.PassType(
-                    item["type"], item["effort"][0], item["effort"][1], False, False
-                )
-                route_pass.Items(ROUTE_ITEMS_ALL_NETS, None)
-                route_pass.Order(ROUTE_ORDER_AUTO, 0)
-                route_pass.Config(False, True)
-                if layers:
-                    count = int(_value(doc, "LayerCount", default=0) or 0)
-                    for number in range(2, count):
-                        route_pass.LayerSelect(number, number in layers)
+                route_pass = _route_pass(doc, item, layers, bool(nets))
                 started = time.monotonic()
                 with _PromptAnswerer() as answerer:
                     route_pass.Go()
@@ -7648,6 +7888,8 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
                 raise AdapterError(error.code, error.message, error.details) from error
         if method == "move_component":
             return _move_component(params, client)
+        if method == "board_info":
+            return _board_info(params, client)
         if method == "board_geometry":
             return _board_geometry(params, client)
         if method == "tidy_labels":

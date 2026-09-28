@@ -195,3 +195,28 @@ def test_pcb_metrics_refuses_what_it_cannot_measure(capsys, geometry, tmp_path) 
     assert code == 2 and result["error"]["code"] == "E_VALIDATION"
     code, result = _run(capsys, "pcb", "metrics", "--geometry", str(tmp_path / "missing.json"))
     assert code == 3 and result["error"]["code"] == "E_NOT_FOUND"
+
+
+def test_board_rules_list_what_drc_does_not() -> None:
+    rules = M.board_rules({**_board(), "unrouted": [{"net": "NETA", "opens": 2}]})
+    found = {(rule["rule"], rule.get("refdes") or rule.get("net")) for rule in rules}
+    assert ("unplaced", "R3") in found
+    assert ("outside", "R2") in found
+    assert ("overlap", "R1") in found
+    assert ("decoupling", "C2") in found and ("decoupling", "C1") not in found
+    assert ("connector_edge", "J2") in found and ("connector_edge", "J1") not in found
+    assert ("acute_corner", "NETA") in found
+    assert ("unrouted", "NETA") in found
+    # the worst first
+    severities = [rule["severity"] for rule in rules]
+    assert severities == sorted(severities, key=["high", "medium", "low"].index)
+
+
+def test_a_clean_board_has_no_board_rules() -> None:
+    board = {
+        "outline": [{"path": [[0, 0, 0], [20, 0, 0], [20, 20, 0], [0, 20, 0], [0, 0, 0]]}],
+        "traces": [],
+        "vias": [],
+        "components": [_part("U1", [5, 5, 8, 8], _pin("1", 6, 6, "SIG"))],
+    }
+    assert M.board_rules(board) == []

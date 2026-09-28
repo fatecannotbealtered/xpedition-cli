@@ -713,11 +713,17 @@ def route(options: dict[str, Any]) -> dict[str, Any]:
     canonical = board_file(options, "pcb route")
     passes = text(options, "passes") or "route:1-5,viamin:1-3,smooth:1-3"
     layers = text(options, "layers")
+    nets = comma_list(options, "nets")
     unroute = bool(options.get("unroute"))
+    if unroute and nets:
+        raise CLIError(
+            "E_USAGE", "pcb route --unroute deletes every net's routing; use pcb unroute --nets"
+        )
     request = {
         "project": canonical,
         "passes": passes,
         "layers": layers,
+        "nets": nets,
         "unroute": unroute,
         "start": True,
     }
@@ -726,6 +732,7 @@ def route(options: dict[str, Any]) -> dict[str, Any]:
         "project": canonical,
         "passes": passes,
         "layers": layers,
+        "nets": ",".join(nets),
         "unroute": unroute,
     }
     backend = native()
@@ -735,6 +742,7 @@ def route(options: dict[str, Any]) -> dict[str, Any]:
             "project": canonical,
             "pcb": current.get("pcb"),
             "passes": current.get("passes"),
+            "nets": current.get("nets"),
             "before": current.get("before"),
             "unrouted_before": current.get("unrouted_before"),
             "changes": [
@@ -746,8 +754,12 @@ def route(options: dict[str, Any]) -> dict[str, Any]:
             "risk": _risk(
                 "T2" if unroute else "T1",
                 ("every trace and via is deleted first, not archived; " if unroute else "")
-                + "traces and vias are added or changed on every net the passes touch; the "
-                "board is saved",
+                + (
+                    f"traces and vias are added or changed on {', '.join(nets)}"
+                    if nets
+                    else "traces and vias are added or changed on every net the passes touch"
+                )
+                + "; the board is saved",
             ),
         }
         return previewed(preview, scope)
@@ -773,6 +785,12 @@ def _geometry_model(
         model = model["data"].get("model", model["data"])
     if not isinstance(model, dict) or "pads" not in model:
         raise CLIError("E_VALIDATION", f"{command}: --geometry is the file pcb geometry writes")
+    if model.get("filter"):
+        raise CLIError(
+            "E_VALIDATION",
+            f"{command} needs the whole board; this geometry was filtered",
+            {"filter": model["filter"], "hint": "pcb geometry without --refdes or --nets"},
+        )
     return model
 
 
@@ -1017,20 +1035,14 @@ def pour(options: dict[str, Any]) -> dict[str, Any]:
 
 
 def info(options: dict[str, Any]) -> dict[str, Any]:
+    """The board in numbers, with its stackup, net classes and keepouts."""
     canonical = board_file(options, "pcb info")
-    board, _ = reader(options).load(canonical, domain="pcb")
-    pcb = board.get("pcb", {})
-    return {
-        "project": board["project"],
-        "component_count": len(pcb.get("components", [])),
-        "placed_count": sum(1 for item in pcb.get("components", []) if item.get("placed")),
-        "footprint_count": len(pcb.get("footprints", [])),
-        "net_count": len(pcb.get("nets", [])),
-        "track_count": len(pcb.get("tracks", [])),
-        "via_count": len(pcb.get("vias", [])),
-        "layer_count": board.get("metadata", {}).get("layer_count"),
-        "_untrusted": ["project"],
-    }
+    backend = reader(options)
+    return backend.invoke(
+        "board_info",
+        {"project": canonical, "start": True},
+        timeout_seconds=backend.read_timeout_seconds,
+    )
 
 
 def geometry(options: dict[str, Any]) -> dict[str, Any]:
@@ -1040,6 +1052,8 @@ def geometry(options: dict[str, Any]) -> dict[str, Any]:
     params: dict[str, Any] = {
         "project": canonical,
         "replace": bool(options.get("replace")),
+        "refdes": comma_list(options, "refdes"),
+        "nets": comma_list(options, "nets"),
         "start": True,
     }
     if output is not None:
@@ -1086,7 +1100,19 @@ def metrics(options: dict[str, Any]) -> dict[str, Any]:
     """How good the placement and routing in a geometry file are, as numbers."""
     from .. import board_metrics
 
-    model = _geometry_model(options, "pcb metrics", required=True)
+    if options.get("project") is not None:
+        if options.get("geometry") is not None:
+            raise CLIError("E_USAGE", "pcb metrics takes --geometry or --project, not both")
+        read = native().invoke(
+            "board_geometry",
+            {"project": board_file(options, "pcb metrics"), "start": True},
+            timeout_seconds=600.0,
+        )
+        model = read.get("model")
+        if not isinstance(model, dict):
+            raise CLIError("E_SERVER", "the adapter returned no board model")
+    else:
+        model = _geometry_model(options, "pcb metrics", required=True)
     assert model is not None
     result: dict[str, Any] = board_metrics.measure(model)
     if options.get("baseline") is not None:
@@ -1118,15 +1144,31 @@ def metrics(options: dict[str, Any]) -> dict[str, Any]:
 
 
 def check(options: dict[str, Any]) -> dict[str, Any]:
-    """Layout's Batch DRC, then every hazard it left on the board (no design change)."""
+    """Layout's Batch DRC, then every hazard it left on the board, and the board rules
+    DRC does not cover: parts unplaced, off the board or overlapping, decoupling far
+    from its IC, connectors far from an edge, acute corners, nets still open."""
+    from .. import board_metrics
+
     canonical = board_file(options, "pcb check")
+    backend = native()
     params = {
         "project": canonical,
         "start": True,
         "run": not bool(options.get("no_run")),
         "online": bool(options.get("online")),
     }
-    return native().invoke("batch_drc", params, timeout_seconds=900.0)
+    result = backend.invoke("batch_drc", params, timeout_seconds=900.0)
+    read = backend.invoke(
+        "board_geometry", {"project": canonical, "start": True}, timeout_seconds=600.0
+    )
+    rules = board_metrics.board_rules(read.get("model") or {})
+    result["board_rules"] = rules
+    result["board_rule_count"] = len(rules)
+    result["clean"] = bool(result.get("clean")) and not any(
+        rule["severity"] in {"high", "medium"} for rule in rules
+    )
+    result["_untrusted"] = [*(result.get("_untrusted") or []), "board_rules"]
+    return result
 
 
 # -- fabrication -------------------------------------------------------------------------

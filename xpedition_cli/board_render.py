@@ -36,6 +36,7 @@ COLOURS = {
     "silk_bottom": (232, 178, 167, 255),
     "outline": (208, 210, 205, 255),
     "hole_ring": (120, 120, 120, 255),
+    "keepout": (220, 60, 220, 255),
 }
 ARC_STEP_DEG = 6.0
 FONT_CANDIDATES = (
@@ -81,6 +82,7 @@ class Model:
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # x, y, diameter
     silk: list[Shape] = field(default_factory=list)
     texts: list[Text] = field(default_factory=list)
+    keepouts: list[Shape] = field(default_factory=list)
 
     def bounds(self) -> tuple[float, float, float, float]:
         xs: list[float] = []
@@ -141,7 +143,7 @@ def model_from_dict(data: dict[str, Any]) -> Model:
         )
 
     model = Model(layers=int(data.get("layers") or 2))
-    for key in ("outline", "pads", "vias", "traces", "planes", "silk"):
+    for key in ("outline", "pads", "vias", "traces", "planes", "silk", "keepouts"):
         setattr(model, key, [shape(item) for item in data.get(key) or []])
     model.holes = [tuple(row) for row in data.get("holes") or []]  # type: ignore[misc]
     model.texts = [
@@ -296,6 +298,7 @@ def render(
         "holes": len(model.holes),
         "silk": len(model.silk),
         "texts": len(model.texts),
+        "keepouts": len(model.keepouts),
     }
 
     def copper(layer_number: int, alpha: int) -> None:
@@ -340,6 +343,13 @@ def render(
     for text in model.texts:
         if text.side == side:
             _draw_text(canvas, layer, text, silk_colour)
+    canvas.composite(layer)
+    # keepouts as outlines, on top of the copper: what the router and the placement avoid
+    layer = canvas.layer()
+    draw = ImageDraw.Draw(layer)
+    for item in model.keepouts:
+        closed = Shape(path=item.path, width=0.2, circle=item.circle)
+        _draw_shape(draw, canvas, closed, COLOURS["keepout"])
     canvas.composite(layer)
     layer = canvas.layer()
     draw = ImageDraw.Draw(layer)

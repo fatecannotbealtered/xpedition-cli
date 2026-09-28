@@ -535,12 +535,87 @@ def test_unroute_is_always_dangerous(cli, adapter, board) -> None:
 # -- inspection ------------------------------------------------------------------------
 
 
-def test_info_counts_the_board(cli, adapter, board) -> None:
-    code, payload = cli("pcb", "info", "--project", str(board))
+def test_info_reads_the_stackup_and_net_classes(cli, adapter, board) -> None:
+    answer = {
+        "pcb": str(board),
+        "component_count": 3,
+        "placed_count": 2,
+        "net_count": 2,
+        "track_count": 1,
+        "via_count": 0,
+        "layer_count": 4,
+        "thickness_mm": 1.6,
+        "stackup": [{"board_layer": 2, "kind": "conductor", "layer": 1, "usage": "signal"}],
+        "net_classes": [{"name": "POWER", "nets": ["GND"], "widths": {"1": {"typical": 0.5}}}],
+        "keepout_count": 0,
+        "prompts": [],
+    }
+    adapter.on("board_info", answer)
+    code, payload = cli("pcb", "info", "--project", str(board), "--timeout", "200")
     data = payload["data"]
-    assert code == 0 and data["component_count"] == 3 and data["placed_count"] == 2
-    assert data["layer_count"] == 4 and data["track_count"] == 1
-    assert adapter.last("snapshot")["domain"] == "pcb"
+    assert code == 0 and data["layer_count"] == 4 and data["net_classes"][0]["name"] == "POWER"
+    assert adapter.calls[-1]["timeout"] == 200.0
+    assert adapter.last("board_info") == {"project": str(board), "start": True}
+
+
+def test_route_only_the_named_nets(cli, adapter, board) -> None:
+    adapter.on("route_board", lambda params: {"pcb": "Board.pcb", "nets": params["nets"]})
+    code, payload = cli(
+        "pcb",
+        "route",
+        "--project",
+        str(board),
+        "--nets",
+        "I2C_SCL,I2C_SDA",
+        "--layers",
+        "1,4",
+        "--dry-run",
+    )
+    assert code == 0 and payload["data"]["preview"]["nets"] == ["I2C_SCL", "I2C_SDA"]
+    sent = adapter.last("route_board")
+    assert sent["nets"] == ["I2C_SCL", "I2C_SDA"] and sent["layers"] == "1,4"
+    assert "I2C_SCL, I2C_SDA" in payload["data"]["preview"]["risk"]["blast_radius"]
+    code, payload = cli(
+        "pcb", "route", "--project", str(board), "--nets", "A", "--unroute", "--dry-run"
+    )
+    assert code == 2 and "pcb unroute --nets" in payload["error"]["message"]
+
+
+def test_geometry_filters_and_what_refuses_a_filtered_model(cli, adapter, board, tmp_path) -> None:
+    adapter.on("board_geometry", {"pcb": "Board.pcb", "counts": {}})
+    cli("pcb", "geometry", "--project", str(board), "--refdes", "U1", "--nets", "GND,+3V3")
+    sent = adapter.last("board_geometry")
+    assert sent["refdes"] == ["U1"] and sent["nets"] == ["GND", "+3V3"]
+    filtered = {**routing_model(), "filter": {"refdes": ["U1"], "nets": []}}
+    path = tmp_path / "filtered.json"
+    path.write_text(json.dumps(filtered), encoding="utf-8")
+    for command in ("metrics", "stitch"):
+        code, payload = cli("pcb", command, "--geometry", str(path))
+        assert code == 2 and "whole board" in payload["error"]["message"], command
+
+
+def test_metrics_can_measure_the_live_board(cli, adapter, board) -> None:
+    adapter.on("board_geometry", lambda params: {"pcb": "Board.pcb", "model": routing_model()})
+    code, payload = cli("pcb", "metrics", "--project", str(board))
+    assert code == 0 and payload["data"]["summary"]["vias"] == 1
+    assert "output" not in adapter.last("board_geometry")
+    code, payload = cli("pcb", "metrics", "--project", str(board), "--geometry", "board.json")
+    assert code == 2
+    code, payload = cli("pcb", "metrics")
+    assert code == 2 and "--geometry" in payload["error"]["message"]
+
+
+def test_check_adds_the_board_rules_to_the_drc(cli, adapter, board) -> None:
+    model = routing_model()
+    model["components"].append({"refdes": "R9", "placed": False, "pins": []})
+    model["unrouted"] = [{"net": "A", "opens": 1}]
+    adapter.on("batch_drc", {"pcb": "Board.pcb", "ran": True, "count": 0, "clean": True})
+    adapter.on("board_geometry", {"pcb": "Board.pcb", "model": model})
+    code, payload = cli("pcb", "check", "--project", str(board))
+    data = payload["data"]
+    rules = {(rule["rule"], rule.get("refdes") or rule.get("net")) for rule in data["board_rules"]}
+    assert code == 0 and ("unplaced", "R9") in rules and ("unrouted", "A") in rules
+    assert data["clean"] is False and data["board_rule_count"] == len(data["board_rules"])
 
 
 def test_geometry_render_show_and_check_reach_layout(cli, adapter, board, tmp_path) -> None:
