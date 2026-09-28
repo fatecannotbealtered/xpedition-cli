@@ -19,7 +19,11 @@ SUPPORTED_OPERATIONS = {
     "move_component",
     "delete_component",
     "set_property",
+    "disconnect",
+    "rename_net",
 }
+# attributes an edit must not set: the reference designator is the part's identity
+PROTECTED_ATTRIBUTES = {"ref designator", "refdes"}
 
 
 def validate_operation(operation: Any, index: int = 0) -> None:
@@ -39,6 +43,8 @@ def validate_operation(operation: Any, index: int = 0) -> None:
         "move_component": ("refdes", "x", "y"),
         "delete_component": ("refdes",),
         "set_property": ("refdes", "name", "value"),
+        "disconnect": ("pin",),
+        "rename_net": ("net", "name"),
     }
     missing = [key for key in required[operation_type] if key not in operation]
     if missing:
@@ -189,11 +195,14 @@ def apply_operations(
             result["components"] = [
                 item for item in result["components"] if str(item.get("refdes")) != refdes
             ]
-            result["connections"] = [
-                connection
-                for connection in result["connections"]
-                if not any(str(pin).startswith(refdes + ".") for pin in connection.get("pins", []))
-            ]
+            # the part's pins leave their nets; a net keeps the pins it has left
+            for connection in result["connections"]:
+                connection["pins"] = [
+                    pin
+                    for pin in connection.get("pins", [])
+                    if not str(pin).startswith(refdes + ".")
+                ]
+            result["connections"] = [c for c in result["connections"] if len(c["pins"]) >= 2]
             changes.append(
                 {
                     "action": "delete_component",
@@ -206,17 +215,102 @@ def apply_operations(
         elif operation_type == "set_property":
             refdes = str(operation["refdes"])
             component = _find_component(result, refdes)
-            properties = component.setdefault("properties", {})
-            name = str(operation["name"])
-            before = properties.get(name)
-            properties[name] = operation["value"]
+            name, value = str(operation["name"]), str(operation["value"])
+            if name.strip().casefold() in PROTECTED_ATTRIBUTES or not name.strip():
+                raise CLIError(
+                    "E_VALIDATION",
+                    f"{name!r} is not a property an edit may set",
+                    {"index": index, "name": name},
+                )
+            if any(ord(ch) < 32 for ch in name + value) or "=" in name:
+                raise CLIError(
+                    "E_VALIDATION",
+                    "a property name or value may hold no line breaks, and a name no '='",
+                    {"index": index, "name": name[:80]},
+                )
+            # Designer reads the value back among the part's attributes
+            attributes = component.setdefault("attributes", {})
+            before = attributes.get(name)
+            attributes[name] = value
             changes.append(
                 {
                     "action": "set_property",
                     "resource": "component",
                     "id": refdes,
                     "before": {name: before},
-                    "after": {name: operation["value"]},
+                    "after": {name: value},
+                }
+            )
+        elif operation_type == "disconnect":
+            pin = str(operation["pin"])
+            _validate_pin(result, pin)
+            refdes, _, number = pin.partition(".")
+            component = _find_component(result, refdes)
+            nets = [
+                str(row.get("net"))
+                for row in component.get("pins") or []
+                if str(row.get("number")) == number and row.get("net")
+            ]
+            if not nets:
+                raise CLIError(
+                    "E_CONFLICT", f"pin {pin} is not connected", {"index": index, "pin": pin}
+                )
+            for row in component.get("pins") or []:
+                if str(row.get("number")) == number:
+                    row["net"] = None
+            for connection in result["connections"]:
+                connection["pins"] = [p for p in connection.get("pins", []) if str(p) != pin]
+            result["connections"] = [c for c in result["connections"] if len(c["pins"]) >= 2]
+            changes.append(
+                {
+                    "action": "disconnect",
+                    "resource": "pin",
+                    "id": pin,
+                    "before": {"net": nets[0]},
+                    "after": {"net": None},
+                }
+            )
+        elif operation_type == "rename_net":
+            old, new = str(operation["net"]), str(operation["name"]).strip()
+            _find_net(result, old)
+            from .review_engine import is_ground_net, is_power_net
+
+            if is_power_net(old) or is_ground_net(old):
+                raise CLIError(
+                    "E_VALIDATION",
+                    f"net {old!r} is a power or ground net, which its symbols name; change "
+                    "it in the design and draw it again",
+                    {"index": index, "net": old},
+                )
+            if not new or any(ord(ch) < 33 for ch in new):
+                raise CLIError(
+                    "E_VALIDATION",
+                    "a net name is one word with no spaces or line breaks",
+                    {"index": index, "name": new[:80]},
+                )
+            if any(str(item.get("name")) == new for item in result["nets"]):
+                raise CLIError(
+                    "E_CONFLICT",
+                    f"net {new!r} exists; renaming {old!r} to it would merge the two nets",
+                    {"index": index, "net": old, "name": new},
+                )
+            for item in result["nets"]:
+                if str(item.get("name")) == old:
+                    item["name"] = new
+            for connection in result["connections"]:
+                if str(connection.get("net")) == old:
+                    connection["net"] = new
+            for component in result["components"]:
+                for row in component.get("pins") or []:
+                    if str(row.get("net")) == old:
+                        row["net"] = new
+            changes.append(
+                {
+                    "action": "rename_net",
+                    "resource": "net",
+                    "id": old,
+                    "before": {"name": old},
+                    "after": {"name": new},
                 }
             )
     result["revision"] = _next_revision(str(project.get("revision", "R00")))

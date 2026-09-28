@@ -1255,6 +1255,167 @@ def _wire_between_pins(
     return net, label
 
 
+VD_MASK_BOX = 2  # VdObjectTypeMask.VDM_BOX
+VD_ALL = 0
+VD_NET_CONNECTIONS = 23  # IVdNet.Connections, an optional-argument property
+VD_BOX_LOCATION = 8  # IVdBox.GetLocation(VdCorner)
+VD_BOX_SELECTED = 12  # IVdBox.Selected
+VD_INVISIBLE = 0
+
+
+def _net_connections(net: Any) -> list[Any]:
+    """The pins a wire object joins. `Connections` takes an optional filter that late
+    binding cannot leave out, so it is read by its dispid with no argument."""
+    import pythoncom
+    import win32com.client
+
+    raw = net._oleobj_.Invoke(VD_NET_CONNECTIONS, 0, pythoncom.DISPATCH_PROPERTYGET, 1)
+    return list(_items(win32com.client.Dispatch(raw)))
+
+
+def _wire_owners(net: Any) -> list[tuple[str, str, Any]]:
+    """(refdes, pin number, component) of every pin on a wire object; a power, ground or
+    no-connect symbol has no reference designator."""
+    owners = []
+    for connection in _net_connections(net):
+        pin = _value(connection, "CompPin", default=None)
+        component = _value(pin, "Component", default=None) if pin is not None else None
+        refdes = str(_value(component, "Refdes", default="") or "") if component else ""
+        owners.append((refdes, str(_value(pin, "Number", default="") or ""), component))
+    return owners
+
+
+def _wire_labels(net: Any) -> list[tuple[str, tuple[int, int] | None]]:
+    labels = []
+    for segment in _items(_com_member(net, "GetSegments")):
+        label = net.GetLabel(segment)
+        if label is None:
+            continue
+        where = None
+        try:
+            point = _com_member(label, "GetLocation")
+            where = (int(point.X), int(point.Y))
+        except Exception:
+            pass
+        labels.append((str(label.TextString), where))
+    return labels
+
+
+def _select_wire(net: Any) -> None:
+    for segment in _items(_com_member(net, "GetSegments")):
+        net.SelectSegment(segment)
+
+
+def _remove_label_boxes(app: Any, points: list[tuple[int, int]]) -> int:
+    """Delete the boxes drawn around labels that are gone: the planner draws a boxed
+    label as a label plus a box, and removing the wire takes only the label."""
+    import pythoncom
+    import win32com.client
+
+    if not points:
+        return 0
+    view = app.ActiveView
+    # a delete takes everything selected: start from nothing
+    view.Block.DeSelectAll()
+    removed = 0
+    for raw in _items(view.Query(VD_MASK_BOX, VD_ALL)):
+        try:
+            low = win32com.client.Dispatch(
+                raw._oleobj_.Invoke(VD_BOX_LOCATION, 0, pythoncom.DISPATCH_METHOD, 1, 0)
+            )
+            high = win32com.client.Dispatch(
+                raw._oleobj_.Invoke(VD_BOX_LOCATION, 0, pythoncom.DISPATCH_METHOD, 1, 1)
+            )
+            x1, y1, x2, y2 = int(low.X), int(low.Y), int(high.X), int(high.Y)
+        except Exception:
+            continue
+        if any(x1 <= x <= x2 and y1 - 5 <= y <= y2 + 5 for x, y in points):
+            raw._oleobj_.Invoke(VD_BOX_SELECTED, 0, pythoncom.DISPATCH_PROPERTYPUT, 0, True)
+            removed += 1
+    if removed:
+        view.Block.DeleteSelected(False)
+    return removed
+
+
+LABEL_CHAR_WIDTH = 6  # sheet units a label character takes, as the planner sizes boxes
+
+
+def _resize_label_boxes(app: Any, moves: list[tuple[int, int, int, bool]]) -> int:
+    """Grow or shrink the box around each renamed label by `delta` units: to the right,
+    or to the left for a label drawn left of its wire. `moves` holds (x, y, delta, left)
+    with the label's position before the rename.
+
+    The box is replaced, not moved: `IVdBox.SetLocation` changes the view's object, and
+    reopening the project showed it was never saved with the sheet.
+    """
+    import pythoncom
+    import win32com.client
+
+    if not moves:
+        return 0
+    view = app.ActiveView
+    # a label moved or an attribute added stays selected, and the delete below would
+    # take it with the boxes: start from nothing
+    view.Block.DeSelectAll()
+    replacements: list[tuple[int, int, int, int]] = []
+    for raw in _items(view.Query(VD_MASK_BOX, VD_ALL)):
+        try:
+            low = win32com.client.Dispatch(
+                raw._oleobj_.Invoke(VD_BOX_LOCATION, 0, pythoncom.DISPATCH_METHOD, 1, 0)
+            )
+            high = win32com.client.Dispatch(
+                raw._oleobj_.Invoke(VD_BOX_LOCATION, 0, pythoncom.DISPATCH_METHOD, 1, 1)
+            )
+            x1, y1, x2, y2 = int(low.X), int(low.Y), int(high.X), int(high.Y)
+        except Exception:
+            continue
+        for x, y, delta, left in moves:
+            if x1 <= x <= x2 and y1 - 5 <= y <= y2 + 5:
+                replacements.append((x1 - delta, y1, x2, y2) if left else (x1, y1, x2 + delta, y2))
+                raw._oleobj_.Invoke(VD_BOX_SELECTED, 0, pythoncom.DISPATCH_PROPERTYPUT, 0, True)
+                break
+    if replacements:
+        view.Block.DeleteSelected(False)
+        for x1, y1, x2, y2 in replacements:
+            view.Block.AddBox(x1, y1, x2, y2)
+    return len(replacements)
+
+
+def _pin_connection(component: Any, number: str) -> Any:
+    for connection in _items(_com_member(component, "GetConnections")):
+        pin = _value(connection, "CompPin", default=None)
+        if str(_value(pin, "Number", default="")) == str(number):
+            return connection
+    raise AdapterError("E_NOT_FOUND", f"pin {number!r} was not found on component")
+
+
+def _cut_wire(
+    block: Any, net: Any, keep: Any, stub: bool, segment: Any = None
+) -> tuple[list[tuple[int, int]], int]:
+    """Select what goes with a pin's wire: the whole wire and the symbols on it when it
+    served only `keep` (a refdes, or a (refdes, pin) pair), else the segment at the pin.
+    Returns the label points going with it and the symbols selected."""
+    points: list[tuple[int, int]] = []
+    marks = 0
+    if stub:
+        points = [where for _text, where in _wire_labels(net) if where is not None]
+        _select_wire(net)
+        for refdes, _number, component in _wire_owners(net):
+            if refdes == "" and component is not None:
+                component.Selected = True
+                marks += 1
+    elif segment is not None:
+        label = net.GetLabel(segment)
+        if label is not None:
+            try:
+                point = _com_member(label, "GetLocation")
+                points.append((int(point.X), int(point.Y)))
+            except Exception:
+                pass
+        net.SelectSegment(segment)
+    return points, marks
+
+
 def _apply_designer_operation(
     app: Any,
     operation: dict[str, Any],
@@ -1267,6 +1428,13 @@ def _apply_designer_operation(
         block = app.ActiveView.Block
     except Exception as exc:
         raise _com_error(exc, "get_active_block") from exc
+    # what an earlier operation left selected must not ride along with this one
+    deselect = getattr(block, "DeSelectAll", None)
+    if callable(deselect):
+        try:
+            deselect()
+        except Exception as exc:
+            raise _com_error(exc, "deselect_all") from exc
     if kind == "place_component":
         # No default library: "MISC" does not exist in a stock installation, so falling
         # back to it turned a missing parameter into Designer error 2005 ("Library: MISC
@@ -1334,6 +1502,164 @@ def _apply_designer_operation(
         except Exception as exc:
             raise _com_error(exc, "move_schematic_component") from exc
         return {"type": kind, "refdes": str(operation["refdes"]), "applied": True}
+    if kind == "delete_component":
+        refdes = str(operation["refdes"])
+        component = _designer_active_component(app, {"design": design_name, **operation})
+        try:
+            block.DeSelectAll()
+            points: list[tuple[int, int]] = []
+            marks = wires = 0
+            for connection in _items(_com_member(component, "GetConnections")):
+                net = _value(connection, "Net", default=None)
+                if net is None:
+                    continue
+                owners = _wire_owners(net)
+                # a wire only this part used goes with it, with its power and ground
+                if all(owner in ("", refdes) for owner, _n, _c in owners):
+                    found, count = _cut_wire(block, net, refdes, stub=True)
+                    points += found
+                    marks += count
+                    wires += 1
+            component.Selected = True
+            # True: the wires the part leaves unconnected go too
+            block.DeleteSelected(True)
+            boxes = _remove_label_boxes(app, points)
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise _com_error(exc, "delete_schematic_component") from exc
+        return {
+            "type": kind,
+            "refdes": refdes,
+            "applied": True,
+            "wires_removed": wires,
+            "symbols_removed": marks,
+            "label_boxes_removed": boxes,
+        }
+    if kind == "set_property":
+        component = _designer_active_component(app, {"design": design_name, **operation})
+        name, value = str(operation["name"]), str(operation["value"])
+        try:
+            attribute = component.FindAttribute(name)
+            if attribute is None:
+                location = _component_location(component)
+                x = int(location.get("x") or 0)
+                y = int(location.get("y") or 0)
+                component.AddAttribute(f"{name}={value}", x, y - 20, VD_INVISIBLE)
+                added = True
+            else:
+                attribute.Value = value
+                added = False
+        except Exception as exc:
+            raise _com_error(exc, "set_schematic_property") from exc
+        return {
+            "type": kind,
+            "refdes": str(operation["refdes"]),
+            "name": name,
+            "added": added,
+            "applied": True,
+        }
+    if kind == "disconnect":
+        pin_id = str(operation["pin"])
+        refdes, _, number = pin_id.partition(".")
+        component = _designer_active_component(
+            app, {"design": design_name, **operation, "refdes": refdes}
+        )
+        try:
+            connection = _pin_connection(component, number)
+            net = _value(connection, "Net", default=None)
+            if net is None:
+                raise AdapterError("E_CONFLICT", f"pin {pin_id} is not connected")
+            owners = _wire_owners(net)
+            stub = all(owner == "" or (owner, pin) == (refdes, number) for owner, pin, _c in owners)
+            block.DeSelectAll()
+            points, marks = _cut_wire(
+                block, net, (refdes, number), stub, _value(connection, "Segment", default=None)
+            )
+            block.DeleteSelected(True)
+            boxes = _remove_label_boxes(app, points)
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise _com_error(exc, "disconnect_schematic_pin") from exc
+        return {
+            "type": kind,
+            "pin": pin_id,
+            "applied": True,
+            "whole_wire": stub,
+            "symbols_removed": marks,
+            "label_boxes_removed": boxes,
+        }
+    if kind == "rename_net":
+        old, new = str(operation["net"]), str(operation["name"])
+        sheet = operation.get("sheet")
+        renamed = 0
+        moves: list[tuple[int, int, int, bool]] = []
+        try:
+            for component in _items(_designer_collection(app, "DesignComponents", design_name)):
+                refdes = str(_value(component, "Refdes", default="") or "")
+                if not refdes:
+                    continue
+                if sheet is not None:
+                    uid = str(_com_member(component, "UID") or "")
+                    if _uid_sheet(uid) not in (None, int(sheet)):
+                        continue
+                for connection in _items(_com_member(component, "GetConnections")):
+                    net = _value(connection, "Net", default=None)
+                    if net is None:
+                        continue
+                    for segment in _items(_com_member(net, "GetSegments")):
+                        label = net.GetLabel(segment)
+                        if label is None or str(label.TextString) != old:
+                            continue
+                        if any(owner == "" for owner, _n, _c in _wire_owners(net)):
+                            raise AdapterError(
+                                "E_VALIDATION",
+                                f"net {old!r} is named by a power or ground symbol, not a "
+                                "label; change it in the design and draw it again",
+                                {"net": old},
+                            )
+                        # the label's place and which side of its wire it sits on,
+                        # so its box can follow the new length
+                        try:
+                            point = _com_member(label, "GetLocation")
+                            lx, ly = int(point.X), int(point.Y)
+                            ends = [segment.Location(0), segment.Location(1)]
+                            left = lx < min(int(end.X) for end in ends)
+                            # Designer puts boxes on its 10-unit grid, so the label
+                            # moves by whole grid steps too and stays inside its box
+                            grow = LABEL_CHAR_WIDTH * (len(new) - len(old))
+                            delta = 10 * math.ceil(grow / 10) if grow > 0 else -10 * (-grow // 10)
+                            if delta:
+                                moves.append((lx, ly, delta, left))
+                                if left:
+                                    label.SetLocation(lx - delta, ly)
+                        except Exception:
+                            pass
+                        label.TextString = new
+                        renamed += 1
+        except AdapterError:
+            raise
+        except Exception as exc:
+            raise _com_error(exc, "rename_schematic_net") from exc
+        if not renamed:
+            raise AdapterError(
+                "E_NOT_FOUND",
+                f"no label of net {old!r} on sheet {sheet}",
+                {"net": old, "sheet": sheet},
+            )
+        try:
+            boxes = _resize_label_boxes(app, moves)
+        except Exception:
+            boxes = 0
+        return {
+            "type": kind,
+            "net": old,
+            "name": new,
+            "labels": renamed,
+            "label_boxes_resized": boxes,
+            "applied": True,
+        }
     if kind == "create_net":
         deferred_nets[str(operation["name"])] = operation
         return {

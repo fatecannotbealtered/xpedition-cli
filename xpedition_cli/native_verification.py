@@ -67,6 +67,8 @@ def verify_native_changes(
     targets: dict[tuple[str, str], set[tuple[str, ...]]] = defaultdict(set)
     net_fields: dict[str, set[str]] = defaultdict(set)
     connected_nets: set[str] = set()
+    disconnected: set[str] = set()
+    renamed: dict[str, str] = {}
     for index, operation in enumerate(operations):
         kind = operation["type"]
         if kind in {
@@ -84,7 +86,7 @@ def verify_native_changes(
             if kind.startswith("move_"):
                 fields.update({("x",), ("y",)})
             elif kind == "set_property":
-                fields.add(("properties", str(operation["name"])))
+                fields.add(("attributes", str(operation["name"])))
             elif kind.startswith("place_"):
                 mapping = (
                     {"part_number": "internal_part_no", "footprint": "package"}
@@ -117,6 +119,11 @@ def verify_native_changes(
                 fields.add("class")
         elif kind == "connect":
             connected_nets.add(str(operation["net"]))
+        elif kind == "disconnect":
+            disconnected.add(str(operation["pin"]))
+        elif kind == "rename_net":
+            renamed[str(operation["net"])] = str(operation["name"])
+            connected_nets.add(str(operation["name"]))
         else:
             issues.append({"kind": "unverified_operation", "index": index, "operation": kind})
 
@@ -214,6 +221,20 @@ def verify_native_changes(
         other_nets = sorted(net for net, pins in actual_pins.items() if net != name and want & pins)
         if other_nets:
             issues.append({"kind": "pins_on_other_nets", "net": name, "other_nets": other_nets})
+    for old in sorted(renamed):
+        if old in actual_nets:
+            issues.append({"kind": "net_not_renamed", "net": old, "name": renamed[old]})
+    observed_pins = {
+        f"{component.get('refdes')}.{row.get('number')}": row.get("net")
+        for component in observed.get("components", [])
+        for row in component.get("pins") or []
+    }
+    for pin in sorted(disconnected):
+        still = observed_pins.get(pin, _MISSING)
+        if still is _MISSING:
+            issues.append({"kind": "pin_missing", "pin": pin})
+        elif still:
+            issues.append({"kind": "pin_still_connected", "pin": pin, "net": still})
     return {
         "valid": not issues,
         "status": "verified" if not issues else "failed",

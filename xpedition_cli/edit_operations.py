@@ -15,7 +15,16 @@ from .changeset import validate_operation
 from .errors import CLIError
 
 MAX_OPERATIONS = 200
-SUPPORTED = ("place_component", "move_component", "create_net", "connect")
+SUPPORTED = (
+    "place_component",
+    "move_component",
+    "delete_component",
+    "set_property",
+    "create_net",
+    "connect",
+    "disconnect",
+    "rename_net",
+)
 
 _FIELDS: dict[str, dict[str, Any]] = {
     "place_component": {
@@ -43,6 +52,42 @@ _FIELDS: dict[str, dict[str, Any]] = {
             "sheet": {"type": "integer", "minimum": 1},
             "x": {"type": "integer", "description": "sheet units"},
             "y": {"type": "integer", "description": "sheet units"},
+        },
+    },
+    "delete_component": {
+        "required": ["refdes"],
+        "properties": {
+            "refdes": {
+                "type": "string",
+                "description": "the part to delete, with the wires only it used and the "
+                "power and ground symbols on them",
+            },
+        },
+    },
+    "set_property": {
+        "required": ["refdes", "name", "value"],
+        "properties": {
+            "refdes": {"type": "string"},
+            "name": {"type": "string", "description": "the attribute, as Part Number"},
+            "value": {"type": "string"},
+        },
+    },
+    "disconnect": {
+        "required": ["pin"],
+        "properties": {
+            "pin": {
+                "type": "string",
+                "pattern": "^[^.]+\\..+$",
+                "description": "<refdes>.<pin number>: its wire is removed, and the label "
+                "and symbols on a wire only it used",
+            },
+        },
+    },
+    "rename_net": {
+        "required": ["net", "name"],
+        "properties": {
+            "net": {"type": "string", "description": "a labelled net; not a power or ground net"},
+            "name": {"type": "string", "description": "its new name, which no net has yet"},
         },
     },
     "create_net": {

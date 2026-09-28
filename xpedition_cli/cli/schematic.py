@@ -197,6 +197,35 @@ def _snapshot_hash(project: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+_ON_A_PART = {"move_component", "delete_component", "set_property", "disconnect"}
+
+
+def native_operations(
+    design: dict[str, Any], operations: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The operations as Designer carries them out: each on the sheet its part is drawn
+    on (unless it names one), and a net renamed on every sheet that draws it."""
+    part_sheets = {
+        str(component.get("refdes")): component.get("sheet")
+        for component in design.get("components", [])
+    }
+    net_sheets = {str(net.get("name")): net.get("sheets") or [] for net in design.get("nets", [])}
+    result: list[dict[str, Any]] = []
+    for operation in operations:
+        item = dict(operation)
+        kind = item["type"]
+        if kind == "rename_net" and "sheet" not in item:
+            sheets = sorted(int(s) for s in net_sheets.get(str(item["net"]), []) if s is not None)
+            result += [{**item, "sheet": sheet} for sheet in sheets] or [item]
+            continue
+        if kind in _ON_A_PART and "sheet" not in item:
+            refdes = str(item.get("refdes") or str(item.get("pin", "")).partition(".")[0])
+            if part_sheets.get(refdes) is not None:
+                item["sheet"] = int(part_sheets[refdes])
+        result.append(item)
+    return result
+
+
 def edit(options: dict[str, Any]) -> dict[str, Any]:
     """Change a drawn schematic in place, then read it back and verify every change."""
     from .. import edit_operations
@@ -213,6 +242,7 @@ def edit(options: dict[str, Any]) -> dict[str, Any]:
     # every operation is projected onto the design as read: a missing part, pin or
     # net, or a part that exists already, is refused here, before anything is written
     projected, changes = apply_operations(design, operations)
+    steps = native_operations(design, operations)
     scope = {
         "operation": "schematic_edit",
         "project": str(project),
@@ -224,6 +254,7 @@ def edit(options: dict[str, Any]) -> dict[str, Any]:
             "project": str(project),
             "operation_count": len(operations),
             "changes": changes,
+            "steps": steps,
             "risk": {
                 "tier": "T1",
                 "blast_radius": (
@@ -235,7 +266,7 @@ def edit(options: dict[str, Any]) -> dict[str, Any]:
     confirmed(options, scope)
     written = backend.invoke(
         "apply_changeset",
-        {"project": str(project), "domain": "schematic", "operations": operations, "save": True},
+        {"project": str(project), "domain": "schematic", "operations": steps, "save": True},
         timeout_seconds=600.0,
     )
     # A returned call does not prove the change happened: read the design back.

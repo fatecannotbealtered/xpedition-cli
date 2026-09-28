@@ -15,7 +15,8 @@ def project():
                 "internal_part_no": "RES-10K",
                 "x": 10,
                 "y": 20,
-                "properties": {"value": "10k"},
+                "attributes": {"Value": "10k"},
+                "pins": [{"number": "1", "net": "VCC"}, {"number": "2", "net": None}],
             }
         ],
         "nets": [{"name": "VCC"}],
@@ -68,10 +69,31 @@ def test_part_identity_and_properties_are_checked():
     ops = [{"type": "place_component", "refdes": "R1", "part_number": "RES-10K", "x": 10, "y": 20}]
     assert not verify_native_changes(project(), observed, ops)["valid"]
     observed = project()
-    observed["components"][0]["properties"]["value"] = "20k"
+    observed["components"][0]["attributes"]["Value"] = "20k"
     assert not verify_native_changes(
-        project(), observed, [{"type": "set_property", "refdes": "R1", "name": "value"}]
+        project(), observed, [{"type": "set_property", "refdes": "R1", "name": "Value"}]
     )["valid"]
+    assert verify_native_changes(
+        project(), project(), [{"type": "set_property", "refdes": "R1", "name": "Value"}]
+    )["valid"]
+
+
+def test_a_disconnected_pin_must_read_back_open():
+    ops = [{"type": "disconnect", "pin": "R1.1"}]
+    assert not verify_native_changes(project(), project(), ops)["valid"]
+    observed = project()
+    observed["components"][0]["pins"][0]["net"] = None
+    assert verify_native_changes(project(), observed, ops)["valid"]
+
+
+def test_a_renamed_net_must_be_gone_and_its_pins_on_the_new_name():
+    ops = [{"type": "rename_net", "net": "VCC", "name": "VDD"}]
+    expected = project()
+    expected["nets"] = [{"name": "VDD"}]
+    expected["connections"] = [{"net": "VDD", "pins": ["R1.1", "C1.1"]}]
+    result = verify_native_changes(expected, project(), ops)
+    assert {issue["kind"] for issue in result["issues"]} >= {"net_not_renamed"}
+    assert verify_native_changes(expected, copy.deepcopy(expected), ops)["valid"]
 
 
 def test_deleted_component_must_be_absent_and_disconnected():

@@ -678,9 +678,10 @@ def _build() -> list[Command]:
         Command(
             "schematic edit",
             "schematic:edit",
-            "Change a drawn schematic in place from an operations file: place or move a "
-            "part, create a net, connect two pins. The dry run checks every operation "
-            "against the design; the confirmed run reads the design back and verifies it",
+            "Change a drawn schematic in place from an operations file: place, move or "
+            "delete a part, set a part's property, create a net, connect or disconnect a "
+            "pin, rename a labelled net. The dry run checks every operation against the "
+            "design; the confirmed run reads the design back and verifies it",
             "schematic_edit",
             _write_examples("schematic edit --project X.prj --file changes.json"),
             "schematic",
