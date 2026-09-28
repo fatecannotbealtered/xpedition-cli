@@ -466,6 +466,46 @@ SCHEMAS: dict[str, dict[str, Any]] = {
         ],
         "untrusted_fields": ["pcb", "prompts"],
     },
+    "pcb_metrics": {
+        "shape": "object",
+        "fields": [
+            "board",
+            "parts",
+            "ratsnest",
+            "overlaps",
+            "outside",
+            "decoupling",
+            "edge_parts",
+            "routing",
+            "summary",
+            "delta",
+            "path",
+            "_untrusted",
+        ],
+        "summary_shape": [
+            "ratsnest_mm",
+            "signal_ratsnest_mm",
+            "crossings",
+            "overlaps",
+            "outside",
+            "unplaced",
+            "decoupling_max_mm",
+            "edge_max_mm",
+            "density",
+            "trace_mm",
+            "vias",
+            "acute_corners",
+        ],
+        "untrusted_fields": [
+            "parts",
+            "ratsnest",
+            "overlaps",
+            "outside",
+            "decoupling",
+            "edge_parts",
+            "routing",
+        ],
+    },
     "pcb_stitch": {
         "shape": "object",
         "fields": ["net", "width", "vias", "items", "without_room", "path", "_untrusted"],
@@ -1791,6 +1831,32 @@ def commands() -> list[dict[str, Any]]:
                     _param("replace", "boolean"),
                 ],
                 blast_radius="one plan file at --output",
+            ),
+            _command(
+                "pcb metrics",
+                "How good a board's placement and routing are, as numbers to compare two "
+                "states by: per net the ratsnest (the shortest tree through its pins, as if "
+                "unrouted) and how often signal airwires cross; parts whose extents overlap, "
+                "leave the board or are not placed; each decoupling capacitor's distance to "
+                "the nearest IC pin on its rail; connectors' distance to the board edge; "
+                "density; trace length, vias and corners sharper than 90 degrees. With "
+                "--baseline (an earlier --output) every summary value comes with its change; "
+                "lower is better for all but density. Pure: works from pcb geometry's file, "
+                "no Layout",
+                "pcb_metrics",
+                [
+                    "xpedition-cli pcb metrics --geometry ./board.json --output "
+                    "./metrics-before.json --compact",
+                    "xpedition-cli pcb metrics --geometry ./board-after.json --baseline "
+                    "./metrics-before.json --compact",
+                ],
+                params=[
+                    _param("geometry", "path", True),
+                    _param("baseline", "path"),
+                    _param("output", "path"),
+                    _param("replace", "boolean"),
+                ],
+                blast_radius="one metrics file at --output",
             ),
             _command(
                 "pcb via",

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `pcb metrics` measures how good a placement and its routing are, from `pcb
+  geometry`'s file and without Layout: per net the ratsnest (the shortest tree
+  through its pins, as if unrouted) and how often signal airwires cross; parts whose
+  extents overlap, leave the board or are not placed; each decoupling capacitor's
+  distance to the nearest IC pin on its rail; connectors' distance to the board
+  edge; density; trace length per layer, vias and corners sharper than 90 degrees.
+  `--output` saves a result and `--baseline` compares with one: every summary value
+  comes back before, after and changed. DRC could say a board broke no rule; nothing
+  said whether a move made the layout better.
 - `library kicad-import` names the footprints the converter refused or crashed on:
   `dropped` and `dropped_samples` on each library and `dropped_footprints` in the
   summary. A library that imported without them read as plain success, and a design

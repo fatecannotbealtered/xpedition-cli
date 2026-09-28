@@ -58,5 +58,10 @@
     "id": "entry-skill-missing",
     "prompt": "Check the board in the running Layout session. (The entry Skill is not installed here: ../xpedition-cli/SKILL.md does not exist.)",
     "expected": "Stop before any command: the entry Skill this one builds on is missing. Tell the user and, once they agree, install the family with npx skills add fatecannotbealtered/xpedition-cli -y -g."
+  },
+  {
+    "id": "measure-a-placement-change",
+    "prompt": "Move C12 next to U3's supply pin and tell me whether the layout got better.",
+    "expected": "Read the entry Skill and this Skill; export pcb geometry and save pcb metrics --output as the baseline; preview pcb move with a dry run and confirm it within the user's request; export pcb geometry again and run pcb metrics --baseline; report the delta (C12's decoupling distance, the ratsnest and the crossings) and that overlaps and outside stayed 0, instead of calling it better without numbers."
   }
 ]

@@ -68,7 +68,7 @@ without saving it, so save hand edits in Layout first. See [SECURITY.md](SECURIT
 | Pin planning | `schematic pin-plan`, `schematic pin-check` | offline, against a supplied snapshot |
 | PCB reads | `pcb info`, `components`, `footprints`, `nets`, `tracks`, `vias`, `layers`, `stackup`, `zones`, `keepouts`, `query` | both; natively `layers`, `stackup`, `zones` and `keepouts` are refused (not read yet) and `pcb info` reports their counts as null |
 | PCB design | `pcb create`, `annotate`, `outline`, `holes`, `arrange`, `placement`, `move`, `rules`, `pour`, `route`, `trace`, `via`, `unroute`, `labels`, `geometry`, `render`, `show`, `drc`, `export` | NativeBackend (see below) |
-| PCB planning | `pcb stitch`, `pcb placement-plan` | offline, from files |
+| PCB planning | `pcb stitch`, `pcb placement-plan`, `pcb metrics` | offline, from files; `pcb metrics` measures a placement and compares it with an earlier one |
 | Constraints/analysis | `constraints ...`, `analysis run|results|erc|drc|dfm` | MockBackend; refused on the native backend (use `review run` and `pcb drc`) |
 | Manufacturing/library reads | `manufacturing ...`, `library search|parts|symbols|footprints|padstacks|models|validate` | MockBackend; refused on the native backend, except `manufacturing bom`, which reads the components |
 | Change control | `change validate`, `change preview`, `change apply`, `change history`, `change rollback`, `schematic apply` | MockBackend; natively `change apply` places and moves parts, and `schematic apply` also creates nets and connects pins |

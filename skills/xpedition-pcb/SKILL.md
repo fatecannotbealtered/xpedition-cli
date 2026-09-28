@@ -171,6 +171,35 @@ xpedition-cli pcb components --backend native_xpedition --project X.prj --compac
 xpedition-cli pcb move --backend native_xpedition --project X.prj --refdes R12 --to 34,35.5 --dry-run --compact
 ```
 
+## Measuring the layout
+
+DRC says whether a board breaks a rule, not whether its placement is good. `pcb
+metrics` measures that from `pcb geometry`'s file, without Layout: the ratsnest
+per net and in total (the airwires as if nothing were routed) and how often
+signal airwires cross; parts whose extents overlap, leave the board or are not
+placed; each decoupling capacitor's distance to the nearest IC pin on its rail;
+connectors' distance to the edge; density; and the routing's length, vias and
+corners sharper than 90°. Before a placement change, save the measurement; after
+it, measure again against it: `delta` gives each summary value before and after,
+and lower is better for all but `density`. Say a layout got better only from
+those numbers.
+
+- `overlaps`, `outside` and `unplaced` are 0 before routing.
+- `decoupling_max_mm` is checked against DP-03 (2 mm unless a company rule says
+  otherwise).
+- Keep a move that brought the ratsnest or the crossings down without making the
+  overlaps, the parts outside or the decoupling distance worse.
+
+Extents stand in for courtyards, and supply nets are recognised by name (listed
+in `ratsnest.supply_nets`): check that list before trusting the signal numbers.
+
+```bash
+xpedition-cli pcb geometry --backend native_xpedition --project X.prj --output before.json --compact
+xpedition-cli pcb metrics --geometry before.json --output metrics.json --compact
+xpedition-cli pcb geometry --backend native_xpedition --project X.prj --output after.json --compact
+xpedition-cli pcb metrics --geometry after.json --baseline metrics.json --compact
+```
+
 ## Looking at the board
 
 `pcb show --output board.png` puts the board in front of the person; look at it
@@ -241,4 +270,6 @@ token; add it only after the user agreed to that loss.
   --replace` archives the layout; both stop for the user, and `--dangerous` is
   added only after the user agreed.
 - One part: `pcb move`, never `pcb arrange`, and the routing checked afterwards.
+- Better or worse: `pcb metrics` saved before a placement change and compared
+  with `--baseline` after it; the answer quotes the deltas, not an impression.
 - Boundary: a schematic drawing or BOM request is not this Skill's.

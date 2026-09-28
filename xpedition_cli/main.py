@@ -94,6 +94,7 @@ VALUE_FLAGS = {
     "--file",
     "--gap",
     "--geometry",
+    "--baseline",
     "--nets",
     "--min",
     "--expansion",
@@ -1169,6 +1170,53 @@ def _pcb_stitch(positionals: list[str], options: dict[str, Any]) -> dict[str, An
         output.write_text(
             json.dumps({"items": result["items"]}, ensure_ascii=False, indent=1), encoding="utf-8"
         )
+        result["path"] = str(output)
+    return result
+
+
+def _pcb_metrics(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
+    """`pcb metrics`: how good the placement and routing in a geometry file are, as
+    numbers two states of a board can be compared by — no Layout needed."""
+    from . import board_metrics
+
+    model = _geometry_model(options, "pcb metrics")
+    if model is None:
+        raise CLIError("E_USAGE", "pcb metrics requires --geometry board.json (from pcb geometry)")
+    result: dict[str, Any] = board_metrics.measure(model)
+    if options.get("baseline"):
+        baseline_path = Path(str(options["baseline"])).expanduser().resolve()
+        if not baseline_path.is_file():
+            raise CLIError(
+                "E_NOT_FOUND", "baseline file was not found", {"path": str(baseline_path)}
+            )
+        try:
+            baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CLIError("E_VALIDATION", f"cannot read the baseline: {exc}") from exc
+        # an earlier result, saved with --output or as the whole envelope
+        if isinstance(baseline, dict) and isinstance(baseline.get("data"), dict):
+            baseline = baseline["data"]
+        if not isinstance(baseline, dict) or not isinstance(baseline.get("summary"), dict):
+            raise CLIError(
+                "E_VALIDATION", "--baseline is a file an earlier pcb metrics --output wrote"
+            )
+        result["delta"] = board_metrics.compare(result, baseline)
+    result["_untrusted"] = [
+        "parts",
+        "ratsnest",
+        "overlaps",
+        "outside",
+        "decoupling",
+        "edge_parts",
+        "routing",
+    ]
+    if options.get("output"):
+        output = Path(str(options["output"])).expanduser().resolve()
+        if output.exists() and not options.get("replace"):
+            raise CLIError("E_CONFLICT", "output file already exists", {"path": str(output)})
+        output.parent.mkdir(parents=True, exist_ok=True)
+        saved = {key: value for key, value in result.items() if key not in {"delta", "path"}}
+        output.write_text(json.dumps(saved, ensure_ascii=False, indent=1), encoding="utf-8")
         result["path"] = str(output)
     return result
 
@@ -3576,6 +3624,8 @@ def dispatch(positionals: list[str], options: dict[str, Any]) -> dict[str, Any]:
     if positionals[0] == "pcb" and len(positionals) > 1 and positionals[1] in ("trace", "via"):
         return _pcb_trace(positionals, options)
 
+    if positionals[0] == "pcb" and len(positionals) > 1 and positionals[1] == "metrics":
+        return _pcb_metrics(positionals, options)
     if positionals[0] == "pcb" and len(positionals) > 1 and positionals[1] == "stitch":
         return _pcb_stitch(positionals, options)
 
@@ -4059,6 +4109,7 @@ Commands:
   pcb geometry|render|show|drc|export
                                   read, picture, check and package a board (native)
   pcb stitch                     plan ground-stitching vias from a geometry file (offline)
+  pcb metrics                    measure placement and routing from a geometry file (offline)
   pcb info|components|footprints|nets|layers|stackup|tracks|vias|zones|keepouts|query
                                   inspect normalized PCB data
   constraints list|query|validate|export
