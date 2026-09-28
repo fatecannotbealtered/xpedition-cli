@@ -640,6 +640,12 @@ def _build() -> list[Command]:
             params=(
                 Param("design", "path", True, description="the design description JSON"),
                 Param("output", "path", True, description="a .png; one file a sheet if several"),
+                Param(
+                    "project",
+                    "path",
+                    description="the project's .prj, whose central library holds the parts "
+                    'the design\'s symbols name ({"part": NUMBER}); needed only then',
+                ),
                 Param("sheets", "integer", multiple=True, description="only these sheets"),
                 Param("scale", "number", description="pixels per sheet unit, 0.5 to 6"),
                 _REPLACE,

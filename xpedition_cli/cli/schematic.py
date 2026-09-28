@@ -64,12 +64,15 @@ def ops_for_sheets(ops: list[dict[str, Any]], chosen: list[int]) -> list[dict[st
 def render(options: dict[str, Any]) -> dict[str, Any]:
     """A picture of every planned sheet, drawn from the plan before anything is drawn."""
     from .. import schematic_layout, schematic_render
+    from .library import design_library
 
     design_file, design = read_design(options, "schematic render")
     output = output_file(options, "schematic render", ".png", required=True)
     assert output is not None
+    project = project_file(options, "schematic render") if options.get("project") else None
+    parts = design_library(options, project, design, "schematic render")
     try:
-        plan = schematic_layout.plan(design)
+        plan = schematic_layout.plan(design, parts)
     except schematic_layout.DesignError as exc:
         raise CLIError(
             "E_VALIDATION", f"design cannot be drawn: {exc}", {"design": str(design_file)}
@@ -117,12 +120,14 @@ def draw(options: dict[str, Any]) -> dict[str, Any]:
     matches the plan.
     """
     from .. import schematic_layout
+    from .library import design_library
 
     check_gate(options, "schematic draw")
     project = project_file(options, "schematic draw")
     design_file, design = read_design(options, "schematic draw")
+    parts = design_library(options, project, design, "schematic draw")
     try:
-        params = schematic_layout.plan_to_params(design, str(project))
+        params = schematic_layout.plan_to_params(design, str(project), parts)
     except schematic_layout.DesignError as exc:
         raise CLIError(
             "E_VALIDATION", f"design cannot be drawn: {exc}", {"design": str(design_file)}

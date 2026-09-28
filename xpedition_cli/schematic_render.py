@@ -151,23 +151,26 @@ def text_width(text: str, size: float) -> float:
 def parse_symbol(text: str) -> _Art:
     """The polylines and the attribute texts of a `V 53` symbol file."""
     art = _Art()
-    for line in text.splitlines():
+    lines = text.splitlines()
+    # a V 54 file writes its coordinates 25400 times larger than a V 53 one
+    scale = 25400.0 if lines and lines[0].split()[:2] == ["V", "54"] else 1.0
+    for line in lines:
         fields = line.split()
         if not fields:
             continue
         kind = fields[0]
         if kind == "l" and len(fields) >= 2:
             count = int(fields[1])
-            numbers = [float(v) for v in fields[2 : 2 + 2 * count]]
+            numbers = [float(v) / scale for v in fields[2 : 2 + 2 * count]]
             art.lines.append(list(zip(numbers[0::2], numbers[1::2], strict=False)))
         elif kind in {"U", "A"} and len(fields) >= 8 and "=" in line:
             # x y size rotation anchor visibility NAME=value; visibility 0 is hidden
             name, _, value = " ".join(fields[7:]).partition("=")
             art.texts.append(
                 (
-                    float(fields[1]),
-                    float(fields[2]),
-                    int(fields[3]),
+                    float(fields[1]) / scale,
+                    float(fields[2]) / scale,
+                    int(round(float(fields[3]) / scale)),
                     int(fields[5]),
                     name,
                     value,
@@ -185,6 +188,8 @@ def _turn(x: float, y: float, orientation: int) -> Point:
 def _symbol_art(plan: L.Plan, library: str, name: str) -> _Art | None:
     if name in plan.symbols:
         return parse_symbol(plan.symbols[name])
+    if name in plan.library_symbols:
+        return parse_symbol(plan.library_symbols[name])
     if (library, name) == ("Globals", "gnd"):
         # the stock Globals:gnd, as its file draws it: a pin down to a triangle, and the
         # net name hanging under it (VDALIGN_UC at y -15, size 8)

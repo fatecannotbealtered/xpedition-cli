@@ -37,12 +37,15 @@ def build(options: dict[str, Any]) -> dict[str, Any]:
     check_gate(options, "library build")
     project = project_file(options, "library build")
     design_file, design = read_design(options, "library build")
+    held, _meta = load_library(options, project, kinds=("parts",))
+    parts = design_parts(held, design, "library build")
     try:
-        plan, texts = library_hkp.library_texts(design, options.get("partition"))
+        plan, texts = library_hkp.library_texts(design, options.get("partition"), parts)
     except (schematic_layout.DesignError, ValueError) as exc:
         raise CLIError(
             "E_VALIDATION", f"design cannot be packaged: {exc}", {"design": str(design_file)}
         ) from exc
+    _refuse_overwriting_real_parts(plan, held)
     partition = plan.partition
     summary = plan.summary()
     digest = hashlib.sha256(
@@ -70,6 +73,10 @@ def build(options: dict[str, Any]) -> dict[str, Any]:
                 *([{"action": "package_design"}] if options.get("package") else []),
             ],
             "summary": summary,
+            "library_parts": sorted(parts or {}),
+            "placeholders_replaced": sorted(
+                number for number in plan.parts if held.find_parts(number)
+            ),
             "risk": {
                 "tier": "T1",
                 "blast_radius": (
@@ -100,6 +107,8 @@ def build(options: dict[str, Any]) -> dict[str, Any]:
         result["package"] = backend.invoke(
             "package", {"project": str(project)}, timeout_seconds=900.0
         )
+        # the parts are in the library either way; the build asked for a packaged design
+        result["ok"] = bool(result["package"].get("packaged"))
     result["summary"] = summary
     result["_untrusted"] = [*(result.get("_untrusted") or []), "summary", "package"]
     return result
@@ -182,6 +191,86 @@ LIBRARY_KINDS = ("parts", "cells", "symbols", "padstacks")
 EXPORT_TIMEOUT = 600.0
 
 
+def design_parts(library: Any, design: dict[str, Any], command: str) -> dict[str, Any] | None:
+    """The central-library parts a design's symbols name, as the planner takes them:
+    by number, each with its partition, symbol name, symbol file text and cell."""
+    from .. import schematic_layout
+
+    numbers = schematic_layout.library_part_numbers(design)
+    if not numbers:
+        return None
+    found: dict[str, Any] = {}
+    missing: list[str] = []
+    for number in numbers:
+        rows = library.find_parts(number)
+        symbol = library.find_symbol(rows[0]["symbols"][0]) if rows and rows[0]["symbols"] else None
+        if symbol is None or not symbol.get("path"):
+            missing.append(number)
+            continue
+        try:
+            text_ = Path(symbol["path"]).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            missing.append(number)
+            continue
+        found[number] = {
+            "partition": symbol["partition"],
+            "symbol": symbol["name"],
+            "text": text_,
+            "cell": rows[0]["cell"],
+        }
+    if missing:
+        raise CLIError(
+            "E_VALIDATION",
+            f"{command}: the design names parts the library does not hold: {missing}",
+            {
+                "parts": missing,
+                "hint": "library list --query <number>; library add --file parts.json",
+            },
+        )
+    return found
+
+
+def design_library(
+    options: dict[str, Any], project: Path | None, design: dict[str, Any], command: str
+) -> dict[str, Any] | None:
+    """`design_parts` for a design that names library parts; None, and no read, for one
+    that names none."""
+    from .. import schematic_layout
+
+    numbers = schematic_layout.library_part_numbers(design)
+    if not numbers:
+        return None
+    if project is None:
+        raise CLIError(
+            "E_USAGE",
+            f"{command}: the design names library parts {numbers[:5]}; give --project X.prj "
+            "so their symbols are read from its central library",
+        )
+    library, _meta = load_library(options, project, kinds=("parts",))
+    return design_parts(library, design, command)
+
+
+def _refuse_overwriting_real_parts(plan: Any, held: Any) -> None:
+    """A placeholder whose number is a part `library add` made would replace it."""
+    from .. import library_parts
+
+    real = sorted(
+        number
+        for number in plan.parts
+        if any(not library_parts.placeholder(row) for row in held.find_parts(number))
+    )
+    if real:
+        raise CLIError(
+            "E_CONFLICT",
+            f"library build would replace library parts {real[:5]} with placeholders: the "
+            "design draws its own symbol for them",
+            {
+                "parts": real,
+                "hint": 'name them in the design\'s symbols: {"LDO": {"part": "<number>"}}',
+            },
+        )
+
+
 def cache_root() -> Path:
     from ..audit import config_dir
 
@@ -239,6 +328,7 @@ def load_library(
                 continue
             symbol = R.parse_symbol(content, partition, name)
             symbol["version"] = int(path.suffix[1:])
+            symbol["path"] = str(path)
             library.symbols.append(symbol)
     meta = {
         "library": exported.get("library"),

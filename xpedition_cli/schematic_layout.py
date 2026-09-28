@@ -123,6 +123,10 @@ class Plan:
     partition: str = PARTITION
     # generated symbol name -> [(pin number, pin name)], for the parts database
     symbol_pins: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # library parts' symbols, by name: drawn in the preview, never written
+    library_symbols: dict[str, str] = field(default_factory=dict)
+    # value -> (symbol, refdes) of the first part drawn with it: a value is a part number
+    numbers: dict[str, tuple[str, str]] = field(default_factory=dict)
     sheet_size: str = ""
 
     def summary(self) -> dict[str, Any]:
@@ -178,18 +182,50 @@ def _hashed_name(base: str, text: str) -> str:
 
 
 class _Library:
-    """Symbols the plan needs, named by content so cached definitions never bite."""
+    """Symbols the plan needs, named by content so cached definitions never bite.
 
-    def __init__(self, specs: dict[str, Any]) -> None:
+    A spec `{"part": NUMBER}` names a part of the central library instead: its own
+    symbol is placed, from the file `parts` gives (see `library_part_numbers`).
+    """
+
+    def __init__(self, specs: dict[str, Any], parts: dict[str, Any] | None = None) -> None:
         self._specs = specs
+        self._parts = parts or {}
         self._built: dict[str, S.Symbol] = {}
         self.files: dict[str, str] = {}
         self.pins: dict[str, list[tuple[str, str]]] = {}
+        # design symbol name -> (partition, part number) of a library part
+        self.bound: dict[str, tuple[str, str]] = {}
+        self.library_files: dict[str, str] = {}
+
+    def _library_part(self, name: str, number: str) -> S.Symbol:
+        part = self._parts.get(number)
+        if part is None:
+            raise DesignError(
+                f"symbol {name!r} names library part {number!r}, which was not read from the "
+                "library; the commands that plan a design read it when given --project"
+            )
+        symbol = S.from_file(str(part["text"]), str(part["symbol"]))
+        if not symbol.pins:
+            raise DesignError(f"library part {number!r}: its symbol has no pins")
+        off = [p.number for p in symbol.pins if not (S.on_grid(p.x) and S.on_grid(p.y))]
+        if off:
+            raise DesignError(
+                f"library part {number!r}: symbol pins {off[:6]} end off the {GRID}-unit "
+                "grid, where no wire can reach them"
+            )
+        self.bound[name] = (str(part["partition"]), number)
+        self.library_files[symbol.name] = str(part["text"])
+        return symbol
 
     def symbol(self, name: str) -> S.Symbol:
         if name in self._built:
             return self._built[name]
         spec = self._specs.get(name)
+        if isinstance(spec, dict) and "part" in spec:
+            symbol = self._library_part(name, str(spec["part"]))
+            self._built[name] = symbol
+            return symbol
         if spec is None and name in BUILTIN:
             symbol = BUILTIN[name]()
         elif spec is None:
@@ -380,6 +416,20 @@ class _SheetPlanner:
         if x % GRID or y % GRID:
             raise DesignError(f"{refdes}: position ({x}, {y}) is off the {GRID}-unit grid")
         symbol = self.library.symbol(symbol_name)
+        bound = self.library.bound.get(symbol_name)
+        number = " ".join(value.split())
+        if not bound and number and symbol.pins:
+            # The value is the Part Number the drawing carries, and a part number names
+            # one part with one symbol. The build used to rename the second one
+            # ("HDR-1X02 [HDRL]") while the drawing kept the value, and the packager
+            # then found no part with that symbol and packaged nothing.
+            first = self.plan.numbers.setdefault(number, (symbol_name, refdes))
+            if first[0] != symbol_name:
+                raise DesignError(
+                    f"{refdes} and {first[1]} share the value {number!r} but are drawn with "
+                    f"different symbols ({symbol_name}, {first[0]}); the value is the part "
+                    "number, which names one part: give one of them its own value"
+                )
         placed = _Placed(refdes, symbol, x, y, orientation)
         self.placed[refdes] = placed
         attributes: list[dict[str, Any]] = []
@@ -448,9 +498,9 @@ class _SheetPlanner:
         self.op(
             op="place_part",
             refdes=refdes,
-            library=self.partition,
+            library=bound[0] if bound else self.partition,
             symbol=symbol.name,
-            part=value,
+            part=bound[1] if bound else value,
             x=x,
             y=y,
             orientation=orientation,
@@ -466,6 +516,7 @@ class _SheetPlanner:
                 "y": y,
                 "orientation": orientation,
                 "sheet": self.sheet,
+                **({"part": bound[1], "library": bound[0]} if bound else {}),
             }
         )
         return placed
@@ -824,8 +875,47 @@ class _SheetPlanner:
                     )
 
 
-def plan(design: dict[str, Any]) -> Plan:
-    """Turn a design description into drawing operations plus their expected netlist."""
+def library_part_numbers(design: Any) -> list[str]:
+    """The central-library parts a design's symbols name (`{"part": NUMBER}`)."""
+    symbols = design.get("symbols") if isinstance(design, dict) else None
+    if not isinstance(symbols, dict):
+        return []
+    numbers = [
+        " ".join(str(spec["part"]).split())
+        for spec in symbols.values()
+        if isinstance(spec, dict) and "part" in spec
+    ]
+    return sorted(dict.fromkeys(n for n in numbers if n))
+
+
+def refdes_by_sheet(design: Any) -> dict[str, int]:
+    """Which sheet each part is drawn on, from the design alone (no symbols needed)."""
+    found: dict[str, int] = {}
+    sheets = design.get("sheets") if isinstance(design, dict) else None
+    for index, sheet in enumerate(sheets if isinstance(sheets, list) else [], start=1):
+        if not isinstance(sheet, dict):
+            continue
+        try:
+            number = int(sheet.get("number", index))
+        except (TypeError, ValueError):
+            continue
+        for block in sheet.get("blocks") or []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("refdes"):
+                found.setdefault(str(block["refdes"]), number)
+            for item in (block.get("path") or [])[1::2]:
+                if isinstance(item, dict) and item.get("refdes"):
+                    found.setdefault(str(item["refdes"]), number)
+    return found
+
+
+def plan(design: dict[str, Any], parts: dict[str, Any] | None = None) -> Plan:
+    """Turn a design description into drawing operations plus their expected netlist.
+
+    `parts` holds the central-library parts the design's symbols name, by number:
+    `{"partition", "symbol", "text", "cell"}` each (the CLI reads them).
+    """
     if (
         not isinstance(design, dict)
         or not isinstance(design.get("sheets"), list)
@@ -836,7 +926,7 @@ def plan(design: dict[str, Any]) -> Plan:
     if size not in SHEET_SIZES:
         raise DesignError(f"unknown sheet size {size!r}; use one of {sorted(SHEET_SIZES)}")
     width, height = SHEET_SIZES[size]
-    library = _Library(dict(design.get("symbols", {})))
+    library = _Library(dict(design.get("symbols", {})), parts)
     partition = str(design.get("partition") or PARTITION)
     # a folder of the symbol library and an entry in the .prj: a plain identifier
     if not _PARTITION_NAME.fullmatch(partition):
@@ -891,6 +981,7 @@ def plan(design: dict[str, Any]) -> Plan:
         result.sheets.append({"number": number, "title": sheet_title, "parts": len(planner.placed)})
     result.symbols = dict(library.files)
     result.symbol_pins = dict(library.pins)
+    result.library_symbols = dict(library.library_files)
     # DS-17 reads the finished plan: every text where Designer will draw it, against
     # every other text, every line and every label box
     from . import schematic_render
@@ -900,9 +991,11 @@ def plan(design: dict[str, Any]) -> Plan:
     return result
 
 
-def plan_to_params(design: dict[str, Any], project: str) -> dict[str, Any]:
+def plan_to_params(
+    design: dict[str, Any], project: str, parts: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """The `draw` request the native adapter expects."""
-    result = plan(design)
+    result = plan(design, parts)
     return {
         "project": project,
         "library": result.partition,

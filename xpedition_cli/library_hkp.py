@@ -514,14 +514,14 @@ def _kicad_cell(spec: str, root: Any, cache: dict[str, Cell], library: LibraryPl
 # -- the plan ----------------------------------------------------------------------------
 
 
-def plan_library(design: dict[str, Any]) -> LibraryPlan:
+def plan_library(design: dict[str, Any], parts: dict[str, Any] | None = None) -> LibraryPlan:
     """Padstacks, cells and parts for every part a design places.
 
     Part numbers are the values the schematic carries as `Part Number`, so the
     packager finds them without touching the drawing; a central library with
     real part numbers replaces this placeholder set later.
     """
-    plan = L.plan(design)
+    plan = L.plan(design, parts)
     library = LibraryPlan(partition=plan.partition)
     stock = _Stock(library)
     overrides = {str(k): str(v) for k, v in dict(design.get("packages", {})).items()}
@@ -530,6 +530,21 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
     for part in plan.parts:
         refdes = str(part["refdes"])
         kind = str(part["symbol"])
+        if part.get("part"):
+            # a central-library part: it is in the library already, nothing to make up
+            held = (parts or {}).get(str(part["part"])) or {}
+            library.mapping.append(
+                {
+                    "refdes": refdes,
+                    "symbol": kind,
+                    "part_number": part["part"],
+                    "cell": held.get("cell", ""),
+                    "package": "library",
+                    "partition": part.get("library", ""),
+                    "library_part": True,
+                }
+            )
+            continue
         symbol_name = str(part["symbol_name"])
         pins = plan.symbol_pins.get(symbol_name, [])
         key = (
@@ -584,7 +599,14 @@ def plan_library(design: dict[str, Any]) -> LibraryPlan:
         prefix = _prefix(refdes)
         existing = library.parts.get(number)
         if existing is not None and (existing.symbol != symbol_name or existing.cell != cell.name):
-            number = f"{number} [{kind}]"
+            other = next(
+                (row["refdes"] for row in library.mapping if row["part_number"] == number), "?"
+            )
+            raise ValueError(
+                f"{refdes} and {other} share the value {number!r} but need different parts "
+                f"(cell {cell.name} against {existing.cell}); the value is the part number "
+                "the drawing carries, which names one part: give one of them its own value"
+            )
         if number not in library.parts:
             library.parts[number] = Part(
                 number=number,
@@ -957,11 +979,11 @@ def render_parts(plan: LibraryPlan) -> str:
 
 
 def library_texts(
-    design: dict[str, Any], partition: str | None = None
+    design: dict[str, Any], partition: str | None = None, parts: dict[str, Any] | None = None
 ) -> tuple[LibraryPlan, dict[str, str]]:
     if partition:
         design = {**design, "partition": partition}
-    plan = plan_library(design)
+    plan = plan_library(design, parts)
     texts = {
         "padstacks": render_padstacks(plan),
         "cells": render_cells(plan),

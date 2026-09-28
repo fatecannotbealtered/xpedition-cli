@@ -478,3 +478,27 @@ def write_symbol(library_root: Path, partition: str, symbol: Symbol) -> Path:
 
 def on_grid(value: int) -> bool:
     return value % GRID == 0
+
+
+def from_file(text: str, name: str) -> Symbol:
+    """A symbol read from its file -- a library part's -- to place and wire like a
+    generated one. Its file already exists; only its pins and extent are needed."""
+    from .library_read import parse_symbol
+
+    data = parse_symbol(text, "", name)
+    pins = [
+        Pin(
+            str(pin["number"]),
+            str(pin["name"]),
+            int(round(pin["x"])),
+            int(round(pin["y"])),
+            int(round(pin["bx"])),
+            int(round(pin["by"])),
+            str(pin["side"]),
+            str(pin["type"] or "BI"),
+        )
+        for pin in data["pins"]
+    ]
+    x1, y1, x2, y2 = data["bbox"]
+    bbox = (math.floor(x1), math.floor(y1), math.ceil(x2), math.ceil(y2))
+    return Symbol(name, str(data["device"] or name), pins, [], [], bbox, show_pin_text=True)

@@ -7295,11 +7295,31 @@ def _draw(params: dict[str, Any], client: Any) -> dict[str, Any]:
         except OSError as exc:
             raise AdapterError("E_IO", f"cannot write symbol files: {exc}") from exc
     app = _viewdraw_application(client, attach_only=True)
-    if not _prj_lists(project_path, f"SymbolLibs\\{library}"):
-        # Designer searches the symbol partitions its .prj lists; add ours with the
-        # project closed, or the edit is lost when Designer writes the file back
+    # Designer searches the symbol partitions and parts databases its .prj lists: the
+    # design's own, and every partition a library part is placed from. Add them with
+    # the project closed, or the edit is lost when Designer writes the file back.
+    needed: list[tuple[str, str]] = [("Symbols", f"SymbolLibs\\{library}")]
+    others = sorted(
+        {
+            str(op.get("library"))
+            for op in ops
+            if isinstance(op, dict) and op.get("op") == "place_part" and op.get("library")
+        }
+        - {library}
+    )
+    if others:
+        library_root = _symbol_library_root(project_path).parent
+        for partition in others:
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", partition):
+                continue
+            needed.append(("Symbols", f"SymbolLibs\\{partition}"))
+            if (library_root / "PartsDBLibs" / f"{partition}.pdb").is_file():
+                needed.append(("PDBs", f"PartsDBLibs\\{partition}.pdb"))
+    missing = [(name, entry) for name, entry in needed if not _prj_lists(project_path, entry)]
+    if missing:
         _close_if_open(app, project_path)
-        _ensure_prj_list(project_path, "Symbols", f"SymbolLibs\\{library}")
+        for name, entry in missing:
+            _ensure_prj_list(project_path, name, entry)
     _ensure_project(app, project_path)
     wire_kind = _constants(client, ["VD_WIRE"])["VD_WIRE"]
     components: dict[str, Any] = {}

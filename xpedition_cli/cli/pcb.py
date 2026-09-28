@@ -412,13 +412,9 @@ def _design_zones(options: dict[str, Any]) -> dict[str, str]:
                 labels[int(sheet.get("number") or index)] = str(sheet["zone"]).strip()
             except (TypeError, ValueError):
                 continue
-    try:
-        parts = schematic_layout.plan(design).parts
-    except schematic_layout.DesignError:
-        parts = []
     by_sheet: dict[int, list[str]] = {}
-    for part in parts:
-        by_sheet.setdefault(int(part.get("sheet") or 0), []).append(str(part["refdes"]))
+    for refdes, sheet_number in schematic_layout.refdes_by_sheet(design).items():
+        by_sheet.setdefault(sheet_number, []).append(refdes)
     zones: dict[str, str] = {}
     for sheet_number, label in sorted(labels.items()):
         refs = by_sheet.get(sheet_number)
