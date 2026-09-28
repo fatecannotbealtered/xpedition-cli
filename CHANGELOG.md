@@ -7,7 +7,116 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-29
+
+A new command tree. It breaks every script written against 1.0.0: the old names are
+gone with no aliases, and so is the offline mock backend. Under Semantic Versioning
+this is a major change; it is released as 1.0.1 by the maintainer's decision, while
+nothing depends on 1.0.0 yet.
+
+### Removed
+
+- The mock backend and `--backend`: every command works on a real project through
+  the Windows adapter, and the tests fake the adapter at its JSON boundary. With it
+  went the commands that answered only for the mock project: `change history`,
+  `change rollback`, `exchange inspect`, `exchange import`, `analysis run`,
+  `analysis dfm`, `project diff`.
+- `agent serve` (the NDJSON and MCP bridge, four read-only tools) and the rest of
+  the `agent` group (`snapshot`, `query`, `review`, `capabilities`), copies of other
+  commands.
+- The `system` group: `capabilities`, `doctor`, `license` and `version` answer in
+  `context`, `doctor` and `version`; `api-inventory` left the product.
+- Aliases, copies and empty commands: `design snapshot`, `project snapshot`,
+  `project tree`, `session logs` (nothing wrote its log), `schematic interfaces`
+  (always empty), `schematic pin-plan` and `pin-check`, `bom normalize`,
+  `bom variants`, `manufacturing bom`.
+
+### Changed
+
+- 118 commands became 54, each declared once in a registry that the parser,
+  `--help` and `reference` all read. Each says its stage in the design flow and what
+  must be running (`needs`: designer, layout, xpedition or none), and `reference`
+  publishes the flow as a twelve-step `workflow`.
+- Renamed or merged, old -> new:
+  - `project init` -> `project create`; `project info` and `project tree` ->
+    `project info` (read from the `.prj` alone);
+  - `session attach`, `session open` -> `session start` (which now opens
+    `--project`; it was ignored);
+  - `library kicad-import` -> `library import`; `library search|parts|symbols|
+    footprints|padstacks|models` -> `library list --kind`; `library validate` ->
+    `library check`;
+  - `review run|findings|report`, `schematic unconnected`, `analysis erc` ->
+    `schematic check` (without `--rules`, which injected its file's entries as
+    findings without checking anything);
+  - `change validate|preview|apply`, `schematic apply` -> `schematic edit`;
+  - `schematic components|pins|query` -> `schematic components`;
+    `schematic nets|connectivity|power` -> `schematic nets`;
+  - `pcb drc`, `analysis drc`, `analysis results` -> `pcb check`;
+  - `pcb info|layers|stackup` -> `pcb info`; `pcb components|footprints|nets|
+    tracks|vias|query|zones|keepouts` and `pcb geometry` -> `pcb geometry`;
+  - `pcb placement`, `pcb placement-plan` -> `pcb move --file`;
+  - `pcb rules`, `constraints list|query|validate|export` -> `pcb rules`;
+  - `pcb export`, `manufacturing artifacts|verify` -> `pcb export`;
+  - `bom export|group|compare` -> `bom export` (`--group`, `--baseline`);
+    `bom validate|missing|duplicates` -> `bom check`.
+- The parser is strict: an option a command does not declare, a missing required
+  one, a stray positional argument and a malformed value are refused before anything
+  runs, with the options the command takes.
+- `schematic edit` activates the sheet each operation's part is on, draws a
+  connection as a horizontal and a vertical wire between the pins with its label
+  over the first segment (it was drawn from the sheet origin), and saves the sheets
+  it touched.
+- `library build` reads the library's parts first: it makes no placeholder for a
+  part the design names from the library, and refuses a placeholder whose number is
+  a real part (`-r` would have replaced it). Its dry run needs the adapter.
+- `schematic export` takes `--replace`, like every other command that writes a
+  file.
+
 ### Added
+
+- The project's own design library:
+  - `library list` pages its parts, cells, symbols or padstacks, read through the
+    stock converters (`PartsDB2HKP`, `CellDB2HKP`, `PadstackDB2HKP`), six at a time,
+    into a cache refreshed when a database changes;
+  - `library show` gives one part whole (pin map, symbol pins, cell lands and their
+    padstacks, what is wrong with it) or one cell and the parts using it;
+  - `library check` checks the library: parts against their cells, symbols and pin
+    maps, cells against the padstacks, repeated pin names, part numbers in two
+    partitions;
+  - `library add` adds parts from a parts file -- a symbol (a box with typed pins or
+    a built-in kind), a footprint and the pin map -- compares everything with what
+    the library holds (identical content is kept, other content under a name is a
+    replacement that needs `--dangerous`), imports, and reads the library back;
+  - footprints by IPC-7351B from a datasheet's dimensions: chip, molded, gull-wing
+    (SOIC, SOP, SOT, QFP), J-lead, QFN/DFN/SON with an exposed pad (paste reduced,
+    terminals pulled back to clear it) and through-hole; density levels, omitted
+    lead positions, rounded lands, a silkscreen kept off the lands, a pin-1 mark and
+    a courtyard. The SOIC-8 and TSSOP-20 lands match KiCad's. Lands may also be given
+    one by one, several on one pin number;
+  - `library render` draws a part's symbol beside its footprint, from the library or
+    from a parts file before it is added.
+- A design's symbols may name a library part, `{"LDO": {"part": "TPS7A2033PDBVR"}}`:
+  the drawing places the library's own symbol with its part number, from its
+  partition, which the draw lists in the `.prj`.
+- `schematic edit` deletes a part (with the wires, power symbols and label boxes
+  only it used), sets a property, disconnects a pin and renames a labelled net on
+  every sheet (resizing its label boxes); each is verified by reading the design
+  back.
+- `project backup` zips the project folder beside it (closing the project in
+  Designer for the moment its database is locked); `project restore` makes the
+  folder what a backup holds, after zipping it as it is.
+- `pcb info` reads the stackup (each layer's kind, name, thickness and dielectric
+  constant), the board's thickness, the net classes with their widths per layer
+  and the keepouts.
+- `pcb geometry` carries the keepouts and the nets still open; `--refdes` and
+  `--nets` narrow it.
+- `pcb route --nets` routes only the nets named.
+- `pcb check` adds the board rules DRC does not cover: parts unplaced, off the board
+  or overlapping, decoupling capacitors far from their IC, connectors far from an
+  edge, acute trace corners, open nets. `clean` needs none of the high or medium
+  ones.
+- `pcb metrics --project` measures the live board.
+
 
 - Sheet sizes `E`, `A2`, `A1` and `A0`, on their landscape borders and pages
   (`VDSHEET_EL_SIZE` 15, `A2L_SIZE` 18 to `A0L_SIZE` 20); an ISO drawing could not grow
@@ -47,22 +156,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--output` saves a result and `--baseline` compares with one: every summary value
   comes back before, after and changed. DRC could say a board broke no rule; nothing
   said whether a move made the layout better.
-- `library kicad-import` names the footprints the converter refused or crashed on:
+- `library import` names the footprints the converter refused or crashed on:
   `dropped` and `dropped_samples` on each library and `dropped_footprints` in the
   summary. A library that imported without them read as plain success, and a design
   naming one of them got no cell.
 
-### Changed
-
-- On the native backend, reads the snapshot does not make are refused with
-  `E_BACKEND_UNAVAILABLE` and a hint naming the command that does read that data:
-  `library`, `constraints`, stored `analysis` results, `manufacturing
-  artifacts|verify` and `pcb layers|stackup|zones|keepouts`. They answered from the
-  project model's empty defaults, which said "no keep-outs" or "the library is
-  empty" about a board and a library that had both. `pcb info` reports the board's
-  layer count and null for the counts it does not read, listed in `not_read`.
-
 ### Fixed
+
+- `pcb route --layers` never did what it said: `RoutePass.LayerSelect` takes a
+  select type and a layer, and was called with a layer and a flag, so layer 2 read as
+  "add", layer 3 as "remove" and the outer layers were refused. Each excluded layer is
+  removed now; a net routed with `--layers 1,4` lies on layers 1 and 4 only.
+- The parts database stores `Value` as a number with an SI multiplier and anything
+  else -- `10k 1%`, `100nF/16V` -- as 0, with no more than a warning: every passive
+  `library build` generated had Value 0. Placeholders carry the number their value
+  begins with, or no Value; `library add` refuses a value the library cannot keep,
+  and converter warnings are reported.
+- Two parts sharing a value but drawn with different symbols (or needing different
+  cells) made `library build` rename the second part while the drawing kept the
+  value, so the packager found no such part and packaged nothing. A value is the part
+  number and names one part: the planner and the build refuse the clash.
+- `library build --package` reported `ok` when packaging failed.
+- `pcb rules` could not find GND or +5V: Constraint Manager's net list leaves out the
+  power nets unless asked for them.
+- `pcb holes` previewed a diameter the library has no padstack for and failed at the
+  first hole; the preview checks the library and names the sizes it has.
+- A generated placeholder cell had no reference designator, so the board had none and
+  `pcb labels` nothing to move.
+- `pcb arrange` labelled a sheet's parts with the wrong zone when the design numbers
+  its parts after another sheet.
+- `schematic sheets` listed only the sheets open in a window.
+- `doctor` failed the Xpedition check whenever the recorded session process was gone.
+- A COM failure's message was the raw error tuple; it is the application's own text.
+
 
 - `schematic draw`'s netlist check walked only the planned nets, so a drawing with a
   template's leftover part wired to a no-connect pin still matched. It now reports
@@ -87,7 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `library build` reported `ok` while `cells_missing` named a cell partition the
   library does not have, and then packaged a design whose parts had no footprint.
   It is not `ok` now, `--package` does not run, and a hint names
-  `library kicad-import`.
+  `library import`.
 - The adapter's default partition is the planner's `PartQuest`, not `Case`.
 - An ANSI sheet was drawn on a portrait page. The planner set the page with the plain
   `VdSheetSize` codes, whose ANSI members are portrait pages, under the landscape

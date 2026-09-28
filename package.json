@@ -1,7 +1,7 @@
 {
   "name": "@fateforge/xpedition-cli",
-  "version": "1.0.0",
-  "description": "read, validate, preview, and apply controlled Xpedition design changes with mock-first verification",
+  "version": "1.0.1",
+  "description": "agent-native control of Siemens Xpedition: schematic, design library, board and fabrication outputs, every write previewed and verified",
   "license": "MIT",
   "author": "Sean Guo <guosong6886@gmail.com>",
   "repository": {
@@ -19,12 +19,12 @@
     "check-version": "node scripts/check-version.js"
   },
   "optionalDependencies": {
-    "@fateforge/xpedition-cli-darwin-arm64": "1.0.0",
-    "@fateforge/xpedition-cli-darwin-x64": "1.0.0",
-    "@fateforge/xpedition-cli-linux-arm64": "1.0.0",
-    "@fateforge/xpedition-cli-linux-x64": "1.0.0",
-    "@fateforge/xpedition-cli-win32-arm64": "1.0.0",
-    "@fateforge/xpedition-cli-win32-x64": "1.0.0"
+    "@fateforge/xpedition-cli-darwin-arm64": "1.0.1",
+    "@fateforge/xpedition-cli-darwin-x64": "1.0.1",
+    "@fateforge/xpedition-cli-linux-arm64": "1.0.1",
+    "@fateforge/xpedition-cli-linux-x64": "1.0.1",
+    "@fateforge/xpedition-cli-win32-arm64": "1.0.1",
+    "@fateforge/xpedition-cli-win32-x64": "1.0.1"
   },
   "files": [
     "scripts/run.js",

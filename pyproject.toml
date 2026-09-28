@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xpedition-cli"
 dynamic = ["version"]
-description = "Read, validate, preview, and apply controlled Xpedition design changes with mock-first verification"
+description = "Agent-native control of Siemens Xpedition: schematic, design library, board and fabrication outputs, every write previewed and verified"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
