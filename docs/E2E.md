@@ -503,6 +503,36 @@ What the run found, all fixed before the release:
 Not done in this run: one designator (R203) stayed `unplaced` beside its
 neighbour; the arrange packs the resistor column too tightly for both labels.
 
+## Recorded run: a library imported from another (2026-09-29)
+
+The design library without KiCad: parts created from datasheets in one project's
+library, then imported into another's with `library import`, on the same XPED2604
+installation. Designer waited at the Siemens sign-in for the whole run, so it
+covers everything the library converters do, not a draw.
+
+| Step | Commands | Evidence |
+|---|---|---|
+| Projects | `project create` (twice) | two copies of the template, 264 files each; Designer, at its sign-in, was not needed |
+| Source | `library add --partition Company`, `library add --partition Connectors` | an SOT-23-5 LDO, a 0603 resistor and an SON-6 MOSFET in `Company`; in `Connectors` a USB-C test part whose shell legs are plated 0.6 x 1.7 mm slots in oblong lands, on one pin, beside two unplated 0.65 mm locating pegs. The converters took the slots and the mounting holes; verified, no finding |
+| Read by `.lmc` | `library list`, `show`, `check`, `render --library` | the stock template library read without a project (40 cells; the partition `Starpoints and Tiebars`); the USB-C part read back from the source as written: `SLOT` 0.6 x 1.7 plated, `MH-C0.65-NONPLATED`, drawn as its parts file draws it |
+| Import | `library import --from Impsrc.prj --parts` (four) | the dry run: 4 parts in 2 partitions, 4 symbols, 4 cells, 23 padstacks, pads and holes, all `add`; the confirm, 4 s: the padstacks, 2 cell and 2 parts partitions through the converters, every symbol written and every partition registered in the `.prj`; verified, no finding |
+| Again | the same import | every item `keep`, and "a confirm changes nothing" |
+| Replace | `library add` of a changed resistor in the source, then the import | only that part `replace`; the confirm refused without `--dangerous`, and with it ran the parts converter alone, with `-r`; the target reads the new description |
+| Target | `library check`, `schematic render --project` | 4 parts, 44 cells, 133 symbols, clean; the design naming the imported parts plans without an issue, its sheet drawn with their symbols |
+
+What the run found, fixed before the release:
+
+- A cell with two lands of one pin came back from the library with those lands in
+  another order, so an import meeting its own earlier import called two cells
+  replaced. Records are compared with their lists in one order.
+- The parts database keeps `10k` as `10K`, so `library add` called the resistor it
+  had just added a replacement -- as it called every part the library held,
+  whatever its content. A part is compared by what it says, its Value by the number
+  it stands for, and an identical one is kept.
+
+Not done in this run: drawing a design with the imported parts, packaging it and
+bringing it onto a board, which needs Designer and Layout past the sign-in.
+
 ## What the recorded runs do not cover
 
 - Every recorded run comes from one Windows installation of XPED2604. A second
