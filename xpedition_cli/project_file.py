@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path, PureWindowsPath
 
 DEFAULT_LAYOUT_TEMPLATE = "4 Layer Template"
 CELL_LIST = "2dCellLibraries"
@@ -27,6 +28,26 @@ class Design:
 
     def is_board(self) -> bool:
         return self.config_type.upper() == "PCB"
+
+
+def local_path(folder: Path, value: str) -> Path:
+    """A path the `.prj` names, on this machine.
+
+    Designer writes Windows paths, relative ones to the project's folder
+    (`PCB\\Board.pcb`, `..\\Lib\\Central.lmc`). A relative one is joined to `folder`
+    part by part, so its backslashes separate folders on every system; a path with a
+    drive (`D:\\Lib\\Central.lmc`) or a root stays as written, and on a system without
+    drives it names no file (`foreign`).
+    """
+    windows = PureWindowsPath(value)
+    if windows.anchor:
+        return Path(value)
+    return folder.joinpath(*windows.parts).resolve()
+
+
+def foreign(value: str) -> bool:
+    """A Windows drive or UNC path read where paths have no drives: no local file."""
+    return bool(PureWindowsPath(value).drive) and not Path(value).is_absolute()
 
 
 def newline(text: str) -> str:

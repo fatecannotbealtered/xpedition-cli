@@ -178,8 +178,7 @@ def annotate(options: dict[str, Any]) -> dict[str, Any]:
                 "the design has no board yet",
                 {"project": canonical, "design": design.name, "hint": "run pcb create first"},
             )
-        board = Path(design.pcb_path)
-        pcb = str(board if board.is_absolute() else path.parent / board)
+        pcb = str(prj.local_path(path.parent, design.pcb_path))
     unroute = bool(options.get("unroute"))
     scope = {"operation": "pcb_annotate", "project": canonical, "unroute": unroute}
     if options.get("dry_run"):

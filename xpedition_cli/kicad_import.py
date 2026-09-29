@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from . import kicad_footprints
+from . import kicad_footprints, project_file
 from .errors import CLIError
 
 WRITE_TIMEOUT_SECONDS = 6 * 3600.0  # all 155 KiCad libraries take about fifteen minutes
@@ -26,8 +26,8 @@ def central_library(project: Path) -> Path:
         raise CLIError("E_IO", f"cannot read the project file: {exc}") from exc
     for line in text.splitlines():
         if line.startswith("KEY CentralLibrary "):
-            lmc = Path(line[len("KEY CentralLibrary ") :].strip().strip('"'))
-            return lmc if lmc.is_absolute() else project.parent / lmc
+            value = line[len("KEY CentralLibrary ") :].strip().strip('"')
+            return project_file.local_path(project.parent, value)
     raise CLIError(
         "E_NOT_FOUND",
         "the project names no CentralLibrary",

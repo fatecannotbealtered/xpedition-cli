@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 from xpedition_cli import project_file
@@ -83,3 +86,16 @@ def test_cell_entries_follow_the_parts_partitions_the_library_has() -> None:
         "CellDBLibs\\PartQuest.cel",
     ]
     assert project_file.cell_entries_for([], ["Resistors"]) == []
+
+
+def test_the_paths_a_prj_names_are_windows_paths_on_every_system(tmp_path) -> None:
+    local = project_file.local_path
+    assert local(tmp_path, "PCB\\Board.pcb") == (tmp_path / "PCB" / "Board.pcb").resolve()
+    assert (
+        local(tmp_path, "..\\Lib\\Central.lmc")
+        == (tmp_path.parent / "Lib" / "Central.lmc").resolve()
+    )
+    assert local(tmp_path, "D:\\Lib\\Central.lmc") == Path("D:\\Lib\\Central.lmc")
+    # a drive path names a local file only where paths have drives
+    assert project_file.foreign("D:\\Lib\\Central.lmc") is (os.name != "nt")
+    assert project_file.foreign("RcLib\\Central.lmc") is False

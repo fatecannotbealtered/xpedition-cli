@@ -1947,10 +1947,7 @@ def _packager_messages(log_path: Path) -> tuple[list[str], str]:
         raw = log_path.read_bytes()
     except OSError:
         return [], ""
-    try:
-        text = raw.decode("mbcs")
-    except (LookupError, UnicodeDecodeError):
-        text = raw.decode("utf-8", "replace")
+    text = _tool_text(raw)
     errors = [
         line.strip()
         for line in text.splitlines()
@@ -2027,10 +2024,10 @@ def _package_design(params: dict[str, Any]) -> dict[str, Any]:
     try:
         warnings = sum(
             1
-            for line in log_path.read_bytes().decode("mbcs", "replace").splitlines()
+            for line in _tool_text(log_path.read_bytes()).splitlines()
             if line.lstrip().startswith("WARNING:")
         )
-    except (OSError, LookupError):
+    except OSError:
         warnings = 0
     return {
         "packaged": completed.returncode == 0 and not errors,
@@ -2908,16 +2905,30 @@ def _run_library_tool(
     return {"tool": name, "exit_code": code, "dialogs": dialogs, "stdout": output[-2000:]}
 
 
+def _tool_text(raw: bytes) -> str:
+    """A stock tool's log or output as text.
+
+    The tools write the system code page (`mbcs`, which exists on Windows only). UTF-8
+    is tried first: ASCII is UTF-8, and the code page's Chinese practically never
+    decodes as UTF-8, while `mbcs` on an English machine decodes UTF-8 bytes into
+    mojibake without raising. Whatever is left is read as UTF-8 with the bytes it
+    cannot decode replaced, so a log never makes a reader fail.
+    """
+    for encoding in ("utf-8-sig", "mbcs"):
+        try:
+            return raw.decode(encoding)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("utf-8", "replace")
+
+
 def _tool_log(path: Path) -> dict[str, Any]:
     """A converter's log in the system code page, with its error lines pulled out."""
     try:
         raw = path.read_bytes()
     except OSError:
         return {"path": str(path), "errors": [], "lines": []}
-    try:
-        text = raw.decode("mbcs")
-    except (LookupError, UnicodeDecodeError):
-        text = raw.decode("utf-8", "replace")
+    text = _tool_text(raw)
     lines = [line.rstrip() for line in text.splitlines() if line.strip()]
     # The converters log in the interface language ("错误" is "error"). Their routine
     # "checking for file format errors... none found" lines mention errors too, so only
@@ -2947,10 +2958,7 @@ def _rejected_cells(path: Path) -> list[str]:
         raw = path.read_bytes()
     except OSError:
         return []
-    try:
-        text = raw.decode("mbcs")
-    except (LookupError, UnicodeDecodeError):
-        text = raw.decode("utf-8", "replace")
+    text = _tool_text(raw)
     return [match.group(1) for match in REJECTED_CELL.finditer(text)]
 
 
@@ -3574,10 +3582,7 @@ def _jobwizard_messages(log_path: Path) -> tuple[list[str], int | None]:
         raw = log_path.read_bytes()
     except OSError:
         return [], None
-    try:
-        text = raw.decode("mbcs")
-    except (LookupError, UnicodeDecodeError):
-        text = raw.decode("utf-8", "replace")
+    text = _tool_text(raw)
     copied = None
     errors: list[str] = []
     for line in text.splitlines():
@@ -3603,10 +3608,7 @@ def _annotation_summary(log_path: Path) -> dict[str, Any]:
             "pins": None,
             "completed": False,
         }
-    try:
-        text = raw.decode("mbcs")
-    except (LookupError, UnicodeDecodeError):
-        text = raw.decode("utf-8", "replace")
+    text = _tool_text(raw)
     lines = [line.rstrip() for line in text.splitlines()]
     errors = [line.strip() for line in lines if re.search(r"^\s*ERROR\b", line)]
     warnings = [line.strip() for line in lines if re.search(r"^\s*WARNING\b", line)]

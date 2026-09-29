@@ -111,18 +111,13 @@ def info(options: dict[str, Any]) -> dict[str, Any]:
     path = existing_project(options, "project info")
     content = path.read_text(encoding="utf-8", errors="replace")
     library = _key(content, "DesignInfo", "CentralLibrary")
-    library_path = Path(library) if library else None
-    if library_path is not None and not library_path.is_absolute():
-        library_path = (path.parent / library_path).resolve()
+    library_path = project_file.local_path(path.parent, library) if library else None
     listed = project_file.designs(content)
     roots = {_key(content, item.name, "RootBlock") for item in listed if item.is_board()}
     designs = []
     for design in listed:
         board = design.pcb_path
-        board_path = None
-        if board:
-            candidate = Path(board)
-            board_path = candidate if candidate.is_absolute() else path.parent / candidate
+        board_path = project_file.local_path(path.parent, board) if board else None
         entry: dict[str, Any] = {
             "name": design.name,
             "kind": "board"

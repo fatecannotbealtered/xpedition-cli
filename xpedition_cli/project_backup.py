@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import project_file
+
 MANIFEST = "xpedition-cli-backup.json"
 IGNORED_DIRS = {"logfiles", "projectbackup", "work"}
 IGNORED_FILES = ("*.bak",)
@@ -75,9 +77,9 @@ def central_library(project: Path) -> dict[str, Any]:
         path = ""
     if not path:
         return {"path": None, "inside": False}
-    library = Path(path)
-    if not library.is_absolute():
-        library = project.parent / library
+    if project_file.foreign(path):
+        return {"path": path, "inside": False}
+    library = project_file.local_path(project.parent, path)
     inside = project.parent.resolve() in library.resolve().parents
     return {"path": str(library), "inside": inside}
 

@@ -119,12 +119,25 @@ def _no_designer(client, attach_only=False):
 
 
 def test_warnings_in_a_converter_log_are_reported(tmp_path) -> None:
+    # UTF-8 and ASCII bytes read the same on every runner; `.encode("mbcs")` would not
+    # (it raises off Windows, and an English code page cannot encode the Chinese)
     log = tmp_path / "parts.log"
     log.write_bytes(
-        'Processing Part \'X\'\n\t警告: 无效的值 "3.3V" (对于特性 "Value")。\n'.encode("mbcs")
+        'Processing Part \'X\'\n\t警告: 无效的值 "3.3V" (对于特性 "Value")。\n'.encode()
     )
     summary = adapter._tool_log(log)
     assert summary["errors"] == [] and len(summary["warnings"]) == 1
+    log.write_bytes(b"Processing Part 'X'\r\n\tWarning: invalid value \"3.3V\" (Value).\r\n")
+    assert len(adapter._tool_log(log)["warnings"]) == 1
+
+
+def test_tool_output_is_read_as_utf8_first_and_never_fails() -> None:
+    assert adapter._tool_text("警告: 无效的值".encode()) == "警告: 无效的值"
+    assert adapter._tool_text(b"\xef\xbb\xbfDone.\r\n") == "Done.\r\n"
+    # a Chinese code page's bytes: whatever this machine's code page makes of them,
+    # the reader returns text and keeps the ASCII around them
+    text = adapter._tool_text("警告".encode("gbk") + b" ERROR: stop\r\n")
+    assert "ERROR: stop" in text
 
 
 @pytest.mark.parametrize(
