@@ -11,9 +11,7 @@ from .common import (
     check_gate,
     comma_list,
     confirmed,
-    continue_on_error,
     input_file,
-    integer,
     native,
     output_file,
     previewed,
@@ -85,14 +83,6 @@ def build(options: dict[str, Any]) -> dict[str, Any]:
                 ),
             },
         }
-        if plan.cell_partitions:
-            preview["changes"].append(
-                {
-                    "action": "register_cell_partitions_in_project",
-                    "partitions": sorted(plan.cell_partitions),
-                    "note": "cells of KiCad footprints imported earlier; the parts reference them",
-                }
-            )
         return previewed(preview, scope)
     backend = native()
     confirmed(options, scope)
@@ -114,75 +104,244 @@ def build(options: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def import_libraries(options: dict[str, Any]) -> dict[str, Any]:
-    """KiCad footprint libraries as cell partitions of the central library.
+def _library_path(options: dict[str, Any], key: str, command: str) -> Path:
+    """A central library named on the command line: its `.lmc`, or for `--from` also a
+    `.prj` whose central library it is."""
+    from .. import project_file as prj
 
-    The dry run reads only files -- the libraries, their footprint counts and which
-    partitions the central library has already -- and binds the token to that list,
-    so a library that appeared or a partition imported in between refuses the
-    confirmation.
+    raw = text(options, key)
+    path = Path(raw).expanduser()
+    if not path.is_file():
+        raise CLIError(
+            "E_NOT_FOUND",
+            f"{command}: --{key} was not found",
+            {"path": str(path), "_untrusted": ["path"]},
+        )
+    suffix = path.suffix.lower()
+    if suffix == ".prj" and key == "from":
+        lmc = prj.central_library(path)
+        if lmc is None:
+            raise CLIError(
+                "E_VALIDATION",
+                f"{command}: the project names no central library",
+                {"path": str(path), "_untrusted": ["path"]},
+            )
+    elif suffix == ".lmc":
+        lmc = path
+    else:
+        allowed = "a central library (.lmc) or a project (.prj)" if key == "from" else "a .lmc"
+        raise CLIError(
+            "E_VALIDATION",
+            f"{command}: --{key} is {allowed}",
+            {"path": str(path), "_untrusted": ["path"]},
+        )
+    lmc = lmc.resolve()
+    if not lmc.is_file():
+        raise CLIError(
+            "E_NOT_FOUND",
+            f"{command}: the central library was not found",
+            {"path": str(lmc), "_untrusted": ["path"]},
+        )
+    return lmc
+
+
+def library_target(
+    options: dict[str, Any], command: str, required: bool = True
+) -> tuple[Path | None, Path | None]:
+    """`(project, lmc)`: the library a reading command reads -- a project's central
+    library (--project) or one named by its `.lmc` (--library), never both."""
+    if text(options, "project") and text(options, "library"):
+        raise CLIError("E_USAGE", f"{command} reads --project or --library, not both")
+    if text(options, "library"):
+        return None, _library_path(options, "library", command)
+    if text(options, "project"):
+        return project_file(options, command), None
+    if required:
+        raise CLIError(
+            "E_USAGE",
+            f"{command} reads a central library: --project X.prj, or --library LIB.lmc for "
+            "one outside a project",
+        )
+    return None, None
+
+
+def import_parts(options: dict[str, Any]) -> dict[str, Any]:
+    """Parts from another Xpedition central library, with the symbols, cells, padstacks,
+    pads and holes they use, into the project's central library.
+
+    The source is only read. The dry run meets every item with what the library holds:
+    add, keep (identical, left alone) or replace; a replacement needs --dangerous. The
+    token is bound to everything the confirm would send.
     """
-    from .. import kicad_import
+    from .. import library_import as I
+    from .. import library_read as R
 
     check_gate(options, "library import")
     project = project_file(options, "library import")
-    libraries = comma_list(options, "libraries")
-    root = text(options, "root") or None
-    limit = integer(options, "limit", 0) or 0
-    if limit < 0:
-        raise CLIError("E_VALIDATION", "--limit must not be negative")
-    plan = kicad_import.plan(project, libraries, root, limit)
-    keep_going = continue_on_error(options)
+    source_lmc = _library_path(options, "from", "library import")
+    try:
+        wanted = I.numbers(comma_list(options, "parts"))
+    except I.LibraryImportError as exc:
+        raise CLIError(exc.code, str(exc), exc.details) from exc
+    target, meta = load_library(options, project)
+    own = meta.get("library")
+    if own and Path(str(own)).resolve() == source_lmc:
+        raise CLIError(
+            "E_VALIDATION",
+            "library import: --from is the project's own central library",
+            {"library": str(source_lmc), "_untrusted": ["library"]},
+        )
+    source, source_meta = load_library(options, None, lmc=source_lmc, keep_texts=True)
+    try:
+        plan = I.plan(source, target, wanted)
+    except I.LibraryImportError as exc:
+        details = {**exc.details, "source": str(source_lmc)}
+        if source_meta["failed"]:
+            details["source_unreadable"] = source_meta["failed"]
+        details["_untrusted"] = [key for key in details if key != "hint"]
+        raise CLIError(exc.code, f"library import: {exc}", details) from exc
+    digest = hashlib.sha256(plan.material().encode("utf-8")).hexdigest()
     scope = {
         "operation": "library_import",
-        "project": plan["project"],
-        "root": plan["root"],
-        "libraries": [(row["library"], row["exists"]) for row in plan["libraries"]],
-        "continue_on_error": keep_going,
+        "project": str(project),
+        "source": str(source_lmc),
+        "parts": wanted,
+        "digest": digest[:16],
+        "replaces": sorted(plan.replaces),
     }
-    merging = [row["partition"] for row in plan["libraries"] if row["exists"]]
+    summary = {
+        kind: {
+            action: sum(1 for item in items if item["action"] == action)
+            for action in ("add", "keep", "replace")
+        }
+        for kind, items in (
+            ("parts", plan.parts),
+            ("symbols", plan.symbols),
+            ("cells", plan.cells),
+            ("padstacks", plan.padstacks),
+        )
+    }
+    listing = {
+        "source": str(source_lmc),
+        "library": own,
+        "parts": plan.parts,
+        "symbols": plan.symbols,
+        "cells": plan.cells,
+        "padstacks": plan.padstacks,
+        "summary": summary,
+    }
     if options.get("dry_run"):
-        preview = {
-            **plan,
-            "dangerous": bool(merging),
-            "changes": [
-                {"action": "close_designer_project", "reopened_after": True},
-                *(
+        changes: list[dict[str, Any]] = []
+        if plan.padstack_text:
+            changes.append({"action": "merge_padstacks", "into": "Layout/PadstackDB.psk"})
+        for unit in plan.units:
+            if unit["symbols"]:
+                changes.append(
                     {
-                        "action": "merge_partition" if row["exists"] else "create_partition",
-                        "partition": row["partition"],
-                        "footprints": row["footprints"],
+                        "action": "write_symbols",
+                        "folder": f"SymbolLibs/{unit['partition']}/sym",
+                        "symbols": sorted(unit["symbols"]),
                     }
-                    for row in plan["libraries"]
-                ),
-            ],
+                )
+            if unit["cells"]:
+                changes.append(
+                    {"action": "merge_cells", "file": f"CellDBLibs/{unit['partition']}.cel"}
+                )
+            if unit["parts"]:
+                changes.append(
+                    {"action": "merge_parts", "file": f"PartsDBLibs/{unit['partition']}.pdb"}
+                )
+        if not plan.empty():
+            changes.append(
+                {
+                    "action": "register_in_project",
+                    "lists": ["Symbols", "PDBs", "2dCellLibraries"],
+                    "cell_partitions": plan.cell_partitions,
+                }
+            )
+        preview = {
+            **listing,
+            "dangerous": bool(plan.replaces),
+            "replaces": sorted(plan.replaces),
+            "changes": changes,
             "risk": {
-                "tier": "T2" if merging else "T1",
+                "tier": "T2" if plan.replaces else "T1",
                 "blast_radius": (
-                    "one cell partition per library in the project's central library -- an "
-                    "existing one is merged, its same-named cells overwritten -- and the "
-                    "library's shared padstack database"
+                    "the project's central library gains the parts and everything they use, "
+                    "each in its source partition; what it holds under a name with other "
+                    "content is replaced, and every part using a replaced cell or padstack "
+                    "changes with it; the source library is only read"
                 ),
             },
+            "_untrusted": ["source", "library", "parts", "symbols", "cells", "padstacks"],
         }
+        if plan.empty():
+            preview["note"] = "the library holds every item identically: a confirm changes nothing"
         return previewed(preview, scope)
-    if merging:
-        require_dangerous(
-            options, "library import overwrites same-named cells in partitions that exist"
-        )
-    backend = native()
+    if plan.replaces:
+        named = ", ".join(sorted(plan.replaces)[:5])
+        require_dangerous(options, f"library import replaces what the library holds ({named})")
+    backend = None if plan.empty() else native()
     confirmed(options, scope)
-    result = backend.invoke(
-        "kicad_import",
-        {
-            "project": plan["project"],
-            "root": plan["root"],
-            "libraries": [row["library"] for row in plan["libraries"]],
-            "continue_on_error": keep_going,
-        },
-        timeout_seconds=kicad_import.WRITE_TIMEOUT_SECONDS,
-    )
-    return kicad_import.results(result)
+    if backend is None:
+        result: dict[str, Any] = {"ok": True, "imported": False, "steps": [], "failed": []}
+    else:
+        result = backend.invoke(
+            "library_import",
+            {
+                "project": str(project),
+                "units": plan.units,
+                "padstacks": plan.padstack_text,
+                "cell_partitions": plan.cell_partitions,
+            },
+            timeout_seconds=900.0,
+        )
+        result["imported"] = True
+    verification: dict[str, Any] = {"parts": [part["number"] for part in plan.parts]}
+    if result.get("ok"):
+        after, _meta = load_library(options, project)
+        missing = [
+            part["number"]
+            for part in plan.parts
+            if not any(
+                row["partition"] == part["partition"] for row in after.find_parts(part["number"])
+            )
+        ]
+        findings = [
+            finding
+            for part in plan.parts
+            for row in after.find_parts(part["number"])[:1]
+            for finding in R.check_part(after, row)
+        ]
+        lacking = [
+            s["reference"] for s in plan.symbols if after.find_symbol(s["reference"]) is None
+        ]
+        lacking += [f"cell {c['name']}" for c in plan.cells if after.find_cell(c["name"]) is None]
+        verification.update(
+            {
+                "missing": missing,
+                "missing_items": lacking,
+                "findings": findings,
+                "verified": not missing
+                and not lacking
+                and not any(f["severity"] == "high" for f in findings),
+            }
+        )
+    else:
+        verification["verified"] = False
+    result.update(listing)
+    result["verification"] = verification
+    result["ok"] = bool(result.get("ok")) and verification.get("verified", False)
+    result["_untrusted"] = [
+        *(result.get("_untrusted") or []),
+        "source",
+        "parts",
+        "symbols",
+        "cells",
+        "padstacks",
+        "verification",
+    ]
+    return result
 
 
 # -- reading the library -------------------------------------------------------------
@@ -279,27 +438,37 @@ def cache_root() -> Path:
 
 def load_library(
     options: dict[str, Any],
-    project: Path,
+    project: Path | None,
     partitions: list[str] | None = None,
     kinds: tuple[str, ...] = ("parts", "cells", "padstacks"),
+    *,
+    lmc: Path | None = None,
+    keep_texts: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
-    """The project's central library as `library_read` records, and where it came from.
+    """A central library as `library_read` records, and where it came from: the
+    project's, or with `lmc` one named by its `.lmc` (another project's, a company
+    library's copy).
 
     The adapter exports what `kinds` names through the stock converters into a cache
     (a database unchanged since its last export is not exported again); the symbols
-    are read from their files.
+    are read from their files. `keep_texts` keeps the exports as text too, for a reader
+    that copies records.
     """
     from .. import library_read as R
 
     backend = reader(options)
+    request: dict[str, Any] = {
+        "cache": str(cache_root()),
+        "kinds": [kind for kind in kinds if kind != "symbols"],
+        "partitions": partitions or None,
+    }
+    if lmc is not None:
+        request["library"] = str(lmc)
+    else:
+        request["project"] = str(project)
     exported = backend.invoke(
         "library_export",
-        {
-            "project": str(project),
-            "cache": str(cache_root()),
-            "kinds": [kind for kind in kinds if kind != "symbols"],
-            "partitions": partitions or None,
-        },
+        request,
         timeout_seconds=max(backend.read_timeout_seconds, EXPORT_TIMEOUT),
     )
     library = R.Library(root=str(exported.get("root") or ""))
@@ -312,6 +481,8 @@ def load_library(
                 {"kind": item["kind"], "partition": item["partition"], "error": str(exc)}
             )
             continue
+        if keep_texts:
+            library.texts[(str(item["kind"]), str(item["partition"]))] = content
         if item["kind"] == "parts":
             library.parts += R.parse_parts(content, str(item["partition"]))
         elif item["kind"] == "cells":
@@ -350,11 +521,11 @@ def list_items(options: dict[str, Any]) -> dict[str, Any]:
     from .. import library_read as R
     from ..query_page import query_page
 
-    project = project_file(options, "library list")
+    project, lmc = library_target(options, "library list")
     kind = text(options, "kind") or "parts"
     partitions = _partitions(options)
     wanted = (kind,) if kind != "symbols" else ("symbols",)
-    library, meta = load_library(options, project, partitions, wanted)
+    library, meta = load_library(options, project, partitions, wanted, lmc=lmc)
     if kind == "parts":
         rows = [
             R.part_row(p)
@@ -381,7 +552,7 @@ def list_items(options: dict[str, Any]) -> dict[str, Any]:
         {str(row.get("partition", "")) for row in rows if row.get("partition")}
     )
     return {
-        "project": str(project),
+        "project": str(project) if project else None,
         "library": meta["library"],
         "kind": kind,
         "partitions": partitions_seen,
@@ -404,12 +575,12 @@ def show(options: dict[str, Any]) -> dict[str, Any]:
     it -- or one cell and the parts that use it."""
     from .. import library_read as R
 
-    project = project_file(options, "library show")
+    project, lmc = library_target(options, "library show")
     number = text(options, "part")
     name = text(options, "cell")
     if bool(number) == bool(name):
         raise CLIError("E_USAGE", "library show takes --part NUMBER or --cell NAME")
-    library, meta = load_library(options, project)
+    library, meta = load_library(options, project, lmc=lmc)
     if number:
         found = library.find_parts(number)
         if not found:
@@ -422,7 +593,7 @@ def show(options: dict[str, Any]) -> dict[str, Any]:
         symbols = [library.find_symbol(ref) for ref in part["symbols"]]
         cell = library.find_cell(part["cell"])
         return {
-            "project": str(project),
+            "project": str(project) if project else None,
             "library": meta["library"],
             "part": part,
             "also_in": [p["partition"] for p in found[1:]],
@@ -448,7 +619,7 @@ def show(options: dict[str, Any]) -> dict[str, Any]:
             {"cell": name, "hint": "library list --kind cells --query <text> finds cells"},
         )
     return {
-        "project": str(project),
+        "project": str(project) if project else None,
         "library": meta["library"],
         "cell": cell,
         "padstacks": _geometry(library, cell),
@@ -464,9 +635,9 @@ def check(options: dict[str, Any]) -> dict[str, Any]:
     from .. import library_read as R
     from ..query_page import query_page
 
-    project = project_file(options, "library check")
+    project, lmc = library_target(options, "library check")
     partitions = _partitions(options)
-    library, meta = load_library(options, project)
+    library, meta = load_library(options, project, lmc=lmc)
     findings = R.check(library, partitions)
     counts = {
         level: sum(1 for f in findings if f["severity"] == level)
@@ -484,7 +655,7 @@ def check(options: dict[str, Any]) -> dict[str, Any]:
         if not partitions or p["partition"].casefold() in {x.casefold() for x in partitions}
     ]
     return {
-        "project": str(project),
+        "project": str(project) if project else None,
         "library": meta["library"],
         "parts": len(scope),
         "cells": len(library.cells),
@@ -505,8 +676,7 @@ def _parts_plan(options: dict[str, Any], command: str, existing: Any) -> tuple[P
         spec = P.load(path)
         if text(options, "partition"):
             spec = {**spec, "partition": text(options, "partition")}
-        root = text(options, "kicad-root") or None
-        return path, P.plan(spec, existing, root)
+        return path, P.plan(spec, existing)
     except P.PartsFileError as exc:
         raise CLIError("E_VALIDATION", str(exc), {"file": str(path)}) from exc
 
@@ -639,9 +809,9 @@ def render(options: dict[str, Any]) -> dict[str, Any]:
     assert output is not None
     replace = bool(options.get("replace"))
     library = None
-    if number or text(options, "project"):
-        project = project_file(options, "library render")
-        library, _meta = load_library(options, project)
+    project, lmc = library_target(options, "library render", required=bool(number))
+    if project is not None or lmc is not None:
+        library, _meta = load_library(options, project, lmc=lmc)
     if number:
         assert library is not None
         found = library.find_parts(number)

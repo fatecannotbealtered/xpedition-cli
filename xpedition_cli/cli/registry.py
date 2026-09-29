@@ -196,6 +196,17 @@ _LIMIT = Param("limit", "integer", description="at most this many items")
 _OFFSET = Param("offset", "integer", description="skip this many items first")
 _QUERY = Param("query", "string", description="keep items whose text contains this, any case")
 _REPLACE = Param("replace", "boolean", description="replace the output file if it exists")
+_LIBRARY_PROJECT = Param(
+    "project",
+    "path",
+    description="the project's .prj, whose central library is read; or --library",
+)
+_LIBRARY = Param(
+    "library",
+    "path",
+    description="a central library (.lmc) to read instead of a project's: another "
+    "project's, or a copy of a company library",
+)
 _PARTITIONS = Param(
     "partition",
     "string",
@@ -510,48 +521,50 @@ def _build() -> list[Command]:
         ),
         Command(
             "library import",
-            "library:import_libraries",
-            "Convert KiCad footprint libraries (.pretty folders) into cell partitions of "
-            "the project's central library, their padstacks into its padstack database",
+            "library:import_parts",
+            "Import parts from another Xpedition central library -- another project's, or a "
+            "copy of a company library -- with the symbols, cells, padstacks, pads and holes "
+            "they use, each in its source partition. The source is only read; what the "
+            "library holds identically is left alone",
             "library_import",
             (
-                "xpedition-cli library import --project X.prj --libraries "
-                "Package_SO,Resistor_SMD --dry-run --compact",
-                "xpedition-cli library import --project X.prj --libraries "
-                "Package_SO,Resistor_SMD --dangerous --confirm <confirm_token> --compact",
+                *_write_examples(
+                    "library import --project X.prj --from D:/libraries/Company.lmc "
+                    "--parts TPS7A2033PDBVR,RC0603FR-0710KL"
+                ),
+                "xpedition-cli library import --project X.prj --from D:/projects/other/Other.prj "
+                "--parts TPS7A2033PDBVR --dangerous --confirm <confirm_token> --compact",
             ),
             "library",
-            needs="designer",
+            needs="xpedition",
             tier="dangerous",
             params=(
                 _project(),
                 Param(
-                    "libraries",
-                    "string",
-                    multiple=True,
-                    description="library names, each a <name>.pretty folder under --root",
-                ),
-                Param(
-                    "root",
+                    "from",
                     "path",
-                    description="folder of the .pretty libraries; the KiCad installation's "
-                    "footprints by default",
+                    True,
+                    description="the source: a central library (.lmc), or a project (.prj) "
+                    "whose central library it is; only read",
                 ),
-                Param("limit", "integer", description="at most this many footprints a library"),
                 Param(
-                    "continue-on-error",
-                    "enum",
-                    choices=("true", "false"),
-                    description="go on past a library that fails (true by default)",
+                    "parts",
+                    "string",
+                    True,
+                    multiple=True,
+                    description="the part numbers to import, up to 200",
                 ),
             ),
             blast_radius=(
-                "one cell partition per library in the project's central library (an existing "
-                "one is merged, its same-named cells overwritten) and the shared padstack "
-                "database; Designer's project is closed while it runs"
+                "the project's central library gains the parts with their symbols, cells, "
+                "padstacks, pads and holes, each in its source partition, and the .prj its "
+                "symbol, parts and cell lists; an item of the same name and other content is "
+                "replaced, and every part that uses it changes with it; Designer's project is "
+                "closed and reopened meanwhile"
             ),
             dry_run_schema="library_import_preview",
-            dangerous_when="a library's partition exists already: the dry run marks it",
+            dangerous_when="the source replaces something the library holds: the dry run "
+            "lists it under replaces",
         ),
         Command(
             "library list",
@@ -563,11 +576,14 @@ def _build() -> list[Command]:
             (
                 "xpedition-cli library list --project X.prj --compact",
                 "xpedition-cli library list --project X.prj --kind cells --query SOIC --compact",
+                "xpedition-cli library list --library D:/libraries/Company.lmc --query TPS7A "
+                "--compact",
             ),
             "library",
             needs="xpedition",
             params=(
-                _project(),
+                _LIBRARY_PROJECT,
+                _LIBRARY,
                 Param(
                     "kind",
                     "enum",
@@ -581,6 +597,7 @@ def _build() -> list[Command]:
                 _TIMEOUT,
             ),
             sort="by partition, then name or part number",
+            extra={"mutually_exclusive": [["project", "library"]]},
         ),
         Command(
             "library show",
@@ -595,12 +612,13 @@ def _build() -> list[Command]:
             "library",
             needs="xpedition",
             params=(
-                _project(),
+                _LIBRARY_PROJECT,
+                _LIBRARY,
                 Param("part", "string", description="a part number"),
                 Param("cell", "string", description="a cell name"),
                 _TIMEOUT,
             ),
-            extra={"mutually_exclusive": [["part", "cell"]]},
+            extra={"mutually_exclusive": [["part", "cell"], ["project", "library"]]},
         ),
         Command(
             "library check",
@@ -612,17 +630,18 @@ def _build() -> list[Command]:
             ("xpedition-cli library check --project X.prj --compact",),
             "library",
             needs="xpedition",
-            params=(_project(), _PARTITIONS, _QUERY, _LIMIT, _OFFSET, _TIMEOUT),
+            params=(_LIBRARY_PROJECT, _LIBRARY, _PARTITIONS, _QUERY, _LIMIT, _OFFSET, _TIMEOUT),
             sort="high, medium, low; then by rule and item",
+            extra={"mutually_exclusive": [["project", "library"]]},
         ),
         Command(
             "library add",
             "library:add",
             "Add parts to the central library from a parts file: each part's symbol (a box "
             "or a built-in kind), footprint (an IPC-7351B family from datasheet dimensions, "
-            "lands given one by one -- several may share a pin --, a placeholder package, a "
-            "cell the library holds or an imported KiCad footprint) and pin map. What the "
-            "library holds already is left alone when identical",
+            "lands given one by one -- several may share a pin, holes may be slots or "
+            "unplated --, a placeholder package or a cell the library holds) and pin map. "
+            "What the library holds already is left alone when identical",
             "library_add",
             (
                 *_write_examples("library add --project X.prj --file parts.json"),
@@ -639,12 +658,6 @@ def _build() -> list[Command]:
                     "partition",
                     "string",
                     description="the partition for the parts, over the file's (PartQuest)",
-                ),
-                Param(
-                    "kicad-root",
-                    "path",
-                    description="folder of the KiCad .pretty libraries a kicad footprint "
-                    "names; the KiCad installation's by default",
                 ),
             ),
             blast_radius=(
@@ -677,9 +690,10 @@ def _build() -> list[Command]:
                 Param(
                     "project",
                     "path",
-                    description="the project's .prj: needed for --part, and for a parts file "
-                    "that names cells the library holds",
+                    description="the project's .prj: for --part (or --library), and for a "
+                    "parts file that names cells the library holds",
                 ),
+                _LIBRARY,
                 Param("part", "string", description="a part number in the library"),
                 Param("file", "path", description="a parts file, not added yet"),
                 Param(
@@ -688,15 +702,10 @@ def _build() -> list[Command]:
                     True,
                     description="the PNG; with several parts, <stem>-<part>.png beside it",
                 ),
-                Param(
-                    "kicad-root",
-                    "path",
-                    description="folder of the KiCad .pretty libraries a kicad footprint names",
-                ),
                 _REPLACE,
                 _TIMEOUT,
             ),
-            extra={"mutually_exclusive": [["part", "file"]]},
+            extra={"mutually_exclusive": [["part", "file"], ["project", "library"]]},
         ),
         # -- schematic -------------------------------------------------------------
         Command(
@@ -1439,8 +1448,8 @@ WORKFLOW = [
     {"step": 2, "do": "create the project from a template", "commands": ["project create"]},
     {
         "step": 3,
-        "do": "put the parts the design needs into the library: look, add, look at them",
-        "commands": ["library list", "library add", "library render", "library import"],
+        "do": "put the parts the design needs into the library: look, add or import, look at them",
+        "commands": ["library list", "library add", "library import", "library render"],
     },
     {
         "step": 4,

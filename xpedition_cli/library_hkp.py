@@ -29,7 +29,6 @@ PARTITION = L.PARTITION
 LAYERS = 4
 SILK_WIDTH = 0.15
 MASK_EXPANSION = 0.1
-KICAD_PREFIX = "kicad:"  # package key of a KiCad footprint: kicad:Library:Footprint
 # what an HKP file cannot hold inside a quoted value: a double quote ends it early and
 # a line break starts a record of its own, so design text could write records
 _UNQUOTABLE = re.compile(r'["\x00-\x1f\x7f]')
@@ -489,28 +488,6 @@ def library_value(text: str, whole: bool = False) -> str | None:
     return match.group(1) + match.group(2).replace("µ", "u")
 
 
-def _kicad_cell(spec: str, root: Any, cache: dict[str, Cell], library: LibraryPlan) -> Cell:
-    """The cell standing for the KiCad footprint `spec` (`Library:Name`), read from the
-    footprint folder `root` (or the one `kicad_footprints.default_root` finds). The cell is
-    not rendered: it is in the partition `kicad_import` converted its library into."""
-    from pathlib import Path
-
-    from . import kicad_footprints
-
-    if spec in cache:
-        return cache[spec]
-    folder = Path(str(root)) if root else kicad_footprints.default_root()
-    if folder is None or not folder.is_dir():
-        raise ValueError(
-            'no KiCad footprint folder: set "kicad_footprints" in the design or the '
-            "XPEDITION_KICAD_FOOTPRINTS environment variable"
-        )
-    cell, _partition, issues = kicad_footprints.reference_cell(folder, spec)
-    library.issues += [f"{KICAD_PREFIX}{spec}: {issue}" for issue in issues]
-    cache[spec] = cell
-    return cell
-
-
 # -- the plan ----------------------------------------------------------------------------
 
 
@@ -525,8 +502,6 @@ def plan_library(design: dict[str, Any], parts: dict[str, Any] | None = None) ->
     library = LibraryPlan(partition=plan.partition)
     stock = _Stock(library)
     overrides = {str(k): str(v) for k, v in dict(design.get("packages", {})).items()}
-    kicad_root = design.get("kicad_footprints")
-    references: dict[str, Cell] = {}
     for part in plan.parts:
         refdes = str(part["refdes"])
         kind = str(part["symbol"])
@@ -551,16 +526,11 @@ def plan_library(design: dict[str, Any], parts: dict[str, Any] | None = None) ->
             overrides.get(refdes) or overrides.get(kind) or default_package(kind, refdes, len(pins))
         )
         try:
-            if key.lower().startswith(KICAD_PREFIX):
-                cell = _kicad_cell(key[len(KICAD_PREFIX) :], kicad_root, references, library)
-            else:
-                cell = build_package(stock, key, len(pins))
-        except (ValueError, FileNotFoundError, OSError) as exc:
+            cell = build_package(stock, key, len(pins))
+        except ValueError as exc:
             library.issues.append(f"{refdes}: {exc}")
             continue
         library.cells.setdefault(cell.name, cell)
-        if cell.external:
-            library.cell_partitions.add(cell.partition)
         numbers = [number for number, _ in pins]
         cell_numbers = {pin.number for pin in cell.pins}
         missing = [n for n in numbers if n not in cell_numbers]

@@ -24,8 +24,7 @@ The symbol is a box as a design's symbols are written, or a built-in kind
 (`{"kind": "RES"}`: RES, CAP, CAPP, IND, DIODE, LED, SW, BAT, NTC, NMOS, PMOS, TP).
 The footprint is an IPC-7351B family (`ipc7351`), lands given one by one (`pads`;
 several lands may carry one pin number), a placeholder package (`{"package":
-"SOIC8"}`), a cell the library holds (`{"cell": "NAME"}`) or a KiCad footprint
-imported with `library import` (`{"kicad": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"}`).
+"SOIC8"}`) or a cell the library holds (`{"cell": "NAME"}`).
 Each symbol pin maps to the cell pin of the same number unless `pinmap` says
 otherwise, and the two sets of numbers must match: Layout's Database Load refuses a
 cell whose pins differ from its part's.
@@ -176,8 +175,6 @@ def _footprint(
     pin_count: int,
     stock: H._Stock,
     existing: R.Library | None,
-    kicad_cache: dict[str, H.Cell],
-    kicad_root: Any,
 ) -> H.Cell:
     spec = item.get("footprint")
     if not isinstance(spec, dict):
@@ -186,12 +183,10 @@ def _footprint(
         if "cell" in spec:
             cell, _pins = _external_cell(str(spec["cell"]), existing, where)
             return cell
-        if "kicad" in spec:
-            return H._kicad_cell(str(spec["kicad"]), kicad_root, kicad_cache, stock.plan)
         if "package" in spec:
             return H.build_package(stock, str(spec["package"]), pin_count)
         return ipc7351.footprint(spec, stock, kind=prefix, name=_safe_name(number, 60))
-    except (ipc7351.FootprintError, ValueError, FileNotFoundError, OSError) as exc:
+    except (ipc7351.FootprintError, ValueError) as exc:
         raise PartsFileError(f"{where}: footprint: {exc}") from exc
 
 
@@ -214,18 +209,13 @@ def _texts(part: H.Part) -> list[tuple[str, str]]:
     return texts
 
 
-def plan(
-    spec: dict[str, Any],
-    existing: R.Library | None = None,
-    kicad_root: Any = None,
-) -> AddPlan:
+def plan(spec: dict[str, Any], existing: R.Library | None = None) -> AddPlan:
     """Everything the parts file adds, and how it meets what the library holds."""
     spec = validate(spec)
     partition = spec["partition"]
     library = H.LibraryPlan(partition=partition)
     stock = H._Stock(library)
     result = AddPlan(partition=partition, library=library)
-    kicad_cache: dict[str, H.Cell] = {}
     for index, item in enumerate(spec["parts"]):
         where = f"parts[{index}]"
         if not isinstance(item, dict):
@@ -241,17 +231,7 @@ def plan(
         if text is not None:
             result.symbols[symbol.name] = text
         result.symbol_objects[symbol.name] = symbol
-        cell = _footprint(
-            item,
-            where,
-            number,
-            prefix.upper(),
-            len(symbol.pins),
-            stock,
-            existing,
-            kicad_cache,
-            kicad_root,
-        )
+        cell = _footprint(item, where, number, prefix.upper(), len(symbol.pins), stock, existing)
         library.cells.setdefault(cell.name, cell)
         result.cells[cell.name] = cell
         if cell.external and cell.partition and cell.partition != partition:
@@ -341,7 +321,7 @@ def plan(
 
 
 def _footprint_kind(spec: dict[str, Any]) -> str:
-    for key in ("cell", "kicad", "package", "pads"):
+    for key in ("cell", "package", "pads"):
         if key in spec:
             return key
     return f"ipc7351:{spec.get('family', '')}"
@@ -392,8 +372,8 @@ def _compare(result: AddPlan, existing: R.Library | None) -> None:
         if cell.external:
             if existing is not None and held.find_cell(name) is None:
                 raise PartsFileError(
-                    f"cell {name} is not in the library; a KiCad footprint is converted with "
-                    "library import first"
+                    f"cell {name} is not in the library; list the cells it holds with "
+                    "library list --kind cells"
                 )
             actions["cells"].append(
                 {"name": name, "action": "use", "partition": cell.partition or result.partition}
@@ -649,7 +629,6 @@ def input_schema() -> dict[str, Any]:
                                 },
                                 {"type": "object", "required": ["package"]},
                                 {"type": "object", "required": ["cell"]},
-                                {"type": "object", "required": ["kicad"]},
                             ]
                         },
                         "pinmap": {

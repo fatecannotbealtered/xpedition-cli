@@ -246,8 +246,10 @@ class FakeLibrary:
     """A central library as the adapter's `library_export` hands it over: HKP texts in a
     cache folder and symbol files, all written by the tool's own library writers.
 
-    `absorb` is a `library_import` handler: it merges what an import sends, the way the
-    converters merge into the databases, so a later export shows the new parts.
+    `absorb` is a `library_import` handler: it merges what an import sends -- one
+    partition, or `units` of several -- the way the converters merge into the databases,
+    so a later export shows the new parts. `lmc` is a real file, for `--from` and
+    `--library` to name.
     """
 
     def __init__(self, folder, spec: dict[str, Any] | None = None) -> None:
@@ -259,9 +261,11 @@ class FakeLibrary:
         self.cache = self.folder / "cache"
         self.symbols = self.folder / "SymbolLibs"
         self.cache.mkdir(parents=True, exist_ok=True)
+        self.lmc = self.folder / "Lib.lmc"
+        self.lmc.write_text("", encoding="utf-8")
         self.texts = {"parts": "", "cells": "", "padstacks": ""}
         plan = library_parts.plan(spec or LIBRARY_PARTS)
-        self.merge("PartQuest", plan.texts(), plan.symbols)
+        self.merge(plan.partition, plan.texts(), plan.symbols)
 
     def merge(self, partition: str, texts: dict[str, str], symbols: dict[str, str]) -> None:
         for kind in ("parts", "cells"):
@@ -273,10 +277,15 @@ class FakeLibrary:
             path = self.cache / "padstacks-.hkp"
             old = path.read_text(encoding="utf-8") if path.exists() else ""
             path.write_text(old + "\n" + texts["padstacks"], encoding="utf-8")
+        if not symbols:
+            return
         folder = self.symbols / partition / "sym"
         folder.mkdir(parents=True, exist_ok=True)
         for name, text in symbols.items():
-            (folder / f"{name}.1").write_text(text, encoding="utf-8")
+            versions = [
+                int(p.suffix[1:]) for p in folder.glob(f"{name}.*") if p.suffix[1:].isdigit()
+            ]
+            (folder / f"{name}.{max(versions, default=0) + 1}").write_text(text, encoding="utf-8")
 
     def export(self, params: dict[str, Any]) -> dict[str, Any]:
         wanted = params.get("partitions")
@@ -289,8 +298,8 @@ class FakeLibrary:
                 continue
             files.append({"kind": kind, "partition": partition, "path": str(path), "cached": True})
         return {
-            "project": params["project"],
-            "library": str(self.folder / "Lib.lmc"),
+            "project": params.get("project"),
+            "library": str(self.lmc),
             "root": str(self.folder),
             "symbols": str(self.symbols),
             "files": files,
@@ -299,6 +308,25 @@ class FakeLibrary:
         }
 
     def absorb(self, params: dict[str, Any]) -> dict[str, Any]:
+        if "units" in params:
+            if params.get("padstacks"):
+                self.merge("", {"padstacks": params["padstacks"]}, {})
+            for unit in params["units"]:
+                self.merge(
+                    unit["partition"],
+                    {k: unit.get(k) or "" for k in ("parts", "cells")},
+                    unit.get("symbols") or {},
+                )
+            return {
+                "project": params["project"],
+                "library": str(self.lmc),
+                "units": [{"partition": u["partition"]} for u in params["units"]],
+                "steps": [],
+                "failed": [],
+                "cells_registered": [],
+                "cells_missing": [],
+                "ok": True,
+            }
         self.merge(
             params["partition"],
             {k: params.get(k) or "" for k in ("parts", "cells", "padstacks")},
@@ -306,7 +334,7 @@ class FakeLibrary:
         )
         return {
             "project": params["project"],
-            "library": str(self.folder / "Lib.lmc"),
+            "library": str(self.lmc),
             "partition": params["partition"],
             "steps": [],
             "failed": [],

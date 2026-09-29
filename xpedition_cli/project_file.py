@@ -45,6 +45,20 @@ def local_path(folder: Path, value: str) -> Path:
     return folder.joinpath(*windows.parts).resolve()
 
 
+def central_library(project: Path) -> Path | None:
+    """The `.lmc` a `.prj` names (`KEY CentralLibrary`), on this machine; None when the
+    file names none or cannot be read."""
+    try:
+        text = project.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith("KEY CentralLibrary "):
+            value = line[len("KEY CentralLibrary ") :].strip().strip('"')
+            return local_path(project.parent, value) if value else None
+    return None
+
+
 def foreign(value: str) -> bool:
     """A Windows drive or UNC path read where paths have no drives: no local file."""
     return bool(PureWindowsPath(value).drive) and not Path(value).is_absolute()

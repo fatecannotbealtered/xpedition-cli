@@ -1,4 +1,4 @@
-"""The library commands (library import is covered in test_kicad_import_command)."""
+"""The library commands (library import is covered in test_library_import)."""
 
 from __future__ import annotations
 

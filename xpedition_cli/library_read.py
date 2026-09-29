@@ -108,6 +108,58 @@ def parse_records(text: str) -> list[Record]:
     return roots
 
 
+# -- an export's records as text -------------------------------------------------------
+
+# the top-level records that are items of an export; the others are its header
+ITEM_KEYWORDS = {
+    "parts": ("Number",),
+    "cells": ("PACKAGE_CELL", "MECHANICAL_CELL", "DRAWING_CELL"),
+    "padstacks": ("PAD", "HOLE", "PADSTACK"),
+}
+_ITEMS = {keyword for keywords in ITEM_KEYWORDS.values() for keyword in keywords}
+_TOP = re.compile(r'^\.([A-Za-z_][A-Za-z0-9_]*)\b\s*(?:"([^"]*)")?')
+# what a record refers to: a part its cells and symbols, a cell its padstacks, a
+# padstack its pads (TOP_PAD, CLEARANCE_PAD, ...) and its hole
+CELL_REFERENCE = re.compile(r'^\s*\.\.[A-Za-z]*Cell\s+"([^"]*)"', re.M)
+SYMBOL_REFERENCE = re.compile(r'^\s*\.\.Symbol\s+"([^"]*)"', re.M)
+PADSTACK_REFERENCE = re.compile(r'^\s*\.+PADSTACK\s+"([^"]*)"', re.M)
+PAD_REFERENCE = re.compile(r'^\s*\.+[A-Z_]*PAD\s+"([^"]*)"', re.M)
+HOLE_REFERENCE = re.compile(r'^\s*\.+HOLE_NAME\s+"([^"]*)"', re.M)
+
+
+def hkp_blocks(text: str) -> tuple[str, list[tuple[str, str, str]]]:
+    """An export as its header and its items, each item's text whole.
+
+    An item is a top-level record -- a line of one dot, a keyword such as `Number` or
+    `PACKAGE_CELL` and the item's name -- with every line below it up to the next
+    top-level record. The rest (the file type, version and units lines) is the header,
+    which any subset of the items needs again to be read.
+    """
+    header: list[str] = []
+    blocks: list[tuple[str, str, list[str]]] = []
+    current: list[str] | None = None
+    for line in text.splitlines(keepends=True):
+        match = _TOP.match(line)
+        if match is not None:
+            if match.group(1) in _ITEMS:
+                current = [line]
+                blocks.append((match.group(1), match.group(2) or "", current))
+                continue
+            current = None
+        (header if current is None else current).append(line)
+    return "".join(header), [(keyword, name, "".join(lines)) for keyword, name, lines in blocks]
+
+
+def hkp_subset(text: str, wanted: set[tuple[str, str]]) -> str:
+    """The export with only the items `(keyword, name)` names; empty if none is there."""
+    header, blocks = hkp_blocks(text)
+    chosen = [block for keyword, name, block in blocks if (keyword, name) in wanted]
+    if not chosen:
+        return ""
+    body = "".join(block if block.endswith("\n") else block + "\n" for block in chosen)
+    return header.rstrip("\n") + "\n\n" + body
+
+
 def _text(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
@@ -518,6 +570,8 @@ class Library:
     )
     symbols: list[dict[str, Any]] = field(default_factory=list)
     failed: list[dict[str, Any]] = field(default_factory=list)
+    # the exports as text, by (kind, partition), for a reader that copies records
+    texts: dict[tuple[str, str], str] = field(default_factory=dict)
 
     def find_parts(self, number: str) -> list[dict[str, Any]]:
         return [part for part in self.parts if part["number"] == number]

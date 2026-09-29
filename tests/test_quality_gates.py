@@ -138,7 +138,7 @@ def test_a_library_build_whose_parts_have_no_cells_has_not_succeeded(tmp_path, m
     monkeypatch.setattr(
         adapter,
         "_register_cell_partitions",
-        lambda path, library_root, wanted: ([], ["Package_SO"]),
+        lambda path, library_root, wanted: ([], ["Connectors"]),
     )
     result = adapter._library_import(
         {
@@ -147,10 +147,10 @@ def test_a_library_build_whose_parts_have_no_cells_has_not_succeeded(tmp_path, m
             "padstacks": "padstacks",
             "cells": "cells",
             "parts": "parts",
-            "cell_partitions": ["Package_SO"],
+            "cell_partitions": ["Connectors"],
         },
         None,
     )
     # every converter step passed; the parts still have no footprint to package with
-    assert result["failed"] == [] and result["cells_missing"] == ["Package_SO"]
-    assert result["ok"] is False and "library import" in result["hint"]
+    assert result["failed"] == [] and result["cells_missing"] == ["Connectors"]
+    assert result["ok"] is False and "cell partitions" in result["hint"]

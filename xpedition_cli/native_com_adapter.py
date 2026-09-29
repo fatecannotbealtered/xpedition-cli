@@ -3007,13 +3007,25 @@ def _library_export(params: dict[str, Any]) -> dict[str, Any]:
     library is written. Symbols need no export: their files are text already, under
     the `symbols` folder returned.
     """
-    project = params.get("project")
-    if not project:
-        raise AdapterError("E_USAGE", "library_export requires the project path")
-    project_path = Path(str(project)).expanduser().resolve()
-    if not project_path.is_file():
-        raise AdapterError("E_NOT_FOUND", "project file was not found", {"path": str(project_path)})
-    lmc, root = _central_library(project_path)
+    project_path: Path | None = None
+    if params.get("library"):
+        # a library read on its own: another project's, or a copy of a company library
+        lmc = Path(str(params["library"])).expanduser().resolve()
+        if lmc.suffix.lower() != ".lmc":
+            raise AdapterError(
+                "E_VALIDATION", "a central library is a .lmc file", {"path": str(lmc)}
+            )
+        root = lmc.parent
+    else:
+        project = params.get("project")
+        if not project:
+            raise AdapterError("E_USAGE", "library_export requires the project or the library")
+        project_path = Path(str(project)).expanduser().resolve()
+        if not project_path.is_file():
+            raise AdapterError(
+                "E_NOT_FOUND", "project file was not found", {"path": str(project_path)}
+            )
+        lmc, root = _central_library(project_path)
     if not lmc.is_file():
         raise AdapterError("E_NOT_FOUND", "the central library was not found", {"path": str(lmc)})
     cache_root = params.get("cache")
@@ -3099,7 +3111,7 @@ def _library_export(params: dict[str, Any]) -> dict[str, Any]:
     except OSError:
         pass
     return {
-        "project": str(project_path),
+        "project": str(project_path) if project_path else None,
         "library": str(lmc),
         "root": str(root),
         "symbols": str(root / "SymbolLibs"),
@@ -3110,13 +3122,68 @@ def _library_export(params: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# a partition becomes a file and a folder name: ASCII, no separators, no trailing dot
+PARTITION_NAME = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9 _.\-]{0,62}[A-Za-z0-9_])?$")
+
+
+def _next_symbol_version(folder: Path, name: str) -> int:
+    """One past the highest version of symbol `name` in a `sym` folder, so the file
+    written is the one Designer takes; 1 when there is none."""
+    highest = 0
+    if folder.is_dir():
+        for path in folder.iterdir():
+            stem, _, version = path.name.rpartition(".")
+            if stem == name and version.isdigit():
+                highest = max(highest, int(version))
+    return highest + 1
+
+
+def _import_units(params: dict[str, Any]) -> list[dict[str, Any]]:
+    """What to import, partition by partition. Without `units`, the top-level
+    `partition`, `parts`, `cells` and `symbols` are the one unit, as `library add` and
+    `library build` send them; their partition is a plain identifier."""
+    units = params.get("units")
+    if units is None:
+        partition = str(params.get("partition") or DEFAULT_PARTITION)
+        if not re.match(r"^[A-Za-z][A-Za-z0-9_]*$", partition):
+            raise AdapterError(
+                "E_USAGE", "partition must be a plain identifier", {"partition": partition}
+            )
+        units = [
+            {
+                "partition": partition,
+                "parts": params.get("parts") or "",
+                "cells": params.get("cells") or "",
+                "symbols": params.get("symbols") or {},
+                "replace": bool(params.get("replace", True)),
+            }
+        ]
+    if not isinstance(units, list):
+        raise AdapterError("E_USAGE", "library_import units is a list")
+    for unit in units:
+        if not isinstance(unit, dict) or not PARTITION_NAME.fullmatch(
+            str(unit.get("partition") or "")
+        ):
+            raise AdapterError(
+                "E_USAGE",
+                "a unit's partition must be ASCII letters, digits, spaces and _ . -",
+                {"partition": str((unit or {}).get("partition"))[:80], "_untrusted": ["partition"]},
+            )
+        if not isinstance(unit.get("symbols") or {}, dict):
+            raise AdapterError("E_USAGE", "a unit's symbols map symbol names to file text")
+    return units
+
+
 def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
-    """Import generated padstacks, cells and parts into the project's central library.
+    """Import padstacks, symbols, cells and parts into the project's central library.
 
     The texts go through the stock converters (`HKP2PadstackDB`, `HKP2CellDB`,
-    `HKP2PartsDB`), which also register a new partition in the `.lmc`. Designer's
-    project is closed meanwhile, because it holds the library, and the partition's
-    parts database is added to the project's `LIST PDBs` so the packager searches it.
+    `HKP2PartsDB`), which also register a new partition in the `.lmc`. The padstack
+    text comes first, then every unit's symbol files, cells and parts, in that order
+    across the units, so each item finds what it refers to. Designer's project is closed
+    meanwhile, because it holds the library. Each parts partition goes into the
+    project's `LIST PDBs` so the packager searches it, each symbol partition into `LIST
+    Symbols`, and `cell_partitions` into the design's cell list.
     """
     project = params.get("project") or params.get("path")
     if not project:
@@ -3124,11 +3191,7 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
     project_path = Path(str(project)).expanduser().resolve()
     if not project_path.is_file():
         raise AdapterError("E_NOT_FOUND", "project file was not found", {"path": str(project_path)})
-    partition = str(params.get("partition") or DEFAULT_PARTITION)
-    if not re.match(r"^[A-Za-z][A-Za-z0-9_]*$", partition):
-        raise AdapterError(
-            "E_USAGE", "partition must be a plain identifier", {"partition": partition}
-        )
+    units = _import_units(params)
     lmc, root = _central_library(project_path)
     if not lmc.is_file():
         raise AdapterError("E_NOT_FOUND", "the central library was not found", {"path": str(lmc)})
@@ -3155,12 +3218,40 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                     reopen = True
         except Exception as exc:
             raise _com_error(exc, "close_project_for_library") from exc
-    symbols = params.get("symbols") or {}
-    if not isinstance(symbols, dict):
-        raise AdapterError("E_USAGE", "library_import symbols must map symbol names to file text")
-    symbols_written: list[str] = []
-    if symbols:
-        target = root / "SymbolLibs" / partition / "sym"
+    padstack_db = root / "Layout" / "PadstackDB.psk"
+    steps: list[dict[str, Any]] = []
+    records = [
+        {
+            "partition": str(unit["partition"]),
+            "symbols_written": [],
+            "symbols_registered": False,
+            "pdb_registered": False,
+        }
+        for unit in units
+    ]
+    cells: list[str] = []
+    cells_missing: list[str] = []
+
+    def convert(step: str, tool: str, arguments: list[str], text: str, tag: str) -> bool:
+        source = work / f"{step}{tag}.hkp"
+        log = work / f"{step}{tag}.log"
+        try:
+            source.write_text(str(text), encoding="ascii", errors="replace")
+            if log.exists():
+                log.unlink()
+        except OSError as exc:
+            raise AdapterError("E_IO", f"cannot write {source.name}: {exc}") from exc
+        run = _run_library_tool(tool, ["-i", str(source), *arguments, "-l", str(log)])
+        run["step"] = step
+        run["log"] = _tool_log(log)
+        steps.append(run)
+        return not (run["exit_code"] != 0 or run["dialogs"] or run["log"]["errors"])
+
+    def write_symbols(unit: dict[str, Any], record: dict[str, Any]) -> None:
+        symbols = unit.get("symbols") or {}
+        if not symbols:
+            return
+        target = root / "SymbolLibs" / str(unit["partition"]) / "sym"
         if not str(target).isascii():
             raise AdapterError(
                 "E_VALIDATION",
@@ -3172,7 +3263,8 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
             target.mkdir(parents=True, exist_ok=True)
             folder = target.resolve()
             for name, text in symbols.items():
-                path = (target / f"{name}.1").resolve()
+                version = _next_symbol_version(target, str(name))
+                path = (target / f"{name}.{version}").resolve()
                 if path.parent != folder:
                     raise AdapterError(
                         "E_VALIDATION",
@@ -3180,90 +3272,73 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                         {"symbol": str(name)[:80], "_untrusted": ["symbol"]},
                     )
                 path.write_text(str(text), encoding="utf-8")
-                symbols_written.append(str(name))
+                record["symbols_written"].append(str(name))
         except OSError as exc:
             raise AdapterError("E_IO", f"cannot write symbol files: {exc}") from exc
-    replace = bool(params.get("replace", True))
-    steps: list[dict[str, Any]] = []
-    padstack_db = root / "Layout" / "PadstackDB.psk"
-    jobs = [
-        (
-            "padstacks",
-            "HKP2PadstackDB",
-            lambda src, log: ["-i", src, "-o", str(padstack_db), "-c", str(lmc), "-m", "-l", log],
-        ),
-        (
-            "cells",
-            "HKP2CellDB",
-            lambda src, log: [
-                "-i",
-                src,
-                "-o",
-                str(root / "CellDBLibs" / f"{partition}.cel"),
-                "-psk",
-                str(padstack_db),
-                "-c",
-                str(lmc),
-                "-m",
-                "-l",
-                log,
-            ],
-        ),
-        (
-            "parts",
-            "HKP2PartsDB",
-            lambda src, log: [
-                "-p",
-                str(project_path),
-                "-i",
-                src,
-                "-o",
-                str(root / "PartsDBLibs" / f"{partition}.pdb"),
-                # -r replaces a part of the same number; without it the database keeps
-                # the part it holds and drops the new one without a word
-                *(["-r"] if replace else []),
-                "-l",
-                log,
-            ],
-        ),
-    ]
-    registered = False
-    symbols_registered = False
-    cells: list[str] = []
-    cells_missing: list[str] = []
+        # Designer searches the symbol partitions its .prj lists
+        record["symbols_registered"] = _ensure_prj_list(
+            project_path, "Symbols", f"SymbolLibs\\{unit['partition']}"
+        )
+
     try:
-        for step, tool, arguments in jobs:
-            text = params.get(step)
-            if not text:
-                continue
-            source = work / f"{step}.hkp"
-            log = work / f"{step}.log"
-            try:
-                source.write_text(str(text), encoding="ascii", errors="replace")
-                if log.exists():
-                    log.unlink()
-            except OSError as exc:
-                raise AdapterError("E_IO", f"cannot write {source.name}: {exc}") from exc
-            run = _run_library_tool(tool, arguments(str(source), str(log)))
-            run["step"] = step
-            run["log"] = _tool_log(log)
-            steps.append(run)
-            if run["exit_code"] != 0 or run["dialogs"] or run["log"]["errors"]:
-                break
-        if params.get("parts") and not any(
-            s["step"] == "parts" and s["exit_code"] != 0 for s in steps
-        ):
-            registered = _ensure_prj_pdb(project_path, f"PartsDBLibs\\{partition}.pdb")
-            if symbols_written:
-                # Designer searches the symbol partitions its .prj lists
-                symbols_registered = _ensure_prj_list(
-                    project_path, "Symbols", f"SymbolLibs\\{partition}"
+        ok = True
+        if params.get("padstacks"):
+            ok = convert(
+                "padstacks",
+                "HKP2PadstackDB",
+                ["-o", str(padstack_db), "-c", str(lmc), "-m"],
+                params["padstacks"],
+                "",
+            )
+        for unit, record in zip(units, records, strict=True):
+            if ok:
+                write_symbols(unit, record)
+        for index, unit in enumerate(units):
+            if ok and unit.get("cells"):
+                partition = str(unit["partition"])
+                ok = convert(
+                    "cells",
+                    "HKP2CellDB",
+                    [
+                        "-o",
+                        str(root / "CellDBLibs" / f"{partition}.cel"),
+                        "-psk",
+                        str(padstack_db),
+                        "-c",
+                        str(lmc),
+                        "-m",
+                    ],
+                    unit["cells"],
+                    f"-{index}" if len(units) > 1 else "",
                 )
+        for index, (unit, record) in enumerate(zip(units, records, strict=True)):
+            if ok and unit.get("parts"):
+                partition = str(unit["partition"])
+                ok = convert(
+                    "parts",
+                    "HKP2PartsDB",
+                    [
+                        "-p",
+                        str(project_path),
+                        "-o",
+                        str(root / "PartsDBLibs" / f"{partition}.pdb"),
+                        # -r replaces a part of the same number; without it the database
+                        # keeps the part it holds and drops the new one without a word
+                        *(["-r"] if unit.get("replace", True) else []),
+                    ],
+                    unit["parts"],
+                    f"-{index}" if len(units) > 1 else "",
+                )
+                if ok:
+                    record["pdb_registered"] = _ensure_prj_pdb(
+                        project_path, f"PartsDBLibs\\{partition}.pdb"
+                    )
+        if ok and any(unit.get("parts") for unit in units):
             cells = _sync_prj_cells(project_path, root)
             wanted = [str(item) for item in params.get("cell_partitions") or []]
             if wanted:
-                # parts referencing cells of other partitions (KiCad imports): Layout's
-                # Database Load only searches the partitions the design lists
+                # parts referencing cells of other partitions: Layout's Database Load
+                # only searches the partitions the design lists
                 added, cells_missing = _register_cell_partitions(project_path, root, wanted)
                 cells += added
     finally:
@@ -3276,23 +3351,24 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
     return {
         "project": str(project_path),
         "library": str(lmc),
-        "partition": partition,
+        "partition": records[0]["partition"] if len(records) == 1 else None,
+        "units": records,
         "steps": steps,
         "failed": failed,
-        "pdb_registered": registered,
-        "symbols_written": symbols_written,
-        "symbols_registered": symbols_registered,
+        "pdb_registered": any(r["pdb_registered"] for r in records),
+        "symbols_written": [name for r in records for name in r["symbols_written"]],
+        "symbols_registered": any(r["symbols_registered"] for r in records),
         "cells_registered": cells,
         "cells_missing": cells_missing,
         # a part whose cell partition is missing has no footprint: packaging and the
-        # board would fail on it later, so the build has not succeeded
+        # board would fail on it later, so the import has not succeeded
         "ok": not failed and not cells_missing,
         **(
-            {"hint": "import those KiCad libraries with library import, then build again"}
+            {"hint": "the parts reference cell partitions the library does not have"}
             if cells_missing
             else {}
         ),
-        "_untrusted": ["project", "library", "steps"],
+        "_untrusted": ["project", "library", "steps", "units"],
     }
 
 
@@ -3321,219 +3397,6 @@ def _register_cell_partitions(
     if added:
         project_path.write_text(text, encoding="utf-8", errors="surrogateescape")
     return added, missing
-
-
-KICAD_IMPORT_TIMEOUT = 900.0
-KICAD_IMPORT_RUNS = 60  # converter runs allowed per partition while isolating bad cells
-
-
-def _import_kicad_partition(
-    plan: Any, work: Path, lmc: Path, padstack_db: Path, cell_db: Path, record: dict[str, Any]
-) -> bool:
-    """Run the converters for one partition plan; `record` gets every run, the cells the
-    converter refused and the ones it crashed on. HKP2CellDB saves nothing when it refuses
-    a cell, so refused cells are dropped and the rest imported again; when it crashes
-    without naming one, the set is halved until the cell at fault is alone."""
-    from . import library_hkp
-
-    partition = plan.partition
-    record.setdefault("steps", [])
-    record["rejected"] = []
-    record["crashed"] = []
-    runs = 0
-    pad_extra = ["-o", str(padstack_db), "-c", str(lmc), "-m"]
-    cell_extra = ["-o", str(cell_db), "-psk", str(padstack_db), "-c", str(lmc), "-m"]
-
-    def convert(
-        step: str, tool: str, extra: list[str], text: str, tag: str
-    ) -> tuple[bool, list[str]]:
-        nonlocal runs
-        runs += 1
-        source = work / f"{partition}.{step}{tag}.hkp"
-        log = work / f"{partition}.{step}{tag}.log"
-        try:
-            source.write_text(text, encoding="ascii", errors="replace")
-            if log.exists():
-                log.unlink()
-        except OSError as exc:
-            raise AdapterError("E_IO", f"cannot write {source.name}: {exc}") from exc
-        arguments = ["-i", str(source), *extra, "-l", str(log)]
-        run = _run_library_tool(tool, arguments, timeout=KICAD_IMPORT_TIMEOUT)
-        errors = _tool_log(log)["errors"]
-        record["steps"].append(
-            {
-                "step": step,
-                "run": tag or "all",
-                "exit_code": run["exit_code"],
-                "dialogs": run["dialogs"],
-                "errors": errors[:5],
-            }
-        )
-        ok = run["exit_code"] == 0 and not run["dialogs"] and not errors
-        return ok, ([] if ok else _rejected_cells(log))
-
-    def import_cells(names: list[str], tag: str) -> bool:
-        subset = library_hkp.LibraryPlan(partition=partition)
-        subset.pads, subset.holes, subset.padstacks = plan.pads, plan.holes, plan.padstacks
-        subset.cells = {name: plan.cells[name] for name in names}
-        ok, rejected = convert(
-            "cells", "HKP2CellDB", cell_extra, library_hkp.render_cells(subset), tag
-        )
-        if ok:
-            return True
-        rejected = [name for name in rejected if name in subset.cells]
-        if rejected:
-            record["rejected"] += rejected
-            for name in rejected:
-                del plan.cells[name]
-            remaining = [name for name in names if name not in rejected]
-            return import_cells(remaining, tag + "r") if remaining else True
-        if len(names) == 1:
-            record["crashed"] += names
-            del plan.cells[names[0]]
-            return True
-        if runs > KICAD_IMPORT_RUNS:
-            return False
-        half = len(names) // 2
-        left = import_cells(names[:half], tag + "a")
-        right = import_cells(names[half:], tag + "b")
-        return left and right
-
-    pad_ok, _ = convert(
-        "padstacks", "HKP2PadstackDB", pad_extra, library_hkp.render_padstacks(plan), ""
-    )
-    return pad_ok and import_cells(sorted(plan.cells), "")
-
-
-def _kicad_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
-    """Convert KiCad footprint libraries into cell partitions of the project's central library.
-
-    Every `.pretty` folder becomes one partition named after it (`Package_SO`,
-    `Connector_JST`, ...): its padstacks merge into the library's padstack database
-    through `HKP2PadstackDB`, its cells go through `HKP2CellDB`. Nothing is registered in
-    the project: `library build` registers the partitions a design's parts reference.
-    Designer's project is closed meanwhile, and `Work/xpedition-cli/kicad/progress.json`
-    is rewritten after every library so a long run can be watched.
-    """
-    from . import kicad_footprints
-
-    project = params.get("project") or params.get("path")
-    if not project:
-        raise AdapterError("E_USAGE", "kicad_import requires the project path")
-    project_path = Path(str(project)).expanduser().resolve()
-    if not project_path.is_file():
-        raise AdapterError("E_NOT_FOUND", "project file was not found", {"path": str(project_path)})
-    root = (
-        Path(str(params["root"])).expanduser()
-        if params.get("root")
-        else kicad_footprints.default_root()
-    )
-    if root is None or not root.is_dir():
-        raise AdapterError(
-            "E_NOT_FOUND",
-            "the KiCad footprint folder was not found",
-            {"hint": "pass root, or set XPEDITION_KICAD_FOOTPRINTS"},
-        )
-    pretties = kicad_footprints.libraries(root)
-    wanted = [str(item) for item in params.get("libraries") or []]
-    if wanted:
-        stems = {(w[:-7] if w.lower().endswith(".pretty") else w).lower() for w in wanted}
-        pretties = [p for p in pretties if p.name[:-7].lower() in stems]
-        missing = sorted(stems - {p.name[:-7].lower() for p in pretties})
-        if missing:
-            raise AdapterError(
-                "E_NOT_FOUND", "KiCad libraries were not found", {"libraries": missing}
-            )
-    limit = int(params.get("limit") or 0)
-    if limit > 0:
-        pretties = pretties[:limit]
-    lmc, library_root = _central_library(project_path)
-    if not lmc.is_file():
-        raise AdapterError("E_NOT_FOUND", "the central library was not found", {"path": str(lmc)})
-    work = library_root / "Work" / "xpedition-cli" / "kicad"
-    try:
-        work.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise AdapterError("E_IO", f"cannot create the work folder: {exc}") from exc
-    padstack_db = library_root / "Layout" / "PadstackDB.psk"
-    app, reopen = _release_project(client, project_path)
-    if reopen:
-        _settle(4.0)
-    partitions: list[dict[str, Any]] = []
-    failed: list[str] = []
-    skipped: list[str] = []
-    go_on = params.get("continue_on_error") is not False
-    started_all = time.monotonic()
-    try:
-        for index, pretty in enumerate(pretties):
-            if failed and not go_on:
-                # CLI-SPEC §15.5: stop at the first failure; the rest are reported, not tried
-                skipped = [p.name[:-7] for p in pretties[index:]]
-                break
-            started = time.monotonic()
-            plan, issues = kicad_footprints.convert_library(pretty)
-            partition = plan.partition
-            record: dict[str, Any] = {
-                "library": pretty.name[:-7],
-                "partition": partition,
-                "cells": len(plan.cells),
-                "padstacks": len(plan.padstacks),
-                "issues": len(issues),
-                "issue_samples": issues[:5],
-                "steps": [],
-                "ok": True,
-            }
-            if not plan.cells:
-                record["skipped"] = "no cells"
-                partitions.append(record)
-                continue
-            cell_db = library_root / "CellDBLibs" / f"{partition}.cel"
-            record["ok"] = _import_kicad_partition(plan, work, lmc, padstack_db, cell_db, record)
-            # footprints the converter refused or crashed on are not in the partition; the
-            # library still imported, but a design that names one of them has no cell
-            record["dropped"] = len(record.get("rejected", [])) + len(record.get("crashed", []))
-            record["cells"] = len(plan.cells)
-            record["seconds"] = round(time.monotonic() - started, 1)
-            if not record["ok"]:
-                failed.append(partition)
-            partitions.append(record)
-            try:
-                (work / "progress.json").write_text(
-                    json.dumps(
-                        {
-                            "done": len(partitions),
-                            "total": len(pretties),
-                            "failed": failed,
-                            "seconds": round(time.monotonic() - started_all, 1),
-                            "partitions": partitions,
-                        },
-                        ensure_ascii=False,
-                        indent=1,
-                    ),
-                    encoding="utf-8",
-                )
-            except OSError:
-                pass
-    finally:
-        if reopen and app is not None:
-            try:
-                _ensure_project(app, project_path)
-            except AdapterError:
-                pass
-    return {
-        "project": str(project_path),
-        "library": str(lmc),
-        "root": str(root),
-        "libraries": len(pretties),
-        "cells": sum(int(p["cells"]) for p in partitions if p["ok"] and "skipped" not in p),
-        "dropped": sum(int(p.get("dropped") or 0) for p in partitions),
-        "partitions": partitions,
-        "failed": failed,
-        "skipped": skipped,
-        "seconds": round(time.monotonic() - started_all, 1),
-        "ok": not failed,
-        "_untrusted": ["project", "library", "root", "partitions", "skipped"],
-    }
 
 
 def _release_project(client: Any, project_path: Path) -> tuple[Any, bool]:
@@ -8431,8 +8294,6 @@ def dispatch(method: str, params: dict[str, Any]) -> dict[str, Any]:
             return _let_go_of_project(params, client)
         if method == "reopen_project":
             return _take_up_project(params, client)
-        if method == "kicad_import":
-            return _kicad_import(params, client)
         if method == "pcb_create":
             return _pcb_create(params, client)
         if method == "forward_annotate":
