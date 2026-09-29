@@ -29,7 +29,7 @@ xpedition-cli reference --compact
 ```
 
 第一行从本仓库默认分支安装 CLI 和它的 Windows 适配器（`[native]`）；要固定版本就在
-末尾加发布 tag，例如 `...xpedition-cli@v1.0.2`。在源码目录里
+末尾加发布 tag，例如 `...xpedition-cli@v1.0.3`。在源码目录里
 `python -m pip install -e ".[native]"` 效果相同。每次发布还会在 npm 上发布独立二进制
 `@fateforge/xpedition-cli`；它不带 Windows 适配器，只能跑不需要 Xpedition 的命令
 （`reference` 里 `needs: none` 的：预览、规划、按文件计算指标、工程备份）。CLI 没有

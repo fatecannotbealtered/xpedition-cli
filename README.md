@@ -32,7 +32,7 @@ xpedition-cli reference --compact
 
 The first line installs the CLI and its Windows adapter (`[native]`) from this
 repository's default branch; append a release tag to pin one, e.g.
-`...xpedition-cli@v1.0.2`. From a checkout, `python -m pip install -e ".[native]"`
+`...xpedition-cli@v1.0.3`. From a checkout, `python -m pip install -e ".[native]"`
 does the same. Each release also publishes a standalone binary to npm as
 `@fateforge/xpedition-cli`; it has no Windows adapter, so it runs only the
 commands that need no Xpedition (`reference`'s `needs: none`: previews, plans,

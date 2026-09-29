@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-09-30
+
 A part comes into the project's library one of two ways: created from its datasheet
 (`library add`), or imported from an existing Xpedition library (`library import`).
 The KiCad import is gone, so nothing ties the library to KiCad.

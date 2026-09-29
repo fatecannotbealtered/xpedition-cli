@@ -1,10 +1,10 @@
 ---
 name: xpedition-schematic
-version: "1.0.2"
+version: "1.0.3"
 description: "Handles the schematic of an Xpedition project in Designer through the xpedition-cli tool: draws it from a design description (including designing the circuit from a written requirement) under the drawing conventions, with parts from the project's own library or generated placeholders, edits a drawn sheet in place (place, move or delete a part, set a property, connect or disconnect a pin, rename a net), reads it back, checks it (Designer's verification and netlist rules), shows and exports it, and produces and checks the BOM. Use when the user asks to draw, change, check, show or export a schematic or its bill of materials, even without the word Xpedition. Not for the board in Layout (xpedition-pcb), or for install, sessions, projects, backups and adding parts to the library (the xpedition-cli Skill, loaded before this one)."
 license: MIT
 user-invocable: true
-metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.2"}}
+metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.3"}}
 ---
 
 # xpedition-schematic
