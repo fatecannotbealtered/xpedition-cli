@@ -335,6 +335,7 @@ def parse_cells(text: str, partition: str = "") -> list[dict[str, Any]]:
 
 _PAD_SHAPES = (
     "ROUND",
+    "SLOT",
     "SQUARE",
     "RECTANGLE",
     "OBLONG",

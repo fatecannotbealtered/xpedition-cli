@@ -217,3 +217,80 @@ def test_bad_specs_say_what_is_wrong() -> None:
     with pytest.raises(I.FootprintError, match="maximum"):
         I.span([2, 1], "span")
     assert I.span({"nominal": 1.0, "tolerance": 0.1}, "x") == I.Span(0.9, 1.1)
+
+
+USB_LEGS = {
+    "name": "USB-LEGS",
+    "height": 3.2,
+    "pads": [
+        {"pin": "A1", "x": -3.0, "y": 0.0, "width": 0.6, "height": 1.0},
+        # the shield's legs: plated slots in oblong lands, both on one pin
+        {
+            "pin": "S1",
+            "x": -4.3,
+            "y": 1.5,
+            "width": 1.0,
+            "height": 2.1,
+            "shape": "oblong",
+            "drill": [0.6, 1.7],
+        },
+        {
+            "pin": "S1",
+            "x": 4.3,
+            "y": 1.5,
+            "width": 1.0,
+            "height": 2.1,
+            "shape": "oblong",
+            "drill": [0.6, 1.7],
+        },
+    ],
+    # the locating pegs: unplated holes that are no pin
+    "holes": [{"x": -2.9, "y": 2.0, "drill": 0.65}, {"x": 2.9, "y": 2.0, "drill": 0.65}],
+}
+
+
+def test_lands_take_slots_and_a_cell_takes_unplated_holes_of_its_own() -> None:
+    plan = H.LibraryPlan(partition="P")
+    stock = H._Stock(plan)
+    cell = I.footprint(USB_LEGS, stock, name="USB-LEGS")
+    plan.cells[cell.name] = cell
+    leg = plan.padstacks[next(p for p in cell.pins if p.number == "S1").padstack]
+    assert leg.kind == "PIN_THROUGH" and plan.holes[leg.hole].slot == (0.6, 1.7)
+    assert plan.holes[leg.hole].plated and cell.mount == "MIXED"
+    assert len(cell.holes) == 2 and {h.x for h in cell.holes} == {-2.9, 2.9}
+    peg = plan.padstacks[cell.holes[0].padstack]
+    assert peg.kind == "MOUNTING_HOLE" and not plan.holes[peg.hole].plated
+    # what the converters are handed reads back the same
+    from xpedition_cli import library_read as R
+
+    stacks = R.parse_padstacks(H.render_padstacks(plan))
+    slot = stacks["holes"][leg.hole]
+    assert (slot["shape"], slot["width"], slot["height"], slot["plated"]) == (
+        "SLOT",
+        0.6,
+        1.7,
+        True,
+    )
+    assert stacks["holes"][peg.hole]["plated"] is False
+    read = R.parse_cells(H.render_cells(plan))[0]
+    assert sorted(h["x"] for h in read["holes"]) == [-2.9, 2.9]
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ({"drill": [0.6, 2.5]}, "inside its land"),
+        ({"drill": [0.6]}, "slot's [width, height]"),
+        ({"plated": "yes"}, "plated is true or false"),
+    ],
+)
+def test_a_land_whose_hole_cannot_be_is_refused(change, message) -> None:
+    spec = {**USB_LEGS, "pads": [{**USB_LEGS["pads"][1], **change}]}
+    with pytest.raises(I.FootprintError, match=message.replace("[", r"\[").replace("]", r"\]")):
+        I.footprint(spec, H._Stock(H.LibraryPlan(partition="P")), name="X")
+
+
+def test_a_hole_needs_a_drill() -> None:
+    spec = {**USB_LEGS, "holes": [{"x": 0, "y": 0}]}
+    with pytest.raises(I.FootprintError, match="needs a drill"):
+        I.footprint(spec, H._Stock(H.LibraryPlan(partition="P")), name="X")

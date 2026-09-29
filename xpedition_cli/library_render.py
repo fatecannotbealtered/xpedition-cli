@@ -178,8 +178,14 @@ def _footprint_panel(cell: dict[str, Any] | None, padstacks: dict[str, Any]) -> 
                 draw.rectangle([left, top, right, bottom], fill=colour)
         if hole:
             cx, cy = px(pin["x"], pin["y"])
-            radius = float(hole.get("width") or 0) * scale / 2
-            draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=COLOURS["hole"])
+            half_w = float(hole.get("width") or 0) * scale / 2
+            half_h = float(hole.get("height") or hole.get("width") or 0) * scale / 2
+            box = [cx - half_w, cy - half_h, cx + half_w, cy + half_h]
+            if abs(half_w - half_h) < 0.5:
+                draw.ellipse(box, fill=COLOURS["hole"])
+            else:
+                # a slot: a stadium along its longer side
+                draw.rounded_rectangle(box, radius=min(half_w, half_h), fill=COLOURS["hole"])
         if pin.get("number"):
             cx, cy = px(pin["x"], pin["y"])
             draw.text((cx, cy), str(pin["number"]), fill=COLOURS["text"], font=label, anchor="mm")

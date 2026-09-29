@@ -169,3 +169,30 @@ def test_the_input_schema_describes_the_file() -> None:
     assert item["required"] == ["number", "prefix", "symbol", "footprint"]
     families = item["properties"]["footprint"]["oneOf"][0]["properties"]["family"]["enum"]
     assert "gullwing" in families and "nolead" in families
+
+
+def test_a_held_cell_without_the_holes_is_not_the_same_cell(tmp_path) -> None:
+    from fakes import FakeLibrary
+    from test_ipc7351 import USB_LEGS
+
+    part = {
+        "number": "USB-C-TEST",
+        "description": "USB-C receptacle",
+        "prefix": "J",
+        "symbol": {"left": [["A1", "VBUS"]], "right": [["S1", "SHIELD"]]},
+        "footprint": USB_LEGS,
+    }
+    spec = {"partition": "PartQuest", "parts": [part]}
+    held = copy.deepcopy(spec)
+    held["parts"][0]["footprint"] = {**USB_LEGS, "holes": []}
+    fake = FakeLibrary(tmp_path / "Lib", held)
+    library = R.Library()
+    for path in fake.cache.glob("*.hkp"):
+        kind, _, partition = path.stem.partition("-")
+        text = path.read_text(encoding="utf-8")
+        if kind == "cells":
+            library.cells += R.parse_cells(text, partition)
+        elif kind == "padstacks":
+            library.padstacks = R.parse_padstacks(text)
+    plan = P.plan(spec, library)
+    assert {c["name"]: c["action"] for c in plan.actions["cells"]}["USB-LEGS"] == "replace"

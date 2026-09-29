@@ -200,6 +200,8 @@ class Land:
     shape: str = "RECTANGLE"  # RECTANGLE, ROUND, OBLONG
     drill: float = 0.0
     paste: float = 1.0  # share of the land's area the paste window covers
+    drill_height: float = 0.0  # a slot's length along y; 0 for a round hole
+    plated: bool = True
 
     def box(self, grow: float = 0.0) -> tuple[float, float, float, float]:
         return (
@@ -212,10 +214,11 @@ class Land:
 
 def _padstack(stock: H._Stock, land: Land, corners: str) -> str:
     if land.drill:
-        if land.shape == "ROUND":
+        drill = (land.drill, land.drill_height or land.drill)
+        if land.shape == "ROUND" and drill[0] == drill[1] and land.plated:
             return stock.through(land.width, land.drill)
         return stock.through_stack(
-            land.shape, land.width, land.height, 0.0, (land.drill, land.drill)
+            land.shape, land.width, land.height, 0.0, drill, plated=land.plated
         )
     if land.shape == "ROUND":
         return stock.smd_round(land.width)
@@ -826,12 +829,58 @@ def _custom_land(item: Any, index: int) -> Land:
     shape = SHAPES.get(str(item.get("shape", "rect")).lower())
     if shape is None:
         raise FootprintError(f"{where}: shape is one of {sorted(SHAPES)}")
-    drill = float(item.get("drill", 0) or 0)
-    if width <= 0 or height <= 0 or drill < 0 or (drill and drill >= min(width, height)):
+    drill, drill_height = _drill(item.get("drill", 0), where)
+    plated = item.get("plated", True)
+    if not isinstance(plated, bool):
+        raise FootprintError(f"{where}: plated is true or false")
+    inside = not drill or (drill < width and (drill_height or drill) < height)
+    if width <= 0 or height <= 0 or not inside:
         raise FootprintError(f"{where}: sizes must be positive, a drill inside its land")
     if not number.strip():
         raise FootprintError(f"{where}: pin is the pin number the land belongs to")
-    return Land(number, x, y, width, height, shape, drill)
+    return Land(number, x, y, width, height, shape, drill, drill_height=drill_height, plated=plated)
+
+
+def _drill(value: Any, where: str) -> tuple[float, float]:
+    """A drill as `(diameter, 0)` or, for a slot given as `[width, height]`, the two."""
+    if isinstance(value, (list, tuple)):
+        if len(value) != 2:
+            raise FootprintError(f"{where}: drill is a diameter or a slot's [width, height]")
+        try:
+            width, height = float(value[0]), float(value[1])
+        except (TypeError, ValueError) as exc:
+            raise FootprintError(f"{where}: a slot's width and height are numbers") from exc
+        if width <= 0 or height <= 0:
+            raise FootprintError(f"{where}: a slot's width and height are positive")
+        return (width, 0.0) if abs(width - height) < 1e-9 else (width, height)
+    try:
+        diameter = float(value or 0)
+    except (TypeError, ValueError) as exc:
+        raise FootprintError(f"{where}: drill is a number or [width, height]") from exc
+    if diameter < 0:
+        raise FootprintError(f"{where}: a drill is positive")
+    return diameter, 0.0
+
+
+def _custom_hole(item: Any, index: int, stock: H._Stock) -> H.CellPin:
+    """A hole of the cell that is no pin: a locating peg's, unplated unless told."""
+    where = f"holes[{index}]"
+    if not isinstance(item, dict):
+        raise FootprintError(f"{where} must be an object")
+    try:
+        x, y = float(item["x"]), float(item["y"])
+    except KeyError as exc:
+        raise FootprintError(f"{where} needs x, y and drill") from exc
+    except (TypeError, ValueError) as exc:
+        raise FootprintError(f"{where}: x and y are numbers") from exc
+    width, height = _drill(item.get("drill"), where)
+    if not width:
+        raise FootprintError(f"{where} needs a drill")
+    plated = item.get("plated", False)
+    if not isinstance(plated, bool):
+        raise FootprintError(f"{where}: plated is true or false")
+    padstack = stock.hole((width, height or width), plated)
+    return H.CellPin("", padstack, round(x, 4) + 0.0, round(y, 4) + 0.0)
 
 
 def _custom(spec: dict[str, Any], stock: H._Stock, name: str) -> H.Cell:
@@ -840,10 +889,19 @@ def _custom(spec: dict[str, Any], stock: H._Stock, name: str) -> H.Cell:
     if not isinstance(items, list) or not items:
         raise FootprintError("pads is a non-empty list")
     lands_ = [_custom_land(item, index) for index, item in enumerate(items)]
+    holes = spec.get("holes", [])
+    if not isinstance(holes, list):
+        raise FootprintError("holes is a list")
+    cell_holes = [_custom_hole(item, index, stock) for index, item in enumerate(holes)]
     if "body" in spec:
         body = _body(spec)
     else:
         extent = [land.box() for land in lands_]
+        for hole in holes:
+            width, height = _drill(hole.get("drill"), "holes")
+            half_w, half_h = width / 2, (height or width) / 2
+            x, y = float(hole["x"]), float(hole["y"])
+            extent.append((x - half_w, y - half_h, x + half_w, y + half_h))
         body = (
             round(max(e[2] for e in extent) - min(e[0] for e in extent), 3),
             round(max(e[3] for e in extent) - min(e[1] for e in extent), 3),
@@ -853,7 +911,7 @@ def _custom(spec: dict[str, Any], stock: H._Stock, name: str) -> H.Cell:
     surface = any(not land.drill for land in lands_)
     mount = "MIXED" if through and surface else ("THROUGH" if through else "SURFACE")
     cell_name = str(spec.get("name") or name)
-    return _cell(
+    cell = _cell(
         cell_name,
         lands_,
         body,
@@ -867,6 +925,8 @@ def _custom(spec: dict[str, Any], stock: H._Stock, name: str) -> H.Cell:
         pin_one=bool(spec.get("pin_one", False)),
         mount=mount,
     )
+    cell.holes = cell_holes
+    return cell
 
 
 def footprint(spec: dict[str, Any], stock: H._Stock, *, kind: str = "", name: str = "") -> H.Cell:

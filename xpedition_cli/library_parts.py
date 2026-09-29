@@ -332,7 +332,11 @@ def _same_cell(ours: H.Cell, theirs: dict[str, Any]) -> bool:
     held = sorted(
         (p["number"], round(p["x"], 3), round(p["y"], 3), p["padstack"]) for p in theirs["pins"]
     )
-    return mine == held
+    my_holes = sorted((round(h.x, 3), round(h.y, 3), h.padstack) for h in ours.holes)
+    held_holes = sorted(
+        (round(h["x"], 3), round(h["y"], 3), h["padstack"]) for h in theirs.get("holes", [])
+    )
+    return mine == held and my_holes == held_holes
 
 
 def _compare(result: AddPlan, existing: R.Library | None) -> None:
@@ -522,7 +526,25 @@ def input_schema() -> dict[str, Any]:
             "width": {"type": "number"},
             "height": {"type": "number"},
             "shape": {"enum": ["rect", "round", "oblong"]},
-            "drill": {"type": "number", "description": "a plated hole, mm"},
+            "drill": {
+                "description": "a hole in the land, mm: a diameter, or a slot's [width, height]",
+                "oneOf": [
+                    {"type": "number"},
+                    {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                ],
+            },
+            "plated": {"type": "boolean", "description": "a plated hole (true by default)"},
+        },
+    }
+    hole = {
+        "type": "object",
+        "required": ["x", "y", "drill"],
+        "description": "a hole that is no pin, such as a locating peg's",
+        "properties": {
+            "x": {"type": "number"},
+            "y": {"type": "number"},
+            "drill": land["properties"]["drill"],
+            "plated": {"type": "boolean", "description": "false by default"},
         },
     }
     ipc = {
@@ -621,6 +643,7 @@ def input_schema() -> dict[str, Any]:
                                     "required": ["pads", "height"],
                                     "properties": {
                                         "pads": {"type": "array", "items": land},
+                                        "holes": {"type": "array", "items": hole},
                                         "body": {"type": "array"},
                                         "height": {"type": "number"},
                                         "name": {"type": "string"},
