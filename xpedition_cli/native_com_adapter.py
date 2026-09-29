@@ -5009,6 +5009,30 @@ TH_TO_MM = 0.0254  # geometry comes out of the automation in thousandths of an i
 FAB_GFX_SILKSCREEN = 2  # FabricationLayerGfx/Text.Type: 1 assembly, 2 silkscreen
 
 
+def _hole_size(hole: Any) -> float:
+    """A hole's size in mm: its drill, or for a slot, whose drill size reads 0, its
+    length. Layout gives a slot as the line between its two end centres drawn with the
+    slot's width (0.6 x 1.7 mm: a 1.1 mm line 0.6 mm wide), so the length is the
+    line's extent plus that width -- or plus an arc's radius on both sides, for an
+    outline drawn with arcs. A circle of that diameter covers the slot, so a clearance
+    measured against it errs on the safe side."""
+    size = float(hole.GetDrillSize(UNIT_MM))
+    if size > 0:
+        return size
+    longest = 0.0
+    for geometry in _items(_com_member(hole, "Geometries")):
+        record = _geometry_record(geometry) or {}
+        if record.get("circle"):
+            longest = max(longest, 2 * float(record["circle"][2]))
+        points = record.get("path") or []
+        if points:
+            width = float(_value(geometry, "LineWidth", default=0) or 0) * TH_TO_MM
+            grow = max(width, 2 * max(abs(p[2]) for p in points))
+            xs, ys = [p[0] for p in points], [p[1] for p in points]
+            longest = max(longest, max(xs) - min(xs) + grow, max(ys) - min(ys) + grow)
+    return round(longest, 4)
+
+
 def _geometry_record(geometry: Any, **extra: Any) -> dict[str, Any] | None:
     """A geometry as plain data: `circle` or `path` rows of (x, y, r) in mm, `cutouts`."""
     try:
@@ -5240,7 +5264,7 @@ def _board_model(doc: Any) -> dict[str, Any]:
                         [
                             float(pin.PositionX) * TH_TO_MM,
                             float(pin.PositionY) * TH_TO_MM,
-                            float(hole.GetDrillSize(UNIT_MM)),
+                            _hole_size(hole),
                         ]
                     )
                 except Exception:
@@ -5263,7 +5287,7 @@ def _board_model(doc: Any) -> dict[str, Any]:
                     [
                         float(via.PositionX) * TH_TO_MM,
                         float(via.PositionY) * TH_TO_MM,
-                        float(hole.GetDrillSize(UNIT_MM)),
+                        _hole_size(hole),
                     ]
                 )
             except Exception:
@@ -5275,7 +5299,7 @@ def _board_model(doc: Any) -> dict[str, Any]:
                     [
                         float(mounting.PositionX) * TH_TO_MM,
                         float(mounting.PositionY) * TH_TO_MM,
-                        float(hole.GetDrillSize(UNIT_MM)),
+                        _hole_size(hole),
                     ]
                 )
             except Exception:

@@ -834,3 +834,42 @@ def test_a_route_pass_removes_the_layers_it_may_not_use() -> None:
 def test_obstruct_kinds_read_the_type_bits() -> None:
     assert native_adapter._obstruct_kinds(8 | 32) == ["trace", "via"]
     assert native_adapter._obstruct_kinds(0) == ["type 0"]
+
+
+class _Many:
+    """A COM collection: Count and a one-based Item."""
+
+    def __init__(self, items: list) -> None:
+        self._items = items
+        self.Count = len(items)
+
+    def Item(self, index: int):
+        return self._items[index - 1]
+
+
+class _SlotLine:
+    """A slot as Layout gives it: the line between its end centres, drawn its width."""
+
+    def __init__(self, half_length_mm: float, width_mm: float) -> None:
+        th = 1 / native_adapter.TH_TO_MM
+        self.PointsArray = [[0.0, 0.0], [-half_length_mm * th, half_length_mm * th], [0.0, 0.0]]
+        self.LineWidth = width_mm * th
+        self.Cutouts = _Many([])
+
+    def IsCircle(self) -> bool:
+        return False
+
+
+class _Hole:
+    def __init__(self, drill: float, geometries: list) -> None:
+        self._drill = drill
+        self.Geometries = _Many(geometries)
+
+    def GetDrillSize(self, unit: int) -> float:
+        return self._drill
+
+
+def test_a_slot_reads_as_its_length_and_a_round_hole_as_its_drill() -> None:
+    # a 0.6 x 1.7 mm slot: drill size 0, a 1.1 mm line 0.6 mm wide
+    assert native_adapter._hole_size(_Hole(0.0, [_SlotLine(0.55, 0.6)])) == 1.7
+    assert native_adapter._hole_size(_Hole(0.65, [])) == 0.65

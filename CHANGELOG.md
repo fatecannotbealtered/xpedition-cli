@@ -58,6 +58,9 @@ The KiCad import is gone, so nothing ties the library to KiCad.
   character that code page cannot hold is refused, a symbol imported from another
   library is copied byte for byte, and the read-back of `library add` and `library
   import` compares the text.
+- `pcb geometry` gave a slot a size of 0, which a clearance check reads as a point:
+  Layout reports no drill size for a slot, only the line between its end centres
+  drawn at its width. A slot's size is its length now, which covers it.
 
 ## [1.0.2] - 2026-09-29
 

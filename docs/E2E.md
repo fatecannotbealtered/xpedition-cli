@@ -503,12 +503,13 @@ What the run found, all fixed before the release:
 Not done in this run: one designator (R203) stayed `unplaced` beside its
 neighbour; the arrange packs the resistor column too tightly for both labels.
 
-## Recorded run: a library imported from another (2026-09-29)
+## Recorded run: a library imported from another (2026-09-29 and 30)
 
 The design library without KiCad: parts created from datasheets in one project's
-library, then imported into another's with `library import`, on the same XPED2604
-installation. Designer waited at the Siemens sign-in for the whole run, so it
-covers everything the library converters do, not a draw.
+library, imported into another's with `library import`, then drawn, packaged and
+brought onto a board, on the same XPED2604 installation. The library steps ran on
+the converters alone while Designer waited at the Siemens sign-in; the draw and
+the board followed once the user had signed in.
 
 | Step | Commands | Evidence |
 |---|---|---|
@@ -519,6 +520,9 @@ covers everything the library converters do, not a draw.
 | Again | the same import | every item `keep`, and "a confirm changes nothing" |
 | Replace | `library add` of a changed resistor in the source, then the import | only that part `replace`; the confirm refused without `--dangerous`, and with it ran the parts converter alone, with `-r`; the target reads the new description |
 | Target | `library check`, `schematic render --project` | 4 parts, 44 cells, 133 symbols, clean; the design naming the imported parts plans without an issue, its sheet drawn with their symbols |
+| Draw | `schematic render --project`, `schematic draw --dangerous` | 9 parts on 4 sheets in 84 s, `netlist.matches`; the imported parts placed with their own symbols from `Company` and `Connectors` |
+| Package | `library build --package` | 3 placeholder parts made, the 4 imported ones left alone; packaged, the packager finding them in the partitions the import registered |
+| Board | `pcb create`, `session start --kind pcb`, `pcb annotate`, `pcb info`, `pcb move`, `pcb geometry --refdes J201` | annotated: 9 parts, 6 nets, Layout loading the imported cells from both partitions. J201 placed at (20, 20): A1 on +5V, both shell legs on GND on all four layers, the slots at (15.7, 21.5) and (24.3, 21.5), the unplated pegs at (17.1, 22.0) and (22.9, 22.0); the MOSFET's four drain lands on one net |
 | Chinese text | `library add`, `library import` of a part described `贴片电阻 10K 1% 0603（测试）`, made by `国巨 Yageo` | before the fix the source library held `???? 10K 1% 0603????` and the add said verified; after it, both libraries hold the text as written and both read-backs compare it |
 
 What the run found, fixed before the release:
@@ -533,9 +537,9 @@ What the run found, fixed before the release:
 - Chinese text reached the library as question marks, and the read-back passed: the
   texts went to the converters as ASCII with replacements. They go and come back in
   the system code page, and both read-backs compare the text.
-
-Not done in this run: drawing a design with the imported parts, packaging it and
-bringing it onto a board, which needs Designer and Layout past the sign-in.
+- `pcb geometry` read a slot's size as 0: Layout gives a slot no drill size, but the
+  line between its end centres drawn at the slot's width. A slot reads as its length
+  (1.7 for 0.6 x 1.7 mm), which covers it for a clearance check.
 
 ## What the recorded runs do not cover
 
