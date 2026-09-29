@@ -120,8 +120,6 @@ nothing depends on 1.0.0 yet.
   outer pours are in -- after moving its parts -- needs it: with a pour in place the
   router counts the net as connected, and the pads it did not route are open once the
   planes regenerate.
-
-
 - Sheet sizes `E`, `A2`, `A1` and `A0`, on their landscape borders and pages
   (`VDSHEET_EL_SIZE` 15, `A2L_SIZE` 18 to `A0L_SIZE` 20); an ISO drawing could not grow
   past A3. Their title blocks are not measured yet, and the plan says so:
@@ -192,8 +190,6 @@ nothing depends on 1.0.0 yet.
 - `schematic sheets` listed only the sheets open in a window.
 - `doctor` failed the Xpedition check whenever the recorded session process was gone.
 - A COM failure's message was the raw error tuple; it is the application's own text.
-
-
 - `schematic draw`'s netlist check walked only the planned nets, so a drawing with a
   template's leftover part wired to a no-connect pin still matched. It now reports
   `extra_nets` (a net the plan never named that holds a planned pin),

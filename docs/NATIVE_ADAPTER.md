@@ -46,11 +46,10 @@ Set-Location "$env:SDD_HOME\..\win64"
 ```
 
 Use the paths for the installed release. A successful registration is visible
-without opening a project:
+without opening a project, in the `xpedition` check of:
 
 ```powershell
 xpedition-cli doctor --compact
-xpedition-cli system license --compact
 ```
 
 The CLI keeps the native status unavailable until both the adapter and the
