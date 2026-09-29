@@ -29,3 +29,17 @@ def test_no_module_defines_a_top_level_name_twice() -> None:
         if twice:
             repeated[str(path.relative_to(PACKAGE))] = twice
     assert repeated == {}
+
+
+def test_every_handler_is_imported_by_a_statement_the_freezer_can_see() -> None:
+    """PyInstaller bundles the modules it sees imported. A handler module looked up by
+    a computed name was left out of 1.0.1's binaries, which then ran no command."""
+    from xpedition_cli.cli import registry
+
+    for command in registry.commands():
+        module_name, _, function_name = command.handler.partition(":")
+        handler = getattr(registry._handler_module(module_name), function_name, None)
+        assert callable(handler), command.path
+    for module in PACKAGE.rglob("*.py"):
+        text = module.read_text(encoding="utf-8")
+        assert "import_module(" not in text and "__import__(" not in text, module.name

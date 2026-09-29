@@ -1,10 +1,10 @@
 ---
 name: xpedition-cli
-version: "1.0.1"
+version: "1.0.2"
 description: "Entry Skill for xpedition-cli, the agent-safe command-line tool that drives a licensed Xpedition installation: install, doctor and Designer/Layout sessions (including connection failures), project creation from a template, project backup and restore, the project's own design library (parts with symbols, IPC-7351B footprints and pin maps: list, show, check, add, render), the knowledge base, and the dry-run/confirm write recipe. Use it for any task on an Xpedition project (.prj in Designer or Layout), even one that does not name Xpedition, and load it before any other xpedition-* Skill. Not for the schematic (drawing, editing, checking, export, the BOM: xpedition-schematic) or the board (creation, forward annotation, placement, routing, DRC, renders, fabrication outputs: xpedition-pcb)."
 license: MIT
 user-invocable: true
-metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.1"}}
+metadata: {"requires":{"bins":["xpedition-cli"],"min_version":"1.0.2"}}
 ---
 
 # xpedition-cli

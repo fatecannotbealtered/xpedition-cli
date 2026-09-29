@@ -2,13 +2,13 @@
 
 Dispatch, `reference`, `--help` and the option checks all read this table, so a
 command cannot exist in one of them and not in the others. A handler is named as
-`module:function` inside `xpedition_cli.cli` and imported only when it runs.
+`module:function` inside `xpedition_cli.cli` and imported only when it runs
+(`_handler_module`).
 """
 
 from __future__ import annotations
 
 import functools
-import importlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -146,9 +146,33 @@ class Command:
 
     def run(self, options: dict[str, Any]) -> dict[str, Any]:
         module_name, _, function_name = self.handler.partition(":")
-        module = importlib.import_module(f"xpedition_cli.cli.{module_name}")
+        module = _handler_module(module_name)
         handler: Callable[[dict[str, Any]], dict[str, Any]] = getattr(module, function_name)
         return handler(options)
+
+
+def _handler_module(name: str) -> Any:
+    """The module of `xpedition_cli.cli` a handler lives in.
+
+    Imported here and not at the top, because the handler modules reach this
+    registry through `reference_data`. The imports are statements, never a name
+    computed for `importlib`: a frozen binary bundles only what PyInstaller sees
+    imported, and 1.0.1's binaries, which looked the modules up by name, held none
+    of them and could run no command.
+    """
+    from xpedition_cli.cli import bom, environment, kb, library, pcb, project, schematic, sessions
+
+    modules = {
+        "bom": bom,
+        "environment": environment,
+        "kb": kb,
+        "library": library,
+        "pcb": pcb,
+        "project": project,
+        "schematic": schematic,
+        "sessions": sessions,
+    }
+    return modules[name]
 
 
 DEFAULT_SORT = "the order the design stores them; stable between calls"

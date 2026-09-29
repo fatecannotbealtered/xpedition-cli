@@ -1,6 +1,6 @@
 {
   "name": "@fateforge/xpedition-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "agent-native control of Siemens Xpedition: schematic, design library, board and fabrication outputs, every write previewed and verified",
   "license": "MIT",
   "author": "Sean Guo <guosong6886@gmail.com>",
@@ -19,12 +19,12 @@
     "check-version": "node scripts/check-version.js"
   },
   "optionalDependencies": {
-    "@fateforge/xpedition-cli-darwin-arm64": "1.0.1",
-    "@fateforge/xpedition-cli-darwin-x64": "1.0.1",
-    "@fateforge/xpedition-cli-linux-arm64": "1.0.1",
-    "@fateforge/xpedition-cli-linux-x64": "1.0.1",
-    "@fateforge/xpedition-cli-win32-arm64": "1.0.1",
-    "@fateforge/xpedition-cli-win32-x64": "1.0.1"
+    "@fateforge/xpedition-cli-darwin-arm64": "1.0.2",
+    "@fateforge/xpedition-cli-darwin-x64": "1.0.2",
+    "@fateforge/xpedition-cli-linux-arm64": "1.0.2",
+    "@fateforge/xpedition-cli-linux-x64": "1.0.2",
+    "@fateforge/xpedition-cli-win32-arm64": "1.0.2",
+    "@fateforge/xpedition-cli-win32-x64": "1.0.2"
   },
   "files": [
     "scripts/run.js",

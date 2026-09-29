@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-09-29
+
+### Fixed
+
+- The 1.0.1 binaries -- the GitHub Release archives and the npm packages -- could
+  run no command: every one answered `E_UNKNOWN` (`ModuleNotFoundError`). The
+  registry looked each handler's module up by a computed name, which PyInstaller
+  cannot see, so the binaries held none of them. The modules are imported by
+  statement now, a test refuses a computed import anywhere in the package, and the
+  release build runs the binary it built (`version`, `reference`, `schematic
+  render`) before anything publishes it. Installing from the repository with pip,
+  as the Windows adapter is installed, was not affected.
+
 ## [1.0.1] - 2026-09-29
 
 A new command tree. It breaks every script written against 1.0.0: the old names are
@@ -240,6 +253,14 @@ nothing depends on 1.0.0 yet.
 - The example designs plan clean again under DS-17: the pull-up of sheet 3, the
   sensor and its capacitor, and the test points of sheet 4 moved, and the rail's test
   point is turned pin-up under its power symbol.
+- A stock tool's log was decoded as the system code page first, which does not
+  exist off Windows and, on an English Windows, turns UTF-8 into mojibake without
+  an error. Logs are read as UTF-8 first, then as the code page; the packager's
+  warning count no longer reads 0 off Windows.
+- The paths a `.prj` names are Windows paths on every system. Where paths have no
+  drives, `project info`, `pcb annotate`, `library import` and `project backup`
+  took `PCB\Board.pcb` for one file name and `D:/Shared/Lib.lmc` for a path
+  inside the project.
 
 ## [1.0.0] - 2026-09-28
 

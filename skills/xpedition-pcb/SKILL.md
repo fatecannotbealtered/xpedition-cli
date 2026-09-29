@@ -1,10 +1,10 @@
 ---
 name: xpedition-pcb
-version: "1.0.1"
+version: "1.0.2"
 description: "Handles board work in Xpedition Layout through the xpedition-cli tool: builds the board from a drawn schematic, forward-annotates it and brings it up to date after the schematic or a footprint changes, then the outline, mounting holes, net classes and trace widths, placement and moving parts, copper pours, autorouting (all nets or named ones) or planned hand routing, DRC plus board rules, placement metrics, the stackup and board data, renders and screenshots, and the fabrication package (Gerber, NC drill, ODB++, centroid). Use when the user asks to lay out, place or move parts on, route, check, measure, render or export the PCB of an Xpedition project, including a part move given in mm, even without the word Xpedition. Not for the schematic or the BOM (xpedition-schematic), or for install, sessions and Layout connection failures, projects, backups and the design library (the xpedition-cli Skill, loaded before this one)."
 license: MIT
 user-invocable: true
-metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.1"}}
+metadata: {"requires":{"bins":["xpedition-cli"],"skills":["xpedition-cli"],"min_version":"1.0.2"}}
 ---
 
 # xpedition-pcb
