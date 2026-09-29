@@ -6644,6 +6644,7 @@ def _plane_pour(params: dict[str, Any], client: Any) -> dict[str, Any]:
     min_x, min_y, max_x, max_y = _board_rect(doc)
     radius = max(_outline_radius(doc) - margin, 0.0)
     replace = bool(params.get("replace", False))
+    remove = bool(params.get("remove", False))
     existing = _plane_shapes(doc)
     duplicates = [item for item in existing if item["net"] == net_name and item["layer"] == layer]
     result: dict[str, Any] = {
@@ -6661,12 +6662,19 @@ def _plane_pour(params: dict[str, Any], client: Any) -> dict[str, Any]:
         },
         "existing": existing,
         "replace": replace,
+        "remove": remove,
         "applied": False,
         "saved": False,
         "prompts": prompts,
         "_untrusted": ["pcb", "existing", "prompts"],
     }
-    if duplicates and not replace:
+    if remove and not duplicates:
+        raise AdapterError(
+            "E_NOT_FOUND",
+            "the board has no plane shape for this net on this layer",
+            {"net": net_name, "layer": layer},
+        )
+    if duplicates and not (replace or remove):
         raise AdapterError(
             "E_CONFLICT",
             "the board already has a plane shape for this net on this layer (replace it)",
@@ -6688,6 +6696,15 @@ def _plane_pour(params: dict[str, Any], client: Any) -> dict[str, Any]:
             except Exception as exc:
                 raise _com_error(exc, "delete_plane_shape") from exc
     result["removed"] = removed
+    if remove:
+        # the router counts a net with a pour on the layer as connected, so a net to
+        # route again after the pours goes without them first
+        try:
+            doc.Save()
+        except Exception as exc:
+            raise _com_error(exc, "save_after_pour_removed") from exc
+        result.update({"applied": True, "saved": True, "shapes": _plane_shapes(doc)})
+        return result
     points = _rounded_points(min_x + margin, min_y + margin, max_x - margin, max_y - margin, radius)
     try:
         # the component argument must be None: win32com cannot turn the typelib's

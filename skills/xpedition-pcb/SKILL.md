@@ -73,6 +73,8 @@ In this order; the writes are each a dry run and a confirm:
    run sizes the board: `summary.outside` names parts the outline cannot hold,
    which means a bigger outline (steps 1–2 again), not a smaller gap.
 5. `pcb labels`: every reference designator beside its part, clear of the others.
+   A designator listed in `unplaced` found no free spot: its part is packed too
+   tight; move it (or its neighbour) with `pcb move` and run `pcb labels` again.
 6. `pcb pour --net GND --layer 2`: an inner ground plane.
 7. `pcb route --layers 1,4`: the autorouter on the outer layers (Route at effort
    1–5, Via Min, Smooth); `--nets` routes only the nets named. The result says
@@ -85,11 +87,18 @@ In this order; the writes are each a dry run and a confirm:
    from an edge; acute corners; nets still open).
 10. `pcb render --output board.png`: look at it.
 
-Report a board checked only when `pcb check` says `clean` and you can name every
-warning kind and why it is acceptable (`ViasUnderParts`, tented vias under a
-body, is; overlapping pads or open nets are not). A net that stays open beside a
-fine-pitch part is a rule problem (0.254 mm on the stock templates), not a router
-problem.
+Report a board checked only when `pcb check` says `passes` (no DRC error), its
+`board_rules` hold no high or medium finding, and you can name every warning kind
+and why it is acceptable (`ViasUnderParts`, tented vias under a body, is;
+overlapping pads or open nets are not). `clean` is stricter: no hazard at all. A
+net that stays open beside a fine-pitch part is a rule problem (0.254 mm on the
+stock templates), not a router problem.
+
+To route a net again once the outer pours are in -- after moving its parts -- take
+the pours off first: `pcb unroute --nets NET`, `pcb pour --net GND --layer 1
+--remove` (and 4), `pcb route --nets NET`, then pour again. With a pour in place
+the router counts its net as connected, and after the planes regenerate the pads
+it did not route are open (`pcb check` names them `PartialNets`).
 
 ```bash
 xpedition-cli pcb outline --project X.prj --width 60 --height 45 --radius 3 --dry-run --compact
@@ -179,10 +188,13 @@ first (`project backup`).
   `outcome: annotated` with matching counts.
 - First layout: the outline grown until the arrange dry run leaves nothing
   outside, holes before the arrangement, outer pours only after routing, and
-  "checked" only when `pcb check` says `clean` with every warning explained.
+  "checked" only when `pcb check` passes with no high or medium board rule and
+  every warning explained.
 - Work that goes: an arrange on a routed board and `pcb create --replace` stop for
   the user, with a backup first; `--dangerous` only after the user agreed.
 - One part: `pcb move`, never `pcb arrange`, and the routing checked afterwards.
 - Better or worse: `pcb metrics` saved before the change, compared with
   `--baseline` after it; the answer quotes the deltas.
+- Moving parts on a routed, poured board: unroute their nets, remove the outer
+  pours, move, route those nets, pour again, check.
 - Boundary: a schematic or BOM request is not this Skill's.

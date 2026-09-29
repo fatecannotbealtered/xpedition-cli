@@ -990,18 +990,25 @@ def pour(options: dict[str, Any]) -> dict[str, Any]:
     if layer < 1 or margin is None or margin < 0:
         raise CLIError("E_VALIDATION", "--layer starts at 1 and --margin is not negative")
     replace = bool(options.get("replace"))
+    remove = bool(options.get("remove"))
     request = {
         "project": canonical,
         "net": net,
         "layer": layer,
         "margin": margin,
         "replace": replace,
+        "remove": remove,
         "start": True,
     }
     scope = {
         "operation": "pcb_pour",
-        **{k: request[k] for k in ("project", "net", "layer", "margin", "replace")},
+        **{k: request[k] for k in ("project", "net", "layer", "margin", "replace", "remove")},
     }
+    action = (
+        {"action": "delete_plane_shape", "net": net, "layer": layer}
+        if remove
+        else {"action": "put_plane_shape", "net": net, "layer": layer, "replace": replace}
+    )
     return _planned_write(
         options,
         "pcb pour",
@@ -1016,12 +1023,12 @@ def pour(options: dict[str, Any]) -> dict[str, Any]:
             "layers": current.get("layers"),
             "rectangle": current.get("rectangle"),
             "existing": current.get("existing"),
-            "changes": [
-                {"action": "put_plane_shape", "net": net, "layer": layer, "replace": replace},
-                {"action": "save_board"},
-            ],
+            "changes": [action, {"action": "save_board"}],
             "risk": _risk(
-                "T1", "one plane shape on the layer, assigned to the net; the board is saved"
+                "T1",
+                "the net's plane shapes on the layer are deleted; the board is saved"
+                if remove
+                else "one plane shape on the layer, assigned to the net; the board is saved",
             ),
         },
     )

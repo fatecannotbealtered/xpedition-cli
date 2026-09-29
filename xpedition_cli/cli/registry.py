@@ -1165,9 +1165,15 @@ def _build() -> list[Command]:
         Command(
             "pcb pour",
             "pcb:pour",
-            "A plane shape (copper pour) for a net on a layer, inset from the outline",
+            "A plane shape (copper pour) for a net on a layer, inset from the outline; "
+            "--remove takes the net's pour off the layer, as a net routed again after the "
+            "pours needs",
             "pcb_pour",
-            _write_examples("pcb pour --project X.prj --net GND --layer 2"),
+            (
+                *_write_examples("pcb pour --project X.prj --net GND --layer 2"),
+                "xpedition-cli pcb pour --project X.prj --net GND --layer 1 --remove --dry-run "
+                "--compact",
+            ),
             "routing",
             needs="layout",
             tier="write",
@@ -1177,9 +1183,16 @@ def _build() -> list[Command]:
                 Param("layer", "integer", description="the layer (2 by default)"),
                 Param("margin", "number", description="inset from the outline, millimetres (1)"),
                 Param("replace", "boolean", description="replace the net's shapes on the layer"),
+                Param(
+                    "remove",
+                    "boolean",
+                    description="delete the net's shapes on the layer and pour nothing",
+                ),
             ),
-            blast_radius="one plane shape is added and the board saved",
+            blast_radius="one plane shape is added, or the net's shapes on the layer deleted, "
+            "and the board saved",
             dry_run_schema="pcb_pour_preview",
+            extra={"mutually_exclusive": [["replace", "remove"]]},
         ),
         # -- inspection ----------------------------------------------------------------
         Command(

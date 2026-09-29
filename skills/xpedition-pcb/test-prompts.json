@@ -12,7 +12,7 @@
   {
     "id": "first-layout",
     "prompt": "Place the parts on the new board, route it and tell me whether it is clean.",
-    "expected": "Outline, holes, rules, then pcb arrange dry run (grow the outline while summary.outside is not empty), labels, inner pour, pcb route, outer pours after routing, pcb check; clean only when pcb check says clean and every warning kind is explained."
+    "expected": "Outline, holes, rules, then pcb arrange dry run (grow the outline while summary.outside is not empty), labels (move parts apart for any unplaced designator), inner pour, pcb route, outer pours after routing, pcb check; checked only when it passes, board_rules has no high or medium finding and every warning kind is explained."
   },
   {
     "id": "fabrication-package",
@@ -53,6 +53,11 @@
     "id": "stackup-question",
     "prompt": "How thick is this board and what trace width does the POWER class use?",
     "expected": "pcb info: thickness_mm, the stackup, and net_classes with their widths per layer."
+  },
+  {
+    "id": "move-parts-on-a-poured-board",
+    "prompt": "The decoupling capacitor C201 is 9 mm from U201's supply pin on the finished board. Fix it.",
+    "expected": "pcb metrics --output before.json; pcb unroute --nets for C201's nets (dangerous: ask), pcb pour --remove on the outer layers, pcb move C201 beside U201's supply pin, pcb route --nets, pour the outer layers again, pcb check, pcb metrics --baseline before.json quoting the decoupling delta."
   },
   {
     "id": "schematic-request-boundary",

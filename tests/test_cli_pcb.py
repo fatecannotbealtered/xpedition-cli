@@ -154,6 +154,23 @@ def test_outline_holes_rules_and_pour_plan_against_the_board(cli, adapter, board
         ["pcb", "pour", "--project", str(board), "--net", "GND", "--layer", "2"],
         {"pcb": "Board.pcb", "layers": 4, "existing": []},
     )
+    dry, _ = _both_runs(
+        cli,
+        adapter,
+        "plane_pour",
+        ["pcb", "pour", "--project", str(board), "--net", "GND", "--layer", "1", "--remove"],
+        {"pcb": "Board.pcb", "layers": 4, "existing": [{"net": "GND", "layer": 1}]},
+    )
+    assert dry["preview"]["changes"][0] == {
+        "action": "delete_plane_shape",
+        "net": "GND",
+        "layer": 1,
+    }
+    assert adapter.last("plane_pour")["remove"] is True
+    code, payload = cli(
+        "pcb", "pour", "--project", str(board), "--layer", "1", "--remove", "--replace", "--dry-run"
+    )
+    assert code == 2 and payload["error"]["code"] == "E_USAGE"
 
 
 @pytest.mark.parametrize(
