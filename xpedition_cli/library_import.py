@@ -107,9 +107,10 @@ def _unique(values: list[str]) -> list[str]:
 
 
 def _without(item: dict[str, Any] | None, *keys: str) -> dict[str, Any] | None:
+    """The content of a record as read, without `keys`, its lists in one order."""
     if item is None:
         return None
-    return {key: value for key, value in item.items() if key not in keys}
+    return R.canonical({key: value for key, value in item.items() if key not in keys})
 
 
 def _symbol_content(symbol: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -242,7 +243,7 @@ def plan(source: R.Library, target: R.Library, wanted: list[str]) -> ImportPlan:
         mine = next((row for row in held if row["partition"] == partition), None)
         if mine is None:
             action = "add"
-        elif _without(mine, "partition") == _without(part, "partition"):
+        elif R.part_content(mine) == R.part_content(part):
             action = "keep"
         else:
             action = "replace"

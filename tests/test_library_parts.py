@@ -53,11 +53,15 @@ def test_the_texts_parse_back_to_the_parts_with_their_pin_maps() -> None:
 def test_identical_content_is_kept_and_other_content_is_a_replacement() -> None:
     held = _held(_spec(RES, MCU))
     plan = P.plan(_spec(RES), held)
-    assert plan.actions["parts"] == [{"number": "RES-10K", "action": "replace"}]
+    assert plan.actions["parts"] == [{"number": "RES-10K", "action": "keep"}]
     assert {a["action"] for a in plan.actions["cells"]} == {"keep"}
     assert {a["action"] for a in plan.actions["padstacks"]} == {"keep"}
-    assert plan.symbols == {} and plan.texts()["cells"] == ""
-    assert plan.replaces == ["part RES-10K"]
+    assert plan.symbols == {} and plan.texts()["cells"] == "" and plan.texts()["parts"] == ""
+    assert plan.replaces == []
+    changed = {**RES, "description": RES["description"] + " (rev B)"}
+    plan = P.plan(_spec(changed), held)
+    assert plan.actions["parts"] == [{"number": "RES-10K", "action": "replace"}]
+    assert plan.replaces == ["part RES-10K"] and ".Number" in plan.texts()["parts"]
     moved = copy.deepcopy(MCU)
     moved["number"] = "MCU-9"
     moved["footprint"]["pitch"] = 1.25
@@ -196,3 +200,14 @@ def test_a_held_cell_without_the_holes_is_not_the_same_cell(tmp_path) -> None:
             library.padstacks = R.parse_padstacks(text)
     plan = P.plan(spec, library)
     assert {c["name"]: c["action"] for c in plan.actions["cells"]}["USB-LEGS"] == "replace"
+
+
+def test_a_value_the_library_keeps_in_its_own_case_is_the_same_value() -> None:
+    # the parts database keeps 10k as 10K: the part is the same, not a replacement
+    held = _held(_spec(RES))
+    for part in held.parts:
+        part["properties"]["Value"] = part["properties"]["Value"].upper()
+    plan = P.plan(_spec(RES), held)
+    assert plan.actions["parts"] == [{"number": "RES-10K", "action": "keep"}]
+    assert (R.value_key("10k"), R.value_key("1m")) == (R.value_key("10K"), "0.001")
+    assert R.value_key("1m") != R.value_key("1M")

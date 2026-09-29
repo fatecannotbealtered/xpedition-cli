@@ -337,3 +337,14 @@ def test_render_draws_a_part_of_a_library_named_by_its_lmc(
         str(output),
     )
     assert code == 0 and Path(payload["data"]["pictures"][0]["path"]).is_file()
+
+
+def test_the_same_cell_with_its_lands_in_another_order_is_kept(tmp_path) -> None:
+    # after an import the library hands a cell's lands back in its own order: the two
+    # lands of one pin swapped are still the same cell
+    source = _read(FakeLibrary(tmp_path / "Source"))
+    target = _read(FakeLibrary(tmp_path / "Target"))
+    for cell in target.cells:
+        cell["pins"] = list(reversed(cell["pins"]))
+    plan = I.plan(source, target, ["MCU-8"])
+    assert [c["action"] for c in plan.cells] == ["keep"] and plan.empty()

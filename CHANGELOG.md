@@ -25,8 +25,8 @@ The KiCad import is gone, so nothing ties the library to KiCad.
   part named (`--parts`) with its symbols, cell, padstacks, pads and holes, each in
   its source partition, copied as the source's own converters export them. Every
   item is met with the library's: added, kept when the content is the same (as
-  read, not by the converters' timestamps or swap-group names) or replaced, which
-  needs `--dangerous`. A part number or a cell name the library holds in another
+  read: not by the converters' timestamps or swap-group names, nor the order a
+  library hands a cell's lands back in) or replaced, which needs `--dangerous`. A part number or a cell name the library holds in another
   partition is refused, and so is a partition name that is not ASCII letters,
   digits, spaces and `_ . -`. The source is only read. The confirm imports the
   padstacks, then every partition's symbols, cells and parts, and reads the library
@@ -43,6 +43,14 @@ The KiCad import is gone, so nothing ties the library to KiCad.
 
 - A replaced symbol is written as its next version, which Designer takes; the
   earlier file stays.
+
+### Fixed
+
+- `library add` called every part the library held a replacement, so adding an
+  unchanged parts file again needed `--dangerous`, while its documentation said an
+  identical part is kept. A part is now compared by what it says, as read -- its
+  Value by the number it stands for, since the parts database keeps `10k` as
+  `10K` -- and an identical one is kept and not written again.
 
 ## [1.0.2] - 2026-09-29
 

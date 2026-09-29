@@ -36,6 +36,7 @@ padstack or pad is left alone, a different one of the same name is a replacement
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -67,6 +68,7 @@ class AddPlan:
     symbol_objects: dict[str, Any] = field(default_factory=dict)  # name -> symbols.Symbol
     actions: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     replaces: list[str] = field(default_factory=list)  # what the import would overwrite
+    kept: set[str] = field(default_factory=set)  # parts the library holds as they are
 
     def texts(self) -> dict[str, str]:
         return {
@@ -74,8 +76,15 @@ class AddPlan:
             "cells": H.render_cells(self.library)
             if any(not c.external for c in self.library.cells.values())
             else "",
-            "parts": H.render_parts(self.library),
+            "parts": self._parts_text(),
         }
+
+    def _parts_text(self) -> str:
+        """The parts to write: those the library does not hold as they are."""
+        parts = {n: p for n, p in self.library.parts.items() if n not in self.kept}
+        if not parts:
+            return ""
+        return H.render_parts(dataclasses.replace(self.library, parts=parts))
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -327,6 +336,11 @@ def _footprint_kind(spec: dict[str, Any]) -> str:
     return f"ipc7351:{spec.get('family', '')}"
 
 
+def _same_part(ours: dict[str, Any] | None, theirs: dict[str, Any]) -> bool:
+    """The part this file makes is the one the library holds: the same content as read."""
+    return ours is not None and R.part_content(ours) == R.part_content(theirs)
+
+
 def _same_cell(ours: H.Cell, theirs: dict[str, Any]) -> bool:
     mine = sorted((p.number, round(p.x, 3), round(p.y, 3), p.padstack) for p in ours.pins)
     held = sorted(
@@ -349,6 +363,11 @@ def _compare(result: AddPlan, existing: R.Library | None) -> None:
         "padstacks": [],
     }
     held = existing or R.Library()
+    # the parts as the library would read them back, to meet what it holds
+    ours = {
+        part["number"]: part for part in R.parse_parts(H.render_parts(library), result.partition)
+    }
+    kept: list[str] = []
     for number in sorted(library.parts):
         places = sorted({p["partition"] for p in held.find_parts(number)})
         elsewhere = [p for p in places if p != result.partition]
@@ -359,6 +378,10 @@ def _compare(result: AddPlan, existing: R.Library | None) -> None:
             )
         if places:
             old = held.find_parts(number)[0]
+            if _same_part(ours.get(number), old):
+                actions["parts"].append({"number": number, "action": "keep"})
+                kept.append(number)
+                continue
             action = "replace"
             if old["description"].endswith(PLACEHOLDER):
                 action = "replace_placeholder"
@@ -366,6 +389,8 @@ def _compare(result: AddPlan, existing: R.Library | None) -> None:
             result.replaces.append(f"part {number}")
         else:
             actions["parts"].append({"number": number, "action": "add"})
+    # left alone: the import does not write them again
+    result.kept.update(kept)
     for name in sorted(result.symbols):
         found = held.find_symbol(f"{result.partition}:{name}")
         # a symbol is named after a hash of its text: the same name is the same symbol

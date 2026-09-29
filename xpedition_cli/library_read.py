@@ -14,6 +14,7 @@ writes its coordinates 25400 times larger than a `V 53` one and is scaled back.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -158,6 +159,50 @@ def hkp_subset(text: str, wanted: set[tuple[str, str]]) -> str:
         return ""
     body = "".join(block if block.endswith("\n") else block + "\n" for block in chosen)
     return header.rstrip("\n") + "\n\n" + body
+
+
+def canonical(value: Any) -> Any:
+    """`value` with every list of records in one order, to compare content as read.
+
+    A library hands a cell's lands back in its own order after an import -- the drain
+    pads of a MOSFET, the shield legs of a connector, which share a pin number -- so
+    the same content must not read as other content for the order of its lists.
+    """
+    if isinstance(value, dict):
+        return {key: canonical(item) for key, item in value.items()}
+    if isinstance(value, list):
+        items = [canonical(item) for item in value]
+        if all(isinstance(item, dict) for item in items):
+            return sorted(items, key=lambda item: json.dumps(item, sort_keys=True, default=str))
+        return items
+    return value
+
+
+_SI = {"p": 1e-12, "n": 1e-9, "u": 1e-6, "µ": 1e-6, "m": 1e-3, "": 1.0, "k": 1e3, "K": 1e3}
+_SI.update({"M": 1e6, "G": 1e9})
+_VALUE = re.compile(r"\s*(\d+(?:\.\d+)?)\s*([pnuµmkKMG]?)\s*")
+
+
+def value_key(text: str) -> str:
+    """The number a part's Value stands for, written one way: the parts database keeps
+    `10k` as `10K`, and the two are one value."""
+    match = _VALUE.fullmatch(str(text))
+    if match is None:
+        return str(text)
+    return format(float(match.group(1)) * _SI[match.group(2)], ".9g")
+
+
+def part_content(part: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What a part says, as read: without its partition, its lists in one order and
+    its Value by the number it stands for."""
+    if part is None:
+        return None
+    content = {key: value for key, value in part.items() if key != "partition"}
+    properties = dict(content.get("properties") or {})
+    if "Value" in properties:
+        properties["Value"] = value_key(properties["Value"])
+    content["properties"] = properties
+    return canonical(content)
 
 
 def _text(value: Any) -> str:
