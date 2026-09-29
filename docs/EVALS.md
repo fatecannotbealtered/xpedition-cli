@@ -3,7 +3,7 @@
 How the three Skills (`xpedition-cli`, `xpedition-schematic`, `xpedition-pcb`) were
 checked on different models, as SKILL-SPEC §9 asks. Rounds 1 and 2 evaluated the
 1.0.0 Skills; 1.0.1 rewrote them for its command tree, and rounds 3 and 4
-evaluated the rewrite. Each round asks whether Haiku gets enough guidance,
+evaluated the rewrite; round 5 the design library after 1.0.3. Each round asks whether Haiku gets enough guidance,
 whether Sonnet finds the Skills clear, and whether Opus over-explains. The Skills
 changed after rounds 1, 3 and 4. This file records what each round measured and
 what changed as a result.
@@ -247,6 +247,27 @@ thickness from `thickness_mm`.
 After round 4 the fabrication paragraph also says that the confirmed export's
 `checks.ok` decides, and what the README leaves to the board house. Those two
 sentences were not run again.
+
+## Round 5: the library requests after 1.0.3
+
+1.0.3 removed the KiCad import and gave the entry Skill's design library two ways
+in: `library import` from an existing Xpedition library, looked into first with
+`--library`, or `library add` from the datasheet. Haiku and Sonnet answered the
+five library requests, one of them new (`import-from-an-existing-library`), on
+2026-09-30. The set is small, and the Skills' maintainer graded it.
+
+| Model | P | ~ | F |
+|---|---|---|---|
+| Haiku | 1 | 4 | 0 |
+| Sonnet | 5 | 0 | 0 |
+
+Both took `library import` for a part an existing library holds, not a parts
+file written again. Sonnet looked into the source first, named the refusals the
+import makes, and offered both ways for a part no library holds. Haiku imported
+without looking into the source first, refused `10k 1%` instead of giving `10k`
+with the tolerance in the description, and named a library part in a design
+without looking it up: the outline-deep answers of the earlier rounds. No Skill
+text changed.
 
 ## What is left
 
