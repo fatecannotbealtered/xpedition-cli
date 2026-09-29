@@ -6283,9 +6283,8 @@ def _mounting_hole_padstack(doc: Any, diameter: float) -> str:
 def _mounting_holes(params: dict[str, Any], client: Any) -> dict[str, Any]:
     """Read, and with `apply` place, mounting holes: one in each corner of the board
     outline, `inset` mm from both edges, through `Document.PutMountingHoleEx` with the
-    central library's `MH-C<diameter>-NONPLATED` padstack (the library build and the
-    KiCad import both create the 2.2 mm one). A corner that already has a hole within
-    0.5 mm is left alone."""
+    central library's `MH-C<diameter>-NONPLATED` padstack (the library build creates the
+    2.2 mm one). A corner that already has a hole within 0.5 mm is left alone."""
     pcb_path = _layout_board_path(params)
     try:
         diameter = float(params.get("diameter") or MOUNTING_HOLE_DIAMETER_MM)
@@ -6660,8 +6659,8 @@ def _regenerate_planes(doc: Any) -> int:
     toggled = 0
     for assignment in _items(_com_member(doc, "PlaneAssignments")):
         try:
-            # a plane found back in Draft (the state the board on KiCad footprints showed
-            # after its pour was saved) is simply generated; a Dynamic one is toggled
+            # a plane found back in Draft (the state one recorded board showed after its
+            # pour was saved) is simply generated; a Dynamic one is toggled
             if int(_value(assignment, "PlaneDataState", default=0) or 0) == PLANE_DATA_DYNAMIC:
                 assignment.PlaneDataState = PLANE_DATA_DRAFT
                 _settle(1.0)

@@ -66,24 +66,30 @@ windows (`schematic show`, `pcb show`), `project restore`, sessions
 (`session status|stop`), the knowledge base (`kb list|add|remove`) and the
 self-description (`context`, `doctor`, `reference`, `changelog`, `version`).
 
-**The design library.** `library add` takes a parts file: per part a symbol (a
+**The design library.** A part comes into the project's central library one of
+two ways. `library import` takes it from an existing Xpedition library --
+another project's, or a copy of the company's (`--from LIB.lmc`) -- with the
+symbols, cells, padstacks, pads and holes it uses, each in its source partition;
+the source is only read, and `library list|show|check --library LIB.lmc` looks
+into it first. `library add` creates it from a parts file: per part a symbol (a
 box with named, typed pins, or a built-in kind), a footprint and the pin map.
 Footprints come from the datasheet's dimensions by IPC-7351B (chip, molded,
 gull-wing, J-lead, QFN/DFN with an exposed pad, through-hole), from lands given
-one by one (several may share a pin), from a cell the library holds or an imported
-KiCad footprint. The dry run says what it adds, keeps (identical content is left
-alone) or would replace; the import is read back and checked. A design then names
-the part: `"symbols": {"LDO": {"part": "TPS7A2033PDBVR"}}`.
+one by one (several may share a pin; slotted and unplated holes, locating pegs)
+or from a cell the library holds. Either dry run says what it adds, keeps
+(identical content is left alone) or would replace; the write is read back and
+checked. A design then names the part: `"symbols": {"LDO": {"part":
+"TPS7A2033PDBVR"}}`.
 
 Every write reads its result back: a draw compares the netlist with the plan, an
-edit verifies each operation, `library add` checks each part, `pcb` writes report
-what they observed. Risk tier: **T2**. The writes that destroy work that is not
-archived also need `--dangerous` next to the token: `schematic draw`, `pcb
-unroute`, `pcb create --replace` (which first zips the layout folder beside the
-project), `pcb arrange` on a routed board, `pcb route --unroute`, `pcb annotate
---unroute`, `library import` into a partition that exists, `library add` that
-replaces what the library holds, and `project restore`. `project backup` zips the
-whole project before any of them. See [SECURITY.md](SECURITY.md).
+edit verifies each operation, `library add` and `library import` check each part,
+`pcb` writes report what they observed. Risk tier: **T2**. The writes that destroy
+work that is not archived also need `--dangerous` next to the token: `schematic
+draw`, `pcb unroute`, `pcb create --replace` (which first zips the layout folder
+beside the project), `pcb arrange` on a routed board, `pcb route --unroute`, `pcb
+annotate --unroute`, a `library import` or `library add` that replaces what the
+library holds, and `project restore`. `project backup` zips the whole project
+before any of them. See [SECURITY.md](SECURITY.md).
 
 The live command and schema source is `xpedition-cli reference --compact`.
 

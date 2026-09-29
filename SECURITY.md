@@ -52,8 +52,10 @@ These operations destroy work rather than add to it; each needs `--dangerous`:
 - `pcb route --unroute` and `pcb annotate --unroute` delete every trace and via
   before they route or annotate, and `pcb arrange` does the same on a board that
   has routing (its dry run counts it).
-- `library import` into a partition that exists already overwrites its
-  same-named cells (its dry run marks those partitions).
+- `library import` that replaces a part, symbol, cell, padstack, pad or hole the
+  library holds with the source's other content (its dry run lists them under
+  `replaces`); every part using a replaced cell or padstack changes with it. The
+  source library is only read.
 - `library add` that replaces a part, cell, padstack or pad the library holds with
   other content (its dry run lists them under `replaces`); every part using a
   replaced cell or padstack changes with it.

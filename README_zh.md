@@ -60,19 +60,23 @@ xpedition-cli reference --compact
 `project restore`；会话（`session status|stop`）；知识库（`kb list|add|remove`）；
 自描述（`context`、`doctor`、`reference`、`changelog`、`version`）。
 
-**自建设计库。** `library add` 读一个器件文件：每个器件一个符号（带命名、带类型引脚的
-方框，或内置种类）、一个封装和引脚对应。封装可以按 IPC-7351B 从数据手册尺寸生成
-（chip、molded、鸥翼、J 形引脚、带散热焊盘的 QFN/DFN、通孔），可以逐个给焊盘（多个
-焊盘可以共用一个引脚号），也可以用库里已有的封装或导入的 KiCad 封装。预览会说清楚
-每一项是新增、保留（内容相同就不动）还是会覆盖；导入后读回库再逐个检查。设计里直接
-写器件编号就能用：`"symbols": {"LDO": {"part": "TPS7A2033PDBVR"}}`。
+**设计库。** 器件有两条路进入工程的中心库。`library import` 从已有的 Xpedition 库
+导入：别的工程的库，或公司库的一份拷贝（`--from LIB.lmc`），器件连同它用到的符号、
+封装、焊盘栈、焊盘和孔一起进来，各自保留源库里的分区；源库只读不写，导入前可以先用
+`library list|show|check --library LIB.lmc` 看看里面有什么。`library add` 按器件文件
+自己创建：每个器件一个符号（带命名、带类型引脚的方框，或内置种类）、一个封装和引脚
+对应。封装可以按 IPC-7351B 从数据手册尺寸生成（chip、molded、鸥翼、J 形引脚、带散热
+焊盘的 QFN/DFN、通孔），可以逐个给焊盘（多个焊盘可以共用一个引脚号；支持槽孔、
+非金属化孔和定位孔），也可以用库里已有的封装。两种方式的预览都会说清楚每一项是新增、
+保留（内容相同就不动）还是会覆盖；写入后读回库再逐个检查。设计里直接写器件编号就能用：
+`"symbols": {"LDO": {"part": "TPS7A2033PDBVR"}}`。
 
-每次写入都会读回结果：画图对照计划核对网表，编辑逐条核验，`library add` 逐个检查
-器件，`pcb` 写命令报告它读回的状态。风险等级 **T2**。会毁掉没有归档的成果的写入，
+每次写入都会读回结果：画图对照计划核对网表，编辑逐条核验，`library add` 和
+`library import` 逐个检查器件，`pcb` 写命令报告它读回的状态。风险等级 **T2**。会毁掉没有归档的成果的写入，
 除了 token 还要加 `--dangerous`：`schematic draw`、`pcb unroute`、
 `pcb create --replace`（它会先把版图目录压缩到工程旁边）、在已布线的板上
-`pcb arrange`、`pcb route --unroute`、`pcb annotate --unroute`、导入到已有分区的
-`library import`、会覆盖库里内容的 `library add`，以及 `project restore`。做这些之前
+`pcb arrange`、`pcb route --unroute`、`pcb annotate --unroute`、会覆盖库里内容的
+`library import` 和 `library add`，以及 `project restore`。做这些之前
 可以先用 `project backup` 把整个工程打包。见 [SECURITY.md](SECURITY.md)。
 
 实时的命令和 schema 以 `xpedition-cli reference --compact` 为准。

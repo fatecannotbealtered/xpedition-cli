@@ -5,8 +5,7 @@ compact JSON description and draws it through Xpedition Designer. The planner
 is pure Python (`xpedition_cli.schematic_layout`), so `--dry-run` shows the
 plan, the netlist it will produce and any convention issues before anything
 touches the product. In [the repository](https://github.com/fatecannotbealtered/xpedition-cli),
-`examples/demo-sensor-board.json` is a complete design and
-`examples/demo-sensor-board-kicad.json` the same design with KiCad footprints.
+`examples/demo-sensor-board.json` is a complete design.
 
 Contents
 
@@ -47,15 +46,11 @@ Contents
   digits and `_ . + -`.
 - `packages` (optional, read by `library build`): the footprint of each part,
   keyed by symbol kind or reference designator (a refdes key wins), e.g.
-  `{"RES": "0603", "U302": "TSSOP20", "CMP": "kicad:Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"}`.
-  Stock keys are `0402`, `0603`, `0805`, `SOT23`, `TP`, `HOLE`, `HDR<n>`,
-  `SOIC<n>` and `TSSOP<n>`; a `kicad:Library:Footprint` key takes the cell from a
-  KiCad library imported with `library import`. Without an entry a part
-  gets a placeholder package for its kind and pin count.
-- `kicad_footprints` (optional): the KiCad footprint folder that `kicad:` keys
-  are read from to check their pads against the symbol's pins. Without it the
-  planner uses `XPEDITION_KICAD_FOOTPRINTS`, `KICAD9_FOOTPRINT_DIR` or
-  `KICAD8_FOOTPRINT_DIR`, then a standard KiCad install under Program Files.
+  `{"RES": "0603", "U302": "TSSOP20"}`. The keys are `0402`, `0603`, `0805`,
+  `SOT23`, `TP`, `HOLE`, `HDR<n>`, `SOIC<n>` and `TSSOP<n>`: placeholders with the
+  right pin count, nothing a factory can use. Without an entry a part gets a
+  placeholder package for its kind and pin count. A real footprint comes with a
+  real part: name the part in the symbols (§2) once the library holds it.
 - `status`, `title`, `revision`, `date` form the footer of every sheet.
 - Titles, descriptions, block titles and notes may be Chinese: Designer shows
   them correctly on screen. Net names, reference designators and values stay

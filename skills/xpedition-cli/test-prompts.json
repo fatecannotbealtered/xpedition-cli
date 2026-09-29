@@ -35,6 +35,11 @@
     "expected": "library list --query TPS7A first; since it is missing, write a parts file (box symbol with typed pins, gullwing footprint from the datasheet dimensions with positions 6 and omit [5]), library render --file to look at it, library add --dry-run, then confirm; name it in the design's symbols as {\"part\": \"TPS7A2033PDBVR\"}."
   },
   {
+    "id": "import-from-an-existing-library",
+    "prompt": "Our company library is copied to D:/libraries/Company.lmc. Bring TPS7A2033PDBVR and RC0603FR-0710KL from it into the library of D:/projects/board-a/BoardA.prj.",
+    "expected": "library list or library show --library D:/libraries/Company.lmc to find them, then library import --project D:/projects/board-a/BoardA.prj --from D:/libraries/Company.lmc --parts TPS7A2033PDBVR,RC0603FR-0710KL --dry-run; show what it adds, keeps and replaces and confirm (the user asked for it); --dangerous only when replaces is non-empty and the user agreed. Not written again as a parts file."
+  },
+  {
     "id": "value-the-library-cannot-keep",
     "prompt": "Add the resistor with value '10k 1%' to the library.",
     "expected": "Give value 10k (the library's Value is a number with an SI multiplier) and put the tolerance in the description or a property; do not force '10k 1%', which the database stores as 0."

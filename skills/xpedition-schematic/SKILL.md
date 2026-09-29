@@ -60,13 +60,13 @@ non-negotiable subset:
 - The project and its library live on an ASCII path.
 
 The design names its parts one of two ways. A part the library holds -- a real
-part added with `library add`, with its real footprint -- by number in the
-design's symbols: `"LDO": {"part": "TPS7A2033PDBVR"}`; the drawing uses the
-library's own symbol and part number. Anything else as a box or built-in kind,
-whose part `library build` makes up with a placeholder footprint (or a KiCad
-footprint the design's `packages` name). Look a part up with `library list
---query` before defining it; for a real design, add the ICs and connectors to the
-library first (the entry Skill's design library).
+part added with `library add` or imported with `library import`, with its real
+footprint -- by number in the design's symbols: `"LDO": {"part":
+"TPS7A2033PDBVR"}`; the drawing uses the library's own symbol and part number.
+Anything else as a box or built-in kind, whose part `library build` makes up with
+a placeholder footprint. Look a part up with `library list --query` before
+defining it; for a real design, bring the ICs and connectors into the library
+first (the entry Skill's design library).
 
 The draw, in order:
 

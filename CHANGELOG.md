@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+A part comes into the project's library one of two ways: created from its datasheet
+(`library add`), or imported from an existing Xpedition library (`library import`).
+The KiCad import is gone, so nothing ties the library to KiCad.
+
+### Removed
+
+- The KiCad footprint import: `library import --libraries --root --limit`, the
+  `{"kicad": ...}` footprint of a parts file, the `kicad:` keys of a design's
+  `packages` and its `kicad_footprints`, the `XPEDITION_KICAD_FOOTPRINTS`
+  variable and `examples/demo-sensor-board-kicad.json`.
+
+### Added
+
+- `library import` takes parts from another Xpedition central library -- another
+  project's, or a copy of a company library (`--from LIB.lmc`, or a `.prj`): each
+  part named (`--parts`) with its symbols, cell, padstacks, pads and holes, each in
+  its source partition, copied as the source's own converters export them. Every
+  item is met with the library's: added, kept when the content is the same (as
+  read, not by the converters' timestamps or swap-group names) or replaced, which
+  needs `--dangerous`. A part number or a cell name the library holds in another
+  partition is refused, and so is a partition name that is not ASCII letters,
+  digits, spaces and `_ . -`. The source is only read. The confirm imports the
+  padstacks, then every partition's symbols, cells and parts, and reads the library
+  back.
+- `library list`, `show`, `check` and `render --part` read a library by its `.lmc`
+  (`--library`), without a project.
+- Lands given one by one take a slot (`"drill": [width, height]`) and an unplated
+  hole (`"plated": false`), and a footprint's `holes` are holes that are no pin, a
+  connector's locating pegs. The library reads a slotted hole back (`..SLOT`, as
+  its own exports write one), `library render` draws it, and a held cell without
+  the same holes is not the same cell.
+
+### Changed
+
+- A replaced symbol is written as its next version, which Designer takes; the
+  earlier file stays.
+
 ## [1.0.2] - 2026-09-29
 
 ### Fixed

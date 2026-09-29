@@ -82,7 +82,7 @@ Useful when a library has to be built rather than imported:
 |---|---|---|
 | Library Manager | `common/win64/bin/LibraryManager.exe` | COM `LibraryManager.Application`, **read-only** — the object model exposes no Add/Create for symbols, cells or parts |
 | Cell / Padstack editors | reached via `ActiveLibrary.CellEditor` / `.PadstackEditor` | yes — `OpenDatabase`, `NewPartition`, `NewCell(eCellType)`, `SaveActiveDatabase`, `SuppressTrivialDialogs` |
-| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build` and `library import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "KiCad footprints as cells" below) |
+| HKP converters | `common/win64/bin/HKP2{PadstackDB,CellDB,PartsDB,LMCDB}.exe` and the `*DB2HKP` reverse | yes — GUI-subsystem binaries with a command line (`-i <hkp> -o <db> -c <lmc> -m -l <log>`; a wrong argument is a message box, not an exit code). `library build`, `library add` and `library import` run them; `CellDB2HKP -a` / `PadstackDB2HKP -a` exports are the grammar reference (see "The library converters" below) |
 | PCB Footprint Expert 26 (Siemens) | `lm_fpe/` | IPC-7351B generator with populated `.fpx` libraries for SM/TH discretes, semiconductors, connectors and BGA |
 
 Schematic symbols are plain ASCII (`SymbolLibs/<partition>/sym/<name>.<version>`),
@@ -433,7 +433,7 @@ Forward annotation after a library change (verified the hard way):
 | `PutMountingHoleEx(x, y, padstackName, bFromCentralLib, nDepth, bMirrored, pNet, pComponent, eFixed, eUnit)` | places a mounting hole by padstack name; `None` for the two object arguments, `True` to take the padstack from the central library. `MountingHoles` lists them with `GetPositionX/Y(unit)` |
 | Display schemes | `Loc: Placement` shows pads, bodies and designators on a dark background without traces or planes — the picture to judge a placement by; `Loc: All On` shows everything, **but draws plane copper as outlines only** (`"Option.Planes.Data.Fill" "0"` in the scheme) and every layer and text layer at once. `pcb show --scheme` picks either; `--top-view` writes and picks `Loc: Top View` |
 | Scheme files | `PCB/Config/<name>.dcs`, HKP-style text (`.Global_Constants`, `..File_Type Graphics_Scheme`). The `..Trace_Layer_On ( T T … )` arrays and `..Assy_Ref_Des_On True` toggles are the legacy section and this Layout ignores them; what counts is the key-value section: `"LayerControl.N" "d:1" "e:1" …` per layer, item entries such as `"Fabrication.Assembly.Part.Text.RefDes.Top"`, `"Fabrication.Silkscreen.Part.Text.RefDes.Top"`, `"Place.Part.Text.RefDes.Top"` (the designator drawn at the cell, a third copy of the name), `"Part.Cell.Origin.Top"` (the origin marker), `"Part.PlaceOutline.Top"`, `"Fabrication.DrillDrawingThrough"` — an item is drawn only with **both** `d:1` and `e:1` — and `"Option.*"` values (`Planes.Data.Fill`, `Pin.Number.Top`, `Pin.Type.Top`, `Pin.NetName.Top`, `Fabrication.AssemblyItems.Top`). A file added there appears in `Document.DisplaySchemes` at once but in the toolbar combo only after the board reopens |
-| Three names per part | every part carries its designator three times on screen: the silkscreen text (printed on the board), the assembly-layer text (the assembly drawing; 1 mm on KiCad test points, 0.4 mm on the others) and Layout's placement-level designator at the cell. Normal; only the silkscreen one matters for the board. `Loc: Top View` shows that one alone |
+| Three names per part | every part carries its designator three times on screen: the silkscreen text (printed on the board), the assembly-layer text (the assembly drawing; 1 mm on some test point cells, 0.4 mm on the others) and Layout's placement-level designator at the cell. Normal; only the silkscreen one matters for the board. `Loc: Top View` shows that one alone |
 
 ## Hand routing through the automation (verified 2026-09-15)
 
@@ -471,32 +471,33 @@ Forward annotation after a library change (verified the hard way):
 | NC drill | `Output/NCDrill/ThruHolePlated.ncd` and `ThruHoleNonPlated.ncd`, Excellon 2.4 inch trailing-zero, modal coordinates |
 | Files held after the run | NC drill leaves `PCB/LogFiles/DrillPrefs.txt` open in the Layout process after the document closes; `Application.Quit` puts Layout on its start page (`[首页]`) with the file still held, so `pcb create --replace` ends a document-less Layout by its process (`tasklist` / `taskkill`) when the folder will not go |
 | Setups written back | a dialog that was opened earlier in the Layout session writes its in-memory settings over the patched file on OK even after the board was closed and reopened (the ODB++ job came out without `d_1_4` once); `pcb export` reads the setups again after the run and repeats the patch and the dialogs once (`rounds`) |
-| 3D | `WINDOW_3D_VIEW` 33155 opens a `[3D View : <board>]` tab; view commands 53330–53338; `EXP3D_EXPORT` 53325 exports STEP/PDF/PNG; cells without a 3D model are drawn as their placement outline at the cell's height (0 for converted KiCad cells, so flat); `CONDUCTORVIEWRMB_VIEW_PHOTOREALISTIC` 53361 exists |
+| 3D | `WINDOW_3D_VIEW` 33155 opens a `[3D View : <board>]` tab; view commands 53330–53338; `EXP3D_EXPORT` 53325 exports STEP/PDF/PNG; cells without a 3D model are drawn as their placement outline at the cell's height (a cell of height 0 is flat); `CONDUCTORVIEWRMB_VIEW_PHOTOREALISTIC` 53361 exists |
 
-## KiCad footprints as cells
+## The library converters: HKP out and in
 
-KiCad ships its footprint library as text (`share/kicad/footprints/<library>.pretty/*.kicad_mod`,
-155 libraries and 15 450 footprints in KiCad 9 here) under CC-BY-SA 4.0 with the KiCad library
-exception. `xpedition_cli.kicad_footprints` turns each `.pretty` folder into one cell partition
-and `library import` (the adapter's `kicad_import`) feeds them through
-`HKP2PadstackDB` / `HKP2CellDB`; a design then names a footprint as its package
-(`"packages": {"RES": "kicad:Resistor_SMD:R_0603_1608Metric"}`) and `library build` writes
-parts that reference the cell and registers its partition in `LIST 2dCellLibraries`. The whole
-library takes about a quarter of an hour. Facts that cost time:
+The central library's databases are read and written as text (HKP) through the stock
+converters. `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP -a -u mm` export them
+(`library list`, `show`, `check`, and the source of `library import`);
+`HKP2PadstackDB`, `HKP2CellDB` and `HKP2PartsDB` import (`library add`, `library
+build`, `library import`). Facts that cost time:
 
 | Fact | Detail |
 |---|---|
 | Grammar reference | `CellDB2HKP -i X.cel -o X.hkp -a` and `PadstackDB2HKP -i PadstackDB.psk -o X.hkp -a` export what the importers read; the stock `Drawing` and `Starpoints and Tiebars` partitions show text, arcs, circles, rectangles and filled shapes |
-| Pad shapes | `..ROUND ...DIAMETER`, `..SQUARE ...WIDTH`, `..RECTANGLE`/`..OBLONG ...WIDTH ...HEIGHT`, `..RADIUS_CORNER_RECTANGLE ...WIDTH ...HEIGHT ...RADIUS`; holes `..ROUND ...DIAMETER` or `..SLOT ...WIDTH ...HEIGHT`. KiCad `roundrect` maps to the radius-corner rectangle, `oval` to oblong, `custom` to the rectangle around its primitives |
+| Records | an export is a header (`.FILETYPE`, `.VERSION`, `.UNITS` ...) and top-level items: `.Number` in a parts export, `.PACKAGE_CELL`/`.MECHANICAL_CELL`/`.DRAWING_CELL` in a cell export, `.PAD`, `.HOLE` and `.PADSTACK` in the padstack export. A part names its cell (`..TopCell "NAME"`) and its symbols with their partition (`..Symbol "Partition:Name"`), a cell its padstacks (`...PADSTACK`), a padstack its pads (`...TOP_PAD`, `...CLEARANCE_PAD`, ...) and its hole (`...HOLE_NAME`). `library import` copies a source's items with the header, so the target's converters read what the source's wrote |
+| What differs between libraries | every item carries `..TIMESTAMP` (a cell also `..HISTORY`), a part `..Modified` and names for its swap groups (`"G7"`); all of them differ from one library to the next for the same content, so items are compared by what they say, read, not by their text |
+| Pad shapes | `..ROUND ...DIAMETER`, `..SQUARE ...WIDTH`, `..RECTANGLE`/`..OBLONG ...WIDTH ...HEIGHT`, `..RADIUS_CORNER_RECTANGLE ...WIDTH ...HEIGHT ...RADIUS`; holes `..ROUND ...DIAMETER` or `..SLOT ...WIDTH ...HEIGHT`, as the library's own slotted holes (2012 to 2025) are written |
 | Graphics | one path per outline block: `..SILKSCREEN_OUTLINE`/`..ASSEMBLY_OUTLINE`/`..PLACEMENT_OUTLINE` with `...SIDE MNT_SIDE` and `...POLYLINE_PATH` (`....WIDTH`, `....XY (x, y) …`), `...RECT_PATH` (two corners), `...CIRCLE_PATH` (`....XY`, `....RADIUS`) or `...POLYLINE_SHAPE` + `....SHAPE_OPTIONS FILLED`. Any number of silkscreen blocks survive; **only one assembly outline is kept per cell**, so the converter emits the largest closed loop of the fabrication drawing; the placement outline must be one closed shape |
 | Reference designator | `..TEXT "Ref Des"` / `...TEXT_TYPE REF_DES` / `...DISPLAY_ATTR` with `....XY`, `....TEXT_LYR SILKSCREEN_MNT_LYR`, `....HEIGHT`, `....WIDTH`, `....STROKE_WIDTH`, `....ROTATION`, `....FONT "vf_std"` places the refdes at the cell's own size; a cell without it gets Layout's default text, which is what made the placeholder boards look like a sea of "C"s |
-| Holes in package cells | `..MOUNTING_HOLE ...PADSTACK ...XY ...ROTATION` is accepted inside `.PACKAGE_CELL` (a `MOUNTING_HOLE` padstack: clearance pad, mask, hole, no pad); KiCad `np_thru_hole` pads and unnumbered plated pads become these |
+| Holes in package cells | `..MOUNTING_HOLE ...PADSTACK ...XY ...ROTATION` is accepted inside `.PACKAGE_CELL` (a `MOUNTING_HOLE` padstack: clearance pad, mask, hole, no pad): a connector's locating pegs |
 | Mount type | `..MOUNT_TYPE MIXED` is accepted with any package group; the converter derives it from the pads that became pins |
-| Cell names | at most **64 characters**: `HKP2CellDB` logs `无法添加单元 "…"。正在跳到下一个单元。` for longer ones and then **saves nothing** for the whole file (`遇到 N 个错误。将不会保存单元数据库文件。`, exit code 1). 685 KiCad names are longer; they are cut to 56 characters plus `~` and seven hex digits of a SHA-1 of the full name (`kicad_footprints.cell_name`), and `kicad_import` retries a partition once without any cell the log refused |
+| Cell names | at most **64 characters**: `HKP2CellDB` logs `无法添加单元 "…"。正在跳到下一个单元。` for longer ones and then **saves nothing** for the whole file (`遇到 N 个错误。将不会保存单元数据库文件。`, exit code 1) |
 | Log noise | every converter log contains `正在检查文件格式错误...` and `未找到文件格式错误。` ("checking for file format errors… none found"); a log check that matches the word "error" alone reports success as failure. `_tool_log` matches a leading `错误`/`error`, `错误:`/`error:`, `无法添加`, `遇到 N 个错误` |
-| Coordinates | KiCad's Y points down, Xpedition's up: every Y is negated; rotations are counter-clockwise on screen in both, so angles stay |
-| Same pad number twice | every copper land of a number stays, as a pad of that pin (a MOSFET's drain leads and paddle), and forward annotation puts them all on its net; only a pad lying wholly inside a larger one of its number (a thermal pad's via or a copper paste window) is dropped, reported as `inside_same_number`; paste-only, back-side and `connect` pads are dropped too |
-| Merge | `HKP2PadstackDB … -m` and `HKP2CellDB … -m` add to what exists, replacing same-named entries and registering the partition in the `.lmc`; Layout and Designer may stay open with the project (Designer's project is closed and reopened by the adapter as for `library build`) |
+| Same pad number twice | every land of a number stays a pad of that pin (a MOSFET's drain leads and paddle, a connector's shield legs), and forward annotation puts them all on its net |
+| Merge | `HKP2PadstackDB … -m` and `HKP2CellDB … -m` add to what exists, replacing same-named entries and registering the partition in the `.lmc`; `HKP2PartsDB` keeps a part of the same number and drops the new one without a word unless given `-r`. Layout and Designer may stay open with the project (Designer's project is closed and reopened by the adapter) |
+| Order | the padstacks go in before the cells that use them, the cells and symbols before the parts: `library import` sends the padstack text, then every partition's symbols, cells and parts, in that order across the partitions |
+| Partition names | the stock template library's partitions have spaces (`Crystals Resonators`); a partition names a `.pdb`, a `.cel` and a `SymbolLibs` folder, so `library import` takes ASCII letters, digits, spaces and `_ . -`, and Designer loads no new symbol from a folder whose path has other characters |
+| Symbol versions | `SymbolLibs/<partition>/sym/<name>.<n>`: the highest `n` is the symbol; a replaced symbol is written as the next version, the old file left |
 
 ## Board data Layout exposes (verified 2026-09-29)
 

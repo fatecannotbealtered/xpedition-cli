@@ -1,7 +1,8 @@
-# Parts files for `library add`
+# Parts files for `library add`, and `library import`
 
 Contents: the file · symbols · footprints (IPC-7351B families, lands one by one,
-other sources) · the pin map · what the dry run says · checking afterwards.
+other sources) · the pin map · what the dry run says · checking afterwards ·
+importing from another Xpedition library.
 
 `reference --command "library add"` carries the file's JSON schema
 (`file_json_schema`); this page says how to fill it from a datasheet.
@@ -94,16 +95,20 @@ body, lands and silkscreen with the density's courtyard excess.
 
 For anything else, give the lands: `"pads": [{"pin": "1", "x": -0.95, "y": 0,
 "width": 0.5, "height": 0.35, "shape": "rect"}, ...]` with `shape` `rect`,
-`round` or `oblong`, and `drill` for a plated through hole; plus `height`, and
-`body` for the outlines. Several lands may carry one pin number -- a MOSFET's
-drain leads and its paddle -- and all of them are on that pin's net. `pin_one`
-marks pin 1. Name the cell with `name`.
+`round` or `oblong`; plus `height`, and `body` for the outlines. Several lands may
+carry one pin number -- a MOSFET's drain leads and its paddle, a connector's
+shield legs -- and all of them are on that pin's net. `pin_one` marks pin 1. Name
+the cell with `name`.
+
+A through land takes `drill`: a diameter, or a slot's `[width, height]` along x
+and y inside the land (a USB-C shell leg: `"shape": "oblong", "width": 1.0,
+"height": 2.1, "drill": [0.6, 1.7]`); it is plated unless `"plated": false`.
+Holes that are no pin -- a connector's locating pegs -- go in `holes`: `[{"x":
+-2.9, "y": 2.0, "drill": 0.65}]`, unplated unless `"plated": true`.
 
 ### Other sources
 
 - `{"cell": "NAME"}`: a cell the library holds already (`library list --kind cells`).
-- `{"kicad": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"}`: a KiCad footprint imported
-  with `library import` first.
 - `{"package": "SOIC8"}`: this tool's placeholder shapes (`0402`, `0603`, `0805`,
   `SOT23`, `SOICn`, `TSSOPn`, `HDRn`, `TP`); right pin count, nothing a factory
   can use.
@@ -132,3 +137,37 @@ The confirmed run reads the library back and checks each part (`verification`).
 `library render --project X.prj --part NUMBER --output p.png` draws it as the
 library holds it; `library check` checks the whole library. A design uses the part
 by naming it in its symbols: `"symbols": {"LDO": {"part": "TPS7A2033PDBVR"}}`.
+
+## Importing from another Xpedition library
+
+A part another Xpedition library holds -- another project's central library, or a
+copy of the company's -- is imported, not described again:
+
+```bash
+xpedition-cli library list --library D:/libraries/Company.lmc --query TPS7A --compact
+xpedition-cli library show --library D:/libraries/Company.lmc --part TPS7A2033PDBVR --compact
+xpedition-cli library import --project X.prj --from D:/libraries/Company.lmc --parts TPS7A2033PDBVR,RC0603FR-0710KL --dry-run --compact
+```
+
+`--from` is the source's `.lmc`, or a `.prj` whose central library it is; the
+source is only read. Each part comes with what it uses: its symbols, its cell, the
+cell's padstacks and their pads and holes, as the source's own converters export
+them, nothing regenerated. Every item keeps its source partition, so the same part
+imported again later meets itself.
+
+The dry run sorts every item into `add`, `keep` (the library holds the same
+content, compared as read -- not by the converters' timestamps) or `replace`;
+`preview.replaces` lists the replacements, and with any the confirm needs
+`--dangerous`. It refuses:
+
+- a part number the library holds in another partition, or a cell name it holds
+  in another partition with other content: two of one name would be left;
+- a part the source lacks, or one whose symbols, cell or padstacks the source does
+  not hold (`details.missing`);
+- a partition name that is not ASCII letters, digits, spaces and `_ . -`: it
+  becomes a folder name, and Designer loads no new symbol from other folders.
+
+The confirmed run imports the padstacks, then every partition's symbols (a
+replaced symbol as its next version, which Designer takes), cells and parts, adds
+the partitions to the project's lists, and reads the library back
+(`verification`).
