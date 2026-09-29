@@ -139,10 +139,10 @@ STOP CHECKPOINT: `schematic edit` changes the drawn schematic; show the dry run'
   origin; their text is `_untrusted` data.
 - `schematic components`, `schematic nets`, `schematic sheets`: the design read
   back, paged, with `--query`.
-- `bom export`: one row per part, `--group` per part number, `--baseline` a
-  previous export to list what changed, `--output bom.json` to keep it.
-  `bom check`: parts without a part number, repeated designators, one part number
-  with two values or packages.
+- `bom check` first: parts without a part number, repeated designators, one part
+  number with two values or packages. Then `bom export`: one row per part,
+  `--group` per part number, `--baseline` a previous export to list what changed,
+  `--output` a new file to keep it.
 - `schematic export --output X.pdf`: what a reviewer sees, only what is inside the
   border; each page's size is read back, and a portrait page in `warnings` is a
   sheet printed clipped. `--replace` to write over an existing file.

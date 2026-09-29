@@ -53,8 +53,9 @@ xpedition-schematic). Then, each a dry run and a confirm:
 2. `session start --kind pcb`, then `pcb annotate`: the packaged parts and nets
    arrive, unplaced. Done only on `outcome: annotated` (`annotated_on_open` and
    `in_synch` count too) with no `errors`, and counts matching the schematic.
-3. `pcb info`: the board in numbers -- components, nets, the stackup with each
-   layer's thickness, the net classes with their widths.
+3. `pcb info`: the board in numbers -- components, nets, the board's thickness
+   (`thickness_mm`) and its stackup layer by layer, the net classes with their
+   widths per layer.
 
 ## First layout
 
@@ -81,6 +82,8 @@ In this order; the writes are each a dry run and a confirm:
    `complete` and lists `unrouted` nets.
 8. `pcb pour --net GND --layer 1` and `--layer 4`: outer ground pours after
    routing, never before: a pour in place makes the router count ground as done.
+   A request to route the board covers them; after routing only some nets they
+   wait until the rest is routed.
 9. `pcb check`: Layout's Batch DRC, every hazard with its kind, objects and
    position, plus the board rules DRC does not cover (parts unplaced, off the
    board or overlapping; decoupling capacitors far from their IC; connectors far
@@ -95,10 +98,11 @@ net that stays open beside a fine-pitch part is a rule problem (0.254 mm on the
 stock templates), not a router problem.
 
 To route a net again once the outer pours are in -- after moving its parts -- take
-the pours off first: `pcb unroute --nets NET`, `pcb pour --net GND --layer 1
---remove` (and 4), `pcb route --nets NET`, then pour again. With a pour in place
-the router counts its net as connected, and after the planes regenerate the pads
-it did not route are open (`pcb check` names them `PartialNets`).
+the pours off first: `pcb unroute --nets NET` (dangerous: ask first), `pcb pour
+--net GND --layer 1 --remove` (and 4), `pcb route --nets NET`, then pour again.
+With a pour in place the router counts its net as connected, and after the planes
+regenerate the pads it did not route are open (`pcb check` names them
+`PartialNets`). Measure before and after (below) to show what the move gained.
 
 ```bash
 xpedition-cli pcb outline --project X.prj --width 60 --height 45 --radius 3 --dry-run --compact
@@ -112,10 +116,11 @@ xpedition-cli pcb render --project X.prj --output board.png --compact
 
 ## Moving parts
 
-One part: `pcb move --refdes R1 --to x,y --rotate 90` (millimetres). A set,
-aligned or distributed: `pcb move --file task.json`; read
-`reference/placement-tasks.md`. Traces stay where they were: check and route
-again afterwards. Never use `pcb arrange` for a small edit.
+One part: read where it is (`pcb geometry --refdes R1`), then `pcb move --refdes
+R1 --to x,y --rotate 90` (millimetres). A set, aligned or distributed: `pcb move
+--file task.json`; read `reference/placement-tasks.md`. Traces stay where they
+were: `pcb check` afterwards; routing the moved parts' nets again is a write of
+its own, asked for like any other. Never use `pcb arrange` for a small edit.
 
 ## Measuring a layout
 
@@ -140,10 +145,12 @@ keepouts, open nets); `--refdes` and `--nets` narrow it, `--output` keeps it for
 
 `pcb render --output board.png` draws the board from its data and needs no
 screen. `pcb show --output board.png` brings Layout's window to the front for the
-person and captures it; it captures black while the desktop is locked. The stock
-templates open under a display scheme that hides top-side parts, so a board that
-"looks empty" after annotation usually needs `pcb show`, not a fix; `--top-view`
-shows pours filled and one layer at a time for someone at Layout's screen.
+person and captures it; it captures black while the desktop is locked. A board
+that "looks empty" after annotation is usually not broken: its parts stay
+unplaced until the arrangement, and the stock templates open under a display
+scheme that hides top-side parts. `pcb info` counts the parts and `pcb show`
+switches to a scheme that shows them; `--top-view` shows pours filled and one
+layer at a time for someone at Layout's screen.
 
 ## After a footprint changed
 
@@ -160,16 +167,19 @@ board (the confirm needs `--dangerous`), and report the archive's path.
 
 Placeholder cells (`CLI_*`) are placeholders: right pin count, rough size,
 nothing a factory can use; say so, and add the real parts to the library as the
-follow-up. For the fabrication package read `reference/fabrication.md`.
+follow-up. For the fabrication package read `reference/fabrication.md`: the board
+checked first (as above), then `pcb export --output DIR` (dry run, confirm). The
+package is ready only when the confirmed export's `checks.ok` is true; its README
+leaves thickness, finish and mask colour to the board house: say so.
 
 STOP CHECKPOINT: ask before confirming a board write the user has not asked for,
 and before any that discards work: `pcb arrange` on a routed board (it deletes
-every trace and via first; `--all` also moves placed parts), `pcb route
---unroute`, `pcb unroute`, `pcb annotate --unroute`, `pcb pour --replace` or `pcb
-holes --replace` on work from before this task, or any confirm whose preview
-lists something it deletes. Those whose preview says `dangerous` also need
-`--dangerous`, added only after the user agreed to that loss; back the project up
-first (`project backup`).
+every trace and via first, and `--all` also moves placed parts; for a few parts
+offer `pcb move`, which keeps the routing), `pcb route --unroute`, `pcb unroute`,
+`pcb annotate --unroute`, `pcb pour --replace` or `pcb holes --replace` on work
+from before this task, or any confirm whose preview lists something it deletes.
+Those whose preview says `dangerous` also need `--dangerous`, added only after the
+user agreed to that loss; back the project up first (`project backup`).
 
 ## References
 

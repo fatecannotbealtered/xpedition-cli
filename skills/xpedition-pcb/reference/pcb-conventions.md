@@ -138,7 +138,7 @@ Classes: L2 from the netlist, L2b from geometry, manual needs an engineer.
 | ID | Check | Class |
 |---|---|---|
 | DP-01 | every schematic part placed (`pcb metrics` `unplaced` is 0); forward annotation has zero unresolved items | L2 |
-| DP-02 | DRC clean at the class rules | L2b |
+| DP-02 | DRC passes at the class rules, every warning explained | L2b |
 | DP-03 | decoupling ≤ 2 mm from its pin (`pcb metrics` `decoupling`) | L2b |
 | DP-04 | no plane split under differential pairs | L2b |
 | DP-05 | via count on power layer changes | L2b |

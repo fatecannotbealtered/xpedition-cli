@@ -71,6 +71,11 @@ nothing depends on 1.0.0 yet.
   a real part (`-r` would have replaced it). Its dry run needs the adapter.
 - `schematic export` takes `--replace`, like every other command that writes a
   file.
+- The three Skills are rewritten for the new tree. The entry Skill carries sessions,
+  projects, backups and the design library; the schematic and pcb Skills carry their
+  recipes with the checks that decide done (`netlist.matches`, a board that `passes`
+  with no high or medium board rule, `checks.ok`). Rounds 3 and 4 of
+  `docs/EVALS.md` record how Haiku, Sonnet and Opus follow them.
 
 ### Added
 

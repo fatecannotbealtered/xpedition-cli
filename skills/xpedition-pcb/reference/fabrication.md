@@ -18,8 +18,9 @@ finish and mask colour to the board house (`pcb export` takes no such options);
 pass on any the person names separately.
 
 `checks` covers what the package contains, not the board's design rules, so run
-`pcb check` first: a board whose `clean` is false is not ready to send. The BOM
-for purchasing comes from the schematic (`bom export --group`, in
+`pcb check` first: send only a board that passes (no DRC error), with no high or
+medium board rule and every warning kind explained, as the Skill's first layout
+says. The BOM for purchasing comes from the schematic (`bom export --group`, in
 xpedition-schematic); the package's `bom.csv` lists what the board places.
 
 ```bash

@@ -17,7 +17,7 @@
   {
     "id": "fabrication-package",
     "prompt": "Send this board out for fabrication.",
-    "expected": "Read reference/fabrication.md; pcb check first, then pcb export --output DIR --dry-run and confirm; ready only when checks.ok is true; say what the README leaves to the board house."
+    "expected": "Read reference/fabrication.md; pcb check first (it passes, no high or medium board rule, every warning explained), then pcb export --output DIR --dry-run and confirm; ready only when checks.ok is true; say what the README leaves to the board house."
   },
   {
     "id": "rebuild-after-cell-change",
@@ -32,7 +32,7 @@
   {
     "id": "small-local-move",
     "prompt": "Move R12 two millimetres to the left, nothing else.",
-    "expected": "Read R12's position (pcb geometry --refdes R12), pcb move --refdes R12 --to <x-2,y> dry run and confirm, then check the routing around it."
+    "expected": "Read R12's position (pcb geometry --refdes R12), pcb move --refdes R12 --to <x-2,y> dry run and confirm, then pcb check for the routing around it; routing again only if the user asks."
   },
   {
     "id": "board-looks-empty",
