@@ -3126,6 +3126,26 @@ def _library_export(params: dict[str, Any]) -> dict[str, Any]:
 PARTITION_NAME = re.compile(r"^[A-Za-z0-9_](?:[A-Za-z0-9 _.\-]{0,62}[A-Za-z0-9_])?$")
 
 
+def _hkp_bytes(text: str) -> bytes:
+    """An HKP text as the converters read it: the system code page. Written as ASCII
+    with replacements, a Chinese description reached the library as question marks
+    and nothing said so; a character the code page cannot hold is refused instead."""
+    try:
+        return text.encode("ascii")
+    except UnicodeEncodeError:
+        pass
+    try:
+        return text.encode("mbcs")
+    except LookupError:
+        return text.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise AdapterError(
+            "E_VALIDATION",
+            "the text holds characters the system code page cannot write",
+            {"text": exc.object[max(0, exc.start - 20) : exc.end + 20], "_untrusted": ["text"]},
+        ) from exc
+
+
 def _next_symbol_version(folder: Path, name: str) -> int:
     """One past the highest version of symbol `name` in a `sym` folder, so the file
     written is the one Designer takes; 1 when there is none."""
@@ -3169,8 +3189,12 @@ def _import_units(params: dict[str, Any]) -> list[dict[str, Any]]:
                 "a unit's partition must be ASCII letters, digits, spaces and _ . -",
                 {"partition": str((unit or {}).get("partition"))[:80], "_untrusted": ["partition"]},
             )
-        if not isinstance(unit.get("symbols") or {}, dict):
-            raise AdapterError("E_USAGE", "a unit's symbols map symbol names to file text")
+        if not isinstance(unit.get("symbols") or {}, dict) or not isinstance(
+            unit.get("symbol_files") or {}, dict
+        ):
+            raise AdapterError(
+                "E_USAGE", "a unit's symbols map names to file text, symbol_files to files"
+            )
     return units
 
 
@@ -3236,7 +3260,7 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         source = work / f"{step}{tag}.hkp"
         log = work / f"{step}{tag}.log"
         try:
-            source.write_text(str(text), encoding="ascii", errors="replace")
+            source.write_bytes(_hkp_bytes(str(text)))
             if log.exists():
                 log.unlink()
         except OSError as exc:
@@ -3249,7 +3273,8 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
 
     def write_symbols(unit: dict[str, Any], record: dict[str, Any]) -> None:
         symbols = unit.get("symbols") or {}
-        if not symbols:
+        files = unit.get("symbol_files") or {}
+        if not symbols and not files:
             return
         target = root / "SymbolLibs" / str(unit["partition"]) / "sym"
         if not str(target).isascii():
@@ -3262,7 +3287,7 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
         try:
             target.mkdir(parents=True, exist_ok=True)
             folder = target.resolve()
-            for name, text in symbols.items():
+            for name in [*symbols, *(n for n in files if n not in symbols)]:
                 version = _next_symbol_version(target, str(name))
                 path = (target / f"{name}.{version}").resolve()
                 if path.parent != folder:
@@ -3271,7 +3296,12 @@ def _library_import(params: dict[str, Any], client: Any) -> dict[str, Any]:
                         "a symbol name must be a plain file name",
                         {"symbol": str(name)[:80], "_untrusted": ["symbol"]},
                     )
-                path.write_text(str(text), encoding="utf-8")
+                source = Path(str(files[name])) if name in files else None
+                if source is not None and source.is_file():
+                    # another library's file, byte for byte, whatever its code page
+                    path.write_bytes(source.read_bytes())
+                else:
+                    path.write_text(str(symbols[name]), encoding="utf-8")
                 record["symbols_written"].append(str(name))
         except OSError as exc:
             raise AdapterError("E_IO", f"cannot write symbol files: {exc}") from exc

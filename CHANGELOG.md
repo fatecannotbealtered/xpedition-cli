@@ -51,6 +51,13 @@ The KiCad import is gone, so nothing ties the library to KiCad.
   identical part is kept. A part is now compared by what it says, as read -- its
   Value by the number it stands for, since the parts database keeps `10k` as
   `10K` -- and an identical one is kept and not written again.
+- A part's Chinese description or property reached the library as question marks,
+  and `library add` reported the part verified: its texts went to the converters as
+  ASCII with replacements, and their exports were read as UTF-8. Both now use the
+  system code page the converters use (UTF-8 is tried first when reading), a
+  character that code page cannot hold is refused, a symbol imported from another
+  library is copied byte for byte, and the read-back of `library add` and `library
+  import` compares the text.
 
 ## [1.0.2] - 2026-09-29
 

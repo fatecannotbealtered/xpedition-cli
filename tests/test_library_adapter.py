@@ -165,3 +165,40 @@ def test_placeholder_parts_carry_a_value_the_library_can_keep() -> None:
     assert plan.parts["10k 1%"].properties == {"Value": "10k"}
     assert plan.parts["100nF/16V"].properties == {"Value": "100n"}
     assert plan.parts["LED-GREEN"].properties == {}
+
+
+def test_the_import_copies_another_librarys_symbol_file_byte_for_byte(
+    tmp_path, monkeypatch
+) -> None:
+    library = tmp_path / "Lib"
+    library.mkdir()
+    (library / "Lib.lmc").write_text("", encoding="utf-8")
+    project = tmp_path / "P.prj"
+    project.write_text(
+        f'KEY CentralLibrary "{library / "Lib.lmc"}"\nLIST Symbols\nENDLIST\nLIST PDBs\nENDLIST\n',
+        encoding="utf-8",
+    )
+
+    def no_designer(client, attach_only=True):
+        raise adapter.AdapterError("E_BACKEND_UNAVAILABLE", "Designer is not running")
+
+    monkeypatch.setattr(adapter, "_viewdraw_application", no_designer)
+    source = tmp_path / "RES_1.3"
+    raw = b"V 54\n" + "贴片".encode("gbk")  # a code page's bytes, not UTF-8
+    source.write_bytes(raw)
+    unit = {
+        "partition": "Company Parts",
+        "symbols": {"RES_1": "x"},
+        "symbol_files": {"RES_1": str(source)},
+    }
+    first = adapter._library_import({"project": str(project), "units": [unit]}, None)
+    folder = library / "SymbolLibs" / "Company Parts" / "sym"
+    assert (folder / "RES_1.1").read_bytes() == raw and first["units"][0]["symbols_registered"]
+    # written again, it is the next version: the file Designer takes
+    adapter._library_import({"project": str(project), "units": [unit]}, None)
+    assert (folder / "RES_1.2").read_bytes() == raw
+    assert 'VALUE "SymbolLibs\Company Parts"' in project.read_text(encoding="utf-8")
+
+
+def test_an_ascii_hkp_text_is_written_as_it_is() -> None:
+    assert adapter._hkp_bytes('.Number "R1"\n') == b'.Number "R1"\n'

@@ -178,7 +178,7 @@ def plan(source: R.Library, target: R.Library, wanted: list[str]) -> ImportPlan:
             absent["symbols"].append(reference)
             continue
         try:
-            text = Path(str(symbol["path"])).read_text(encoding="utf-8", errors="replace")
+            text = R.decode_text(Path(str(symbol["path"])).read_bytes())
         except OSError:
             absent["symbols"].append(reference)
             continue
@@ -254,6 +254,7 @@ def plan(source: R.Library, target: R.Library, wanted: list[str]) -> ImportPlan:
             new_parts.setdefault(partition, []).append(number)
 
     new_symbols: dict[str, dict[str, str]] = {}
+    symbol_files: dict[str, dict[str, str]] = {}
     for reference, symbol in symbols.items():
         held_symbol = target.find_symbol(reference)
         if held_symbol is None:
@@ -275,6 +276,8 @@ def plan(source: R.Library, target: R.Library, wanted: list[str]) -> ImportPlan:
             new_symbols.setdefault(symbol["partition"], {})[symbol["name"]] = symbol_texts[
                 reference
             ]
+            # the file itself goes across, byte for byte, whatever its code page
+            symbol_files.setdefault(symbol["partition"], {})[symbol["name"]] = str(symbol["path"])
 
     new_cells: dict[str, set[tuple[str, str]]] = {}
     used_partitions: set[str] = set()
@@ -384,6 +387,7 @@ def plan(source: R.Library, target: R.Library, wanted: list[str]) -> ImportPlan:
                 "parts": parts_text,
                 "cells": cells_text,
                 "symbols": new_symbols.get(partition, {}),
+                "symbol_files": symbol_files.get(partition, {}),
                 # the parts converter keeps a part it holds unless told to replace it
                 "replace": partition in replaced_parts,
             }

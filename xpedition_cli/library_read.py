@@ -161,6 +161,19 @@ def hkp_subset(text: str, wanted: set[tuple[str, str]]) -> str:
     return header.rstrip("\n") + "\n\n" + body
 
 
+def decode_text(raw: bytes) -> str:
+    """A library file as text. The converters write the system code page (the exports
+    begin `!.LCID 2052` on a Chinese Windows); UTF-8 is tried first, since ASCII is
+    UTF-8 and that code page's Chinese practically never decodes as UTF-8, then the
+    code page (`mbcs`, Windows only), then UTF-8 with what cannot be read replaced."""
+    for encoding in ("utf-8-sig", "mbcs"):
+        try:
+            return raw.decode(encoding)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return raw.decode("utf-8", "replace")
+
+
 def canonical(value: Any) -> Any:
     """`value` with every list of records in one order, to compare content as read.
 

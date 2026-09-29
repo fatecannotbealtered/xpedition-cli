@@ -317,13 +317,27 @@ def import_parts(options: dict[str, Any]) -> dict[str, Any]:
             s["reference"] for s in plan.symbols if after.find_symbol(s["reference"]) is None
         ]
         lacking += [f"cell {c['name']}" for c in plan.cells if after.find_cell(c["name"]) is None]
+        # met again with the source, every item must now be one the library holds as
+        # the source does: a text the converters changed on the way reads otherwise
+        try:
+            again = I.plan(source, after, wanted)
+            changed = [
+                f"{kind[:-1]} {item.get('number') or item.get('reference') or item.get('name')}"
+                for kind in ("parts", "symbols", "cells", "padstacks")
+                for item in getattr(again, kind)
+                if item["action"] != "keep"
+            ]
+        except I.LibraryImportError as exc:
+            changed = [str(exc)]
         verification.update(
             {
                 "missing": missing,
                 "missing_items": lacking,
+                "changed": changed,
                 "findings": findings,
                 "verified": not missing
                 and not lacking
+                and not changed
                 and not any(f["severity"] == "high" for f in findings),
             }
         )
@@ -475,7 +489,7 @@ def load_library(
     for item in exported.get("files") or []:
         path = Path(str(item["path"]))
         try:
-            content = path.read_text(encoding="utf-8", errors="replace")
+            content = R.decode_text(path.read_bytes())
         except OSError as exc:
             library.failed.append(
                 {"kind": item["kind"], "partition": item["partition"], "error": str(exc)}
@@ -494,7 +508,7 @@ def load_library(
         root = Path(str(exported.get("symbols") or ""))
         for partition, name, path in R.symbol_files(root, partitions):
             try:
-                content = path.read_text(encoding="utf-8", errors="replace")
+                content = R.decode_text(path.read_bytes())
             except OSError:
                 continue
             symbol = R.parse_symbol(content, partition, name)
@@ -780,11 +794,23 @@ def add(options: dict[str, Any]) -> dict[str, Any]:
         found = {number: after.find_parts(number) for number in added}
         missing = sorted(n for n, rows in found.items() if not rows)
         findings = [f for n, rows in found.items() if rows for f in R.check_part(after, rows[0])]
+        # the text as the library holds it is the text added: written in the wrong code
+        # page, a Chinese description came back as question marks and passed
+        written = R.parse_parts(texts["parts"], plan.partition) if texts["parts"] else []
+        changed = sorted(
+            part["number"]
+            for part in written
+            if found.get(part["number"])
+            and R.part_content(part) != R.part_content(found[part["number"]][0])
+        )
         verification.update(
             {
                 "missing": missing,
+                "changed": changed,
                 "findings": findings,
-                "verified": not missing and not any(f["severity"] == "high" for f in findings),
+                "verified": not missing
+                and not changed
+                and not any(f["severity"] == "high" for f in findings),
             }
         )
     else:

@@ -519,6 +519,7 @@ covers everything the library converters do, not a draw.
 | Again | the same import | every item `keep`, and "a confirm changes nothing" |
 | Replace | `library add` of a changed resistor in the source, then the import | only that part `replace`; the confirm refused without `--dangerous`, and with it ran the parts converter alone, with `-r`; the target reads the new description |
 | Target | `library check`, `schematic render --project` | 4 parts, 44 cells, 133 symbols, clean; the design naming the imported parts plans without an issue, its sheet drawn with their symbols |
+| Chinese text | `library add`, `library import` of a part described `贴片电阻 10K 1% 0603（测试）`, made by `国巨 Yageo` | before the fix the source library held `???? 10K 1% 0603????` and the add said verified; after it, both libraries hold the text as written and both read-backs compare it |
 
 What the run found, fixed before the release:
 
@@ -529,6 +530,9 @@ What the run found, fixed before the release:
   had just added a replacement -- as it called every part the library held,
   whatever its content. A part is compared by what it says, its Value by the number
   it stands for, and an identical one is kept.
+- Chinese text reached the library as question marks, and the read-back passed: the
+  texts went to the converters as ASCII with replacements. They go and come back in
+  the system code page, and both read-backs compare the text.
 
 Not done in this run: drawing a design with the imported parts, packaging it and
 bringing it onto a board, which needs Designer and Layout past the sign-in.

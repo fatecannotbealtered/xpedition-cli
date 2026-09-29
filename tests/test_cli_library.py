@@ -341,3 +341,44 @@ def test_render_draws_a_library_part(cli, library, project, tmp_path) -> None:
     picture = payload["data"]["pictures"][0]
     assert code == 0 and output.is_file() and picture["lands"] == 8
     assert picture["extent_mm"][0] > 6
+
+
+def test_a_part_whose_text_the_library_changed_is_not_verified(
+    cli, adapter, library, project, tmp_path
+) -> None:
+    # written in the wrong code page, a Chinese description reached the library as
+    # question marks and the read-back passed; it compares the text now
+    def as_question_marks(params: dict) -> dict:
+        parts = params["parts"].encode("ascii", "replace").decode("ascii")
+        return library.absorb({**params, "parts": parts})
+
+    adapter.on("library_import", as_question_marks)
+    spec = {
+        "partition": "PartQuest",
+        "parts": [
+            {
+                "number": "CN-1",
+                "description": "贴片电阻 10K 1% 0603",
+                "prefix": "R",
+                "value": "10k",
+                "symbol": {"kind": "RES"},
+                "footprint": {"family": "chip", "size": "0603"},
+            }
+        ],
+    }
+    parts = tmp_path / "cn.json"
+    parts.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    args = ["library", "add", "--project", str(project), "--file", str(parts)]
+    code, payload = cli(*args, "--dry-run")
+    code, payload = cli(*args, "--confirm", payload["data"]["confirm_token"])
+    verification = payload["data"]["verification"]
+    assert payload["data"]["ok"] is False and verification["changed"] == ["CN-1"]
+
+
+def test_a_library_file_is_read_as_utf8_first_and_never_fails() -> None:
+    from xpedition_cli import library_read as R
+
+    assert R.decode_text("贴片电阻".encode()) == "贴片电阻"
+    assert R.decode_text(b"\xef\xbb\xbf.Number") == ".Number"
+    # a code page's bytes: whatever this machine's code page makes of them, no failure
+    assert R.decode_text("贴片".encode("gbk") + b" 10K").endswith(" 10K")
