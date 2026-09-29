@@ -116,6 +116,10 @@ nothing depends on 1.0.0 yet.
   edge, acute trace corners, open nets. `clean` needs none of the high or medium
   ones.
 - `pcb metrics --project` measures the live board.
+- `pcb pour --remove` takes a net's pour off a layer. A net routed again once the
+  outer pours are in -- after moving its parts -- needs it: with a pour in place the
+  router counts the net as connected, and the pads it did not route are open once the
+  planes regenerate.
 
 
 - Sheet sizes `E`, `A2`, `A1` and `A0`, on their landscape borders and pages

@@ -866,16 +866,18 @@ def release_readiness() -> dict[str, Any]:
         "mock_upstream_required": True,
         "mock_upstream_status": "verified",
         "live_smoke_required_for_stable": True,
-        "live_smoke_status": "missing",
+        "live_smoke_status": "verified",
         "reason": (
             "Every command has command-level tests against a faked Xpedition adapter: "
             "success, usage, validation, confirmation, dangerous-gate, conflict, not-found, "
             "backend-unavailable and timeout paths, empty results, paging, the envelope, exit "
-            "codes and the stdout/stderr boundary. docs/E2E.md records the whole chain on one "
-            "licensed Windows installation of XPED2604: a project created from a template, a "
-            "schematic drawn and read back, parts built and packaged, a board created, "
-            "annotated, placed, routed, poured, checked and packaged for fabrication. No second "
-            "installation has repeated it, which is what keeps this short of stable."
+            "codes and the stdout/stderr boundary. docs/E2E.md records this release on one "
+            "licensed Windows installation of XPED2604: parts added to the library, a "
+            "schematic drawn with them, packaged and checked, a board created, annotated, "
+            "placed, routed, improved, checked and packaged for fabrication, and the project "
+            "backed up and restored. Kept at beta: no second installation has repeated it, "
+            "bottom-side placement has not been exercised, and this release's command tree "
+            "is new."
         ),
         "required_evidence": [
             "functional_contract_coverage_100",

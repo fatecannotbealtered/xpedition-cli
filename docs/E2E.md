@@ -11,6 +11,10 @@ environment. The first smoke run must perform only this sequence:
 
 Never use a production design for this test.
 
+The runs are listed oldest first. Those before the 1.0.1 run use 1.0.0's command
+names (`project init`, `review run`, `pcb drc`, `library kicad-import`, ...);
+the changelog's 1.0.1 section maps them to today's.
+
 ## Recorded run — Designer, 2026-09-12
 
 All five steps passed against Xpedition Standard `XPED2604` on Windows 11,
@@ -459,12 +463,54 @@ The design's preview (`schematic render`) and the exported sheets match part for
 part. The ground and no-connect symbols in the preview now follow the stock files
 (a triangle with `GND` under it; a lead and a cross beside the pin).
 
+## Recorded run: 1.0.1, the whole chain with library parts (2026-09-29)
+
+xpedition-cli 1.0.1 on the same installation of XPED2604: every command of the new
+tree that the design flow uses, on `examples/demo-sensor-board.json` with its LDO,
+its MCU and its three 10 k resistors taken from the project's own library instead of
+placeholders. Each write ran as a dry run, then the confirm.
+
+| Step | Commands | Evidence |
+|---|---|---|
+| Machine | `doctor`, `session start --kind schematic` | adapter ready, both applications attached |
+| Project | `project create` | a template clone, 264 files, 28 s |
+| Library | `library list`, `library render --file`, `library add` | the library held none of the three; the render drew each symbol beside its footprint; the add wrote 3 symbols, 3 cells (`SOT95P280X145-5N`, `SOIC127P600X175-8N`, `RESC1608X50N`, IPC-7351B from the datasheet dimensions), their padstacks and parts, 30 s, and read them back: verified, no finding |
+| Draw | `schematic render --project`, `schematic draw` | the plan read the three parts from the library and had no issue; the draw placed the library's symbols with their part numbers, 30 parts on 4 sheets, 85 s, `netlist.matches` |
+| Package | `library build --package` | 13 placeholder parts made, the 3 library parts left alone, packaged, 29 s |
+| Check | `schematic check`, `library check`, `bom check`, `bom export --group`, `schematic export` | one low finding from Designer's graphics check (J201's two attribute texts not aligned); the library clean (16 parts); the BOM valid (30 parts, 17 part numbers); the PDF 4 landscape A4 pages |
+| Board | `project backup`, `pcb create`, `session start --kind pcb`, `pcb annotate`, `pcb info` | a complete backup (Designer's project closed and opened again for its database); the board from the 4-layer template; 26 parts, 13 nets, 61 pins annotated; stackup 1.7476 mm with each layer's thickness, the default net class with its widths |
+| Shape | `pcb outline`, `pcb holes`, `pcb rules` | 60 x 45 mm, radius 2; four 2.2 mm holes; POWER at 0.5 mm for +3V3 and +5V, seen by Layout |
+| Place | `pcb arrange --design`, `pcb labels` | 26 parts, none outside, two zone labels; 24 designators moved, two left `unplaced` (no free spot beside a tightly packed part) |
+| Route | `pcb pour` (layer 2), `pcb route --layers 1,4`, `pcb pour` (1, 4) | 13 of 13 nets, no open, 64 traces, 11 vias |
+| Measure | `pcb check`, `pcb metrics --output` | DRC 0 errors, 3 warnings (vias under parts); two board rules: decoupling capacitors C201 and C102 9.6 and 6.7 mm from their IC's supply pin |
+| Improve | `pcb unroute --nets`, `pcb pour --remove`, `pcb move`, `pcb route --nets`, `pcb pour`, `pcb check`, `pcb metrics --baseline` | the two capacitors moved beside the supply pins and their nets routed again: DRC 0 errors, 1 warning, no board rule; decoupling at most 4.5 mm (was 9.6), ratsnest -7.3 mm, trace length -16.9 mm, one via fewer, one crossing more |
+| Output | `pcb render`, `pcb export` | ODB++, Gerber and NC drill, 18 files, `checks.ok`, 72 s |
+| Undo | `project backup`, `schematic edit`, `project restore` | a property set and a net renamed, verified; the restore brought the net's old name back, after zipping the folder as it was |
+
+What the run found, all fixed before the release:
+
+- The draw stopped: the adapter's new `release_project` and `reopen_project`
+  methods, added for the backups, had the names of two older helpers, and the draw's
+  reopen called the new one. They have their own names; a test refuses a module that
+  defines a name twice.
+- Moving the capacitors on the poured board left GND open (`PartialNets` 5): with the
+  outer pours in place the router counts the ground as connected, and after the
+  planes regenerate the pads it did not route are cut off. `pcb pour --remove` takes
+  the pours off; routed without them, the ground completed and the pours went back.
+- The pcb Skill called a board checked only when `clean`, which any warning fails;
+  it is `passes` with no high or medium board rule and every warning explained.
+
+Not done in this run: one designator (R203) stayed `unplaced` beside its
+neighbour; the arrange packs the resistor column too tightly for both labels.
+
 ## What the recorded runs do not cover
 
 - Every recorded run comes from one Windows installation of XPED2604. A second
   machine has not repeated them, and no CI job runs these commands against a
   licensed Xpedition.
-- Symbols and cells are generated or converted from an open-source library rather
-  than taken from a production central library; part numbers are placeholders.
+- Symbols and cells are generated -- placeholders, IPC-7351B footprints from
+  datasheet dimensions -- or converted from an open-source library, not taken from a
+  production central library; most part numbers are placeholders.
+- Bottom-side placement has not been exercised.
 - The Xpedition automation surface is what this installation exposes; another
   version may differ. `docs/COMPATIBILITY.md` is the version matrix.
