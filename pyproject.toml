@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xpedition-cli"
+dynamic = ["version"]
+description = "Agent-native control of Siemens Xpedition: schematic, design library, board and fabrication outputs with bounded previews and recorded outcomes"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sean Guo" }]
+dependencies = ["jsonschema>=4.23", "referencing>=0.35", "pypdf==6.18.0"]
+
+[project.urls]
+Repository = "https://github.com/fatecannotbealtered/xpedition-cli"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.15",
+  "pyinstaller>=6",
+  "pip-audit>=2.7",
+  # `pcb render` draws through Pillow; the renderer is pure Python, so its tests
+  # belong in CI on every platform, not only where the Windows adapter installs.
+  "Pillow>=12.3",
+]
+native = [
+  "pywin32==311; sys_platform == 'win32'",
+  "pywinauto==0.6.9; sys_platform == 'win32'",
+  "comtypes==1.4.16; sys_platform == 'win32'",
+  "six==1.17.0; sys_platform == 'win32'",
+  "Pillow==12.3.0",
+]
+
+[project.scripts]
+xpedition-cli = "xpedition_cli.main:main"
+xpedition-native-adapter = "xpedition_cli.native_com_adapter:main"
+
+[tool.setuptools]
+license-files = ["LICENSE", "THIRD-PARTY-LICENSES/**/*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "xpedition_cli.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["xpedition_cli*"]
+
+[tool.setuptools.package-data]
+xpedition_cli = ["resources/*.vbs"]

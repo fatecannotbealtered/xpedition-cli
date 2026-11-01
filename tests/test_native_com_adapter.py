@@ -1,0 +1,1181 @@
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from xpedition_cli import native_com_adapter as native_adapter
+from xpedition_cli.native_com_adapter import (
+    AdapterError,
+    _apply_designer_operation,
+    _com_member,
+    _component_location,
+    _designer_net_name,
+    _designer_snapshot,
+    _export_pdf,
+    _package_design,
+    _packager_messages,
+    _quiet_gui,
+    _sch2pdf_sheets,
+)
+
+
+def test_layout_registration_recognizes_version_155_without_base_or_60(monkeypatch):
+    import sys
+    from contextlib import nullcontext
+
+    registered = "MGCPCB.Application.155"
+
+    def open_key(root, name):
+        if name != registered:
+            raise FileNotFoundError(name)
+        return nullcontext()
+
+    monkeypatch.setattr(native_adapter, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(native_adapter, "application_progids", lambda domain: (registered,))
+    monkeypatch.setitem(
+        sys.modules, "winreg", SimpleNamespace(HKEY_CLASSES_ROOT=object(), OpenKey=open_key)
+    )
+    assert native_adapter._com_registered()
+
+
+def test_adapter_build_drift_refuses_before_importing_com(monkeypatch):
+    monkeypatch.setenv("XPEDITION_EXPECTED_ADAPTER_BUILD", "a" * 64)
+    monkeypatch.setattr(native_adapter, "adapter_identity", lambda: {"build_sha256": "b" * 64})
+    monkeypatch.setattr(native_adapter, "_import_com", lambda: pytest.fail("COM was imported"))
+    with pytest.raises(AdapterError) as caught:
+        native_adapter.dispatch("apply_batch", {"fixture": True})
+    assert caught.value.code == "E_CONFLICT"
+    assert caught.value.details["observed_adapter"]["build_sha256"] == "b" * 64
+
+
+class _Collection:
+    def __init__(self, items: list[object]) -> None:
+        self._items = items
+        self.Count = len(items)
+
+    def Item(self, index: int) -> object:
+        return self._items[index - 1]
+
+
+class _Connection:
+    def __init__(self, number: str, net: str, x: int = 0, y: int = 0) -> None:
+        self.CompPin = SimpleNamespace(Number=number, GetLocation=SimpleNamespace(X=x, Y=y))
+        self.Net = SimpleNamespace(Name=net)
+
+
+class _Component:
+    def __init__(self, refdes: str, x: int, y: int, pins: list[tuple[str, str]]) -> None:
+        self.Refdes = refdes
+        self.Name = refdes
+        self._location = SimpleNamespace(X=x, Y=y)
+        self._connections = _Collection([_Connection(number, net) for number, net in pins])
+
+    def GetLocation(self) -> object:
+        return self._location
+
+    def GetConnections(self) -> _Collection:
+        return self._connections
+
+
+class _Net:
+    def __init__(self, name: str, pins: list[tuple[str, str]]) -> None:
+        self.Name = name
+        self._connections = _Collection(
+            [
+                SimpleNamespace(
+                    CompPin=SimpleNamespace(Number=number, Component=SimpleNamespace(Refdes=refdes))
+                )
+                for refdes, number in pins
+            ]
+        )
+
+    def Connections(self) -> _Collection:
+        return self._connections
+
+
+def test_designer_snapshot_maps_components_nets_and_connections() -> None:
+    components = [
+        _Component("R1", 100, 200, [("1", "3V3")]),
+        _Component("C1", 300, 200, [("1", "3V3")]),
+    ]
+    net = _Net("3V3", [("R1", "1"), ("C1", "1")])
+
+    class App:
+        def GetActiveDesign(self) -> str:
+            return "demo"
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection(components)
+
+        def DesignNets(self, *_args: object) -> _Collection:
+            return _Collection([net])
+
+        def SchematicSheetDocuments(self) -> _Collection:
+            return _Collection([SimpleNamespace(Name="sheet1", FullName="sheet1")])
+
+    result = _designer_snapshot(App(), {})
+    assert result["project"] == "demo"
+    assert result["components"][0]["refdes"] == "R1"
+    assert result["connections"] == [{"net": "3V3", "pins": ["C1.1", "R1.1"]}]
+
+
+def test_designer_connect_draws_a_wire_between_the_two_pins() -> None:
+    class Block:
+        def __init__(self) -> None:
+            self.segments: list[tuple] = []
+
+        def AddNet(self, *args: object) -> object:
+            self.segments.append(args)
+            return SimpleNamespace(
+                GetSegments=lambda: _Collection([SimpleNamespace()]),
+                AddLabel=lambda *label_args: setattr(self, "label", label_args),
+            )
+
+    first = _Component("R1", 0, 0, [("1", "")])
+    first._connections = _Collection([_Connection("1", "", 10, 20)])
+    second = _Component("C1", 100, 0, [("1", "")])
+    second._connections = _Collection([_Connection("1", "", 60, 50)])
+    block = Block()
+
+    class App:
+        ActiveView = SimpleNamespace(Block=block)
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection([first, second])
+
+    client = SimpleNamespace(constants=SimpleNamespace(VD_WIRE=7))
+    pending = {"3V3": {"type": "create_net", "name": "3V3"}}
+    result = _apply_designer_operation(
+        App(),
+        {"type": "connect", "net": "3V3", "pins": ["R1.1", "C1.1"]},
+        client,
+        "demo",
+        pending,
+    )
+    assert result == {
+        "type": "connect",
+        "net": "3V3",
+        "pins": ["R1.1", "C1.1"],
+        "applied": True,
+    }
+    assert not pending
+    # one horizontal and one vertical segment, the pins at the two ends
+    [(ax, ay, bx, by, pin_a, pin_b, wire), (cx, cy, dx, dy, pin_c, pin_d, _)] = block.segments
+    assert (ax, ay, bx, by) == (10, 20, 60, 20) and (cx, cy, dx, dy) == (60, 20, 60, 50)
+    assert pin_a is not None and pin_b is None and pin_c is None and pin_d is not None
+    assert wire == 7
+    # the label sits over the first segment's middle, not at the sheet's origin
+    assert block.label[1:] == ("3V3", 35, 22)
+
+
+def test_designer_connect_follows_the_points_it_is_given() -> None:
+    class Block:
+        def __init__(self) -> None:
+            self.segments: list[tuple] = []
+
+        def AddNet(self, *args: object) -> object:
+            self.segments.append(args[:4])
+            return SimpleNamespace(
+                GetSegments=lambda: _Collection([SimpleNamespace()]),
+                AddLabel=lambda *label_args: None,
+            )
+
+    first = _Component("R1", 0, 0, [])
+    first._connections = _Collection([_Connection("1", "", 0, 0)])
+    second = _Component("C1", 0, 0, [])
+    second._connections = _Collection([_Connection("2", "", 30, 30)])
+    block = Block()
+
+    class App:
+        ActiveView = SimpleNamespace(Block=block)
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection([first, second])
+
+    client = SimpleNamespace(constants=SimpleNamespace(VD_WIRE=7))
+    _apply_designer_operation(
+        App(),
+        {
+            "type": "connect",
+            "net": "N",
+            "pins": ["R1.1", "C1.2"],
+            "points": [[0, 30]],
+            "x": 5,
+            "y": 5,
+        },
+        client,
+        "demo",
+        {},
+    )
+    assert block.segments == [(0, 0, 0, 30), (0, 30, 30, 30)]
+
+
+def test_component_location_reads_the_property_form() -> None:
+    """Current Xpedition Standard exposes GetLocation as a property, not a method."""
+    component = SimpleNamespace(GetLocation=SimpleNamespace(X=2000, Y=1500))
+    assert _component_location(component) == {"x": 2000, "y": 1500}
+
+
+def test_component_location_falls_back_to_the_method_form() -> None:
+    component = _Component("R1", 100, 200, [])
+    assert _component_location(component) == {"x": 100, "y": 200}
+
+
+def test_component_location_is_empty_when_unavailable() -> None:
+    assert _component_location(SimpleNamespace()) == {"x": None, "y": None}
+
+
+def test_place_component_reports_the_orphan_when_refdes_assignment_fails() -> None:
+    class Placed:
+        GetLocation = SimpleNamespace(X=40, Y=60)
+
+        def __setattr__(self, name: str, value: object) -> None:
+            raise RuntimeError("Unable to add reference designator")
+
+    class Block:
+        def AddPartInstance(self, *_args: object) -> Placed:
+            return Placed()
+
+    class App:
+        ActiveView = SimpleNamespace(Block=Block())
+
+    with pytest.raises(AdapterError) as caught:
+        _apply_designer_operation(
+            App(),
+            {
+                "type": "place_component",
+                "refdes": "R1",
+                "library": "Resistors",
+                "device_name": "R",
+                "symbol_name": "R",
+                "x": 40,
+                "y": 60,
+            },
+            SimpleNamespace(),
+            "demo",
+            {},
+        )
+    details = caught.value.details
+    assert details["orphan_placed"] is True
+    assert details["orphan_library"] == "Resistors"
+    assert (details["orphan_x"], details["orphan_y"]) == (40, 60)
+    assert details["requested_refdes"] == "R1"
+    assert "orphan_library" in details["_untrusted"]
+
+
+def test_orphan_without_position_getter_retains_unknown_and_actual_uid():
+    class Placed:
+        UID = "fixture-returned-component-uid"
+
+        def __setattr__(self, name, value):
+            raise RuntimeError("fixture Refdes setter failed")
+
+    class Block:
+        def AddPartInstance(self, *_args):
+            return Placed()
+
+    with pytest.raises(AdapterError) as caught:
+        _apply_designer_operation(
+            SimpleNamespace(ActiveView=SimpleNamespace(Block=Block())),
+            {
+                "type": "place_component",
+                "refdes": "J_ORPHAN",
+                "library": "QA",
+                "device_name": "QA_HEADER",
+                "symbol_name": "QA_CONNECTOR",
+                "x": 500,
+                "y": 400,
+            },
+            SimpleNamespace(),
+            "fixture-design",
+            {},
+        )
+    data = caught.value.details
+    assert data["orphan_x"] is None and data["orphan_y"] is None
+    assert data["requested_position"] == {"x": 500, "y": 400}
+    assert data["orphan_actual"]["uid"] == "fixture-returned-component-uid"
+    assert data["orphan_actual"]["rotation"] is None
+
+
+class _Gui:
+    """Layout's suppression members are write-only properties."""
+
+    def __init__(self, rejects: set[str] | None = None) -> None:
+        object.__setattr__(self, "_rejects", rejects or set())
+        object.__setattr__(self, "written", {})
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name in self._rejects:
+            raise RuntimeError(f"{name} is not supported on this release")
+        self.written[name] = value
+
+
+def test_quiet_gui_sets_every_layout_suppression_switch() -> None:
+    gui = _Gui()
+    applied = _quiet_gui(SimpleNamespace(Gui=gui), "pcb")
+    assert gui.written == {
+        "SuppressTrivialDialogs": True,
+        "SuppressNotepadDialogs": True,
+        "SuppressVariantDataOutOfDateDialog": True,
+        "SingleThreaded": True,
+    }
+    assert all(applied.values())
+
+
+def test_quiet_gui_reports_switches_an_older_release_rejects() -> None:
+    gui = _Gui(rejects={"SuppressVariantDataOutOfDateDialog"})
+    applied = _quiet_gui(SimpleNamespace(Gui=gui), "pcb")
+    assert applied["SuppressVariantDataOutOfDateDialog"] is False
+    assert applied["SuppressTrivialDialogs"] is True
+
+
+def test_quiet_gui_leaves_designer_alone() -> None:
+    """Only Layout exposes these; Designer must not be touched."""
+    gui = _Gui()
+    assert _quiet_gui(SimpleNamespace(Gui=gui), "schematic") == {}
+    assert gui.written == {}
+
+
+def test_quiet_gui_survives_an_application_without_a_gui() -> None:
+    assert _quiet_gui(SimpleNamespace(), "pcb") == {}
+
+
+def test_com_member_prefers_the_property_form() -> None:
+    """Several Xpedition accessors are properties; calling them raises."""
+
+    def _explode() -> None:
+        raise RuntimeError("DISP_E_PARAMNOTOPTIONAL")
+
+    collection = _Collection([1, 2])
+    assert _com_member(SimpleNamespace(GetConnections=collection), "GetConnections") is collection
+    assert _com_member(SimpleNamespace(GetConnections=_explode), "GetConnections") is _explode
+
+
+def test_com_member_falls_back_to_the_method_form() -> None:
+    collection = _Collection([1])
+    holder = SimpleNamespace(GetConnections=lambda: collection)
+    assert _com_member(holder, "GetConnections") is collection
+
+
+def test_com_member_is_none_when_the_member_is_absent() -> None:
+    assert _com_member(SimpleNamespace(), "GetConnections") is None
+
+
+class _Label:
+    def __init__(self, text: str) -> None:
+        self.TextString = text
+
+
+class _NamedNet:
+    """A Designer net carries its name on a label attached to one of its segments."""
+
+    def __init__(self, text: str | None, segments: int = 2) -> None:
+        self._label = _Label(text) if text is not None else None
+        self.GetSegments = _Collection([object() for _ in range(segments)])
+
+    def GetLabel(self, _segment: object) -> object | None:
+        return self._label
+
+
+def test_designer_net_name_reads_the_segment_label() -> None:
+    assert _designer_net_name(_NamedNet("3V3")) == "3V3"
+
+
+def test_designer_net_name_prefers_a_direct_name_when_present() -> None:
+    net = _NamedNet("3V3")
+    net.Name = "VCC"
+    assert _designer_net_name(net) == "VCC"
+
+
+def test_designer_net_name_is_empty_for_an_unlabelled_net() -> None:
+    assert _designer_net_name(_NamedNet(None)) == ""
+
+
+def test_designer_net_name_survives_a_net_without_segments() -> None:
+    assert _designer_net_name(SimpleNamespace()) == ""
+
+
+def test_schematic_placement_requires_an_explicit_library() -> None:
+    """No MISC fallback: a stock install has no such library, so the default only
+    produced Designer error 2005 instead of naming the missing parameter."""
+
+    class App:
+        ActiveView = SimpleNamespace(Block=SimpleNamespace())
+
+    with pytest.raises(AdapterError) as caught:
+        _apply_designer_operation(
+            App(),
+            {"type": "place_component", "refdes": "R1", "device_name": "R", "symbol_name": "R"},
+            SimpleNamespace(),
+            "demo",
+            {},
+        )
+    assert caught.value.code == "E_CHANGESET_INVALID"
+    assert caught.value.details["missing"] == ["library"]
+
+
+PACKAGER_LOG = r"""
+                                    Packager
+     Common Data Base has been read
+
+     Target PDB Name: Integration\LocalPartsDB.pdb
+     ERROR:  There is no Part Number: R in the Parts
+      DataBase for symbols with Part Name: R and Part Label: (null).
+
+     ERROR:  There is no Part Number: C in the Parts
+
+     Testing of Packaging is being terminated with 2 errors and 0 warnings.
+      Design has NOT been packaged.
+"""
+
+
+def test_packager_messages_extract_errors_and_verdict(tmp_path) -> None:
+    log = tmp_path / "PartPkg.log"
+    log.write_text(PACKAGER_LOG, encoding="utf-8")
+    errors, verdict = _packager_messages(log)
+    assert errors == [
+        "ERROR:  There is no Part Number: R in the Parts",
+        "ERROR:  There is no Part Number: C in the Parts",
+    ]
+    assert verdict == "Design has NOT been packaged."
+
+
+def test_packager_messages_tolerate_a_missing_log(tmp_path) -> None:
+    assert _packager_messages(tmp_path / "absent.log") == ([], "")
+
+
+def test_package_requires_a_project_path() -> None:
+    with pytest.raises(AdapterError) as caught:
+        _package_design({})
+    assert caught.value.code == "E_USAGE"
+
+
+def test_package_reports_a_missing_project_file(tmp_path) -> None:
+    with pytest.raises(AdapterError) as caught:
+        _package_design({"project": str(tmp_path / "absent.prj")})
+    assert caught.value.code == "E_NOT_FOUND"
+
+
+def test_sch2pdf_sheets_parses_printed_lines() -> None:
+    stdout = (
+        "SCH2PDF - V6.0\nOrdering pages\nCreating the PDF\n"
+        "Printed Schematic1 Sheet 1\nPrinted Schematic1 Sheet 2\nSaving document\n"
+    )
+    assert _sch2pdf_sheets(stdout) == ["Schematic1 Sheet 1", "Schematic1 Sheet 2"]
+
+
+def test_export_pdf_requires_a_project_path() -> None:
+    with pytest.raises(AdapterError) as caught:
+        _export_pdf({})
+    assert caught.value.code == "E_USAGE"
+
+
+def test_export_pdf_reports_a_missing_project_file(tmp_path) -> None:
+    with pytest.raises(AdapterError) as caught:
+        _export_pdf({"project": str(tmp_path / "absent.prj")})
+    assert caught.value.code == "E_NOT_FOUND"
+
+
+def test_export_pdf_refuses_to_replace_an_existing_file(tmp_path) -> None:
+    project = tmp_path / "case.prj"
+    project.write_text("KEY DesignName Board1\n", encoding="utf-8")
+    existing = tmp_path / "case.pdf"
+    existing.write_bytes(b"%PDF-1.4")
+    with pytest.raises(AdapterError) as caught:
+        _export_pdf({"project": str(project)})
+    assert caught.value.code == "E_CONFLICT"
+    assert caught.value.details["path"] == str(existing.resolve())
+
+
+def test_export_pdf_rejects_a_non_pdf_output_and_bad_colours(tmp_path) -> None:
+    project = tmp_path / "case.prj"
+    project.write_text("KEY DesignName Board1\n", encoding="utf-8")
+    with pytest.raises(AdapterError) as caught:
+        _export_pdf({"project": str(project), "output": str(tmp_path / "case.svg")})
+    assert caught.value.code == "E_VALIDATION"
+    with pytest.raises(AdapterError) as caught:
+        _export_pdf({"project": str(project), "output": str(tmp_path / "out.pdf"), "color": 9})
+    assert caught.value.code == "E_VALIDATION"
+
+
+def test_export_pdf_runs_sch2pdf_through_the_launcher(tmp_path, monkeypatch) -> None:
+    sdd_home = tmp_path / "sdd"
+    executable = sdd_home / "common" / "win64" / "bin" / "sch2pdf.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_bytes(b"")
+    project = tmp_path / "case.prj"
+    project.write_text("KEY DesignName Board1\n", encoding="utf-8")
+    output = tmp_path / "out" / "case.pdf"
+    calls: dict[str, object] = {}
+
+    def fake_run(arguments, **kwargs):
+        calls["arguments"] = list(arguments)
+        calls["cwd"] = kwargs.get("cwd")
+        Path(arguments[arguments.index("-a") + 1]).write_bytes(b"%PDF-1.4 fake")
+        return SimpleNamespace(
+            returncode=0,
+            stdout=b"SCH2PDF - V6.0\nPrinted Schematic1 Sheet 1\nSaving document\n",
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(native_adapter, "_configure_environment", lambda: sdd_home)
+    monkeypatch.setattr(native_adapter.subprocess, "run", fake_run)
+    result = _export_pdf(
+        {"project": str(project), "output": str(output), "color": 1, "schematic": "Schematic1"}
+    )
+    assert result["exported"] is True
+    assert result["sheets"] == ["Schematic1 Sheet 1"]
+    assert result["size"] > 0 and result["path"] == str(output.resolve())
+    arguments = calls["arguments"]
+    assert arguments[0] == str(executable)
+    assert arguments[arguments.index("-project") + 1] == str(project.resolve())
+    assert arguments[arguments.index("-c") + 1] == "1"
+    assert arguments[arguments.index("-schematic") + 1] == "Schematic1"
+    assert calls["cwd"] == str(executable.parent)
+
+
+def test_annotation_summary_reads_counts_errors_and_the_verdict(tmp_path) -> None:
+    log = tmp_path / "ForwardAnnotation.txt"
+    log.write_bytes(
+        b"     Clustering 39 Symbols:\r\n"
+        b"     WARNING:  \r\n"
+        b"\tUnable to update the cell 'CLI_SOIC4' in the Library Manager.\r\n"
+        b"     18 nets were found containing 95 pins\r\n"
+        b"     39 components were found\r\n"
+        b"     ERROR:  Cell CLI_SOIC4 has 4 unique Alphanumeric Pin Numbers while\r\n"
+        b"      Part Number XC6206-3.3 has 3.\r\n"
+        b"     DataBase Load is being terminated with 1 errors and 2 warnings.\r\n"
+    )
+    summary = native_adapter._annotation_summary(log)
+    assert summary["components"] == 39 and summary["nets"] == 18 and summary["pins"] == 95
+    assert summary["errors"] == [
+        "ERROR:  Cell CLI_SOIC4 has 4 unique Alphanumeric Pin Numbers while"
+    ]
+    assert summary["warnings"] == ["WARNING:"]
+    assert summary["completed"] is False
+    log.write_bytes(b"Forward-Annotation on the Layout Design has been successfully completed.\r\n")
+    assert native_adapter._annotation_summary(log)["completed"] is True
+    assert native_adapter._annotation_summary(tmp_path / "none.txt")["completed"] is False
+
+
+def test_jobwizard_messages_find_the_copy_count_and_failures(tmp_path) -> None:
+    # JobWizard writes its log in the machine's ANSI code page, and the reader falls
+    # back to UTF-8 where `mbcs` does not exist. The bytes here stay ASCII on purpose:
+    # `"…".encode("mbcs")` raises off Windows, and on a Windows runner whose code page
+    # is not the one this tool was built against it cannot encode the Chinese message
+    # either. The decoding fallback itself is covered below.
+    log = tmp_path / "jobwizard.log"
+    log.write_bytes(b"Job Wizard\r\n\r\nSuccessfully copied 58 file(s).\r\n")
+    assert native_adapter._jobwizard_messages(log) == ([], 58)
+    log.write_bytes(b"Job Wizard\r\nERROR: unable to read the design information.\r\n")
+    errors, copied = native_adapter._jobwizard_messages(log)
+    assert errors == ["ERROR: unable to read the design information."] and copied is None
+    assert native_adapter._jobwizard_messages(tmp_path / "none.log") == ([], None)
+
+
+def test_jobwizard_messages_survive_bytes_the_local_code_page_cannot_read(tmp_path) -> None:
+    """The real logs are Chinese. Whatever the running machine's ANSI code page makes of
+    those bytes, the reader must not raise and must still see the lines around them —
+    which is what the `mbcs` / UTF-8 fallback is for."""
+    log = tmp_path / "jobwizard.log"
+    log.write_bytes("未能从通用数据库中获取设计信息。\r\n".encode() + b"ERROR: the run failed.\r\n")
+    errors, copied = native_adapter._jobwizard_messages(log)
+    assert copied is None
+    assert any("ERROR: the run failed." in line for line in errors)
+
+
+_PRJ_TEXT = (
+    "SECTION DesignInfo\n"
+    'KEY CentralLibrary "RcLib\\TemplateLibrary.lmc"\n'
+    "ENDSECTION\n"
+    "SECTION iCDB\n"
+    "LIST Designs\n"
+    'VALUE "Schematic1"\n'
+    'VALUE "Board1"\n'
+    "ENDLIST\n"
+    "ENDSECTION\n"
+    "SECTION Board1\n"
+    "LIST PDBs\n"
+    'VALUE "PartsDBLibs\\Resistors.pdb"\n'
+    'VALUE "PartsDBLibs\\PartQuest.pdb"\n'
+    "ENDLIST\n"
+    'KEY ConfigType "PCB"\n'
+    'KEY PCBDesignPath "{pcb}"\n'
+    "ENDSECTION\n"
+)
+
+
+def test_layout_board_path_resolves_a_project_to_its_board(tmp_path) -> None:
+    project = tmp_path / "demo.prj"
+    project.write_text(_PRJ_TEXT.format(pcb=""), encoding="utf-8")
+    with pytest.raises(AdapterError) as missing:
+        native_adapter._layout_board_path({"project": str(project)})
+    assert missing.value.code == "E_NOT_FOUND"
+    assert "pcb create" in str(missing.value.details.get("hint"))
+    board = tmp_path / "PCB" / "demo.pcb"
+    board.parent.mkdir()
+    board.write_bytes(b"")
+    project.write_text(_PRJ_TEXT.format(pcb="PCB\\demo.pcb"), encoding="utf-8")
+    assert native_adapter._layout_board_path({"project": str(project)}) == board.resolve()
+    assert native_adapter._layout_board_path({"project": str(board)}) == board.resolve()
+    with pytest.raises(AdapterError) as usage:
+        native_adapter._layout_board_path({"project": str(tmp_path / "x.txt")})
+    assert usage.value.code == "E_USAGE"
+    with pytest.raises(AdapterError) as none:
+        native_adapter._layout_board_path({})
+    assert none.value.code == "E_USAGE"
+
+
+def test_sync_prj_cells_registers_the_cell_partitions_the_library_has(tmp_path) -> None:
+    project = tmp_path / "demo.prj"
+    project.write_text(_PRJ_TEXT.format(pcb=""), encoding="utf-8")
+    library = tmp_path / "RcLib"
+    (library / "CellDBLibs").mkdir(parents=True)
+    (library / "CellDBLibs" / "PartQuest.cel").write_bytes(b"")
+    assert native_adapter._sync_prj_cells(project, library) == ["CellDBLibs\\PartQuest.cel"]
+    text = project.read_text(encoding="utf-8")
+    assert 'LIST 2dCellLibraries\nVALUE "CellDBLibs\\PartQuest.cel"\nENDLIST\n' in text
+    assert native_adapter._sync_prj_cells(project, library) == []
+    (library / "CellDBLibs" / "Resistors.cel").write_bytes(b"")
+    assert native_adapter._sync_prj_cells(project, library) == ["CellDBLibs\\Resistors.cel"]
+
+
+def test_pcb_create_refuses_a_design_that_already_has_a_board(tmp_path) -> None:
+    project = tmp_path / "demo.prj"
+    project.write_text(_PRJ_TEXT.format(pcb="PCB\\demo.pcb"), encoding="utf-8")
+    with pytest.raises(AdapterError) as conflict:
+        native_adapter._pcb_create({"project": str(project)}, None)
+    assert conflict.value.code == "E_CONFLICT"
+    project.write_text(_PRJ_TEXT.format(pcb=""), encoding="utf-8")
+    (tmp_path / "PCB").mkdir()
+    (tmp_path / "PCB" / "demo.pcb").write_bytes(b"")
+    with pytest.raises(AdapterError) as existing:
+        native_adapter._pcb_create({"project": str(project)}, None)
+    assert existing.value.code == "E_CONFLICT"
+    with pytest.raises(AdapterError) as bad:
+        native_adapter._pcb_create({"project": str(project), "name": "no good"}, None)
+    assert bad.value.code == "E_USAGE"
+    with pytest.raises(AdapterError) as nowhere:
+        native_adapter._pcb_create({"project": str(tmp_path / "gone.prj")}, None)
+    assert nowhere.value.code == "E_NOT_FOUND"
+    with pytest.raises(AdapterError) as none:
+        native_adapter._pcb_create({}, None)
+    assert none.value.code == "E_USAGE"
+
+
+def test_route_passes_parse_names_and_effort_ranges() -> None:
+    passes = native_adapter.parse_route_passes("route:1-5, viamin, smooth:2")
+    assert [(p["pass"], p["type"], p["effort"]) for p in passes] == [
+        ("route", 8, [1, 5]),
+        ("viamin", 14, [1, 3]),
+        ("smooth", 10, [2, 2]),
+    ]
+    assert native_adapter.parse_route_passes("")[0]["pass"] == "route"
+    for bad in ("tune", "route:0-3", "route:2-9", "route:x"):
+        with pytest.raises(AdapterError) as error:
+            native_adapter.parse_route_passes(bad)
+        assert error.value.code == "E_USAGE"
+
+
+def test_route_layers_parse_to_sorted_numbers_or_nothing() -> None:
+    from xpedition_cli.native_com_adapter import AdapterError, parse_route_layers
+
+    assert parse_route_layers("4,1,4") == [1, 4]
+    assert parse_route_layers([1, "2"]) == [1, 2]
+    assert parse_route_layers("") == [] and parse_route_layers(None) == []
+    with pytest.raises(AdapterError):
+        parse_route_layers("1,top")
+
+
+def test_rounded_outline_points_carry_the_arc_centre_with_a_negative_radius() -> None:
+    from xpedition_cli.native_com_adapter import _rounded_points
+
+    xs, ys, rs = _rounded_points(0.0, 0.0, 60.0, 45.0, 3.0)
+    assert len(xs) == 13 and (xs[0], ys[0], rs[0]) == (57.0, 0.0, 0.0)
+    assert [i for i, r in enumerate(rs) if r] == [1, 4, 7, 10] and set(r for r in rs if r) == {-3.0}
+    assert (xs[1], ys[1]) == (57.0, 3.0)  # the centre of the first corner's arc
+    assert (xs[-1], ys[-1]) == (xs[0], ys[0])  # closed
+    plain = _rounded_points(0.0, 0.0, 60.0, 45.0, 0.0)
+    assert len(plain[0]) == 5 and not any(plain[2])
+
+
+def test_top_view_scheme_fills_planes_and_hides_inner_layers() -> None:
+    from xpedition_cli.native_com_adapter import top_view_scheme_text
+
+    all_on = (
+        "    ..Pad_Layer_On ( \n\tT T T T T T T T T T \t! [1 - 10]\n\t)\n"
+        "    ..Trace_Layer_On ( \n\tT T T T T T T T T T \t! [1 - 10]\n\t)\n"
+        "    ..Assy_Ref_Des_On                    True \t! top\n"
+        "    ..Assy_Ref_Des_On                    True \t! bottom\n"
+        "    ..Silk_Ref_Des_On                    True \t! top\n"
+        '\t"Option.Planes.Data.Fill" "0"\n'
+        '\t"LayerControl.1" "d:1" "e:1"\n\t"LayerControl.2" "d:1" "e:1"\n'
+        '\t"LayerControl.3" "d:1" "e:1"\n\t"LayerControl.4" "d:1" "e:1"\n'
+        '\t"Fabrication.Assembly.Part.Text.RefDes.Top" "d:1" "e:1"\n'
+        '\t"Fabrication.Silkscreen.Part.Text.RefDes.Top" "d:1" "e:1"\n'
+        '\t"Fabrication.DrillDrawingThrough" "d:1" "e:1"\n'
+        '\t"Option.Fabrication.AssemblyItems.Top" "1"\n'
+        '\t"Place.Part.Text.RefDes.Top" "d:1" "e:1"\n\t"Part.Cell.Origin.Top" "d:1" "e:1"\n'
+        '\t"Option.Pin.Number.Top" "1"\n'
+    )
+    out = top_view_scheme_text(all_on, 4)
+    assert '"Option.Planes.Data.Fill" "1"' in out
+    assert '"LayerControl.1" "d:1"' in out and '"LayerControl.4" "d:1"' in out
+    assert '"LayerControl.2" "d:0"' in out and '"LayerControl.3" "d:0"' in out
+    assert '"Fabrication.Assembly.Part.Text.RefDes.Top" "d:0" "e:0"' in out
+    assert '"Fabrication.Silkscreen.Part.Text.RefDes.Top" "d:1"' in out
+    assert '"Fabrication.DrillDrawingThrough" "d:0" "e:0"' in out
+    assert '"Option.Fabrication.AssemblyItems.Top" "0"' in out
+    assert '"Place.Part.Text.RefDes.Top" "d:0" "e:0"' in out
+    assert '"Part.Cell.Origin.Top" "d:0" "e:0"' in out
+    assert '"Option.Pin.Number.Top" "0"' in out
+    assert "T F F T T T T T T T" in out.split("Pad_Layer_On")[1]
+    assert "T F F T T T T T T T" in out.split("Trace_Layer_On")[1]
+    assert out.count("..Assy_Ref_Des_On                    False") == 2
+    assert "..Silk_Ref_Des_On                    True" in out
+    # a two-layer board keeps both layers
+    assert "T T T T T T T T T T" in top_view_scheme_text(all_on, 2).split("Trace_Layer_On")[1]
+
+
+def test_backup_layout_folder_preserves_logs_and_previous_files(tmp_path) -> None:
+    """`pcb create --replace` deletes a whole layout folder, so it is archived first."""
+    import zipfile
+
+    from xpedition_cli.native_com_adapter import _backup_layout_folder
+
+    folder = tmp_path / "PCB"
+    (folder / "Layout").mkdir(parents=True)
+    (folder / "LogFiles").mkdir()
+    (folder / "Board.pcb").write_text("board")
+    (folder / "Layout" / "placement.dat").write_text("parts")
+    (folder / "Layout" / "placement.dat.bak").write_text("older")
+    (folder / "LogFiles" / "drill.txt").write_text("noise")
+
+    archive = _backup_layout_folder(folder)
+
+    assert archive is not None
+    names = set(zipfile.ZipFile(archive).namelist())
+    assert names == {
+        "PCB/Board.pcb",
+        "PCB/Layout/placement.dat",
+        "PCB/Layout/placement.dat.bak",
+        "PCB/LogFiles/drill.txt",
+        "__xpedition_backup__/manifest.json",
+    }
+    assert folder.is_dir()  # the archive is written before anything is removed
+
+
+def test_backup_layout_folder_answers_none_without_a_board(tmp_path) -> None:
+    from xpedition_cli.native_com_adapter import _backup_layout_folder
+
+    assert _backup_layout_folder(tmp_path / "missing") is None
+    empty = tmp_path / "PCB"
+    empty.mkdir()
+    assert _backup_layout_folder(empty) is None
+
+
+def test_the_health_probe_changes_nothing_on_a_running_layout(monkeypatch) -> None:
+    """`doctor` only looks: it must not switch on Layout's dialog suppression."""
+    from types import SimpleNamespace
+
+    from xpedition_cli import native_com_adapter as adapter
+
+    written: list[str] = []
+
+    class Gui:
+        def __setattr__(self, name, value):
+            written.append(name)
+
+    app = SimpleNamespace(Gui=Gui())
+    com = SimpleNamespace(CoInitialize=lambda: None, CoUninitialize=lambda: None)
+    monkeypatch.setattr(adapter, "_import_com", lambda: (com, object()))
+    monkeypatch.setattr(adapter, "_heal_gen_py_cache", lambda *args: None)
+    monkeypatch.setattr(adapter, "_configure_environment", lambda: "C:/SDD_HOME")
+    monkeypatch.setattr(adapter, "_com_registered", lambda: True)
+    monkeypatch.setattr(adapter, "_viewdraw_registered", lambda: False)
+    monkeypatch.setattr(adapter, "_active_object", lambda client: app)
+    result = adapter.dispatch("health", {})
+    assert result["application_running"] is True
+    assert written == []
+    assert "dialog_suppression" not in result
+
+
+def test_designer_snapshot_lists_every_sheet_not_only_the_open_one() -> None:
+    """SchematicSheetDocuments lists open windows; a 4-sheet design read as one sheet."""
+
+    class Strings:
+        def __init__(self, items: list[str]) -> None:
+            self.items = items
+
+        def GetCount(self) -> int:
+            return len(self.items)
+
+        def GetItem(self, index: int) -> str:
+            return self.items[index - 1]
+
+    class Documents(_Collection):
+        def GetAvailableSchematics(self) -> Strings:
+            return Strings(["Schematic1"])
+
+        def GetAvailableSheets(self, schematic: str) -> Strings:
+            assert schematic == "Schematic1"
+            return Strings(["1", "2", "3", "4"])
+
+    part = _Component("R1", 100, 200, [("1", "3V3")])
+    part.UID = "$1I12@3"  # a UID starts with the number of the sheet the part is on
+
+    class App:
+        def GetActiveDesign(self) -> str:
+            return "demo"
+
+        def DesignComponents(self, *_args: object) -> _Collection:
+            return _Collection([part])
+
+        def SchematicSheetDocuments(self) -> Documents:
+            return Documents([SimpleNamespace(Name="Schematic1.1")])
+
+    result = _designer_snapshot(App(), {})
+    assert [sheet["number"] for sheet in result["sheets"]] == [1, 2, 3, 4]
+    assert result["sheets"][0]["name"] == "Schematic1.1"
+
+
+def test_a_filtered_board_model_keeps_what_it_names_and_says_so() -> None:
+    model = {
+        "outline": [{"path": [[0, 0]]}],
+        "holes": [[1, 1, 3]],
+        "keepouts": [{"kind": "obstruct"}],
+        "components": [
+            {"refdes": "U1", "pins": [{"pin": "1", "net": "SDA"}]},
+            {"refdes": "R1", "pins": [{"pin": "1", "net": "GND"}]},
+            {"refdes": "C1", "pins": [{"pin": "1", "net": "VCC"}]},
+        ],
+        "pads": [
+            {"refdes": "U1", "net": "SDA"},
+            {"refdes": "R1", "net": "GND"},
+            {"refdes": "C1", "net": "VCC"},
+        ],
+        "traces": [{"net": "GND"}, {"net": "SDA"}],
+        "vias": [{"net": "GND"}],
+        "planes": [{"net": "GND"}],
+        "silk": [{"refdes": "U1"}, {"refdes": None}],
+        "texts": [
+            {"text": "U1", "refdes": "U1"},
+            {"text": "C1", "refdes": "C1"},
+            {"text": "POWER", "refdes": None},
+        ],
+    }
+    assert native_adapter.filter_model(model, [], []) is model
+    filtered = native_adapter.filter_model(model, ["U1"], ["GND"])
+    assert [c["refdes"] for c in filtered["components"]] == ["U1", "R1"]
+    assert [pad["refdes"] for pad in filtered["pads"]] == ["U1", "R1"]
+    assert filtered["traces"] == [{"net": "GND"}] and filtered["vias"] == [{"net": "GND"}]
+    assert filtered["outline"] == model["outline"] and filtered["keepouts"] == model["keepouts"]
+    assert filtered["filter"] == {"refdes": ["U1"], "nets": ["GND"]}
+    # the parts kept keep their silkscreen and designators; the board's own go
+    assert filtered["silk"] == [{"refdes": "U1"}]
+    assert filtered["texts"] == [{"text": "U1", "refdes": "U1"}]
+
+
+def test_a_route_pass_removes_the_layers_it_may_not_use() -> None:
+    """LayerSelect takes (EPcbARLayerSelectType, layer): 3 removes a layer. It used to
+    be called with (layer number, wanted), so layer 2 read as AddLayer."""
+
+    class Pass:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+
+        def __getattr__(self, name: str):
+            return lambda *args: self.calls.append((name, *args))
+
+    route_pass = Pass()
+    doc = SimpleNamespace(LayerCount=4, NewRoutePass=lambda: route_pass)
+    item = {"type": 1, "effort": (1, 5), "pass": "route"}
+    native_adapter._route_pass(doc, item, [1, 4], selected=True)
+    names = [call[0] for call in route_pass.calls]
+    assert names[0] == "PassType"  # it resets everything, so it goes first
+    assert ("Items", native_adapter.ROUTE_ITEMS_SELECTED_NETS, None) in route_pass.calls
+    assert [call for call in route_pass.calls if call[0] == "LayerSelect"] == [
+        ("LayerSelect", 3, 2),
+        ("LayerSelect", 3, 3),
+    ]
+    route_pass = Pass()
+    doc = SimpleNamespace(LayerCount=4, NewRoutePass=lambda: route_pass)
+    native_adapter._route_pass(doc, item, [], selected=False)
+    assert ("Items", native_adapter.ROUTE_ITEMS_ALL_NETS, None) in route_pass.calls
+    assert not [call for call in route_pass.calls if call[0] == "LayerSelect"]
+
+
+def test_obstruct_kinds_read_the_type_bits() -> None:
+    assert native_adapter._obstruct_kinds(8 | 32) == ["trace", "via"]
+    assert native_adapter._obstruct_kinds(0) == ["type 0"]
+
+
+class _Many:
+    """A COM collection: Count and a one-based Item."""
+
+    def __init__(self, items: list) -> None:
+        self._items = items
+        self.Count = len(items)
+
+    def Item(self, index: int):
+        return self._items[index - 1]
+
+
+class _SlotLine:
+    """A slot as Layout gives it: the line between its end centres, drawn its width."""
+
+    def __init__(self, half_length_mm: float, width_mm: float) -> None:
+        th = 1 / native_adapter.TH_TO_MM
+        self.PointsArray = [[0.0, 0.0], [-half_length_mm * th, half_length_mm * th], [0.0, 0.0]]
+        self.LineWidth = width_mm * th
+        self.Cutouts = _Many([])
+
+    def IsCircle(self) -> bool:
+        return False
+
+
+class _Hole:
+    def __init__(self, drill: float, geometries: list) -> None:
+        self._drill = drill
+        self.Geometries = _Many(geometries)
+
+    def GetDrillSize(self, unit: int) -> float:
+        return self._drill
+
+
+def test_a_slot_reads_as_its_length_and_a_round_hole_as_its_drill() -> None:
+    # a 0.6 x 1.7 mm slot: drill size 0, a 1.1 mm line 0.6 mm wide
+    assert native_adapter._hole_size(_Hole(0.0, [_SlotLine(0.55, 0.6)])) == 1.7
+    assert native_adapter._hole_size(_Hole(0.65, [])) == 0.65
+
+
+# -- the silkscreen texts: whose they are, their box and strokes; looking closer -------
+
+
+class _Extrema:
+    def __init__(self, box: tuple[float, float, float, float]) -> None:
+        self._box = box
+
+    def GetMinX(self, unit: int) -> float:
+        return self._box[0]
+
+    def GetMinY(self, unit: int) -> float:
+        return self._box[1]
+
+    def GetMaxX(self, unit: int) -> float:
+        return self._box[2]
+
+    def GetMaxY(self, unit: int) -> float:
+        return self._box[3]
+
+
+# what Layout answers for the extents of an unplaced part's text
+_NO_EXTENTS = (2147.4836, 2147.4836, -2147.4836, -2147.4836)
+_TH = 1 / native_adapter.TH_TO_MM
+
+
+class _Text:
+    """A fabrication-layer text as Layout gives it (positions in th, as it reads)."""
+
+    def __init__(
+        self,
+        string: str,
+        x: float,
+        y: float,
+        owner: object = None,
+        *,
+        box: tuple[float, float, float, float] = _NO_EXTENTS,
+        strokes: list[float] | None = None,
+        text_type: int = 1,
+        fab_type: int = 2,
+    ) -> None:
+        self.TextString = string
+        self.PositionX, self.PositionY = x * _TH, y * _TH
+        self.Component = owner
+        self.TextType = text_type
+        self.Type = fab_type
+        self.SideName = "Top"
+        self.Format = SimpleNamespace(
+            Height=0.8 * _TH, Orientation=0.0, Mirrored=False, PenWidth=0.15 * _TH
+        )
+        self.Extrema = _Extrema(box)
+        self._strokes = strokes
+
+    def StrokeText(self, unit: int) -> list[float]:
+        if self._strokes is None:
+            raise RuntimeError("not a vector font")
+        return self._strokes
+
+
+class _SilkLine:
+    def __init__(self, owner: object, points: list[tuple[float, float]]) -> None:
+        self.Type = 2
+        self.Component = owner
+        self.SideName = "Top"
+        self.Geometry = SimpleNamespace(
+            IsCircle=lambda: False,
+            PointsArray=[
+                [x * _TH for x, _y in points],
+                [y * _TH for _x, y in points],
+                [0.0] * len(points),
+            ],
+            LineWidth=0.12 * _TH,
+            Filled=False,
+            Cutouts=_Many([]),
+        )
+
+
+# J201's "J" and "1" as StrokeText hands them out: the pen, then (x, y, code) rows
+_J1_STROKES = [0.12, 19.0491, 18.78, 0, 19.0491, 18.1739, 1, 18.54, 18.2467, 2]
+_J1_STROKES += [21.1339, 18.6224, 0, 21.243, 17.98, 2]
+
+
+def test_stroke_rows_split_the_strokes_where_layout_starts_and_ends_them() -> None:
+    pen, strokes = native_adapter.stroke_rows(_J1_STROKES)
+    assert pen == 0.12
+    assert strokes == [
+        [[19.0491, 18.78], [19.0491, 18.1739], [18.54, 18.2467]],
+        [[21.1339, 18.6224], [21.243, 17.98]],
+    ]
+    # a stroke that is never ended stops where the next one starts
+    assert native_adapter.stroke_rows([0.1, 1, 1, 0, 2, 2, 1, 3, 3, 0, 4, 4, 2])[1] == [
+        [[1.0, 1.0], [2.0, 2.0]],
+        [[3.0, 3.0], [4.0, 4.0]],
+    ]
+    assert native_adapter.stroke_rows([]) == (0.0, [])
+
+
+def test_the_board_model_reads_placed_parts_texts_with_owner_box_and_strokes(
+    monkeypatch,
+) -> None:
+    """The document's collections hold every part's texts, the unplaced ones at their
+    cell's own coordinates; those used to land at the board's origin."""
+    monkeypatch.setattr(native_adapter, "_board_keepouts", lambda doc: [])
+
+    def pin(name: str, x: float, y: float) -> SimpleNamespace:
+        disc = SimpleNamespace(
+            IsCircle=lambda: True, CircleX=x * _TH, CircleY=y * _TH, CircleR=0.3 * _TH
+        )
+        pad = SimpleNamespace(Layer=1, Geometries=_Many([disc]))
+        return SimpleNamespace(
+            Name=name, Net=SimpleNamespace(Name="GND"), Pads=_Many([pad]), Holes=_Many([])
+        )
+
+    placed = SimpleNamespace(RefDes="J201", Placed=True, Pins=_Many([pin("A1", 17.0, 20.2)]))
+    # an unplaced part's pads, like its texts, stand at its cell's own coordinates
+    unplaced = SimpleNamespace(RefDes="R201", Placed=False, Pins=_Many([pin("1", -0.8, 0.0)]))
+    doc = SimpleNamespace(
+        LayerCount=4,
+        Components=_Many([placed, unplaced]),
+        FabricationLayerTexts=_Many(
+            [
+                _Text(
+                    "J201",
+                    20.0,
+                    18.38,
+                    placed,
+                    box=(18.33, 17.92, 21.67, 18.84),
+                    strokes=_J1_STROKES,
+                ),
+                _Text("J201", 20.0, 21.0, placed, box=(18.3, 20.6, 21.7, 21.5), fab_type=1),
+                _Text("R201", 0.0, 1.2, unplaced),
+                _Text("POWER", 5.0, 45.0, box=(3.0, 44.5, 7.0, 45.5), text_type=2),
+            ]
+        ),
+        FabricationLayerGfxs=_Many(
+            [_SilkLine(placed, [(15.0, 19.4), (16.5, 19.4)]), _SilkLine(unplaced, [(0, 0), (1, 0)])]
+        ),
+    )
+    model = native_adapter._board_model(doc)
+    texts = {(text["text"], text["refdes"]): text for text in model["texts"]}
+    assert sorted(texts) == [("J201", "J201"), ("POWER", None)]  # no assembly, no unplaced
+    j201 = texts[("J201", "J201")]
+    assert j201["kind"] == "refdes" and j201["extents"] == [18.33, 17.92, 21.67, 18.84]
+    assert j201["pen"] == 0.12 and len(j201["strokes"]) == 2
+    assert j201["x"] == pytest.approx(20.0) and j201["height"] == pytest.approx(0.8)
+    power = texts[("POWER", None)]
+    assert power["kind"] == "text" and "strokes" not in power
+    assert power["pen"] == pytest.approx(0.15)  # the format's pen when there are no strokes
+    assert [item["refdes"] for item in model["silk"]] == ["J201"]
+    assert [(pad["refdes"], pad["pin"]) for pad in model["pads"]] == [("J201", "A1")]
+    assert model["pads"][0]["circle"] == pytest.approx([17.0, 20.2, 0.3])
+
+
+def test_a_close_look_takes_the_parts_and_their_designators_with_room_around() -> None:
+    assert native_adapter.window_around([(10, 10, 20, 14), (12, 8, 16, 9)]) == (
+        8.333,
+        6.333,
+        21.667,
+        15.667,
+    )
+    # a small part gets the least margin
+    assert native_adapter.window_around([(0, 0, 1, 1)]) == (-1.5, -1.5, 2.5, 2.5)
+    assert native_adapter.window_scale(None) == 20.0
+    assert native_adapter.window_scale((0, 0, 10, 5)) == 160.0
+    assert native_adapter.window_scale((0, 0, 100, 50)) == 20.0
+    assert native_adapter.window_scale((0, 0, 4, 2)) == 200.0
+
+
+def test_the_window_around_parts_reads_them_and_refuses_unplaced_or_unknown_ones() -> None:
+    part = SimpleNamespace(
+        Placed=True,
+        Extrema=_Extrema((14.84, 19.14, 25.16, 22.91)),
+        FabricationLayerTexts=_Many(
+            [
+                _Text("J201", 20, 18.38, box=(18.33, 17.92, 21.67, 18.84)),
+                _Text("J201", 20, 30, box=(18, 29, 22, 31), fab_type=1),  # assembly: not it
+            ]
+        ),
+    )
+    loose = SimpleNamespace(Placed=False)
+    parts = {"J201": part, "R201": loose}
+    doc = SimpleNamespace(FindComponent=lambda name: parts.get(name))
+    x1, y1, x2, y2 = native_adapter._parts_window(doc, ["J201"])
+    assert y1 < 17.92 and y2 > 22.91 and y2 < 29  # the designator in, the assembly text out
+    with pytest.raises(AdapterError) as refused:
+        native_adapter._parts_window(doc, ["R201"])
+    assert refused.value.code == "E_VALIDATION"
+    with pytest.raises(AdapterError) as missing:
+        native_adapter._parts_window(doc, ["U9"])
+    assert missing.value.code == "E_NOT_FOUND"
+
+
+def test_show_uses_the_top_view_unless_a_scheme_is_named() -> None:
+    top = native_adapter.TOP_VIEW_SCHEME
+    assert native_adapter.display_scheme({}) == (top, True)
+    assert native_adapter.display_scheme({"scheme": "Loc: All On"}) == ("Loc: All On", False)
+    assert native_adapter.display_scheme({"scheme": top}) == (top, True)
+    assert native_adapter.display_scheme({"scheme": "Loc: All On", "top_view": True}) == (
+        top,
+        True,
+    )
+
+
+def test_the_view_zooms_through_set_extents() -> None:
+    calls: list[tuple] = []
+
+    def refuse(*args: object) -> None:
+        raise RuntimeError("no such member")
+
+    view = SimpleNamespace(SetExtentsEx=lambda *args: calls.append(("ex", *args)))
+    assert native_adapter._zoom_view(SimpleNamespace(ActiveView=view), (1, 2, 3, 4)) is True
+    assert calls == [("ex", 1, 2, 3, 4, False, native_adapter.UNIT_MM)]
+    view = SimpleNamespace(SetExtentsEx=refuse, SetExtents=lambda *args: calls.append(args))
+    assert native_adapter._zoom_view(SimpleNamespace(ActiveView=view), (1, 2, 3, 4)) is True
+    assert calls[-1] == (1, 2, 3, 4, native_adapter.UNIT_MM)
+    view = SimpleNamespace(SetExtentsEx=refuse, SetExtents=refuse)
+    assert native_adapter._zoom_view(SimpleNamespace(ActiveView=view), (1, 2, 3, 4)) is False
+
+
+def test_a_designator_box_scales_with_its_height_and_takes_the_new_pen() -> None:
+    # C201's designator: 0.6 mm high with a 0.12 mm pen, a 2.53 x 0.72 mm box; at
+    # 0.8 mm Layout gave 3.332 x 0.92
+    assert native_adapter.resized_box(2.53, 0.72, 0.6, 0.12, 0.8, 0.12) == (3.3333, 0.92)
+    assert native_adapter.resized_box(2.53, 0.72, 0.6, 0.12, 0.6, 0.2) == (2.61, 0.8)
+    assert native_adapter._label_size({}, "height", 0.3, 5.0) is None
+    assert native_adapter._label_size({"height": "0.8"}, "height", 0.3, 5.0) == 0.8
+    with pytest.raises(AdapterError) as refused:
+        native_adapter._label_size({"height": 9}, "height", 0.3, 5.0)
+    assert refused.value.code == "E_VALIDATION"

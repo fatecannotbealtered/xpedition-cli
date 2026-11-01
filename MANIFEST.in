@@ -1,0 +1,11 @@
+include CHANGELOG.md
+include contract/contract.json
+include contract/driver-v2/product_contract.json
+include xpedition_cli/resources/designer-host-identity.vbs
+recursive-include xpedition_cli/_vendor *
+recursive-include THIRD-PARTY-LICENSES *
+include license-index-v4.json
+include official-cpython-runtime-provenance.json
+recursive-include skills *
+include docs/COMPATIBILITY.md
+include docs/E2E.md

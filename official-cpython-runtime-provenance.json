@@ -1,0 +1,39 @@
+{
+  "archive_sha256": "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3",
+  "candidate_exe_sha256": "1d565e21713f0e44783afa49c3648fec696dd7e00f419188353c1416599a3f88",
+  "files": [
+    {
+      "bytes": 120400,
+      "matches_local_python_distribution": true,
+      "name": "vcruntime140.dll",
+      "sha256": "052ad6a20d375957e82aa6a3c441ea548d89be0981516ca7eb306e063d5027f4"
+    },
+    {
+      "bytes": 49776,
+      "matches_local_python_distribution": true,
+      "name": "vcruntime140_1.dll",
+      "sha256": "6a99bc0128e0c7d6cbbf615fcc26909565e17d4ca3451b97f8987f9c6acbc6c8"
+    },
+    {
+      "bytes": 104952,
+      "matches_local_python_distribution": true,
+      "name": "python.exe",
+      "sha256": "4d6f5f81a4bca11191c4c7c6b43632694d0a4ce74e068619d8fdc161d469859a"
+    },
+    {
+      "bytes": 6945272,
+      "matches_local_python_distribution": true,
+      "name": "python312.dll",
+      "sha256": "9a0e3435aaa680d868150f87ab3e388ad2eebc22f87e036155c7b4eda8cd2120"
+    },
+    {
+      "bytes": 36874,
+      "matches_local_python_distribution": true,
+      "name": "LICENSE.txt",
+      "sha256": "e502c6b880ff58d614901495a9009c136539cd0b1e2a2abb8fc00b934c203419"
+    }
+  ],
+  "license_note": "Python LICENSE.txt includes Additional Conditions for this Windows binary build; Microsoft distribution conditions still apply.",
+  "official_published_md5": "fe8ef205f2e9c3ba44d0cf9954e1abd3",
+  "official_url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip"
+}

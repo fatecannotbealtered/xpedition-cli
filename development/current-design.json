@@ -1,0 +1,4369 @@
+{
+  "design_version": "2.0",
+  "application": {
+    "name": "Xpedition Std-Adv",
+    "version": "Standard XPED2604 installation 2604.0003; live Layout file 2604.141669911; Designer API 2007.34.0; type libraries 155.0",
+    "license": "Existing Designer/Layout and supported-launcher LibraryManager .155 interfaces reachable; entitlement/expiry unknown. LibraryServices E_NOTIMPL and standalone PartsEditor Automation Basic refusal are distinct; QA partition creation/reservation and packaging are still blocked. See docs/LIBRARY-BLOCKERS-20261008.md.",
+    "environment": {
+      "platform": "windows",
+      "arch": "amd64",
+      "mode": "session"
+    },
+    "evidence_refs": [
+      "survey-installation",
+      "survey-pe-versions",
+      "prerequisites"
+    ]
+  },
+  "scope": {
+    "description": "24 surveyed Xpedition capability groups; implemented local 2.0 candidate has 58 custom declarations plus 7 SDK builtins. This is not an exhaustive application inventory.",
+    "inventory_ids": [
+      "c01-instance-documents",
+      "c02-project-template",
+      "c03-project-backup",
+      "c04-library-query",
+      "c05-library-authoring",
+      "c06-library-packaging",
+      "c07-schematic-edit",
+      "c08-schematic-query",
+      "c09-schematic-erc",
+      "c10-bom",
+      "c11-pcb-create",
+      "c12-pcb-structure",
+      "c13-pcb-width-rules",
+      "c14-pcb-placement",
+      "c15-pcb-labels",
+      "c16-pcb-routing",
+      "c17-pcb-inspection",
+      "c18-pcb-drc",
+      "c19-fabrication",
+      "c20-native-3d",
+      "c21-high-speed-constraints",
+      "c22-hierarchy-variants",
+      "c23-simulation-dfm",
+      "c24-bottom-side"
+    ],
+    "inventory_evidence_refs": [
+      "survey-installation",
+      "survey-capabilities",
+      "historical-compatibility",
+      "historical-e2e",
+      "catalog-commands-xpeditionlayout",
+      "catalog-commands-xpedition-designer",
+      "catalog-commands-library-manager"
+    ],
+    "excluded_scopes": [
+      "Real user engineering files",
+      "Unsurveyed application functions and additional platforms/installations"
+    ],
+    "limitations": [
+      "0 accepted native task runs, verified groups and supported tasks.",
+      "Owned candidate Python adapter loading and registered type-library probes are not native task acceptance.",
+      "Current license entitlement/expiry, live COM identity and independent CAD readback remain unproven.",
+      "C20-C24 remain deferred/unknown in the full 24-group denominator.",
+      "Historical documentation and offline fixtures never count as current native evidence.",
+      "Command-level FCC and application coverage have distinct denominators; neither is inflated by command count."
+    ]
+  },
+  "coverage": {
+    "denominator_ids": [
+      "c01-instance-documents",
+      "c02-project-template",
+      "c03-project-backup",
+      "c04-library-query",
+      "c05-library-authoring",
+      "c06-library-packaging",
+      "c07-schematic-edit",
+      "c08-schematic-query",
+      "c09-schematic-erc",
+      "c10-bom",
+      "c11-pcb-create",
+      "c12-pcb-structure",
+      "c13-pcb-width-rules",
+      "c14-pcb-placement",
+      "c15-pcb-labels",
+      "c16-pcb-routing",
+      "c17-pcb-inspection",
+      "c18-pcb-drc",
+      "c19-fabrication",
+      "c20-native-3d",
+      "c21-high-speed-constraints",
+      "c22-hierarchy-variants",
+      "c23-simulation-dfm",
+      "c24-bottom-side"
+    ],
+    "fcc_scope": "declared_commands",
+    "rationale": "Keep all 24 surveyed groups, including advanced, unknown and deferred groups. Command-level FCC applies only to declared CLI behavior and does not measure whole-application coverage."
+  },
+  "capabilities": [
+    {
+      "id": "c01-instance-documents",
+      "description": "Designer/Layout 实例与文档生命周期",
+      "interfaces": [
+        "E2E.md:18; COMPATIBILITY.md:92",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "缺显式实例/ownership/dirty/connection generation，观察可能切换项目",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c02-project-template",
+      "description": "项目创建与项目信息",
+      "interfaces": [
+        "COMPATIBILITY.md:156; E2E.md:476",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "以模板克隆实现，不能声称存在原生 CreateProject API",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c03-project-backup",
+      "description": "工程文件备份与恢复辅助",
+      "interfaces": [
+        "E2E.md:481,488; project_backup.py",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "unknown",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "CLI 文件辅助已实现；应用自带备份能力未穷尽调查，未保存内存不能靠 zip 恢复",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c04-library-query",
+      "description": "中心库对象查询、检查与预览",
+      "interfaces": [
+        "COMPATIBILITY.md:548; E2E.md:477",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "DB2HKP 分区导出，许可和源库依赖待当前实例核实",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c05-library-authoring",
+      "description": "符号/封装/padstack/part 创建与导入",
+      "interfaces": [
+        "COMPATIBILITY.md:508,548; E2E.md:506",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "HKP converter 与 symbol 文本路径；未证明生产库/完整厂商 datasheet",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c06-library-packaging",
+      "description": "原理图到 PCB 的库打包",
+      "interfaces": [
+        "COMPATIBILITY.md:81; E2E.md:479",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "package.exe 的日志及输出依赖需要绑定，placeholder 不是制造零件",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c07-schematic-edit",
+      "description": "多页原理图绘制及局部编辑",
+      "interfaces": [
+        "COMPATIBILITY.md:181,560; E2E.md:478,488",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "getter 验证已实现，但成功 actual 丢失；当前自动保存；层级/变体另列; candidate CLI now retains observed post-snapshot; no independent reopen/native run has been performed.",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c08-schematic-query",
+      "description": "原理图组件/引脚/网络/页面读回",
+      "interfaces": [
+        "COMPATIBILITY.md:204; native_com_adapter.py:996",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "缺真正 revision/依赖快照；symbol 与部分 pin 类型不可直接观测",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c09-schematic-erc",
+      "description": "Designer 原生 ERC/GRC",
+      "interfaces": [
+        "COMPATIBILITY.md:203; E2E.md:480",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "mtime 等待不是完整检查记录；规则/完成/排除/覆盖缺失",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c10-bom",
+      "description": "BOM 检查与导出",
+      "interfaces": [
+        "E2E.md:480; cli/bom.py",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "从实际 snapshot 计算；输出/替换应有 artifact/persist，独立消费待验",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c11-pcb-create",
+      "description": "PCB 创建和 forward annotation",
+      "interfaces": [
+        "COMPATIBILITY.md:211; E2E.md:481",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "JobWizard/ProjectIntegration，多步替换与应用/保存不可合并",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c12-pcb-structure",
+      "description": "板框、安装孔与板层信息",
+      "interfaces": [
+        "COMPATIBILITY.md:463,465,542; E2E.md:482",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "存在孔径/模板限制；stackup 修改未纳入首批支持",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c13-pcb-width-rules",
+      "description": "net class 与逐层线宽",
+      "interfaces": [
+        "COMPATIBILITY.md:485,543,546; E2E.md:482",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "只覆盖已声明的宽度规则，不能覆盖所有 Constraint Manager 能力",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c14-pcb-placement",
+      "description": "元件自动布局与显式选择的移动",
+      "interfaces": [
+        "E2E.md:386; native_placement.py:47; placement.py:271",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "逐项/批末 getter，锁不覆盖 GUI，Save 后独立重开未绑定当前调用；bottom 未测",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c15-pcb-labels",
+      "description": "位号布局、字高与笔宽",
+      "interfaces": [
+        "E2E.md:556; COMPATIBILITY.md:8; native_com_adapter.py:6347",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "当前 guard/getter 修复未实机验收，跳过对象会造成覆盖缺口，persistence_verified=false",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c16-pcb-routing",
+      "description": "布线、via、unroute 与铜皮",
+      "interfaces": [
+        "COMPATIBILITY.md:444,470; E2E.md:484,486",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "stitch 是文件规划；拆铜皮/重布线的依赖与破坏范围需要分步 receipt",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c17-pcb-inspection",
+      "description": "板几何、布局指标、渲染与视图",
+      "interfaces": [
+        "COMPATIBILITY.md:455,458,462; E2E.md:565,566",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "geometry/metrics 不能替代 DRC；visual 不证明结构；输出模式效果不同",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c18-pcb-drc",
+      "description": "Layout 原生 Batch DRC 与板级自定义规则",
+      "interfaces": [
+        "E2E.md:485; native_com_adapter.py:7118",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "unknown",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "Timeout, missing Processing observation and stale hazards now fail closed in candidate/offline tests. Native completion/result generation/source versions/input/rule coverage still unavailable; this is not a completed native DRC implementation.",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "impl-xpedition-cli-native-com-adapter-py",
+        "impl-xpedition-cli-native-verification-py"
+      ]
+    },
+    {
+      "id": "c19-fabrication",
+      "description": "PDF 与制造多文件输出",
+      "interfaces": [
+        "COMPATIBILITY.md:165,494; E2E.md:487",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "reachable",
+      "adapter": "implemented",
+      "cli_exposure": "exposed",
+      "testing": "not_run",
+      "disposition": "exposed",
+      "reason": "制造对话框/配置往返；自产物自检不能替代独立消费者；未对外 deliver",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e"
+      ]
+    },
+    {
+      "id": "c20-native-3d",
+      "description": "原生 3D/STEP/MCAD 任务",
+      "interfaces": [
+        "COMPATIBILITY.md:506; vendor Layout command catalog",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "unknown",
+      "adapter": "unimplemented",
+      "cli_exposure": "not_exposed",
+      "testing": "not_run",
+      "disposition": "deferred",
+      "reason": "GUI 命令存在；许可、模型、自动化参数和独立读回未闭合，deferred",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "catalog-commands-xpeditionlayout"
+      ]
+    },
+    {
+      "id": "c21-high-speed-constraints",
+      "description": "差分对/长度调谐等高速约束",
+      "interfaces": [
+        "vendor Layout command catalog",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "unknown",
+      "adapter": "unimplemented",
+      "cli_exposure": "not_exposed",
+      "testing": "not_run",
+      "disposition": "deferred",
+      "reason": "不是 pcb rules 当前宽度子集；API/许可/单位与任务验收待调查，deferred",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "catalog-commands-xpeditionlayout"
+      ]
+    },
+    {
+      "id": "c22-hierarchy-variants",
+      "description": "真正的层级原理图与变体",
+      "interfaces": [
+        "vendor-sources.md; vendor Designer/Layout catalogs",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "unknown",
+      "automation": "unknown",
+      "adapter": "unimplemented",
+      "cli_exposure": "not_exposed",
+      "testing": "not_run",
+      "disposition": "unknown",
+      "reason": "当前官方产品资料不能证明本机组合许可，多页绘图不能冒充层级/变体，unknown",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "catalog-commands-xpeditionlayout",
+        "survey-vendor-sources"
+      ]
+    },
+    {
+      "id": "c23-simulation-dfm",
+      "description": "SI/PI/仿真与扩展 DFM",
+      "interfaces": [
+        "vendor-sources.md; vendor command catalogs",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "unknown",
+      "automation": "unknown",
+      "adapter": "unimplemented",
+      "cli_exposure": "not_exposed",
+      "testing": "not_run",
+      "disposition": "unknown",
+      "reason": "品牌功能和菜单不证明本机附加许可；当前 DRC 不覆盖这些判定，unknown",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "catalog-commands-xpeditionlayout",
+        "survey-vendor-sources"
+      ]
+    },
+    {
+      "id": "c24-bottom-side",
+      "description": "显式翻面与底面完整任务",
+      "interfaces": [
+        "COMPATIBILITY.md:460; E2E.md:399,604",
+        "local source entries where exposed; current active application and entitlement not observed"
+      ],
+      "application_support": "supported",
+      "automation": "unknown",
+      "adapter": "unimplemented",
+      "cli_exposure": "not_exposed",
+      "testing": "not_run",
+      "disposition": "deferred",
+      "reason": "应用支持两面；CLI 只保持/读取已有 side，不提供翻面任务，底面原生未测",
+      "evidence_refs": [
+        "survey-capabilities",
+        "historical-compatibility",
+        "historical-e2e",
+        "catalog-commands-xpeditionlayout"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "survey-installation",
+      "kind": "document",
+      "path": "development/evidence/application-inventory.json",
+      "sha256": "54cf59381c7c9de6bc4859f7b30d048b62210cb84804234cb344f20be68e4981",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-plan\\application-inventory.json",
+      "summary": "Read-only survey record; historical/static sources are not a current native run."
+    },
+    {
+      "id": "survey-pe-versions",
+      "kind": "document",
+      "path": "development/evidence/application-executable-metadata.json",
+      "sha256": "94cf2e8c9eba9668f2295a86b745fd4c114a9f4e4a2d47cf9cd49bd4f270ad56",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-plan\\application-executable-metadata.json",
+      "summary": "Read-only survey record; historical/static sources are not a current native run."
+    },
+    {
+      "id": "survey-vendor-sources",
+      "kind": "document",
+      "path": "development/evidence/vendor-sources.md",
+      "sha256": "60af08c48add1b23205e18e2399f1dc817989760d0b3f24b48150fca3eee2d1b",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-plan\\vendor-sources.md",
+      "summary": "Read-only survey record; historical/static sources are not a current native run."
+    },
+    {
+      "id": "survey-capabilities",
+      "kind": "document",
+      "path": "development/evidence/capability-task-map.json",
+      "sha256": "43dbf7841dda06d391108e46434e55bc633f455a5a233eb675b151d1e1adce18",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-plan\\capability-task-map.json",
+      "summary": "Read-only survey record; historical/static sources are not a current native run."
+    },
+    {
+      "id": "survey-command-map",
+      "kind": "document",
+      "path": "development/evidence/command-task-map.json",
+      "sha256": "eacab8aac253413d3cd7bc08f1fccb2595e3b132aaa3f3460a97c2cc302b728d",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-plan\\command-task-map.json",
+      "summary": "Read-only survey record; historical/static sources are not a current native run."
+    },
+    {
+      "id": "prerequisites",
+      "kind": "document",
+      "path": "development/evidence/scratch-prerequisites.json",
+      "sha256": "40cead6c96857c865e7492941cbed739bd6e3ceb3ddf594e6108c8d803c8cf85",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-results\\scratch-prerequisites.json",
+      "summary": "Actual OS/file queries only; no application calls; license, dirty state and loaded adapter identity unknown."
+    },
+    {
+      "id": "offline-junit",
+      "kind": "fixture",
+      "path": "development/evidence/phase1-offline.junit.xml",
+      "sha256": "8d112a323d3b3dc52d97c4e009f14a630119142c4cdbd70c06ff52810a7d7d24",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-results\\full.junit.xml",
+      "summary": "Actual 987-case offline pytest result with fake adapter/COM objects, not a native run."
+    },
+    {
+      "id": "offline-run",
+      "kind": "fixture",
+      "path": "development/evidence/phase1-offline.run.json",
+      "sha256": "a2bcaf4c9c9cc219805ad0d32ec50260890021b69bceb9600ee15b118a181f3f",
+      "source": "C:\\ExampleUsers\\Example\\Documents\\Codex\\2026-10-06\\task\\xpedition-results\\full.run.json",
+      "summary": "Executed offline regression metadata and source hashes; not evidence of application behavior."
+    },
+    {
+      "id": "historical-compatibility",
+      "kind": "document",
+      "path": "docs/COMPATIBILITY.md",
+      "sha256": "4bfbad792ce5b0789c3ea1ec107778a9ba1e312c42a36755f578609a46db81d7",
+      "source": "isolated checkout of 0d10d933484a567171f512bb03e2c9103d8ade0b",
+      "summary": "Project documentation/historical XPED2604 observations; no current source/run/version binding is asserted."
+    },
+    {
+      "id": "historical-e2e",
+      "kind": "document",
+      "path": "docs/E2E.md",
+      "sha256": "d551a21f4d8de6f0cdfd44b5a801c9d8ce7613a736af2e98de1668a894f534f3",
+      "source": "isolated checkout of 0d10d933484a567171f512bb03e2c9103d8ade0b",
+      "summary": "Project documentation/historical XPED2604 observations; no current source/run/version binding is asserted."
+    },
+    {
+      "id": "readme",
+      "kind": "document",
+      "path": "README.md",
+      "sha256": "359d9ffd3d2e8322f402fca98f1296e7ed38560848b08a8c81ff7062d8f19877",
+      "source": "current isolated checkout; exact bytes bound by sha256",
+      "summary": "Current engineer entry and historical notes; this document is not native acceptance evidence for the current candidate."
+    },
+    {
+      "id": "catalog-commands-celleditor",
+      "kind": "document",
+      "path": "development/evidence/Commands_CellEditor.csv",
+      "sha256": "0bf81563bc4952c57c6d4d7a7ada0e7e0a2f3def3cb043d9653e160dcd602b85",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_CellEditor.csv",
+      "summary": "Installed GUI command catalog: 607 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-edm-librarian",
+      "kind": "document",
+      "path": "development/evidence/Commands_EDM_Librarian.csv",
+      "sha256": "1be868aca73b880519fd51a499a6d172518074af9e576221b5aad62ca5f1734d",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_EDM_Librarian.csv",
+      "summary": "Installed GUI command catalog: 90 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-layouttemplateeditor",
+      "kind": "document",
+      "path": "development/evidence/Commands_LayoutTemplateEditor.csv",
+      "sha256": "b3cd8f02faa33412db4ed59a1016076bf948beeb885d7d623dc2e6494c3102c0",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_LayoutTemplateEditor.csv",
+      "summary": "Installed GUI command catalog: 960 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-library-manager",
+      "kind": "document",
+      "path": "development/evidence/Commands_Library_Manager.csv",
+      "sha256": "07a2c0ae9aed9df7044248bcb08175ed5a375e0614a6839b012292a5e87d35f4",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_Library_Manager.csv",
+      "summary": "Installed GUI command catalog: 75 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-lm-project-library",
+      "kind": "document",
+      "path": "development/evidence/Commands_LM_Project_Library.csv",
+      "sha256": "9015c6a72865d5ff4035bb188e4bd9ee31f5f8ddf784b245afc381e793ccde5d",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_LM_Project_Library.csv",
+      "summary": "Installed GUI command catalog: 55 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-reusableblockeditor",
+      "kind": "document",
+      "path": "development/evidence/Commands_ReusableBlockEditor.csv",
+      "sha256": "a4189d05bde47d1c4fc570b1f27b300a11d7d17e56ec10bdb553fb73b17810f0",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_ReusableBlockEditor.csv",
+      "summary": "Installed GUI command catalog: 815 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-symbol-editor",
+      "kind": "document",
+      "path": "development/evidence/Commands_Symbol_Editor.csv",
+      "sha256": "8c2db794187c9ebc2a69159a10db8bc51f5c1327743aba30bc3d9a86d31ca71e",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_Symbol_Editor.csv",
+      "summary": "Installed GUI command catalog: 129 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-xpedition-designer",
+      "kind": "document",
+      "path": "development/evidence/Commands_Xpedition_Designer.csv",
+      "sha256": "c7757d07f5a79d9746152529ccee2f8607dfd98fd072e3433934e9f0416c6935",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_Xpedition_Designer.csv",
+      "summary": "Installed GUI command catalog: 477 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-xpedition-system-designer",
+      "kind": "document",
+      "path": "development/evidence/Commands_Xpedition_System_Designer.csv",
+      "sha256": "9f184ca436636b3fb2808777cca0f772853429f965cef34bd0aa4031f27f4707",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_Xpedition_System_Designer.csv",
+      "summary": "Installed GUI command catalog: 385 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-xpeditionlayout",
+      "kind": "document",
+      "path": "development/evidence/Commands_XpeditionLayout.csv",
+      "sha256": "7cb91dee07dafffc7100d70f66d9a794a2dbf2b30dd148c9e7742a0e744194d8",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_XpeditionLayout.csv",
+      "summary": "Installed GUI command catalog: 1040 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "catalog-commands-xtremedesignclient",
+      "kind": "document",
+      "path": "development/evidence/Commands_XtremeDesignClient.csv",
+      "sha256": "4f0c85540fd8623661baded1402ca9a543fdc50142b60c9a0622ffd9802709ac",
+      "source": "C:\\Applications\\Xpedition\\home\\XPED2604\\SDD_HOME\\standard\\automation\\Commands_XtremeDesignClient.csv",
+      "summary": "Installed GUI command catalog: 865 rows, no header. Menu presence is not a callable API or license entitlement."
+    },
+    {
+      "id": "impl-xpedition-cli-backends-native-xpedition-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/backends/native_xpedition.py",
+      "sha256": "b58306b0db24acec93282e0c1f75756f80da6235ccd9cc07d3a2399d60e94dfa",
+      "source": "isolated working tree based on 0d10d933484a567171f512bb03e2c9103d8ade0b; uncommitted candidate",
+      "summary": "Actual candidate file bytes, not proof that this adapter is selected by an installed launcher or real application."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-bom-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/bom.py",
+      "sha256": "411869c1fd6394c67d1662618ea5cd043d3d9c2817edfee55c1fa698bb313c40",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-environment-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/environment.py",
+      "sha256": "9b02c368f68fb81eb207b40ae7d75c37ef1587c717016aacc3bf303ef7de1e8d",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-kb-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/kb.py",
+      "sha256": "373cb926ea6a470fbf5fe4a6447b5cdc1bd35775562269d6fb5dbaf6ab6e2c8a",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-library-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/library.py",
+      "sha256": "d3b48357e8e3af6b1efd0f3227b65ed401fb7ee35b6accf3bc7a45b6f8524081",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-pcb-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/pcb.py",
+      "sha256": "da7fe7d088c4ea03cf16df2b59d672e4fd54f1a5a902e27b6d46c4595be2fd42",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-project-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/project.py",
+      "sha256": "c499834c4e3ab792ac43f63f5a4b634f281bbd1e2b8b4efcb6c92b75891832f5",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-schematic-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/schematic.py",
+      "sha256": "a222d11b7a147280ebfb536f1b7397d198e43fcfcfef9deed232afeaed95abfc",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-sessions-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/sessions.py",
+      "sha256": "46cc0bbc9ae08cb6a85d1bfb580e2ebc19c664e4c58db8bf228a6a7529d4e26c",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-native-com-adapter-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/native_com_adapter.py",
+      "sha256": "f75cf7dfae66bd57b2249d926ae5c393808d8438008cb0d5c5be48311e566b20",
+      "source": "isolated working tree based on 0d10d933484a567171f512bb03e2c9103d8ade0b; uncommitted candidate",
+      "summary": "Actual candidate file bytes, not proof that this adapter is selected by an installed launcher or real application."
+    },
+    {
+      "id": "impl-xpedition-cli-native-placement-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/native_placement.py",
+      "sha256": "e539c373190c7f6583dde5397d9d4c9f9ca9c16e308c8d3610e1924aca77fbdb",
+      "source": "isolated working tree based on 0d10d933484a567171f512bb03e2c9103d8ade0b; uncommitted candidate",
+      "summary": "Actual candidate file bytes, not proof that this adapter is selected by an installed launcher or real application."
+    },
+    {
+      "id": "impl-xpedition-cli-native-verification-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/native_verification.py",
+      "sha256": "95cc3391b057a7f3ae095b7ce38be37eddf4131b0b7a0cca7e2f9644139ee70c",
+      "source": "isolated working tree based on 0d10d933484a567171f512bb03e2c9103d8ade0b; uncommitted candidate",
+      "summary": "Actual candidate file bytes, not proof that this adapter is selected by an installed launcher or real application."
+    },
+    {
+      "id": "impl-xpedition-cli-placement-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/placement.py",
+      "sha256": "60e60918a1675a290ed1aa8013f7b8feb54c8d4649804b2f6e1694f598631c33",
+      "source": "isolated working tree based on 0d10d933484a567171f512bb03e2c9103d8ade0b; uncommitted candidate",
+      "summary": "Actual candidate file bytes, not proof that this adapter is selected by an installed launcher or real application."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-checks-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/checks.py",
+      "sha256": "3bb982bfc107b8077839b5aeee98b2f2e7c265023b18e829a2d7a6aa241f4edf",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-manufacturing-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/manufacturing.py",
+      "sha256": "dc9d981f4a77d72f13ae0c80ac9402d55fa2f94cee2b827d95356e9486044189",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "Actual source bytes; not native task evidence."
+    },
+    {
+      "id": "impl-xpedition-cli-driver-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/driver.py",
+      "sha256": "0507f175733caf1d8cc3e897bee81fbc0ded86cd8a73a4fdb27c5c26ebcb0686",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "SDK integration, identity or effect declarations; no native pass implied."
+    },
+    {
+      "id": "impl-xpedition-cli-native-identity-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/native_identity.py",
+      "sha256": "955e52a68b8256e32c9d57163245381ab7f784886eef2642254ccec783432139",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "SDK integration, identity or effect declarations; no native pass implied."
+    },
+    {
+      "id": "impl-xpedition-cli-native-process-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/native_process.py",
+      "sha256": "326688c0528db494f3a1538227b975cec0a314e74f2e8859b013268d1675311c",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "SDK integration, identity or effect declarations; no native pass implied."
+    },
+    {
+      "id": "impl-xpedition-cli-cli-command-extensions-py",
+      "kind": "implementation",
+      "path": "xpedition_cli/cli/command_extensions.py",
+      "sha256": "a08329643a77e6be3ac2a8839c95788b098b096a4d49ff55807878aeb74ee2ef",
+      "source": "isolated uncommitted 2.0 candidate",
+      "summary": "SDK integration, identity or effect declarations; no native pass implied."
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t01",
+      "goal": "选择并保护明确的 Designer/Layout 实例与文档",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c01-instance-documents"
+      ],
+      "command_paths": [
+        "session start",
+        "session attach",
+        "session inspect",
+        "session close"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "session start",
+          "name": "kind",
+          "reason": "schematic starts Designer, pcb starts Layout"
+        },
+        {
+          "command_path": "session start",
+          "name": "project",
+          "reason": "a .prj (or .pcb for Layout) to open"
+        },
+        {
+          "command_path": "session attach",
+          "name": "kind",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        },
+        {
+          "command_path": "session attach",
+          "name": "pid",
+          "reason": "native process ID, verified through the application's window handle"
+        },
+        {
+          "command_path": "session attach",
+          "name": "project",
+          "reason": "optionally open this owned project after attachment"
+        },
+        {
+          "command_path": "session close",
+          "name": "pid",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "session start",
+          "artifact_ref": "impl-xpedition-cli-cli-sessions-py",
+          "entrypoint": "start"
+        },
+        {
+          "command_path": "session start",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=health]"
+        },
+        {
+          "command_path": "session start",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=attach]"
+        },
+        {
+          "command_path": "session start",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=start]"
+        },
+        {
+          "command_path": "session start",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=open]"
+        },
+        {
+          "command_path": "session attach",
+          "artifact_ref": "impl-xpedition-cli-cli-sessions-py",
+          "entrypoint": "attach"
+        },
+        {
+          "command_path": "session attach",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=health]"
+        },
+        {
+          "command_path": "session attach",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=attach]"
+        },
+        {
+          "command_path": "session attach",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=start]"
+        },
+        {
+          "command_path": "session attach",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=open]"
+        },
+        {
+          "command_path": "session inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-sessions-py",
+          "entrypoint": "status"
+        },
+        {
+          "command_path": "session inspect",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=health]"
+        },
+        {
+          "command_path": "session close",
+          "artifact_ref": "impl-xpedition-cli-cli-sessions-py",
+          "entrypoint": "stop"
+        },
+        {
+          "command_path": "session close",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=close]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-session-start",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际启动/附着实例、文档、PID/代际、ownership 与 scope 对应；已附着用户工作保持",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-session-attach",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际启动/附着实例、文档、PID/代际、ownership 与 scope 对应；已附着用户工作保持",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-session-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际实例与记录区分，新旧/失联/unknown 不按配置文件猜测；不打开或切换项目",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-session-close",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "只关闭明确授权实例/文档，实际停止读回与未保存影响记录；不能任意停止 attached 实例",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t01-session-start",
+        "native-t01-session-attach",
+        "native-t01-session-inspect",
+        "native-t01-session-close"
+      ]
+    },
+    {
+      "id": "t02",
+      "goal": "由明确模板建立可识别的新工程",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c02-project-template"
+      ],
+      "command_paths": [
+        "project create",
+        "project inspect"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "project create",
+          "name": "project",
+          "reason": "the new .prj; ASCII path, its folder absent or empty"
+        },
+        {
+          "command_path": "project create",
+          "name": "template",
+          "reason": "an existing .prj to copy"
+        },
+        {
+          "command_path": "project inspect",
+          "name": "project",
+          "reason": "the project's .prj"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "project create",
+          "artifact_ref": "impl-xpedition-cli-cli-project-py",
+          "entrypoint": "create"
+        },
+        {
+          "command_path": "project create",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_clone_project [request.method=clone_project]"
+        },
+        {
+          "command_path": "project inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-project-py",
+          "entrypoint": "info"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-project-create",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "复制与重写清单、原生重新加载、库/模板身份及不影响模板和已有工程",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-project-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 .prj 的 designs/library/paths 与文件指纹、解析完整性，纯文件读不必虚构运行状态",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t02-project-create",
+        "native-t02-project-inspect"
+      ]
+    },
+    {
+      "id": "t03",
+      "goal": "保护磁盘工程并按备份恢复",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c03-project-backup"
+      ],
+      "command_paths": [
+        "project backup",
+        "project restore"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "project backup",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "project backup",
+          "name": "output",
+          "reason": "the .zip; <folder>-backups/<project>-<time>.zip beside the project folder by default"
+        },
+        {
+          "command_path": "project restore",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "project restore",
+          "name": "backup",
+          "reason": "a .zip project backup made"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "project backup",
+          "artifact_ref": "impl-xpedition-cli-cli-project-py",
+          "entrypoint": "backup"
+        },
+        {
+          "command_path": "project backup",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_let_go_of_project [request.method=release_project]"
+        },
+        {
+          "command_path": "project backup",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_take_up_project [request.method=reopen_project]"
+        },
+        {
+          "command_path": "project restore",
+          "artifact_ref": "impl-xpedition-cli-cli-project-py",
+          "entrypoint": "restore"
+        },
+        {
+          "command_path": "project restore",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_let_go_of_project [request.method=release_project]"
+        },
+        {
+          "command_path": "project restore",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_take_up_project [request.method=reopen_project]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-project-backup",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "ZIP 实际 entries/hash 与受控磁盘基线一致，必要的 close/reopen 单列 session；不称捕获未保存内存",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-project-restore",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际恢复文件与清单/hash 相符、原生重开对应依赖，恢复前归档本次实际保留，部分恢复不称完整",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t03-project-backup",
+        "native-t03-project-restore"
+      ]
+    },
+    {
+      "id": "t04",
+      "goal": "查找和核对自有库零件",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c04-library-query"
+      ],
+      "command_paths": [
+        "library list",
+        "library inspect",
+        "library check",
+        "library preview"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "library list",
+          "name": "project",
+          "reason": "the project's .prj, whose central library is read; or --library"
+        },
+        {
+          "command_path": "library list",
+          "name": "library",
+          "reason": "a central library (.lmc) to read instead of a project's: another project's, or a copy of a company library"
+        },
+        {
+          "command_path": "library inspect",
+          "name": "project",
+          "reason": "the project's .prj, whose central library is read; or --library"
+        },
+        {
+          "command_path": "library inspect",
+          "name": "library",
+          "reason": "a central library (.lmc) to read instead of a project's: another project's, or a copy of a company library"
+        },
+        {
+          "command_path": "library check",
+          "name": "project",
+          "reason": "the project's .prj, whose central library is read; or --library"
+        },
+        {
+          "command_path": "library check",
+          "name": "library",
+          "reason": "a central library (.lmc) to read instead of a project's: another project's, or a copy of a company library"
+        },
+        {
+          "command_path": "library preview",
+          "name": "project",
+          "reason": "the project's .prj: for --part (or --library), and for a parts file that names cells the library holds"
+        },
+        {
+          "command_path": "library preview",
+          "name": "library",
+          "reason": "a central library (.lmc) to read instead of a project's: another project's, or a copy of a company library"
+        },
+        {
+          "command_path": "library preview",
+          "name": "file",
+          "reason": "a parts file, not added yet"
+        },
+        {
+          "command_path": "library preview",
+          "name": "output",
+          "reason": "the PNG; with several parts, <stem>-<part>.png beside it"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "library list",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "list_items"
+        },
+        {
+          "command_path": "library list",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "show"
+        },
+        {
+          "command_path": "library inspect",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library check",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "check"
+        },
+        {
+          "command_path": "library check",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library preview",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "render"
+        },
+        {
+          "command_path": "library preview",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-library-list",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "converter 实际导出对象与库/分区身份、单位、分页和完整性；原库不变，缓存不当新鲜快照",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-library-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 part/symbol/cell/padstack/pin-map/hole 值与唯一零件匹配，不从请求 part number 回显 actual",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-library-check",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "检查实际导出库对象，逐规则来源/覆盖/未读取项；CLI 自定义规则不称原生全库签核",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-library-preview",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际生成 PNG 的符号/land/hole/单位与输入或实际库对象对应；visual 与 pin-map 结构分开",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t04-library-list",
+        "native-t04-library-inspect",
+        "native-t04-library-check",
+        "native-t04-library-preview"
+      ]
+    },
+    {
+      "id": "t05",
+      "goal": "将真实零件加入设计库并打包",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c05-library-authoring",
+        "c06-library-packaging"
+      ],
+      "command_paths": [
+        "library materialize",
+        "schematic package",
+        "library import",
+        "library create"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "library materialize",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "library materialize",
+          "name": "design",
+          "reason": "the design description JSON"
+        },
+        {
+          "command_path": "schematic package",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "library import",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "library import",
+          "name": "from",
+          "reason": "the source: a central library (.lmc), or a project (.prj) whose central library it is; only read"
+        },
+        {
+          "command_path": "library import",
+          "name": "parts",
+          "reason": "the part numbers to import, up to 200"
+        },
+        {
+          "command_path": "library create",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "library create",
+          "name": "file",
+          "reason": "the parts file (JSON)"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "library materialize",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "build"
+        },
+        {
+          "command_path": "library materialize",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library materialize",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_import [request.method=library_import]"
+        },
+        {
+          "command_path": "library materialize",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_package_design [request.method=package]"
+        },
+        {
+          "command_path": "schematic package",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "package"
+        },
+        {
+          "command_path": "schematic package",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "schematic package",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_import [request.method=library_import]"
+        },
+        {
+          "command_path": "schematic package",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_package_design [request.method=package]"
+        },
+        {
+          "command_path": "schematic package",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=package]"
+        },
+        {
+          "command_path": "library import",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "import_parts"
+        },
+        {
+          "command_path": "library import",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library import",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_import [request.method=library_import]"
+        },
+        {
+          "command_path": "library create",
+          "artifact_ref": "impl-xpedition-cli-cli-library-py",
+          "entrypoint": "add"
+        },
+        {
+          "command_path": "library create",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "library create",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_import [request.method=library_import]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-library-materialize",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际创建 placeholder 与保留真实 parts 分开；package 可选步骤有本次日志/产物/错误读回，不称真实制造库",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-package",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际创建 placeholder 与保留真实 parts 分开；package 可选步骤有本次日志/产物/错误读回，不称真实制造库",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-library-import",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "目标库实际 parts/symbols/cells/padstacks/pads/holes 与源指纹对应，source 只读且不变，replaces 逐项说明",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-library-create",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "目标库真实 converter 导出与符号文件读回 pin/land/hole/part map、单位及 Value 转换，源 datasheet 独立判定",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t05-library-materialize",
+        "native-t05-schematic-package",
+        "native-t05-library-import",
+        "native-t05-library-create"
+      ]
+    },
+    {
+      "id": "t06",
+      "goal": "绘制或局部改变明确的原理图",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c07-schematic-edit",
+        "c08-schematic-query",
+        "c19-fabrication"
+      ],
+      "command_paths": [
+        "schematic plan preview",
+        "schematic build",
+        "schematic edit",
+        "schematic view",
+        "schematic export"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "schematic plan preview",
+          "name": "design",
+          "reason": "the design description JSON"
+        },
+        {
+          "command_path": "schematic plan preview",
+          "name": "output",
+          "reason": "a .png; one file a sheet if several"
+        },
+        {
+          "command_path": "schematic plan preview",
+          "name": "project",
+          "reason": "the project's .prj, whose central library holds the parts the design's symbols name ({\"part\": NUMBER}); needed only then"
+        },
+        {
+          "command_path": "schematic build",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic build",
+          "name": "design",
+          "reason": "the design description JSON"
+        },
+        {
+          "command_path": "schematic edit",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic edit",
+          "name": "file",
+          "reason": "the operations JSON: {operations: [...]}"
+        },
+        {
+          "command_path": "schematic view",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic view",
+          "name": "output",
+          "reason": "capture the window to this new .png"
+        },
+        {
+          "command_path": "schematic export",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic export",
+          "name": "output",
+          "reason": "the new .pdf (beside the .prj by default)"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "schematic plan preview",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "render"
+        },
+        {
+          "command_path": "schematic plan preview",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_library_export [request.method=library_export]"
+        },
+        {
+          "command_path": "schematic build",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "draw"
+        },
+        {
+          "command_path": "schematic build",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_draw [request.method=draw]"
+        },
+        {
+          "command_path": "schematic edit",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "edit"
+        },
+        {
+          "command_path": "schematic edit",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "schematic edit",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=apply_changeset]"
+        },
+        {
+          "command_path": "schematic view",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "show"
+        },
+        {
+          "command_path": "schematic view",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_show [request.method=show]"
+        },
+        {
+          "command_path": "schematic export",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "export"
+        },
+        {
+          "command_path": "schematic export",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_export_pdf [request.method=export_pdf]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-schematic-plan-preview",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际输出 PNG/PDF 与输入 design、库符号、sheet extents/布局 findings 对应；属于预览文件，不证明原生已画图",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-build",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实 post-snapshot/netlist 比较要求及多余 nets/parts/no-connect；逐 sheet 应用/保存事实，失败可恢复范围",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-edit",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 post-snapshot 的 requested 属性/位置/引脚连接/删除/改名 postconditions，expected/observed/source/覆盖留存，不使用 applied 充 actual",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-view",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际激活正确 sheet/view，若截图记录桌面/视图来源；只证明 visual/session，不证明网络或保存",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-export",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 sch2pdf 日志/页面/尺寸/文字及文件 hash，独立 PDF 消费；边框外遗漏及中文编码局限保留",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t06-schematic-plan-preview",
+        "native-t06-schematic-build",
+        "native-t06-schematic-edit",
+        "native-t06-schematic-view",
+        "native-t06-schematic-export"
+      ]
+    },
+    {
+      "id": "t07",
+      "goal": "探索实际原理图对象",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c08-schematic-query"
+      ],
+      "command_paths": [
+        "schematic parts",
+        "schematic nets",
+        "schematic sheets"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "schematic parts",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic nets",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic sheets",
+          "name": "project",
+          "reason": "the project's .prj"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "schematic parts",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "components"
+        },
+        {
+          "command_path": "schematic parts",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "schematic nets",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "nets"
+        },
+        {
+          "command_path": "schematic nets",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "schematic sheets",
+          "artifact_ref": "impl-xpedition-cli-cli-schematic-py",
+          "entrypoint": "sheets"
+        },
+        {
+          "command_path": "schematic sheets",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-schematic-parts",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 getter 对象/属性/身份、snapshot、分页完整性；不因 project 参数关闭其他工程",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-nets",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 getter 网络身份、pins/sheets 关系和 snapshot 完整性；无稳定身份与缺字段分别报告",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-sheets",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "GetAvailableSheets 等实际存在页面与已打开窗口区分，页面/组件数量与 snapshot 对应",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t07-schematic-parts",
+        "native-t07-schematic-nets",
+        "native-t07-schematic-sheets"
+      ]
+    },
+    {
+      "id": "t08",
+      "goal": "取得本次原生 ERC/GRC 检查",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c09-schematic-erc"
+      ],
+      "command_paths": [
+        "schematic checks run",
+        "schematic checks result"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "schematic checks run",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "schematic checks result",
+          "name": "id",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "schematic checks run",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "schematic_run"
+        },
+        {
+          "command_path": "schematic checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "schematic checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_verify [request.method=verify]"
+        },
+        {
+          "command_path": "schematic checks result",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "result"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-schematic-checks-run",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-schematic-checks-result",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t08-schematic-checks-run",
+        "native-t08-schematic-checks-result"
+      ]
+    },
+    {
+      "id": "t09",
+      "goal": "核对并交付可消费 BOM",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c10-bom"
+      ],
+      "command_paths": [
+        "bom inspect",
+        "bom export",
+        "bom check"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "bom inspect",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "bom export",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "bom export",
+          "name": "output",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        },
+        {
+          "command_path": "bom check",
+          "name": "project",
+          "reason": "the project's .prj"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "bom inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-bom-py",
+          "entrypoint": "inspect"
+        },
+        {
+          "command_path": "bom inspect",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "bom export",
+          "artifact_ref": "impl-xpedition-cli-cli-bom-py",
+          "entrypoint": "export_file"
+        },
+        {
+          "command_path": "bom export",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "bom check",
+          "artifact_ref": "impl-xpedition-cli-cli-bom-py",
+          "entrypoint": "check"
+        },
+        {
+          "command_path": "bom check",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-bom-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 snapshot 的 rows/group/delta 与文件独立解析相符；输出/替换列 artifact/persist，对外 deliver 单独授权",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-bom-export",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 snapshot 的 rows/group/delta 与文件独立解析相符；输出/替换列 artifact/persist，对外 deliver 单独授权",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-bom-check",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 BOM 的缺 part/duplicate/值或封装冲突按 stable finding 身份，规则/覆盖与原生 ERC 分开",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t09-bom-inspect",
+        "native-t09-bom-export",
+        "native-t09-bom-check"
+      ]
+    },
+    {
+      "id": "t10",
+      "goal": "从打包设计建立并更新 PCB",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c11-pcb-create",
+        "c06-library-packaging"
+      ],
+      "command_paths": [
+        "pcb create",
+        "pcb update"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb create",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "pcb create",
+          "name": "design",
+          "reason": "the board design in the .prj (the first)"
+        },
+        {
+          "command_path": "pcb update",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb update",
+          "name": "design",
+          "reason": "the board design in the .prj (the first)"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb create",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "create"
+        },
+        {
+          "command_path": "pcb create",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_pcb_create [request.method=pcb_create]"
+        },
+        {
+          "command_path": "pcb update",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "annotate"
+        },
+        {
+          "command_path": "pcb update",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_forward_annotate [request.method=forward_annotate]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-create",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 JobWizard 本次输出 board/path/template/dependencies，replace 归档及后续加载读回；阶段失败与用户已有工作保护",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-update",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 ProjectIntegration outcome/errors 与 packaged component/net/pin 身份/数量；in-sync 等状态各有来源",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t10-pcb-create",
+        "native-t10-pcb-update"
+      ]
+    },
+    {
+      "id": "t11",
+      "goal": "形成指定板框、孔和宽度规则",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c12-pcb-structure",
+        "c13-pcb-width-rules"
+      ],
+      "command_paths": [
+        "pcb outline set",
+        "pcb holes add-corners",
+        "pcb constraints widths"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb outline set",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb outline set",
+          "name": "width",
+          "reason": "millimetres"
+        },
+        {
+          "command_path": "pcb outline set",
+          "name": "height",
+          "reason": "millimetres"
+        },
+        {
+          "command_path": "pcb holes add-corners",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "name": "class",
+          "reason": "the net class"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "name": "nets",
+          "reason": "nets to put in the class"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "name": "width",
+          "reason": "typical trace width, millimetres"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb outline set",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "outline"
+        },
+        {
+          "command_path": "pcb outline set",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_outline [request.method=board_outline]"
+        },
+        {
+          "command_path": "pcb holes add-corners",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "holes"
+        },
+        {
+          "command_path": "pcb holes add-corners",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_mounting_holes [request.method=mounting_holes]"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "rules"
+        },
+        {
+          "command_path": "pcb constraints widths",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_net_rules [request.method=net_rules]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-outline-set",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 BoardOutline 顶点/弧/尺寸/方向/单位与 request 逐项相符，原点/其他对象保持",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-holes-add-corners",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 MountingHoles 坐标/孔径/padstack/plated/side 与计划对应；库可用孔径限制和未生成项明确",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-constraints-widths",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Constraint Manager/布局实际逐层 net-class width，与选定 nets/库规则 fingerprint 对应；不声称所有约束",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t11-pcb-outline-set",
+        "native-t11-pcb-holes-add-corners",
+        "native-t11-pcb-constraints-widths"
+      ]
+    },
+    {
+      "id": "t12",
+      "goal": "移动所选元件并让两元件位号可读",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c14-pcb-placement",
+        "c15-pcb-labels",
+        "c17-pcb-inspection"
+      ],
+      "command_paths": [
+        "pcb placement auto",
+        "pcb placement move",
+        "pcb silkscreen labels",
+        "pcb snapshot",
+        "pcb render"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb placement auto",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb placement auto",
+          "name": "design",
+          "reason": "the design description, for zone labels"
+        },
+        {
+          "command_path": "pcb placement move",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb placement move",
+          "name": "refdes",
+          "reason": "the part to move"
+        },
+        {
+          "command_path": "pcb placement move",
+          "name": "file",
+          "reason": "a placement task: {schema_version, unit, selection, steps}"
+        },
+        {
+          "command_path": "pcb silkscreen labels",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "output",
+          "reason": "write the model to this .json"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "refdes",
+          "reason": "only these parts"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "nets",
+          "reason": "only these nets"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "output",
+          "reason": "the .png"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "refdes",
+          "reason": "draw only these parts and what is around them"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb placement auto",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "arrange"
+        },
+        {
+          "command_path": "pcb placement auto",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_arrange_components [request.method=arrange_components]"
+        },
+        {
+          "command_path": "pcb placement move",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "move"
+        },
+        {
+          "command_path": "pcb placement move",
+          "artifact_ref": "impl-xpedition-cli-native-placement-py",
+          "entrypoint": "run [request.method=placement_batch]"
+        },
+        {
+          "command_path": "pcb silkscreen labels",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "labels"
+        },
+        {
+          "command_path": "pcb silkscreen labels",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_tidy_labels [request.method=tidy_labels]"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "geometry"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_geometry [request.method=board_geometry]"
+        },
+        {
+          "command_path": "pcb render",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "render"
+        },
+        {
+          "command_path": "pcb render",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_render_board [request.method=render_board]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-placement-auto",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实所有请求组件的位置/side 与板框/障碍范围，删除 traces/vias 阶段单列；不称任务有事务",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-placement-move",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "逐项及批末真实 COM object_id/x/y/rotation/side/Placed/Anchor/FixLock，选择外及路由不变量；独立重开才证明保存",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-silkscreen-labels",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "计划对象完整清单的真实 PositionX/Y、Format.Height/PenWidth、side、0.001mm 容差、coverage/not_checked；独立重开另验",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-snapshot",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实 board model/object IDs/单位/side 与 selection/snapshot/未读到项；--output 文件独立解析，与观察分开",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-render",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际几何来源/单位/refdes/layers 与输出 PNG，visual 判据；不能证明 native field/structure 或制造输出正确",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t12-pcb-placement-auto",
+        "native-t12-pcb-placement-move",
+        "native-t12-pcb-silkscreen-labels",
+        "native-t12-pcb-snapshot",
+        "native-t12-pcb-render"
+      ]
+    },
+    {
+      "id": "t13",
+      "goal": "按明确网络/层完成布线与铜皮",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "command_paths": [
+        "pcb routing auto",
+        "pcb routing trace",
+        "pcb routing apply",
+        "pcb routing via",
+        "pcb routing stitch-plan",
+        "pcb routing unroute",
+        "pcb copper pour",
+        "pcb copper remove"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb routing auto",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb routing auto",
+          "name": "nets",
+          "reason": "route only these nets"
+        },
+        {
+          "command_path": "pcb routing trace",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb routing trace",
+          "name": "net",
+          "reason": "the net"
+        },
+        {
+          "command_path": "pcb routing trace",
+          "name": "geometry",
+          "reason": "check the plan against this pcb snapshot file first"
+        },
+        {
+          "command_path": "pcb routing apply",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb routing apply",
+          "name": "file",
+          "reason": "a plan of traces and vias instead"
+        },
+        {
+          "command_path": "pcb routing apply",
+          "name": "geometry",
+          "reason": "check the plan against this pcb snapshot file first"
+        },
+        {
+          "command_path": "pcb routing via",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb routing via",
+          "name": "net",
+          "reason": "the net"
+        },
+        {
+          "command_path": "pcb routing via",
+          "name": "at",
+          "reason": "x,y in millimetres"
+        },
+        {
+          "command_path": "pcb routing stitch-plan",
+          "name": "geometry",
+          "reason": "the file pcb snapshot wrote"
+        },
+        {
+          "command_path": "pcb routing stitch-plan",
+          "name": "net",
+          "reason": "the net (GND by default)"
+        },
+        {
+          "command_path": "pcb routing stitch-plan",
+          "name": "output",
+          "reason": "write the plan to this .json"
+        },
+        {
+          "command_path": "pcb routing unroute",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb routing unroute",
+          "name": "nets",
+          "reason": "the nets to unroute"
+        },
+        {
+          "command_path": "pcb copper pour",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb copper pour",
+          "name": "net",
+          "reason": "the net (GND by default)"
+        },
+        {
+          "command_path": "pcb copper remove",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb copper remove",
+          "name": "net",
+          "reason": "the net (GND by default)"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb routing auto",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "route"
+        },
+        {
+          "command_path": "pcb routing auto",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_route_board [request.method=route_board]"
+        },
+        {
+          "command_path": "pcb routing trace",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "trace"
+        },
+        {
+          "command_path": "pcb routing trace",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_hand_route [request.method=hand_route]"
+        },
+        {
+          "command_path": "pcb routing apply",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "apply_routing"
+        },
+        {
+          "command_path": "pcb routing apply",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_hand_route [request.method=hand_route]"
+        },
+        {
+          "command_path": "pcb routing via",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "via"
+        },
+        {
+          "command_path": "pcb routing via",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_hand_route [request.method=hand_route]"
+        },
+        {
+          "command_path": "pcb routing stitch-plan",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "stitch"
+        },
+        {
+          "command_path": "pcb routing unroute",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "unroute"
+        },
+        {
+          "command_path": "pcb routing unroute",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_unroute_nets [request.method=unroute_nets]"
+        },
+        {
+          "command_path": "pcb copper pour",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "pour"
+        },
+        {
+          "command_path": "pcb copper pour",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_plane_pour [request.method=plane_pour]"
+        },
+        {
+          "command_path": "pcb copper remove",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "remove_copper"
+        },
+        {
+          "command_path": "pcb copper remove",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_plane_pour [request.method=plane_pour]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-routing-auto",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "本次真实 net/trace/via/open-net 读回、指定层/网与规则配置，原生 DRC 完成后检查；autorouter 受理不算全连通",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-routing-trace",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 trace 的 net/layer/points/width/connectivity，与单位/坐标和计划对应；原生 DRC 与保持范围单独验证",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-routing-apply",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 trace 的 net/layer/points/width/connectivity，与单位/坐标和计划对应；原生 DRC 与保持范围单独验证",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-routing-via",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 via 的 net/位置/层跨度/padstack 与计划及原生连通/DRC 对应；不使用 input at 作为 actual",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-routing-stitch-plan",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 geometry 输入哈希/单位与生成 plan items/without_room 可复核；文件规划，没有实施 via 或原生读回声明",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-routing-unroute",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "指定 nets 的真实 trace/via 移除与其余对象保持，部分应用和不可恢复结果单列",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-copper-pour",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实 plane shape/generated copper/cutouts/net/layer 与选定 remove/replace 范围、规则及 open nets 对应",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-copper-remove",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实 plane shape/generated copper/cutouts/net/layer 与选定 remove/replace 范围、规则及 open nets 对应",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t13-pcb-routing-auto",
+        "native-t13-pcb-routing-trace",
+        "native-t13-pcb-routing-apply",
+        "native-t13-pcb-routing-via",
+        "native-t13-pcb-routing-stitch-plan",
+        "native-t13-pcb-routing-unroute",
+        "native-t13-pcb-copper-pour",
+        "native-t13-pcb-copper-remove"
+      ]
+    },
+    {
+      "id": "t14",
+      "goal": "读出并解释板状态、指标及视图",
+      "status": "planned",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c12-pcb-structure",
+        "c17-pcb-inspection",
+        "c13-pcb-width-rules"
+      ],
+      "command_paths": [
+        "pcb inspect",
+        "pcb snapshot",
+        "pcb render",
+        "pcb view",
+        "pcb metrics"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb inspect",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "output",
+          "reason": "write the model to this .json"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "refdes",
+          "reason": "only these parts"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "name": "nets",
+          "reason": "only these nets"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "output",
+          "reason": "the .png"
+        },
+        {
+          "command_path": "pcb render",
+          "name": "refdes",
+          "reason": "draw only these parts and what is around them"
+        },
+        {
+          "command_path": "pcb view",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb view",
+          "name": "refdes",
+          "reason": "zoom onto these parts and their designators"
+        },
+        {
+          "command_path": "pcb view",
+          "name": "output",
+          "reason": "capture the window to this new .png"
+        },
+        {
+          "command_path": "pcb metrics",
+          "name": "geometry",
+          "reason": "the file pcb snapshot wrote"
+        },
+        {
+          "command_path": "pcb metrics",
+          "name": "project",
+          "reason": "measure the live board instead (Layout)"
+        },
+        {
+          "command_path": "pcb metrics",
+          "name": "output",
+          "reason": "write the result to this .json"
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "info"
+        },
+        {
+          "command_path": "pcb inspect",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_info [request.method=board_info]"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "geometry"
+        },
+        {
+          "command_path": "pcb snapshot",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_geometry [request.method=board_geometry]"
+        },
+        {
+          "command_path": "pcb render",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "render"
+        },
+        {
+          "command_path": "pcb render",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_render_board [request.method=render_board]"
+        },
+        {
+          "command_path": "pcb view",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "show"
+        },
+        {
+          "command_path": "pcb view",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_show_board [request.method=show_board]"
+        },
+        {
+          "command_path": "pcb metrics",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "metrics"
+        },
+        {
+          "command_path": "pcb metrics",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_geometry [request.method=board_geometry]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 components/nets/pins/stackup/thickness/net classes 与单位/来源/完整性，不猜未观测值",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-snapshot",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "真实 board model/object IDs/单位/side 与 selection/snapshot/未读到项；--output 文件独立解析，与观察分开",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-render",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际几何来源/单位/refdes/layers 与输出 PNG，visual 判据；不能证明 native field/structure 或制造输出正确",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-view",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际应用窗口/文档/显示 scheme/zoom；锁屏不产虚假截图；会话/显示配置/输出效果单列",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-metrics",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际文件或原生几何指纹上的指标及 baseline delta；自定义算法不替代原生 DRC；输出文件效果明确",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t14-pcb-inspect",
+        "native-t14-pcb-snapshot",
+        "native-t14-pcb-render",
+        "native-t14-pcb-view",
+        "native-t14-pcb-metrics"
+      ]
+    },
+    {
+      "id": "t15",
+      "goal": "在本次快照上取得可信 PCB 检查",
+      "status": "blocked",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c18-pcb-drc"
+      ],
+      "command_paths": [
+        "pcb checks run",
+        "pcb checks result",
+        "pcb diagnostics close"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "pcb checks run",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb checks result",
+          "name": "id",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "pcb_run"
+        },
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_batch_drc [request.method=batch_drc]"
+        },
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_geometry [request.method=board_geometry]"
+        },
+        {
+          "command_path": "pcb checks result",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "result"
+        },
+        {
+          "command_path": "pcb diagnostics close",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=close_diagnostic]"
+        },
+        {
+          "command_path": "pcb diagnostics close",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "dispatch [request.method=close_diagnostic_state]"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-pcb-checks-run",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-checks-result",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t15-pcb-checks-run",
+        "native-t15-pcb-checks-result"
+      ]
+    },
+    {
+      "id": "t16",
+      "goal": "生成并独立核对制造包",
+      "status": "blocked",
+      "reason": "Local implementation exists; user-reported login did not establish COM access in the current execution context. Actual license/expiry and independent native task acceptance remain pending.",
+      "capability_ids": [
+        "c19-fabrication",
+        "c10-bom",
+        "c18-pcb-drc"
+      ],
+      "command_paths": [
+        "manufacturing export",
+        "manufacturing verify",
+        "bom inspect",
+        "bom export",
+        "pcb checks run",
+        "pcb checks result"
+      ],
+      "critical_parameters": [
+        {
+          "command_path": "manufacturing export",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "manufacturing export",
+          "name": "output",
+          "reason": "the package folder"
+        },
+        {
+          "command_path": "manufacturing verify",
+          "name": "package",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        },
+        {
+          "command_path": "bom inspect",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "bom export",
+          "name": "project",
+          "reason": "the project's .prj"
+        },
+        {
+          "command_path": "bom export",
+          "name": "output",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        },
+        {
+          "command_path": "pcb checks run",
+          "name": "project",
+          "reason": "the project's .prj, or the board's .pcb"
+        },
+        {
+          "command_path": "pcb checks result",
+          "name": "id",
+          "reason": "Bind target, dependency, operation or actual readback scope."
+        }
+      ],
+      "adapter_entries": [
+        {
+          "command_path": "manufacturing export",
+          "artifact_ref": "impl-xpedition-cli-cli-pcb-py",
+          "entrypoint": "export"
+        },
+        {
+          "command_path": "manufacturing export",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_manufacturing_output [request.method=manufacturing_output]"
+        },
+        {
+          "command_path": "manufacturing verify",
+          "artifact_ref": "impl-xpedition-cli-cli-manufacturing-py",
+          "entrypoint": "verify"
+        },
+        {
+          "command_path": "manufacturing verify",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_manufacturing_output [request.method=manufacturing_output]"
+        },
+        {
+          "command_path": "bom inspect",
+          "artifact_ref": "impl-xpedition-cli-cli-bom-py",
+          "entrypoint": "inspect"
+        },
+        {
+          "command_path": "bom inspect",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "bom export",
+          "artifact_ref": "impl-xpedition-cli-cli-bom-py",
+          "entrypoint": "export_file"
+        },
+        {
+          "command_path": "bom export",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_designer_snapshot [request.method=snapshot]"
+        },
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "pcb_run"
+        },
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_batch_drc [request.method=batch_drc]"
+        },
+        {
+          "command_path": "pcb checks run",
+          "artifact_ref": "impl-xpedition-cli-native-com-adapter-py",
+          "entrypoint": "_board_geometry [request.method=board_geometry]"
+        },
+        {
+          "command_path": "pcb checks result",
+          "artifact_ref": "impl-xpedition-cli-cli-checks-py",
+          "entrypoint": "result"
+        }
+      ],
+      "readback": [
+        {
+          "id": "rb-manufacturing-export",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际各 manufacturing outputs 的 hash/层/孔/单位/坐标/manifest 与同源快照相符，由独立消费者核实，生成不等于对外交付",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-manufacturing-verify",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际各 manufacturing outputs 的 hash/层/孔/单位/坐标/manifest 与同源快照相符，由独立消费者核实，生成不等于对外交付",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-bom-inspect",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 snapshot 的 rows/group/delta 与文件独立解析相符；输出/替换列 artifact/persist，对外 deliver 单独授权",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-bom-export",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "实际 snapshot 的 rows/group/delta 与文件独立解析相符；输出/替换列 artifact/persist，对外 deliver 单独授权",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-checks-run",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        },
+        {
+          "id": "rb-pcb-checks-result",
+          "method": "native application getter, retained checker result or independent file consumer",
+          "criterion": "Bind run ID, actual completion, source/version/input/rule coverage; retained reports never rerun the checker, and stale/unknown completion never passes.",
+          "independence": "Actual values must be read, not echoed from input. Bind source/version/input/completion/coverage. Screenshots supplement visual checks only; persistence needs independent reopen."
+        }
+      ],
+      "test_ids": [
+        "native-t16-manufacturing-export",
+        "native-t16-manufacturing-verify",
+        "native-t16-bom-inspect",
+        "native-t16-bom-export",
+        "native-t16-pcb-checks-run",
+        "native-t16-pcb-checks-result"
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "path": "context",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "doctor",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "reference",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "changelog",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "version",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "kb list",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "kb bind",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "kb unbind",
+      "role": "tool_management",
+      "capability_ids": [],
+      "task_ids": [],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "session start",
+      "role": "domain",
+      "capability_ids": [
+        "c01-instance-documents"
+      ],
+      "task_ids": [
+        "t01"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "session inspect",
+      "role": "domain",
+      "capability_ids": [
+        "c01-instance-documents"
+      ],
+      "task_ids": [
+        "t01"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "session close",
+      "role": "domain",
+      "capability_ids": [
+        "c01-instance-documents"
+      ],
+      "task_ids": [
+        "t01"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "project create",
+      "role": "domain",
+      "capability_ids": [
+        "c02-project-template"
+      ],
+      "task_ids": [
+        "t02"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "project inspect",
+      "role": "domain",
+      "capability_ids": [
+        "c02-project-template"
+      ],
+      "task_ids": [
+        "t02"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "project backup",
+      "role": "domain",
+      "capability_ids": [
+        "c03-project-backup"
+      ],
+      "task_ids": [
+        "t03"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "project restore",
+      "role": "domain",
+      "capability_ids": [
+        "c03-project-backup"
+      ],
+      "task_ids": [
+        "t03"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library materialize",
+      "role": "domain",
+      "capability_ids": [
+        "c05-library-authoring",
+        "c06-library-packaging"
+      ],
+      "task_ids": [
+        "t05"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library import",
+      "role": "domain",
+      "capability_ids": [
+        "c05-library-authoring"
+      ],
+      "task_ids": [
+        "t05"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library list",
+      "role": "domain",
+      "capability_ids": [
+        "c04-library-query"
+      ],
+      "task_ids": [
+        "t04"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library inspect",
+      "role": "domain",
+      "capability_ids": [
+        "c04-library-query"
+      ],
+      "task_ids": [
+        "t04"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library check",
+      "role": "domain",
+      "capability_ids": [
+        "c04-library-query"
+      ],
+      "task_ids": [
+        "t04"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library create",
+      "role": "domain",
+      "capability_ids": [
+        "c05-library-authoring"
+      ],
+      "task_ids": [
+        "t05"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "library preview",
+      "role": "domain",
+      "capability_ids": [
+        "c04-library-query"
+      ],
+      "task_ids": [
+        "t04"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic plan preview",
+      "role": "domain",
+      "capability_ids": [
+        "c07-schematic-edit"
+      ],
+      "task_ids": [
+        "t06"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic build",
+      "role": "domain",
+      "capability_ids": [
+        "c07-schematic-edit",
+        "c08-schematic-query"
+      ],
+      "task_ids": [
+        "t06"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic edit",
+      "role": "domain",
+      "capability_ids": [
+        "c07-schematic-edit",
+        "c08-schematic-query"
+      ],
+      "task_ids": [
+        "t06"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic checks run",
+      "role": "domain",
+      "capability_ids": [
+        "c09-schematic-erc"
+      ],
+      "task_ids": [
+        "t08"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic parts",
+      "role": "domain",
+      "capability_ids": [
+        "c08-schematic-query"
+      ],
+      "task_ids": [
+        "t07"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic nets",
+      "role": "domain",
+      "capability_ids": [
+        "c08-schematic-query"
+      ],
+      "task_ids": [
+        "t07"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic sheets",
+      "role": "domain",
+      "capability_ids": [
+        "c08-schematic-query"
+      ],
+      "task_ids": [
+        "t07"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic view",
+      "role": "domain",
+      "capability_ids": [
+        "c07-schematic-edit"
+      ],
+      "task_ids": [
+        "t06"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic export",
+      "role": "domain",
+      "capability_ids": [
+        "c19-fabrication"
+      ],
+      "task_ids": [
+        "t06"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb create",
+      "role": "domain",
+      "capability_ids": [
+        "c11-pcb-create"
+      ],
+      "task_ids": [
+        "t10"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb update",
+      "role": "domain",
+      "capability_ids": [
+        "c06-library-packaging",
+        "c11-pcb-create"
+      ],
+      "task_ids": [
+        "t10"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb outline set",
+      "role": "domain",
+      "capability_ids": [
+        "c12-pcb-structure"
+      ],
+      "task_ids": [
+        "t11"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb holes add-corners",
+      "role": "domain",
+      "capability_ids": [
+        "c12-pcb-structure"
+      ],
+      "task_ids": [
+        "t11"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb constraints widths",
+      "role": "domain",
+      "capability_ids": [
+        "c13-pcb-width-rules"
+      ],
+      "task_ids": [
+        "t11"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb placement auto",
+      "role": "domain",
+      "capability_ids": [
+        "c14-pcb-placement"
+      ],
+      "task_ids": [
+        "t12"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb placement move",
+      "role": "domain",
+      "capability_ids": [
+        "c14-pcb-placement"
+      ],
+      "task_ids": [
+        "t12"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb silkscreen labels",
+      "role": "domain",
+      "capability_ids": [
+        "c15-pcb-labels"
+      ],
+      "task_ids": [
+        "t12"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing auto",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing trace",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing via",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing stitch-plan",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing unroute",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb copper pour",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb inspect",
+      "role": "domain",
+      "capability_ids": [
+        "c12-pcb-structure",
+        "c13-pcb-width-rules",
+        "c17-pcb-inspection"
+      ],
+      "task_ids": [
+        "t14"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb snapshot",
+      "role": "domain",
+      "capability_ids": [
+        "c17-pcb-inspection"
+      ],
+      "task_ids": [
+        "t12",
+        "t14"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb render",
+      "role": "domain",
+      "capability_ids": [
+        "c17-pcb-inspection"
+      ],
+      "task_ids": [
+        "t12",
+        "t14"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb view",
+      "role": "domain",
+      "capability_ids": [
+        "c17-pcb-inspection"
+      ],
+      "task_ids": [
+        "t14"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb metrics",
+      "role": "domain",
+      "capability_ids": [
+        "c17-pcb-inspection"
+      ],
+      "task_ids": [
+        "t14"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb checks run",
+      "role": "domain",
+      "capability_ids": [
+        "c18-pcb-drc"
+      ],
+      "task_ids": [
+        "t15",
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "manufacturing export",
+      "role": "domain",
+      "capability_ids": [
+        "c19-fabrication"
+      ],
+      "task_ids": [
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "bom inspect",
+      "role": "domain",
+      "capability_ids": [
+        "c10-bom"
+      ],
+      "task_ids": [
+        "t09",
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "bom check",
+      "role": "domain",
+      "capability_ids": [
+        "c10-bom"
+      ],
+      "task_ids": [
+        "t09"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "session attach",
+      "role": "domain",
+      "capability_ids": [
+        "c01-instance-documents"
+      ],
+      "task_ids": [
+        "t01"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic package",
+      "role": "domain",
+      "capability_ids": [
+        "c05-library-authoring",
+        "c06-library-packaging"
+      ],
+      "task_ids": [
+        "t05"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "schematic checks result",
+      "role": "domain",
+      "capability_ids": [
+        "c09-schematic-erc"
+      ],
+      "task_ids": [
+        "t08"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb checks result",
+      "role": "domain",
+      "capability_ids": [
+        "c18-pcb-drc"
+      ],
+      "task_ids": [
+        "t15",
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb routing apply",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb copper remove",
+      "role": "domain",
+      "capability_ids": [
+        "c16-pcb-routing"
+      ],
+      "task_ids": [
+        "t13"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "bom export",
+      "role": "domain",
+      "capability_ids": [
+        "c10-bom"
+      ],
+      "task_ids": [
+        "t09",
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "manufacturing verify",
+      "role": "domain",
+      "capability_ids": [
+        "c19-fabrication"
+      ],
+      "task_ids": [
+        "t16"
+      ],
+      "rationale": "Reviewed 2.0 task boundary; source and acceptance requirements are mapped separately."
+    },
+    {
+      "path": "pcb diagnostics close",
+      "role": "domain",
+      "capability_ids": [
+        "c18-pcb-drc"
+      ],
+      "task_ids": [
+        "t15"
+      ],
+      "rationale": "One-shot closed-state diagnostic support; source review only, no DRC execution or native qualification."
+    }
+  ],
+  "tests": [
+    {
+      "id": "native-t01-session-start",
+      "task_id": "t01",
+      "command_path": "session start",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-session-start"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t01-session-attach",
+      "task_id": "t01",
+      "command_path": "session attach",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-session-attach"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t01-session-inspect",
+      "task_id": "t01",
+      "command_path": "session inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-session-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t01-session-close",
+      "task_id": "t01",
+      "command_path": "session close",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-session-close"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t02-project-create",
+      "task_id": "t02",
+      "command_path": "project create",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-project-create"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t02-project-inspect",
+      "task_id": "t02",
+      "command_path": "project inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-project-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t03-project-backup",
+      "task_id": "t03",
+      "command_path": "project backup",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-project-backup"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t03-project-restore",
+      "task_id": "t03",
+      "command_path": "project restore",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-project-restore"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t04-library-list",
+      "task_id": "t04",
+      "command_path": "library list",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-list"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t04-library-inspect",
+      "task_id": "t04",
+      "command_path": "library inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t04-library-check",
+      "task_id": "t04",
+      "command_path": "library check",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-check"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t04-library-preview",
+      "task_id": "t04",
+      "command_path": "library preview",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-preview"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t05-library-materialize",
+      "task_id": "t05",
+      "command_path": "library materialize",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-materialize"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t05-schematic-package",
+      "task_id": "t05",
+      "command_path": "schematic package",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-package"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t05-library-import",
+      "task_id": "t05",
+      "command_path": "library import",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-import"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t05-library-create",
+      "task_id": "t05",
+      "command_path": "library create",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-library-create"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t06-schematic-plan-preview",
+      "task_id": "t06",
+      "command_path": "schematic plan preview",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-plan-preview"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t06-schematic-build",
+      "task_id": "t06",
+      "command_path": "schematic build",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-build"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t06-schematic-edit",
+      "task_id": "t06",
+      "command_path": "schematic edit",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-edit"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t06-schematic-view",
+      "task_id": "t06",
+      "command_path": "schematic view",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-view"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t06-schematic-export",
+      "task_id": "t06",
+      "command_path": "schematic export",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-export"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t07-schematic-parts",
+      "task_id": "t07",
+      "command_path": "schematic parts",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-parts"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t07-schematic-nets",
+      "task_id": "t07",
+      "command_path": "schematic nets",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-nets"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t07-schematic-sheets",
+      "task_id": "t07",
+      "command_path": "schematic sheets",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-sheets"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t08-schematic-checks-run",
+      "task_id": "t08",
+      "command_path": "schematic checks run",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-checks-run"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t08-schematic-checks-result",
+      "task_id": "t08",
+      "command_path": "schematic checks result",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-schematic-checks-result"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t09-bom-inspect",
+      "task_id": "t09",
+      "command_path": "bom inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-bom-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t09-bom-export",
+      "task_id": "t09",
+      "command_path": "bom export",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-bom-export"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t09-bom-check",
+      "task_id": "t09",
+      "command_path": "bom check",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-bom-check"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t10-pcb-create",
+      "task_id": "t10",
+      "command_path": "pcb create",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-create"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t10-pcb-update",
+      "task_id": "t10",
+      "command_path": "pcb update",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-update"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t11-pcb-outline-set",
+      "task_id": "t11",
+      "command_path": "pcb outline set",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-outline-set"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t11-pcb-holes-add-corners",
+      "task_id": "t11",
+      "command_path": "pcb holes add-corners",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-holes-add-corners"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t11-pcb-constraints-widths",
+      "task_id": "t11",
+      "command_path": "pcb constraints widths",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-constraints-widths"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t12-pcb-placement-auto",
+      "task_id": "t12",
+      "command_path": "pcb placement auto",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-placement-auto"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t12-pcb-placement-move",
+      "task_id": "t12",
+      "command_path": "pcb placement move",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-placement-move"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t12-pcb-silkscreen-labels",
+      "task_id": "t12",
+      "command_path": "pcb silkscreen labels",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-silkscreen-labels"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t12-pcb-snapshot",
+      "task_id": "t12",
+      "command_path": "pcb snapshot",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-snapshot"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t12-pcb-render",
+      "task_id": "t12",
+      "command_path": "pcb render",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-render"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-auto",
+      "task_id": "t13",
+      "command_path": "pcb routing auto",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-auto"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-trace",
+      "task_id": "t13",
+      "command_path": "pcb routing trace",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-trace"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-apply",
+      "task_id": "t13",
+      "command_path": "pcb routing apply",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-apply"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-via",
+      "task_id": "t13",
+      "command_path": "pcb routing via",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-via"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-stitch-plan",
+      "task_id": "t13",
+      "command_path": "pcb routing stitch-plan",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-stitch-plan"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-routing-unroute",
+      "task_id": "t13",
+      "command_path": "pcb routing unroute",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-routing-unroute"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-copper-pour",
+      "task_id": "t13",
+      "command_path": "pcb copper pour",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-copper-pour"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t13-pcb-copper-remove",
+      "task_id": "t13",
+      "command_path": "pcb copper remove",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-copper-remove"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t14-pcb-inspect",
+      "task_id": "t14",
+      "command_path": "pcb inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t14-pcb-snapshot",
+      "task_id": "t14",
+      "command_path": "pcb snapshot",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-snapshot"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t14-pcb-render",
+      "task_id": "t14",
+      "command_path": "pcb render",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-render"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t14-pcb-view",
+      "task_id": "t14",
+      "command_path": "pcb view",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-view"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t14-pcb-metrics",
+      "task_id": "t14",
+      "command_path": "pcb metrics",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-metrics"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t15-pcb-checks-run",
+      "task_id": "t15",
+      "command_path": "pcb checks run",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-checks-run"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t15-pcb-checks-result",
+      "task_id": "t15",
+      "command_path": "pcb checks result",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-checks-result"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-manufacturing-export",
+      "task_id": "t16",
+      "command_path": "manufacturing export",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-manufacturing-export"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-manufacturing-verify",
+      "task_id": "t16",
+      "command_path": "manufacturing verify",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-manufacturing-verify"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-bom-inspect",
+      "task_id": "t16",
+      "command_path": "bom inspect",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-bom-inspect"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-bom-export",
+      "task_id": "t16",
+      "command_path": "bom export",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-bom-export"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-pcb-checks-run",
+      "task_id": "t16",
+      "command_path": "pcb checks run",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-checks-run"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    },
+    {
+      "id": "native-t16-pcb-checks-result",
+      "task_id": "t16",
+      "command_path": "pcb checks result",
+      "status": "not_run",
+      "evidence_ref": null,
+      "check_ids": [
+        "rb-pcb-checks-result"
+      ],
+      "reason": "Task acceptance pending; offline unit fixtures and launcher/typelib probes do not qualify."
+    }
+  ],
+  "tree_decisions": [
+    {
+      "decision": "Implement the reviewed task boundaries as a breaking 2.0 candidate; reject old spellings.",
+      "alternatives": [
+        "Uniform CRUD depth",
+        "Mass compatibility aliases"
+      ],
+      "reason": "Separate materialization/packaging, check execution/result retrieval, inline/file routing, copper creation/deletion, BOM observation/export and producer/consumer validation."
+    },
+    {
+      "decision": "Use the exact published v1.0.2 SDK for gates, scope, journal and operation reconciliation.",
+      "alternatives": [
+        "Treat generated operation paths as unimplemented preview",
+        "Invent an in-memory journal"
+      ],
+      "reason": "The public entrypoint delegates to the pinned SDK. Its three operation commands are actual runtime implementations."
+    },
+    {
+      "decision": "Accept a frozen two-component real loop before broader native claims.",
+      "alternatives": [
+        "Count offline adapter fixtures as native acceptance",
+        "Treat screenshots as structural actual values"
+      ],
+      "reason": "Separate observed native values, independent frozen expectations, source/version/input/completion/coverage and save-reopen checks."
+    },
+    {
+      "decision": "Keep all 24 surveyed groups, including C20-C24, in the denominator.",
+      "alternatives": [
+        "Drop deferred capabilities",
+        "Assume GUI menu rows are API coverage"
+      ],
+      "reason": "Unseen entitlement and unimplemented/unknown interfaces remain explicit gaps."
+    }
+  ]
+}
