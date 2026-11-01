@@ -1,0 +1,46 @@
+{
+  "name": "@fateforge/xpedition-cli",
+  "version": "2.0.0-dev.1",
+  "description": "Agent-native control of Siemens Xpedition: schematic, design library, board and fabrication outputs with bounded previews and recorded outcomes",
+  "license": "MIT",
+  "author": "Sean Guo",
+  "private": true,
+  "bin": {
+    "xpedition-cli": "scripts/run.js"
+  },
+  "scripts": {
+    "version": "node scripts/sync-version.js",
+    "check-version": "node scripts/check-version.js"
+  },
+  "optionalDependencies": {
+    "@fateforge/xpedition-cli-darwin-arm64": "2.0.0-dev.1",
+    "@fateforge/xpedition-cli-darwin-x64": "2.0.0-dev.1",
+    "@fateforge/xpedition-cli-linux-arm64": "2.0.0-dev.1",
+    "@fateforge/xpedition-cli-linux-x64": "2.0.0-dev.1",
+    "@fateforge/xpedition-cli-win32-arm64": "2.0.0-dev.1",
+    "@fateforge/xpedition-cli-win32-x64": "2.0.0-dev.1"
+  },
+  "files": [
+    "scripts/run.js",
+    "skills/",
+    "README.md",
+    "README_zh.md",
+    "*_zh.md",
+    "LICENSE",
+    "NOTICE.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "AGENTS.md",
+    ".agent/",
+    "docs/"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fatecannotbealtered/xpedition-cli.git"
+  }
+}

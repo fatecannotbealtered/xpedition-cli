@@ -1,0 +1,35 @@
+{
+  "project": "demo_board",
+  "base_revision": "R00",
+  "operations": [
+    {
+      "type": "place_component",
+      "refdes": "R1",
+      "part_number": "RES-10K",
+      "value": "10k",
+      "footprint": "0603",
+      "x": 100,
+      "y": 80,
+      "pins": [
+        {"number": "1", "name": "1", "type": "passive"},
+        {"number": "2", "name": "2", "type": "passive"}
+      ]
+    },
+    {
+      "type": "place_component",
+      "refdes": "C1",
+      "part_number": "CAP-100N",
+      "value": "100nF",
+      "footprint": "0603",
+      "x": 120,
+      "y": 80,
+      "pins": [
+        {"number": "1", "name": "1", "type": "passive"},
+        {"number": "2", "name": "2", "type": "passive"}
+      ]
+    },
+    {"type": "create_net", "name": "3V3", "net_type": "power"},
+    {"type": "connect", "net": "3V3", "pins": ["R1.1", "C1.1"]}
+  ]
+}
+

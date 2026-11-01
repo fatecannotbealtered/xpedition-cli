@@ -1,0 +1,27 @@
+{
+  "spec_version": "1.0.2",
+  "spec_commit": "9607a35fe0ea33fe822e1f2ad2704eae260d4018",
+  "compatibility": "breaking_migration",
+  "historical_command_count": 54,
+  "current_handler_declarations": 62,
+  "current_public_command_count": 65,
+  "preview_custom_commands": 58,
+  "generated_preview_commands": 65,
+  "existing_builtin_paths": [
+    "changelog",
+    "context",
+    "doctor",
+    "reference"
+  ],
+  "implemented_sdk_paths": [
+    "operation list",
+    "operation show",
+    "operation resolve"
+  ],
+  "planned_unimplemented_paths": [],
+  "runtime_integration": "public_pinned_sdk",
+  "native_task_acceptance_runs": 0,
+  "native_test_status": "not_run",
+  "old_aliases": "rejected",
+  "migration_document": "docs/MIGRATION-2.0.md"
+}

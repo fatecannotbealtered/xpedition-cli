@@ -1,0 +1,7 @@
+{
+  "fixture_kind": "synthetic_offline_oracle_unit_test_not_native_evidence",
+  "placements": {
+    "J1": {"pins_mm": {"1": [0, 0]}, "pad_shapes": {"1": "round"}}
+  },
+  "tolerances": {"position_mm": 0.01}
+}

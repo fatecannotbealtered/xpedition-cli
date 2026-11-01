@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "exe": "D:/xpedition-trial/bin/xpedition-cli.exe",
+  "config_dir": "D:/xpedition-my-task/state",
+  "scope_file": "D:/xpedition-my-task/scope.json",
+  "scope_sha256": null,
+  "sdd_home": "D:/licensed-xpedition/SDD_HOME",
+  "mgc_wd": "D:/xpedition-my-task/wdir",
+  "temp_dir": "D:/xpedition-my-task/temp",
+  "trace_file": "D:/xpedition-my-task/evidence/native-trace.ndjson"
+}

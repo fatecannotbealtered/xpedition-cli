@@ -1,0 +1,10 @@
+# What the release binary ships besides the standard library, pinned: the build
+# installs exactly these, and CI and the release workflow both audit them with
+# pip-audit before anything is signed (SEC-SPEC §5). `pcb render` draws with Pillow.
+pillow==12.3.0
+# Published driver SDK schema validation, matching the installed candidate toolchain.
+jsonschema==4.26.0
+referencing==0.37.0
+attrs==26.1.0
+jsonschema-specifications==2025.9.1
+rpds-py==0.30.0
