@@ -88,13 +88,17 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli project get --doc D:/work/demo/Demo.prj"],
     ),
     command(
-        "project create", "Create a project by copying the template project given with --doc.",
-        effects=["artifact"], modes=["file"], target_kind="project", survey_ids=["CAP-002"],
+        "project create", "Create a project: in a Designer session from a setup template, with its own copy of the central "
+        "library and a board design (a long job); in file mode by copying the project given with --doc.",
+        effects=["artifact"], modes=["file", "session"], target_kind="project", survey_ids=["CAP-002", "CAP-003"],
         flags=[{"name": "--output", "type": "path", "required": True, "output": True,
-                "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII."}],
+                "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII."},
+               {"name": "--template", "type": "path",
+                "summary": "In a Designer session: the setup template; Xpedition's stock template (expedition/Default.prj) by default."}],
         output=obj(path=STR, template=STR, files=INT, bytes=INT, rewritten=arr(obj(key=STR, value=STR)),
-                   parts_databases=obj(created=arr(STR), registered=arr(STR))),
-        examples=["xpedition-cli project create --doc D:/templates/Template/Template.prj --output D:/work/demo/Demo.prj"],
+                   parts_databases=obj(created=arr(STR), registered=arr(STR)), designs=arr(STR), library=STR),
+        examples=["xpedition-cli project create --session designer-4120-6553f1a0 --output D:/work/demo/Demo.prj",
+                  "xpedition-cli project create --doc D:/templates/Template/Template.prj --output D:/work/demo/Demo.prj"],
         knowledge=['xpedition-ascii-paths-only', 'xpedition-template-library-is-empty'],
     ),
     # ------------------------------------------------------------------ central library

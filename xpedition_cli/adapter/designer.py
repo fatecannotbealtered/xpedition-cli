@@ -469,6 +469,80 @@ def _show_design(app: Any) -> None:
             pass
 
 
+NEW_SCHEMATIC_COMMAND = 34158  # File > New > Schematic: creates the board design and its schematic
+NEW_PROJECT_TIMEOUT_S = 60.0
+FIRST_OPEN_TIMEOUT_S = 150.0  # a project's first open builds its database; it took more than 30 s live
+NEW_SCHEMATIC_TIMEOUT_S = 60.0
+LIBRARY_IGNORE = ("Templates", "Work", "LogFiles")  # layout templates (hundreds of MB) are copied by pcb create when needed
+
+
+def new_project(pid: int, target: str, template: str, library: str, progress: Any) -> dict[str, Any]:
+    """Create a project with Designer's ``NewProject`` from a setup template, give it its own copy
+    of the template's central library, and create its board design with a schematic.
+
+    Seen live on Xpedition Enterprise 2604: ``NewProject`` writes the project folder and its
+    empty database without opening it; the first ``OpenProject`` builds the database and can
+    take more than 30 s; ``File > New > Schematic`` then creates design ``Board1`` with root
+    block ``Schematic1``. Creating the design with ``AddiCDBDesign`` instead leaves a design
+    without a block, and Designer then reports "The block ... could not be found" again and again."""
+    import shutil
+
+    folder = os.path.dirname(target)
+    progress(0, 5, "steps")
+
+    def create(app: Any) -> Any:
+        return app.NewProject(target, library, "", template)
+
+    accepted = _must(_watched(pid, create, rules=dialogs.DESIGNER_PROMPTS, timeout_s=NEW_PROJECT_TIMEOUT_S),
+                     f"creating {target}", NEW_PROJECT_TIMEOUT_S)
+    if accepted is not True or not os.path.isfile(target):
+        raise AdapterError("E_NATIVE_FAILURE", f"Designer's NewProject did not create {target} (it answered {accepted!r}).",
+                           dispatch_state="dispatched")
+    progress(1, 5, "steps")
+    source = os.path.dirname(library)
+    copy = os.path.join(folder, os.path.basename(source))
+    try:
+        shutil.copytree(source, copy, ignore=shutil.ignore_patterns(*LIBRARY_IGNORE))
+        own = os.path.join(copy, os.path.basename(library))
+        _point_library_at(target, library, own)
+    except (OSError, shutil.Error) as exc:
+        raise AdapterError("E_NATIVE_FAILURE", f"The central library could not be copied into the project: {exc}.",
+                           dispatch_state="dispatched", change="partial", persistence="partial") from None
+    progress(2, 5, "steps")
+    _open_project(pid, target, dialogs.DESIGNER_PROMPTS, FIRST_OPEN_TIMEOUT_S)
+    progress(3, 5, "steps")
+
+    def new_schematic(app: Any) -> Any:
+        app.ExecuteCommandByID(NEW_SCHEMATIC_COMMAND)
+        return [str(name) for name in _strings(_get(_get(app, "GetProjectData"), "GetiCDBDesigns"))]
+
+    designs = _must(_watched(pid, new_schematic, rules=dialogs.DESIGNER_PROMPTS, timeout_s=NEW_SCHEMATIC_TIMEOUT_S),
+                    "creating the board design and its schematic", NEW_SCHEMATIC_TIMEOUT_S)
+    progress(4, 5, "steps")
+    save_document(pid, target)
+    progress(5, 5, "steps")
+    return {"designs": designs, "library": own}
+
+
+def _point_library_at(project: str, stock: str, own: str) -> None:
+    """Name the project's own copy of the library in the project file: ``KEY CentralLibrary``,
+    and ``KEY DBCFile`` when it names the stock library's databook configuration."""
+    with open(project, encoding="utf-8", errors="surrogateescape") as handle:
+        lines = handle.read().splitlines(keepends=True)
+    stock_dbc = os.path.splitext(os.path.basename(stock))[0] + ".dbc"
+    own_dbc = os.path.join(os.path.dirname(own), stock_dbc)
+    out = []
+    for line in lines:
+        newline = "\r\n" if line.endswith("\r\n") else "\n"
+        if line.startswith("KEY CentralLibrary "):
+            line = f'KEY CentralLibrary "{own}"{newline}'
+        elif line.startswith("KEY DBCFile ") and line.rstrip().strip('"').endswith(stock_dbc) and os.path.isfile(own_dbc):
+            line = f'KEY DBCFile "{own_dbc}"{newline}'
+        out.append(line)
+    with open(project, "w", encoding="utf-8", errors="surrogateescape", newline="") as handle:
+        handle.write("".join(out))
+
+
 def open_document(pid: int, path: str) -> None:
     """Open ``path`` in the Designer that has no project open (NCA ``_ensure_project``), or do
     nothing when it already has ``path`` open. A different open project is never closed here."""

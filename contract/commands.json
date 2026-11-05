@@ -37,15 +37,21 @@
     },
     {
       "path": "project create",
-      "summary": "Create a project by copying the template project given with --doc.",
+      "summary": "Create a project: in a Designer session from a setup template, with its own copy of the central library and a board design (a long job); in file mode by copying the project given with --doc.",
       "effects": [
         "artifact"
       ],
       "modes": [
-        "file"
+        "file",
+        "session"
       ],
       "target_kind": "project",
       "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
         {
           "name": "--doc",
           "type": "string",
@@ -57,6 +63,11 @@
           "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII.",
           "required": true,
           "output": true
+        },
+        {
+          "name": "--template",
+          "type": "path",
+          "summary": "In a Designer session: the setup template; Xpedition's stock template (expedition/Default.prj) by default."
         }
       ],
       "untrusted_fields": [],
@@ -66,7 +77,8 @@
         "read_back"
       ],
       "survey_ids": [
-        "CAP-002"
+        "CAP-002",
+        "CAP-003"
       ],
       "irreversible": false,
       "halt": false,

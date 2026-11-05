@@ -117,7 +117,7 @@
 |---|---|---|---|---|
 | CAP-001 | 读工程文件：设计、板路径、中心库、分区 | `.prj` 文本 | provided | - |
 | CAP-002 | 从模板工程复制新工程，改写库路径 | 文件 | provided | - |
-| CAP-003 | 用 Designer `NewProject` 从安装自带模板初始化工程 | Designer COM | unknown | 只在旧码里写过，从未真机通过 |
+| CAP-003 | 用 Designer `NewProject` 从安装自带模板初始化工程，复制模板的中心库，再用“新建原理图”命令建板设计 | Designer COM（`NewProject`、`OpenProject`、`ExecuteCommandByID(34158)`） | provided | - |
 | CAP-004 | 把工程文件夹打包成 ZIP 备份 | 文件 | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-005 | 从 ZIP 备份恢复工程文件夹 | 文件 | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-010 | 列出中心库里的元件 | `PartsDB2HKP` | provided | - |
