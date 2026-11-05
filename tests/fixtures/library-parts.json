@@ -1,0 +1,83 @@
+{
+  "partition": "PartQuest",
+  "parts": [
+    {
+      "number": "RES-10K",
+      "description": "resistor 10k 0402",
+      "prefix": "R",
+      "value": "10k",
+      "symbol": {
+        "kind": "RES"
+      },
+      "footprint": {
+        "family": "chip",
+        "size": "0402"
+      }
+    },
+    {
+      "number": "MCU-8",
+      "description": "microcontroller, SOIC-8",
+      "prefix": "U",
+      "symbol": {
+        "left": [
+          [
+            "1",
+            "VDD"
+          ],
+          [
+            "2",
+            "PA0"
+          ],
+          [
+            "3",
+            "PA1"
+          ],
+          [
+            "4",
+            "GND"
+          ]
+        ],
+        "right": [
+          [
+            "8",
+            "PB0"
+          ],
+          [
+            "7",
+            "PB1"
+          ],
+          [
+            "6",
+            "SWDIO"
+          ],
+          [
+            "5",
+            "SWCLK"
+          ]
+        ]
+      },
+      "footprint": {
+        "family": "gullwing",
+        "pins": 8,
+        "pitch": 1.27,
+        "span": {
+          "nominal": 6.0,
+          "tolerance": 0.2
+        },
+        "terminal": [
+          0.4,
+          1.27
+        ],
+        "lead_width": [
+          0.31,
+          0.51
+        ],
+        "body": [
+          3.9,
+          4.9
+        ],
+        "height": 1.75
+      }
+    }
+  ]
+}
