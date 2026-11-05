@@ -1,0 +1,73 @@
+{
+  "partition": "Demo",
+  "parts": [
+    {
+      "number": "DEMO-CONN-2",
+      "description": "Demo connector, 1x2 header, 2.54 mm pitch",
+      "prefix": "J",
+      "symbol": {
+        "right": [
+          [
+            "1",
+            "VIN"
+          ],
+          [
+            "2",
+            "GND"
+          ]
+        ],
+        "pintypes": {
+          "1": "POWER",
+          "2": "GROUND"
+        }
+      },
+      "footprint": {
+        "family": "through",
+        "pins": 2,
+        "pitch": 2.54,
+        "lead": {
+          "square": 0.64
+        },
+        "height": 8.5
+      }
+    },
+    {
+      "number": "DEMO-RES-1K-0603",
+      "description": "Demo resistor, 1 kOhm, 0603",
+      "prefix": "R",
+      "value": "1k",
+      "symbol": {
+        "kind": "RES"
+      },
+      "footprint": {
+        "family": "chip",
+        "size": "0603"
+      }
+    },
+    {
+      "number": "DEMO-LED-0603",
+      "description": "Demo LED, green, 0603",
+      "prefix": "D",
+      "symbol": {
+        "kind": "LED"
+      },
+      "footprint": {
+        "family": "chip",
+        "size": "0603"
+      }
+    },
+    {
+      "number": "DEMO-CAP-100N-0603",
+      "description": "Demo capacitor, 100 nF, 0603",
+      "prefix": "C",
+      "value": "100n",
+      "symbol": {
+        "kind": "CAP"
+      },
+      "footprint": {
+        "family": "chip",
+        "size": "0603"
+      }
+    }
+  ]
+}

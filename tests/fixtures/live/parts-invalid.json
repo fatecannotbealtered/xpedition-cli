@@ -1,0 +1,18 @@
+{
+  "partition": "Demo",
+  "parts": [
+    {
+      "number": "DEMO-RES-10K-0603",
+      "description": "Demo resistor, 10 kOhm, 0603",
+      "prefix": "R",
+      "value": "10k 1%",
+      "symbol": {
+        "kind": "RES"
+      },
+      "footprint": {
+        "family": "chip",
+        "size": "0603"
+      }
+    }
+  ]
+}

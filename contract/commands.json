@@ -453,7 +453,7 @@
       "path": "pcb create",
       "summary": "Create the project's board from a layout template with Xpedition's JobWizard.",
       "effects": [
-        "artifact",
+        "change",
         "persist"
       ],
       "modes": [

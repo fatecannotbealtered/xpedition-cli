@@ -67,6 +67,19 @@ def _app(kind: str) -> Application:
     return layout  # type: ignore[return-value]
 
 
+def preview_key(request: dict[str, Any]) -> str:
+    """Where a session-mode write's preview changes wait for its apply (or its job) to finish."""
+    import json
+
+    keep = {k: request.get(k) for k in ("command", "inputs", "session", "document")}
+    return "pv-" + hashlib.sha256(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()[:24]
+
+
+def changed(facts: dict[str, Any]) -> bool:
+    """Whether a write changed the document in memory, so that it now has unsaved changes."""
+    return facts.get("dispatch_state") != "not_started" and facts.get("change") in ("applied", "partial", "unknown")
+
+
 def _doc_key(session: str, path: str) -> str:
     return "doc-" + hashlib.sha256(f"{session}|{os.path.normcase(os.path.abspath(path))}".encode()).hexdigest()[:24]
 
@@ -133,7 +146,17 @@ def list_sessions(store: AdapterStore) -> dict[str, Any]:
             state = inst.get("state", "ready")
             if state == "ready" and jobs.running_on(store, sid):
                 state = "busy"  # a long job drives this instance
-            docs = [os.path.abspath(p) for p in inst.get("documents", [])]
+            known = store.get("docs-" + sid.replace("-", "_").lower()[:90])
+            if state == "ready":
+                docs = [os.path.abspath(p) for p in inst.get("documents", [])]
+                store.set("docs-" + sid.replace("-", "_").lower()[:90], docs)
+            elif inst.get("documents"):
+                docs = [os.path.abspath(p) for p in inst["documents"]]
+            else:
+                # a busy, blocked or unresponsive instance cannot say what it has open: report
+                # what it had when it last answered, and say that the list may be incomplete
+                docs = list(known or [])
+                complete = False
             session: dict[str, Any] = {
                 "id": sid, "application": {"name": app.APPLICATION, "version": inst.get("version") or app.VERSION},
                 "pid": int(inst["pid"]), "owned": sid in _owned(store), "generation": 1, "state": state,
@@ -162,7 +185,21 @@ def documents(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     path = os.path.abspath(str(request.get("path", "")))
     if os.path.isfile(path) and path.lower().endswith(".prj"):
         return {"items": [_document(store, None, path)]}
+    if os.path.isdir(path):
+        # a folder: the project files in it and in its subfolders one level down
+        found = sorted({os.path.join(root, name) for root, dirs, names in _walk(path, 1) for name in names
+                        if name.lower().endswith(".prj")})
+        return {"items": [_document(store, None, p) for p in found]}
     return {"items": []}
+
+
+def _walk(top: str, depth: int) -> list[tuple[str, list[str], list[str]]]:
+    out = []
+    for root, dirs, names in os.walk(top):
+        out.append((root, dirs, names))
+        if root[len(top):].count(os.sep) >= depth:
+            dirs[:] = []
+    return out
 
 
 def open_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
@@ -207,8 +244,10 @@ def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     want = ".prj" if ref.kind == DESIGNER else ".pcb"
     if not path.lower().endswith(want):
         raise AdapterError("E_VALIDATION", f"This session opens {want} files.", dispatch_state="not_started")
+    already = any(os.path.normcase(d["path"]) == os.path.normcase(path) for d in _session(store, ref.id)[1]["documents"])
     _app(ref.kind).open_document(ref.pid, path)
-    note_saved(store, ref.id, path)
+    if not already:
+        note_saved(store, ref.id, path)  # freshly opened from the file: clean; an open document keeps its state
     return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
             "persistence": "not_applicable", "document": _document(store, ref.id, path)}
 

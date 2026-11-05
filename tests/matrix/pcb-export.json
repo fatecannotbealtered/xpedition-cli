@@ -5,129 +5,181 @@
       "row": "normal",
       "applies": true,
       "arguments": [
-        "{{fill: the write sample; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); confirmed with its token (two-step), the job runs NC drill, ODB++ and Gerber and writes the package with centroid, BOM, README and manifest into {dir}/fab, every file recorded with its size and SHA-256. The live record checks the job's final receipt with job get separately."
       }
     },
     {
       "row": "empty",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the empty situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 0
-      }
+      "applies": false,
+      "reason": "pcb export always writes a whole package into a new or empty folder; there is no call with nothing to write."
     },
     {
       "row": "invalid_input",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the invalid_input situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        ""
       ],
       "expected": {
         "exit": 2,
-        "code": "E_USAGE"
+        "code": "E_USAGE",
+        "summary": "--output needs a path."
       }
     },
     {
       "row": "not_found",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the not_found situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.pcb",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
         "exit": 3,
-        "code": "E_NOT_FOUND"
+        "code": "E_NOT_FOUND",
+        "summary": "The session has no such board open."
       }
     },
     {
       "row": "ambiguous",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the ambiguous situation; name every target only with the sample placeholders}}"
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
         "exit": 2,
-        "code": "E_AMBIGUOUS"
+        "code": "E_AMBIGUOUS",
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
       }
     },
     {
       "row": "conflict",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the conflict situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab2"
       ],
       "expected": {
         "exit": 6,
-        "code": "E_CONFLICT"
+        "code": "E_CONFLICT",
+        "summary": "An earlier pcb export of this board has ended, and no job get or job list has read its end yet, so its operation still locks the board's Output folder: this second export gets E_CONFLICT target_locked."
       }
     },
     {
       "row": "no_scope",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the no_scope situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
         "exit": 4,
-        "code": "E_FORBIDDEN"
+        "code": "E_FORBIDDEN",
+        "summary": "Run under a scope file that does not cover the target ({dir}/fab and the board's Output folder); nothing is previewed to the application's files or sent."
       }
     },
     {
       "row": "busy",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the busy situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
         "exit": 7,
-        "code": "E_BUSY"
+        "code": "E_BUSY",
+        "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
       }
     },
     {
       "row": "dialog",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the dialog situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
         "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
+        "code": "E_HUMAN_REQUIRED",
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout stops answering COM, the session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Layout does not say which board it has open."
       }
     },
     {
       "row": "disconnect",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the disconnect situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
-        "exit": 8,
-        "code": "E_OUTCOME_UNKNOWN"
-      }
+        "exit": 0,
+        "summary": "The call returns the job (exit 0); Layout lost during an Output command ends the job failed with the package not written and persistence partial, which job get reports as ok false."
+      },
+      "unrunnable": "The COM connection to Layout cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
     },
     {
       "row": "unsaved",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the unsaved situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); the board holds unsaved changes; confirmed, the job runs as usual and the board stays unsaved. The live record checks the job's final receipt with job get separately."
       }
     },
     {
       "row": "read_back_mismatch",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the read_back_mismatch situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/fab"
       ],
       "expected": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
+        "exit": 0,
+        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); after the job has ended and before job get, the person deletes {dir}/fab/bom.csv: the check job get makes of the job's files finds it missing, and job get reports ok false with E_VERIFY_FAILED. The live record checks the job's final receipt with job get separately."
       }
     }
   ]

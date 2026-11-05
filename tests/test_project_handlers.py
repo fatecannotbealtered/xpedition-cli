@@ -452,7 +452,7 @@ class PcbCreateTest(Case):
         self.assertEqual((self.library / "Templates" / "Layout" / "4 Layer Template" / "template.pcb").read_bytes(), b"stock template")
         text = self.prj.read_text(encoding="utf-8")
         self.assertLess(text.index('VALUE "Board1"'), text.index('VALUE "Schematic1"'))  # JobWizard takes the first design
-        self.assertEqual((facts["change"], facts["persistence"], facts["files"]), ("not_applicable", "saved", [{"path": str(self.pcb)}]))
+        self.assertEqual((facts["change"], facts["persistence"], "files" in facts), ("applied", "saved", False))
         self.assertEqual(facts["result"], {"path": str(self.pcb), "template": "4 Layer Template", "files": 12,
                                            "cells_registered": ["CellDBLibs\\PartQuest.cel"]})
         back = PR.PcbCreate().read_back(self.ctx("pcb create", self.prj, operation_id="op_1"))

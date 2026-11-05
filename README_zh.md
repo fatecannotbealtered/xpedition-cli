@@ -138,8 +138,8 @@ xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允
 
 | 效果 | 命令 |
 |---|---|
-| `artifact` | `project create`、`schematic export`、`pcb create`、`pcb export` |
-| `change` | `part create`、`packager run`、`schematic create`、`forward-annotation run`、`pcb update`、`placement run`、`plane create`、`router run` |
+| `artifact` | `project create`、`schematic export`、`pcb export` |
+| `change` | `part create`、`packager run`、`pcb create`、`schematic create`、`forward-annotation run`、`pcb update`、`placement run`、`plane create`、`router run` |
 | `persist` | `schematic create`（写符号文件）、`pcb create`（写工程文件）、`pcb export`（改输出设置文件）、`doc save` |
 | `lifecycle` | `session open`、`session close`、`doc open`、`doc close`、`job cancel` |
 

@@ -174,7 +174,7 @@ COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ board (Layout)
     command(
         "pcb create", "Create the project's board from a layout template with Xpedition's JobWizard.",
-        effects=["artifact", "persist"], modes=["file"], target_kind="pcb", survey_ids=["CAP-060"],
+        effects=["change", "persist"], modes=["file"], target_kind="pcb", survey_ids=["CAP-060"],
         flags=[{"name": "--template", "type": "string", "summary": "The layout template's name; 4 Layer Template by default."},
                {"name": "--name", "type": "string", "summary": "The board's name: letters, digits, - and _; the project's name by default."}],
         output=obj(path=STR, template=STR, files=INT, cells_registered=arr(STR)),

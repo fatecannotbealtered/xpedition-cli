@@ -67,7 +67,9 @@ class DocumentStateTest(unittest.TestCase):
         found = sessions.documents(self.store, {"path": self.doc})["items"]
         self.assertEqual([d["id"] for d in found], [os.path.abspath(self.doc)])
         self.assertEqual(found[0]["disk"], "in_sync")
-        self.assertEqual(sessions.documents(self.store, {"path": self.tmp.name})["items"], [])
+        in_folder = sessions.documents(self.store, {"path": self.tmp.name})["items"]
+        self.assertEqual([d["id"] for d in in_folder], [os.path.abspath(self.doc)])
+        self.assertEqual(sessions.documents(self.store, {"path": os.path.join(self.tmp.name, "none.txt")})["items"], [])
 
     def test_session_open_needs_a_project_or_a_board(self):
         with self.assertRaises(AdapterError) as caught:

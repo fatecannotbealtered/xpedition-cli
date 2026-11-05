@@ -4,55 +4,46 @@
     {
       "row": "normal",
       "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the normal situation; name every target only with the sample placeholders}}"
-      ],
+      "arguments": [],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "Every running Designer and Layout with its state, whether this tool started it and its documents."
       }
     },
     {
       "row": "empty",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the empty situation; name every target only with the sample placeholders}}"
+        "--offset",
+        "100"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "An offset past the last instance: an empty page, exit 0."
       }
     },
     {
       "row": "invalid_input",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the invalid_input situation; name every target only with the sample placeholders}}"
+        "--state",
+        "sleeping"
       ],
       "expected": {
         "exit": 2,
-        "code": "E_USAGE"
+        "code": "E_USAGE",
+        "summary": "--state takes one of the session states or all."
       }
     },
     {
       "row": "not_found",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the not_found situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      }
+      "applies": false,
+      "reason": "session list names no object: nothing to list is an empty page, never E_NOT_FOUND (DCLI-022)."
     },
     {
       "row": "ambiguous",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the ambiguous situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      }
+      "applies": false,
+      "reason": "session list covers every session and never returns E_AMBIGUOUS (DCLI-202)."
     },
     {
       "row": "conflict",
@@ -67,35 +58,30 @@
     {
       "row": "busy",
       "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the busy situation; name every target only with the sample placeholders}}"
-      ],
+      "arguments": [],
       "expected": {
-        "exit": 7,
-        "code": "E_BUSY"
+        "exit": 0,
+        "summary": "A long job of this tool runs in one instance: that session is listed with state busy (or unresponsive), the others normally; the state is data (DCLI-204)."
       }
     },
     {
       "row": "dialog",
       "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the dialog situation; name every target only with the sample placeholders}}"
-      ],
+      "arguments": [],
       "expected": {
-        "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
+        "exit": 0,
+        "summary": "A person leaves a modal dialog open in Designer or Layout: that session is listed with state blocked and blocker {action, title}; exit 0."
       }
     },
     {
       "row": "disconnect",
       "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the disconnect situation; name every target only with the sample placeholders}}"
-      ],
+      "arguments": [],
       "expected": {
-        "exit": 4,
-        "code": "E_BACKEND_UNAVAILABLE"
-      }
+        "exit": 0,
+        "summary": "An instance whose COM connection breaks is listed as unresponsive within 2 s, the others normally."
+      },
+      "unrunnable": "The COM connection to Designer cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
     },
     {
       "row": "unsaved",
