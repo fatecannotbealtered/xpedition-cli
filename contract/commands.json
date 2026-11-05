@@ -72,7 +72,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "xpedition-ascii-paths-only",
+        "xpedition-template-library-is-empty"
+      ]
     },
     {
       "path": "part list",
@@ -121,7 +124,9 @@
         "cell",
         "pins"
       ],
-      "related_knowledge": []
+      "related_knowledge": [
+        "library-converter-rules"
+      ]
     },
     {
       "path": "part get",
@@ -161,7 +166,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "library-converter-rules",
+        "cell-pin-count-must-match"
+      ]
     },
     {
       "path": "part create",
@@ -204,7 +212,12 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "library-converter-rules",
+        "library-part-value-is-numeric",
+        "cell-pin-count-must-match",
+        "xpedition-ascii-paths-only"
+      ]
     },
     {
       "path": "packager run",
@@ -244,7 +257,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "prj-cell-library-list",
+        "cell-pin-count-must-match"
+      ]
     },
     {
       "path": "schematic get",
@@ -282,7 +298,9 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes"
+      ]
     },
     {
       "path": "schematic create",
@@ -318,7 +336,9 @@
           "summary": "Write the full preview, with every change, to this file."
         }
       ],
-      "untrusted_fields": [],
+      "untrusted_fields": [
+        "warnings"
+      ],
       "adapter_capabilities": [
         "preview",
         "apply",
@@ -331,7 +351,13 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "designer-power-symbols",
+        "designer-pin-on-wire-corner",
+        "designer-symbol-cache",
+        "designer-reopen-after-sheet-changes",
+        "designer-one-instance-only"
+      ]
     },
     {
       "path": "schematic check",
@@ -368,7 +394,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "designer-pin-types-and-erc",
+        "designer-reopen-after-sheet-changes"
+      ]
     },
     {
       "path": "schematic export",
@@ -401,7 +430,8 @@
         }
       ],
       "untrusted_fields": [
-        "pages"
+        "pages",
+        "warnings"
       ],
       "adapter_capabilities": [
         "preview",
@@ -415,7 +445,9 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "designer-chinese-text-in-pdf"
+      ]
     },
     {
       "path": "pcb create",
@@ -463,7 +495,9 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "prj-cell-library-list"
+      ]
     },
     {
       "path": "forward-annotation run",
@@ -508,7 +542,11 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "forward-annotation-in-synch",
+        "forward-annotation-keeps-old-cells",
+        "layout-open-prompts"
+      ]
     },
     {
       "path": "pcb update",
@@ -628,7 +666,10 @@
         "rotation_deg": 0.01
       },
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-placement-drc",
+        "layout-unplaced-parts-invisible"
+      ]
     },
     {
       "path": "plane create",
@@ -688,7 +729,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-plane-draft-state",
+        "layout-pour-after-routing"
+      ]
     },
     {
       "path": "router run",
@@ -735,7 +779,11 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-fine-pitch-clearance",
+        "layout-via-near-pad",
+        "layout-trace-widths-through-cm"
+      ]
     },
     {
       "path": "pcb get",
@@ -775,7 +823,9 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-trace-widths-through-cm"
+      ]
     },
     {
       "path": "pcb check",
@@ -813,7 +863,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-fine-pitch-clearance",
+        "layout-via-near-pad"
+      ]
     },
     {
       "path": "pcb export",
@@ -858,7 +911,10 @@
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [
+        "layout-output-setups",
+        "layout-drillprefs-held"
+      ]
     }
   ]
 }
