@@ -8,7 +8,8 @@ Live runs execute the behavior matrices of xpedition-cli on the real Xpedition, 
 
 This section is the only list of the Xpedition instances, files, folders and devices that live runs may use. Only a person adds a target to it; a coding Agent never does. Each target is one list item that starts with the target in backticks, written the way the scope file writes targets: a `file://` URL of a file or folder, or `device:<id>` for a device, followed by a colon and a description of the target. An instance of Xpedition has no lasting ID, so live runs use only instances a person started for the run, with documents from the files and folders listed here. Live runs use no other target, and the scope file for live runs grants only the targets listed here.
 
-No target is authorized yet.
+- `file:///D:/driver-work/xpedition-cli/`: the practice folder of the maintainer's machine: practice projects the live runs create from Xpedition's stock templates, their copied central libraries, and the evaluation workspaces. No real project is ever placed here. Added by the coding Agent at the maintainer's explicit one-time instruction (2026-11-05).
+- `file:///D:/personalSpace/xpedition-cli/tests/fixtures/live/`: the sample input files of the behavior matrices in the maintainer's checkout; they are only read. Added with the target above.
 
 ## Procedure
 

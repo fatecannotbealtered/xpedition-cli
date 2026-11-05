@@ -498,3 +498,58 @@ class PcbCreateTest(Case):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProjectCreateInDesignerTest(unittest.TestCase):
+    """project create in a Designer session: a new project from a setup template (Designer's
+    NewProject is faked here)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.lib = root / "Stock" / "Lib" / "Stock.lmc"
+        self.lib.parent.mkdir(parents=True)
+        self.lib.write_text("lmc", encoding="utf-8")
+        self.template = root / "Stock" / "Default.prj"
+        self.template.write_text(f'SECTION DesignInfo\nKEY CentralLibrary "{self.lib}"\nENDSECTION\n', encoding="utf-8")
+        self.target = root / "work" / "Demo" / "Demo.prj"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def ctx(self, **extra):
+        from xpedition_cli.adapter.base import Context
+
+        request = {"command": "project create", "session": "designer-12-ab",
+                   "inputs": {"output": str(self.target), "template": str(self.template)}, **extra}
+        return Context(mock.Mock(), request)
+
+    def test_it_runs_as_a_long_job_only_in_a_session(self):
+        from xpedition_cli.adapter.base import Context
+
+        self.assertTrue(PR.ProjectCreate().long(self.ctx()))
+        self.assertFalse(PR.ProjectCreate().long(Context(mock.Mock(), {"command": "project create", "inputs": {}})))
+
+    def test_preview_is_blocked_while_designer_has_a_project_open(self):
+        out = PR.ProjectCreate().preview(self.ctx(document=str(self.template)))
+        self.assertFalse(out["can_apply"])
+        self.assertIn("doc close", out["blocked_by"][0])
+
+    def test_run_creates_the_project_with_designer(self):
+        def fake_new_project(pid, target, template, library, progress):
+            Path(target).parent.mkdir(parents=True)
+            Path(target).write_text("prj", encoding="utf-8")
+            return {"designs": ["Board1"], "library": str(Path(target).parent / "Lib" / "Stock.lmc")}
+
+        with mock.patch("xpedition_cli.adapter.designer.new_project", side_effect=fake_new_project) as called:
+            out = PR.ProjectCreate().run(self.ctx(), lambda *a: None)
+        self.assertEqual(called.call_args.args[:4], (12, str(self.target), str(self.template), str(self.lib)))
+        self.assertEqual((out["change"], out["persistence"], out["files"]), ("not_applicable", "saved", [{"path": str(self.target)}]))
+        self.assertEqual(out["result"]["designs"], ["Board1"])
+
+    def test_a_folder_that_is_not_empty_is_refused(self):
+        self.target.parent.mkdir(parents=True)
+        (self.target.parent / "other.txt").write_text("x", encoding="utf-8")
+        with self.assertRaises(AdapterError) as caught:
+            PR.ProjectCreate().preview(self.ctx())
+        self.assertEqual(caught.exception.data["dispatch_state"], "not_started")

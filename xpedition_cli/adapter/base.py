@@ -137,6 +137,10 @@ class Handler:
     command = ""
     long_job = False
 
+    def long(self, ctx: Context) -> bool:
+        """Whether this call runs as a long job; ``long_job`` unless a handler decides per call."""
+        return self.long_job
+
     def read(self, ctx: Context) -> dict[str, Any]:
         raise AdapterError("E_UNSUPPORTED", f"{self.command} does not read.")
 

@@ -121,7 +121,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 |---|---|---|---|---|
 | CAP-001 | Read the project file: designs, board path, central library, partitions | `.prj` text | provided | - |
 | CAP-002 | Copy a new project from a template project and rewrite the library paths | Files | provided | - |
-| CAP-003 | Initialize a project from a template shipped with the installation, with Designer `NewProject` | Designer COM | unknown | Written only in the old code; it never passed on a real installation |
+| CAP-003 | Initialize a project from a template shipped with the installation, with Designer `NewProject`, a copy of the template's central library and `File > New > Schematic` for the board design | Designer COM (`NewProject`, `OpenProject`, `ExecuteCommandByID(34158)`) | provided | - |
 | CAP-004 | Back up the project folder as a ZIP | Files | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-005 | Restore the project folder from a ZIP backup | Files | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-010 | List the parts in the central library | `PartsDB2HKP` | provided | - |

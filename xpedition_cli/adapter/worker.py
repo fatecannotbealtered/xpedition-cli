@@ -46,9 +46,9 @@ def run(path: Path) -> int:
     handler = HANDLERS.get(request.get("command", ""))
     final: dict[str, Any]
     try:
-        if handler is None or not handler.long_job:
-            raise AdapterError("E_UNSUPPORTED", f"{request.get('command')!r} is not a long job.", dispatch_state="not_started")
         ctx = Context(_FileStore(path.parent), request)  # type: ignore[arg-type]
+        if handler is None or not handler.long(ctx):
+            raise AdapterError("E_UNSUPPORTED", f"{request.get('command')!r} is not a long job.", dispatch_state="not_started")
         out = handler.run(ctx, jobs.Progress(path))
         final = {"state": out.pop("state", "completed"), "delivery": "not_applicable", **out}
     except jobs.Cancelled:

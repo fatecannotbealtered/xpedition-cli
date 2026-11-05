@@ -205,8 +205,16 @@ def _walk(top: str, depth: int) -> list[tuple[str, list[str], list[str]]]:
 def open_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     path = request.get("path")
     if not path:
-        raise AdapterError("E_VALIDATION", "session open needs --doc: a project (.prj) starts Designer, a board (.pcb) starts Layout.",
-                           dispatch_state="not_started")
+        # Designer with no project: the way to create one (project create in that session)
+        started = _app(DESIGNER).start(None, START_WAIT_S)
+        sid = make_session_id(DESIGNER, int(started["pid"]))
+        store.set("owned", sorted(set(_owned(store)) | {sid}))
+        found = [item for item in list_sessions(store)["items"] if item["id"] == sid]
+        session = found[0] if found else {"id": sid, "application": {"name": _app(DESIGNER).APPLICATION, "version": _app(DESIGNER).VERSION},
+                                          "pid": int(started["pid"]), "owned": True, "generation": 1,
+                                          "state": started.get("state", "starting"), "documents": [], "plugin_loaded": None}
+        return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
+                "persistence": "not_applicable", "session": session}
     path = os.path.abspath(path)
     ext = os.path.splitext(path)[1].lower()
     if ext not in (".prj", ".pcb"):

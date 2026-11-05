@@ -117,7 +117,7 @@ class Adapter(BaseAdapter):
     def apply(self, request: dict[str, Any]) -> dict[str, Any]:
         handler = self._handler(request)
         ctx = Context(self.store, request)
-        if handler.long_job:
+        if handler.long(ctx):
             return jobs.start(self.store, request)  # the worker notes the change when the job ends
         facts = handler.apply(ctx)
         if request.get("session") and request.get("document") and sessions.changed(facts):

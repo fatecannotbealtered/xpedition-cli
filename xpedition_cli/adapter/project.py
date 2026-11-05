@@ -93,14 +93,44 @@ class ProjectGet(Handler):
 # ------------------------------------------------------------------ project create
 
 
+def _refuse(message: str, *, code: str = "E_VALIDATION", knowledge: list[str] | None = None) -> AdapterError:
+    return AdapterError(code, message, dispatch_state="not_started", **({"knowledge": knowledge} if knowledge else {}))
+
+
+def _new_target(ctx: Context) -> Path:
+    """The new project's file, checked: a .prj, an ASCII path, a new or empty folder."""
+    target_path = Path(os.path.abspath(str(need_input(ctx, "output"))))
+    folder = target_path.parent
+    if target_path.suffix.lower() != ".prj":
+        raise _refuse(f"The new project's file must end in .prj, not {target_path.name}.")
+    if not str(target_path).isascii():
+        raise _refuse(f"The new project's path must be ASCII ({target_path}): Designer loads no new symbol from a folder whose "
+                      "path has other characters.", knowledge=["xpedition-ascii-paths-only"])
+    if folder.exists() and (not folder.is_dir() or any(folder.iterdir())):
+        raise _refuse(f"The new project's folder {folder} exists and is not empty; name a new or empty folder.")
+    return target_path
+
+
+def _setup_template(ctx: Context) -> tuple[Path, Path]:
+    """The setup template of a new project in a Designer session, and its central library:
+    ``--template``, or Xpedition's stock template."""
+    given = ctx.inputs.get("template")
+    stock = env.sdd_home() / "standard" / "templates" / "dxdesigner" / "expedition" / "Default.prj"
+    template = Path(os.path.abspath(str(given))) if given else stock
+    if not template.is_file():
+        raise _refuse(f"There is no setup template {template}.", code="E_NOT_FOUND")
+    library = lib.central_library(template)
+    if library is None or not library.is_file():
+        raise _refuse(f"The setup template {template} names no central library that exists on this computer.", code="E_NOT_FOUND")
+    return template, library
+
+
 def _new_project(ctx: Context) -> tuple[Path, Path]:
     """The template project and the new project's file, checked before anything is copied."""
     template = lib.project_path(ctx)
-    target_path = Path(os.path.abspath(str(need_input(ctx, "output"))))
+    target_path = _new_target(ctx)
     source, folder = template.parent, target_path.parent
-
-    def refuse(message: str, *, code: str = "E_VALIDATION", knowledge: list[str] | None = None) -> AdapterError:
-        return AdapterError(code, message, dispatch_state="not_started", **({"knowledge": knowledge} if knowledge else {}))
+    refuse = _refuse
 
     if target_path.suffix.lower() != ".prj":
         raise refuse(f"The new project's file must end in .prj, not {target_path.name}.")
@@ -196,9 +226,42 @@ def _count(folder: Path) -> tuple[int, int]:
 
 
 class ProjectCreate(Handler):
+    """In file mode, a copy of the project ``--doc`` names. In a Designer session, a new project
+    from a setup template with Designer's ``NewProject``, its own copy of the template's central
+    library, and a board design with its schematic; that runs as a long job (DCLI-065): the
+    project's first open builds its database and took more than 30 s live."""
+
     command = "project create"
 
+    def long(self, ctx: Context) -> bool:
+        return ctx.session is not None
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        from . import designer
+
+        ref = ctx.need_session("designer")
+        target_path = _new_target(ctx)
+        template, library = _setup_template(ctx)
+        if target_path.parent.is_dir():
+            target_path.parent.rmdir()  # empty (checked): NewProject creates the folder itself
+        made = designer.new_project(ref.pid, str(target_path), str(template), str(library), progress)
+        files, size = _count(target_path.parent)
+        result = {"path": str(target_path), "template": str(template), "files": files, "bytes": size, "rewritten": [],
+                  "parts_databases": {"created": [], "registered": []}, "designs": made["designs"], "library": made["library"]}
+        return {"change": "not_applicable", "persistence": "saved", "result": result, "files": [{"path": str(target_path)}]}
+
     def preview(self, ctx: Context) -> dict[str, Any]:
+        if ctx.session is not None:
+            ctx.need_session("designer")
+            new = _new_target(ctx)
+            template, library = _setup_template(ctx)
+            blocked = None
+            if ctx.request.get("document"):
+                blocked = ["Designer has a project open; close it with doc close first, then run project create in this session."]
+            return preview(f"Create project {new} with Designer from the setup template {template}, copy its central library "
+                           f"{library.parent} into the project folder, create the board design with its schematic, and save the "
+                           "project; it stays open in Designer.", [target(str(new), "project", label=str(new))],
+                           [change(key(str(new)), "exists", False, True)], blocked_by=blocked)
         template, new = _new_project(ctx)
         return preview(f"Copy the project folder {template.parent} to {new.parent}, name the project {new.name} and point its "
                        "library references inside the copied folder at the copy.",
