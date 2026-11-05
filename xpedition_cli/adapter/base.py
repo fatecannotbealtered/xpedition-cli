@@ -75,13 +75,13 @@ class Context:
         """The document's file. Document IDs are absolute paths, in file and session mode."""
         doc = self.request.get("document")
         if not doc:
-            raise AdapterError("E_USAGE", f"{self.command} needs a document.", dispatch_state="not_started")
+            raise AdapterError("E_VALIDATION", f"{self.command} needs a document.", dispatch_state="not_started")
         return os.path.abspath(str(doc))
 
     def need_session(self, kind: str) -> SessionRef:
         if self.session is None or self.session.kind != kind:
             name = "Designer" if kind == DESIGNER else "Layout"
-            raise AdapterError("E_USAGE", f"{self.command} runs in a {name} session; name it with --session.",
+            raise AdapterError("E_VALIDATION", f"{self.command} runs in a {name} session; name it with --session.",
                                dispatch_state="not_started")
         return self.session
 
@@ -155,5 +155,5 @@ class Handler:
 
 def need_input(ctx: Context, name: str) -> Any:
     if name not in ctx.inputs:
-        raise AdapterError("E_USAGE", f"{ctx.command} needs --{name.replace('_', '-')}.", dispatch_state="not_started")
+        raise AdapterError("E_VALIDATION", f"{ctx.command} needs --{name.replace('_', '-')}.", dispatch_state="not_started")
     return ctx.inputs[name]
