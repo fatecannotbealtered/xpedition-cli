@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Run the scripts of the pinned specification release on this project.
+
+    python scripts/spec.py check                 the project check (check_project)
+    python scripts/spec.py generate              write the generated content, then check
+    python scripts/spec.py suites [--only G01]   both conformance suites, against the fake host
+    python scripts/spec.py matrix --command "<path>" --set doc=<file> [...]
+                                                 run a behavior matrix on the real application
+    python scripts/spec.py eval --workspace-root <folder> [--only <id>]
+                                                 run the evaluation questions with Claude Code
+    python scripts/spec.py eval --check --fake-host
+                                                 check each grader against its scripted agents
+    python scripts/spec.py sync <version>        pin another specification release
+
+The scripts come from the release named in .agent/SPEC_VERSION (for sync, the new one). It is
+downloaded once from GitHub and kept in ~/.cache/tool-driver-cli-spec/. The download must match
+.agent/SPEC_SHA256, which sync writes; without it, the SHA-256 file published with the release.
+To use an unpacked release or a checkout of the specification instead, set TOOL_DRIVER_SPEC to
+its directory.
+"""
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import os
+import subprocess
+import sys
+import urllib.request
+import zipfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+RELEASES = "https://github.com/fatecannotbealtered/tool-driver-cli-spec/releases/download"
+NAME = "tool-driver-cli-spec"
+NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
+
+def pinned_version() -> str:
+    return (ROOT / ".agent" / "SPEC_VERSION").read_text(encoding="utf-8").strip()
+
+
+def pinned_digest(version: str) -> str | None:
+    """The SHA-256 of the release bundle that sync pinned, when it is this version's."""
+    path = ROOT / ".agent" / "SPEC_SHA256"
+    if version != pinned_version() or not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8").strip() or None
+
+
+def bundle(version: str) -> tuple[Path, str | None]:
+    """The unpacked release of this version, and the SHA-256 of its bundle when known."""
+    local = os.environ.get("TOOL_DRIVER_SPEC")
+    if local:
+        path = Path(local).resolve()
+        found = (path / "VERSION").read_text(encoding="utf-8").strip() if (path / "VERSION").is_file() else None
+        if found != version:
+            raise SystemExit(f"TOOL_DRIVER_SPEC={path} holds release {found}, not {version}")
+        return path, None
+    pin = pinned_digest(version)
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / NAME / version
+    folder = cache / f"{NAME}-{version}"
+    known = (cache / "bundle.sha256").read_text(encoding="utf-8").strip() if (cache / "bundle.sha256").is_file() else None
+    if (folder / "VERSION").is_file() and known and (pin is None or pin == known):
+        return folder, known
+    base = f"{RELEASES}/v{version}/{NAME}-{version}"
+    print(f"Downloading {NAME} {version} ...", file=sys.stderr)
+    data = _get(base + ".zip")
+    expected = pin or _get(base + ".sha256").decode("ascii").split()[0]
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected:
+        raise SystemExit(f"{NAME}-{version}.zip has SHA-256 {digest}, not {expected}; nothing was unpacked")
+    cache.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        for member in archive.namelist():
+            target = (cache / member).resolve()
+            if not target.is_relative_to(cache.resolve()):
+                raise SystemExit(f"the release archive holds an unsafe path: {member}")
+        archive.extractall(cache)
+    (cache / "bundle.sha256").write_text(digest + "\n", encoding="utf-8")
+    return folder, digest
+
+
+def _get(url: str) -> bytes:
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310 - a fixed https URL
+            return response.read()
+    except OSError as exc:
+        raise SystemExit(f"cannot download {url}: {exc}") from None
+
+
+def run(cmd: list[str], cwd: Path | None = None) -> int:
+    # Without a console window the child must be handed this process's standard streams.
+    sys.stdout.flush()
+    return subprocess.call(cmd, cwd=cwd, creationflags=NO_WINDOW, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] not in ("check", "generate", "suites", "matrix", "eval", "sync"):
+        print(__doc__, file=sys.stderr)
+        return 2
+    action, rest = argv[0], argv[1:]
+    python = sys.executable
+    if action == "sync":
+        if len(rest) != 1:
+            print("usage: python scripts/spec.py sync <version>", file=sys.stderr)
+            return 2
+        spec, digest = bundle(rest[0])
+        code = run([python, str(spec / "scripts" / "sync_spec.py"), str(ROOT)])
+        if code:
+            return code
+        pin = ROOT / ".agent" / "SPEC_SHA256"
+        if digest:
+            pin.write_text(digest + "\n", encoding="utf-8")
+        else:
+            pin.unlink(missing_ok=True)
+        return run([python, str(spec / "scripts" / "check_project.py"), str(ROOT), "--fix"])
+    spec, _ = bundle(pinned_version())
+    if action == "check":
+        return run([python, str(spec / "scripts" / "check_project.py"), str(ROOT), *rest])
+    if action == "generate":
+        return run([python, str(spec / "scripts" / "check_project.py"), str(ROOT), "--fix", *rest])
+    if action == "matrix":
+        return run([python, str(spec / "scripts" / "run_matrix.py"), str(ROOT), *rest])
+    if action == "eval":
+        return run([python, str(spec / "scripts" / "run_eval.py"), str(ROOT), *rest])
+    tool = next(iter(json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["bin"]))
+    return run([python, "-m", "suites", "--project", str(ROOT), *rest, "--", python, "-m", tool.replace("-", "_")],
+               cwd=spec / "conformance")
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

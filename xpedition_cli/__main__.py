@@ -1,4 +1,3 @@
-from .main import main
+from xpedition_cli import main
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+main()

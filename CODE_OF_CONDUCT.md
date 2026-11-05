@@ -1,35 +1,27 @@
 # Code of Conduct
 
-> 中文版 → [CODE_OF_CONDUCT_zh.md](CODE_OF_CONDUCT_zh.md)
+Everyone who takes part in xpedition-cli, in issues, pull requests, reviews and any other channel of the project, agrees to this code.
 
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1.
+## Our standards
 
-## Our Pledge
+- Be respectful and patient, with people and with their work.
+- Criticize ideas and code, never the person behind them.
+- Assume good intent, and ask before you conclude.
+- Welcome newcomers, whatever their background, experience or language.
+- Keep discussions on topic, and accept the maintainers' decisions on scope.
 
-We pledge to make participation in `xpedition-cli` a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+## Not acceptable
 
-## Expected Behavior
-
-- Use welcoming and inclusive language.
-- Respect differing viewpoints and experiences.
-- Accept constructive criticism with focus on the work.
-- Show empathy toward other community members.
-
-## Unacceptable Behavior
-
-- Harassment, intimidation, or discriminatory language.
-- Personal attacks, trolling, or insulting comments.
-- Publishing others' private information without explicit permission.
-- Other conduct that would reasonably be considered inappropriate in a professional setting.
-
-## Enforcement
-
-Project maintainers are responsible for clarifying and enforcing this Code of Conduct. They may remove, edit, or reject comments, commits, issues, pull requests, or other contributions that do not align with it, and may temporarily or permanently ban any contributor for behavior they deem inappropriate.
+- Harassment, insults, threats or personal attacks.
+- Discriminating remarks about anyone's identity or background.
+- Sexual language or imagery.
+- Publishing someone's private information without their consent.
+- Repeatedly disrupting discussions or reviews.
 
 ## Reporting
 
-Report unacceptable behavior through the repository's private reporting channel once configured. Maintainers must respect the privacy and security of the reporter.
+Report unacceptable behavior to the maintainers privately, through <https://github.com/fatecannotbealtered/xpedition-cli/security/advisories/new> or another private channel the README names. Reports are handled confidentially, and nobody is penalized for reporting in good faith.
 
-## Attribution
+## Enforcement
 
-This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/), version 2.1.
+The maintainers decide what breaks this code and what to do about it: a warning, the removal of comments or contributions, or a temporary or permanent ban from the project. They apply this code in every space of the project, and when someone represents the project elsewhere.

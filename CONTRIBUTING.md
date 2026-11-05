@@ -1,56 +1,147 @@
 # Contributing to xpedition-cli
 
-*English | [中文](CONTRIBUTING_zh.md)*
+English | [中文](CONTRIBUTING_zh.md)
 
-Read [AGENTS.md](AGENTS.md) and the pinned `.agent/` specifications before
-changing behavior. The CLI is agent-first: stdout is a single JSON envelope,
-errors use the canonical code/exit/retryable mapping, and writes use
-`--dry-run` followed by a single-use `--confirm` token.
+People and coding Agents contribute through the same workflow. Coding Agents also follow `AGENTS.md`.
 
-## Development setup
+## Development Setup
+
+You need:
+
+- Python 3.12 or later
+- Node.js with npm, to build and test the npm packages
+- Git
+
+The tests and the conformance suites never need Xpedition: the fake host stands in for it. You need Xpedition only for live runs on authorized targets (`docs/E2E.md`).
+
+Clone the repository:
 
 ```bash
-python -m pip install -e ".[dev]"
-pytest -q
-ruff check xpedition_cli tests
-ruff format --check xpedition_cli tests
-node scripts/check-version.js
-node scripts/check-spec.js --local-only
-python -m xpedition_cli.main --help
+git clone https://github.com/fatecannotbealtered/xpedition-cli.git
 ```
 
-Use `XPEDITION_CLI_CONFIG_DIR` for an isolated confirmation secret and audit
-directory during tests. Do not use production design files; native E2E is
-limited to the disposable sequence in [`docs/E2E.md`](docs/E2E.md).
+Then, in the cloned folder, create a virtual environment, install the development dependencies and run the project check:
 
-## Adding a command
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --require-hashes --no-deps -r requirements-dev.txt
+python scripts/spec.py check
+```
 
-1. Read the relevant sections of `.agent/CLI-SPEC.md` and `.agent/SEC-SPEC.md`.
-2. Declare it once in `xpedition_cli/cli/registry.py`: its path, handler
-   (`module:function` under `xpedition_cli/cli/`), description, output schema,
-   examples, stage, what it needs running, permission tier, parameters and, for a
-   write, its blast radius and dry-run schema. `reference`, `--help` and the
-   parser all read that entry.
-3. Add its output schema to `xpedition_cli/reference_data.py` and the work under
-   `xpedition_cli/`; anything that talks to Xpedition goes through an adapter
-   method in `xpedition_cli/native_com_adapter.py`.
-4. Keep external values marked in `_untrusted` and gate every mutating action
-   behind `--dry-run` then a single-use `--confirm <token>`, with `--dangerous`
-   as well when it destroys work. Read the result back after a write.
-5. Add command-level tests (the adapter is faked with `tests/fakes.py`) for
-   success, invalid input, errors, envelope shape, exit code and stdout/stderr
-   behavior. The FCC guard must remain green.
-6. Update both READMEs, the affected Skills and `CHANGELOG.md`.
+On Windows, activate the environment with `.venv\Scripts\activate` instead. `requirements-dev.txt` pins every development dependency with its hash, so only the reviewed versions are installed.
 
-Do not claim a capability or a new Xpedition version until a recorded run on a
-licensed installation proves it (`docs/E2E.md`). Keep `.agent/*`, `contract/contract.json`, and generated
-contract code synchronized through `scripts/sync-spec.js`; never hand-edit a
-vendored spec or generated module.
+## Commands
 
-## Pull requests
+| Command | What it does |
+|---|---|
+| `python scripts/spec.py check` | Runs the project check: layout, documents and their fixed text, generated content, pinned copies, versions, Skills, knowledge, behavior matrices, evidence and maturity |
+| `python scripts/spec.py generate` | Regenerates `contract/commands.json`, the command maps, the badge row, the info card, the risk block, the support matrix, the evidence index and `knowledge/index.json` |
+| `python scripts/spec.py suites` | Runs both conformance suites against xpedition-cli, with the fake host in place of Xpedition |
+| `python scripts/spec.py sync <version>` | Replaces the pinned copies with those of another tool-driver-cli-spec release |
+| `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` | Runs the behavior matrix of one command on the real Xpedition, on authorized targets, and writes a live record |
+| `python scripts/spec.py eval --workspace-root <folder>` | Runs the evaluation questions in `tests/eval/` with Claude Code on the real Xpedition, in an authorized folder, and writes an evaluation report; with `--check --fake-host`, checks each grader against the scripted agents |
+| `python -m unittest discover -s tests` | Runs the unit tests |
+| `python scripts/build.py` | Builds the native program and the platform package for this machine |
+| `python scripts/pack.py` | Builds the npm packages and runs the package content check |
+| `python scripts/smoke.py` | Runs the key operation of platform delivery against the built packages |
 
-- Use a focused branch and a Conventional Commit message.
-- Include tests and documentation for every observable behavior change.
-- Run lint, format, tests, version and spec guards locally.
-- Do not commit credentials, confidential design data, build artifacts or real tokens.
+The pinned copies are `.agent/`, `contract/driver-contract.json`, `xpedition_cli/_driver/` and `licenses/`. Never edit them; `sync` replaces them together.
 
+## Branch and Commit Convention
+
+- `main` always passes the merge gate. Work on a branch and merge through a pull request.
+- Name a branch `<kind>/<topic>`, where the kind is `feat`, `fix`, `docs`, `test` or `chore`, for example `feat/part-move`.
+- Write commit messages in English: a subject line of at most 72 characters in the imperative mood, such as `Add part move`, then a blank line and a body that says why.
+- Keep each commit to one change, together with its tests, its behavior matrix, its documents in both languages and its CHANGELOG entry.
+- Only a maintainer releases. A release sets the new version in `package.json`, the only source of the version, and moves the `[Unreleased]` entries into a section `[X.Y.Z] - YYYY-MM-DD`. After the merge, the maintainer pushes the annotated tag `vX.Y.Z`, and the release workflow does the rest.
+
+## CI Checks
+
+`.github/workflows/ci.yml` runs the merge gate on every change. Its last job, `merge gate passed`, succeeds only when every check passed on every shipped system; make it the required status check of the main branch, so that a failed check blocks the merge. The release runs the same checks.
+
+| Check | What it covers | Run it locally |
+|---|---|---|
+| Lint | The tool's code style rules | `python -m ruff check .` |
+| Unit tests | The tool's own tests in `tests/` | `python -m unittest discover -s tests` |
+| Conformance suites | Both suites, on every shipped platform | `python scripts/spec.py suites` |
+| Project check | Layout, documents, labels, pinned copies, Skills, knowledge and capability tracing | `python scripts/spec.py check` |
+| Output size check | Every envelope stays within the size limits; general conformance test R04 performs it | `python scripts/spec.py suites` |
+| npm package content check | Each package holds only what it may, with no install scripts | `python scripts/pack.py` |
+
+`.github/workflows/release.yml` runs only when a maintainer pushes a version tag. It runs the same checks, then platform delivery: on the operating system and CPU of each platform package, it installs the packages that will be published into a clean environment, starts xpedition-cli and runs one key operation, as `python scripts/smoke.py` does. It publishes to npm, with provenance, only when everything passed for every platform package. A version with a prerelease part, such as `1.2.0-rc.1`, is published under the npm tag `next`, so `update` does not install it by default. Linux packages are built on Debian 11 (glibc 2.31), so they also run on older Linux systems. The workflow publishes through npm trusted publishing when the package has it set up on npmjs.com, otherwise with the `NPM_TOKEN` secret; set up trusted publishing after the first release and then disallow token publishing.
+
+## Tests and Evidence
+
+**Conformance suites.** `python scripts/spec.py suites` runs the general and the driver conformance suite. They start xpedition-cli as a separate process with `XPEDITION_CLI_FAKE_HOST` set, so the fake host stands in for Xpedition, and judge only the exit codes, the output and what the fake host received. Never skip, weaken or edit a test, and never mark one as an expected failure; a test that applies but did not run counts as failed. Results from the fake host are simulated and never count as evidence.
+
+**Unit tests.** The tool's own tests live in `tests/`. Every test sets `XPEDITION_CLI_STATE_DIR` to a new temporary directory, and either points `XPEDITION_CLI_SCOPE_FILE` at a scope file inside it or removes that variable.
+
+**Behavior matrices.** Every domain command, and every standard command that calls an adapter capability, has one matrix file in `tests/matrix/`, named after the command path, such as `tests/matrix/part-move.json`. The file lists each row once: `normal`, `empty`, `invalid_input`, `not_found`, `ambiguous`, `conflict`, `no_scope`, `busy`, `dialog`, `disconnect`, `unsaved` and `read_back_mismatch`. A row that applies holds the arguments and the expected exit code and error code; a row that does not apply holds `applies: false` and the reason. The arguments of the `normal` row of a write command are its sample, which the general suite runs against the fake host. Arguments name the session, the document, the device and the output folder only through the placeholders `{session}`, `{doc}`, `{device}` and `{dir}`.
+
+**Live records.** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` runs one matrix on the real Xpedition, with one `--set` for each placeholder the matrix uses, named without braces, such as `--set doc=<file>`; each value is an authorized target. It writes a live record to `docs/evidence/` and fills in the actual result and the `live:` evidence reference of each row. `docs/E2E.md` describes the procedure. A row that cannot be caused on demand, such as `disconnect`, may be marked `unrunnable` with the reason; the `normal`, `dialog` and `read_back_mismatch` rows never may.
+
+**Evaluation.** Before a command is marked stable, `tests/eval/` holds a question for every per-tool scenario that applies to xpedition-cli, and `docs/evidence/` holds the newest evaluation report from the real Xpedition: it covers every question as the files are now, every question passed, and one question lists the command in `COMMANDS` and ran it. Each question is one Python file named after its ID; files named `_*.py` hold helpers the questions share.
+
+```python
+"""Move one footprint inside the scope."""
+SCENARIO = "scoped_change"
+COMMANDS = ["footprint move"]
+TURNS = ["Move footprint R1 in {documents}/board.kicad_pcb to x 12.5 mm, y 30 mm."]
+FILES = "boards"          # copied into the question's documents folder
+
+
+def grade(run):
+    part = run.tool("footprint", "get", "--doc", str(run.documents / "board.kicad_pcb"), "--id", "R1")["data"]["items"][0]
+    run.check(part["x_mm"] == 12.5, "R1 did not move")
+    run.check(len([c for c in run.write_calls() if c.ok]) == 1, "not exactly one write")
+```
+
+`python scripts/spec.py eval --workspace-root <folder>` runs the questions with Claude Code on the real Xpedition and writes the report; the folder must be listed under Authorized Targets in `docs/E2E.md`. For each question the runner makes a workspace inside that folder with the Skills and the scope file, keeps the documents in a folder beside it, and records every run of xpedition-cli; the Agent's shell runs only xpedition-cli, and its file tools reach only the workspace. `{documents}` in `TURNS` and in scope targets stands for the documents folder. By default the scope grants that folder, the effects of the commands in `COMMANDS` and `dangerous` only when one of them needs it; `SCOPE` replaces any of these fields, and a question whose commands only read gets no scope file. The runner writes that scope file itself; nobody edits it. On the real Xpedition, xpedition-cli keeps your environment, so it finds the running instances; a session-mode question opens its document in `before` and closes it in `after`, which always runs.
+
+| A grader or hook uses | What it gives |
+|---|---|
+| `run.check(condition, problem)` | Records a failure when the condition does not hold |
+| `run.tool(*args)` | Runs xpedition-cli as the grader and returns its envelope; not one of the Agent's runs |
+| `run.read(name)`, `run.documents` | A file in the documents folder, and the folder |
+| `run.calls`, `run.ran(path, turn)`, `run.write_calls(turn)` | The Agent's recorded runs; each has `args`, `exit`, `ok`, `code`, `details`, `data`, `value(flag)` and `matches(line)` |
+| `run.messages`, `run.said(*texts, turn=-1)` | What the Agent told the person in each turn; judge meaning, in English and Chinese |
+| `run.scope_changed()`, `run.notes` | Whether the scope file changed; a dict a hook fills for the grader |
+| `run.host(...)`, `run.state()`, `run.applied()`, `run.document(id)` | The fake host only |
+
+Optional `right(agent, turn)` and `wrong(agent, turn)` scripted agents use `agent.run(*args)`, `agent.line(text)`, `agent.say(text)` and `agent.calls`. `python scripts/spec.py eval --check --fake-host` shows that each grader passes `right` and fails every `wrong` on the fake host; with `--workspace-root` in place of `--fake-host`, it does so on the real Xpedition. The specification's own questions, in `conformance/eval/` of the release, are worked examples; `read_answer`, `scoped_change`, `knowledge_lookup` and `separate_save` grade only through what also works on the real Xpedition.
+
+**Maturity.** Each command declares its maturity level and the evidence behind it, and `xpedition-cli reference` shows both.
+
+| Level | Evidence needed |
+|---|---|
+| `draft` | None; a write command still needs its sample |
+| `verified` | A current live record in which every matrix row that applies passed, except rows marked `unrunnable` |
+| `stable` | Also a current evaluation report |
+
+Evidence counts only while its tool version has the same major and minor version as xpedition-cli; after a new minor or major version, a command keeps its level only with new evidence. Evidence references have the form `live:docs/evidence/<file>.json#<row>` or `eval:docs/evidence/eval-<date>.json`.
+
+## Adding or Changing a Command
+
+1. **Survey.** Find the capability in the Capabilities table of `docs/APPLICATION.md`. When it is missing, add a row with a new `CAP-nnn`. Set its disposition to `provided` once a command offers it.
+2. **Name.** Use the form `noun verb`. Take the verb from the fixed list: `list`, `get`, `search`, `check`, `create`, `update`, `delete`, `move`, `import`, `render`, `export`, `run`, `stop`. Take the noun from the terms of Xpedition, written as a full word. A noun never takes the name of a built-in or standard command, such as `session`, `doc` or `job`.
+3. **Register.** Register the command in `xpedition_cli/commands/` with its summary, effects, modes, target type, flags with their types, the unit quantity of every physical value, its secret parameters, its untrusted output fields, the adapter capabilities it calls and its capability IDs in `survey_ids`. Declare every effect. Mark a change Xpedition cannot take back with `irreversible: true`, and a command that only stops work with `halt: true`. Give read-back tolerances where Xpedition rounds or snaps values, and name related knowledge entries in `related_knowledge`.
+4. **Implement.** Write the adapter capabilities the command needs in `xpedition_cli/adapter/`, or in the host component in `plugin/` when the interface of Xpedition works only inside its process or on its main thread. Never reimplement what the driver runtime does.
+5. **Matrix.** Write the behavior matrix in `tests/matrix/`, with every row. The `normal` row of a write command is its sample.
+6. **Generate and check.** Run `python scripts/spec.py generate`, then `python scripts/spec.py check`, `python -m unittest discover -s tests` and `python scripts/spec.py suites`.
+7. **Prove it.** The command starts as `draft`. Run its matrix on the real Xpedition, on authorized targets, with `python scripts/spec.py matrix`, and commit the live record; the command can then be `verified`. Rerun the matrix whenever a change affects how the command talks to Xpedition.
+8. **Skills and knowledge.** The command maps update themselves. Add a playbook to the Skill that owns the command when its task takes several steps. When the entry Skill would grow past 150 lines, split it into domain Skills by the tasks users name, each listing its commands in `metadata.commands`. Turn the limits and errors you found into entries in `knowledge/`.
+9. **CHANGELOG.** Add an entry under `[Unreleased]`: `Added` for a new command or flag, `Changed` for new behavior, `Deprecated` before a later removal, `Removed` when it is gone, `Fixed` for a bug fix and `Security` for a vulnerability fix.
+
+## Pull Requests
+
+- One topic per pull request. The description says what changed and why, names the commands and capability IDs it touches, and links any new live record or evaluation report.
+- Every CI check passes, and generated content is regenerated, never edited by hand.
+- The English and Chinese documents change together and say the same thing.
+- No secrets, license data or files you may not share, in the code, the tests or `docs/evidence/`.
+- The reviewer checks the declared effects and the `irreversible` and `halt` marks against the capability survey, the untrusted fields, the Skill text and the reasons given for matrix rows that do not apply or cannot be run.
+- A maintainer merges. Packages are published only by the release workflow.
+
+## Security
+
+Do not report a vulnerability in a public issue or pull request. Report it privately, as `SECURITY.md` describes, through <https://github.com/fatecannotbealtered/xpedition-cli/security/advisories/new>.
