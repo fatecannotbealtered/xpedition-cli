@@ -1,44 +1,4 @@
-# Keep repository text files LF-normalized on every platform.
 * text=auto eol=lf
-
-# Windows command scripts are intentionally CRLF.
-*.bat text eol=crlf
 *.cmd text eol=crlf
-
-# Binary files.
-*.exe binary
-*.dll binary
-*.so binary
-*.dylib binary
 *.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
 *.ico binary
-*.pdf binary
-*.zip binary
-*.tar.gz binary
-*.tgz binary
-# Preserve the byte-pinned native application catalog evidence.
-development/evidence/Commands_*.csv -text
-# Retained DRC records and their manifest are exact byte-pinned evidence.
-tests/fixtures/drc_052/* binary
-# Exact retained public forward-annotation report; keep original CRLF bytes.
-tests/fixtures/component_source_forward_annotation.txt -text
-# Developer-only relocated Skill records retain their original, hash-bound bytes.
-development/skill-history/** -text
-development/skill-evals/** -text
-# SDK/spec files are locked by byte SHA, including the upstream package marker.
-# Git must not silently normalize those inputs on a fresh clone.
-xpedition_cli/_vendor/** -text
-
-# Preserve the exact working bytes already consumed by candidate03's audited
-# build. These two files differed from Git only through automatic LF/CRLF
-# conversion; this rule changes checkout/storage bytes, not runtime behavior.
-xpedition_cli/placement.py -text
-registry.json -text
-# The fixed bootstrap template has an embedded byte SHA.
-xpedition_cli/resources/designer-host-identity.vbs text eol=lf
-
-# Preserve redistributed license text exactly as received.
-THIRD-PARTY-LICENSES/** -text

@@ -1,16 +1,22 @@
 # Notice
 
-> 中文版 → [NOTICE_zh.md](NOTICE_zh.md)
+xpedition-cli
 
-`xpedition-cli` is an independent open-source project. It is **not** affiliated with, endorsed by, sponsored by, or supported by Siemens or any of its affiliates.
+Copyright 2026 Sean Guo
 
-"Siemens Xpedition", related product and company names, logos, and brands are trademarks or registered trademarks of their respective owners. They are used here only to identify the API-compatibility target — that is, the software this tool talks to — and do not imply any association or endorsement.
+Licensed under the Apache License, Version 2.0. The license text is in `LICENSE`.
 
-This project does not redistribute Siemens Xpedition code or assets. The
-NativeBackend works with Siemens Xpedition only inside the user's own licensed
-installation: through the product's automation interfaces and its own
-command-line tools, and on the project's files, as [SECURITY.md](SECURITY.md)
-describes. Nothing in this repository ships, wraps or replaces any part of the
-product itself.
+## Trademarks
 
-The MIT license (see [LICENSE](LICENSE)) applies only to the `xpedition-cli` source code. It grants no rights to Siemens Xpedition's trademarks, services, data, API behavior, or upstream availability.
+xpedition-cli drives Xpedition. Xpedition is a trademark of its owner. xpedition-cli is not affiliated with, endorsed by or sponsored by the owner of Xpedition.
+
+## Third-party components
+
+| Component | Where | License |
+|---|---|---|
+| CPython runtime | Bundled in the native program | Python Software Foundation License |
+| PyInstaller bootloader | Bundled in the native program | GNU General Public License 2.0 or later, with an exception that allows distributing programs built with it |
+| tool-driver-cli-spec 1.0.0 | `.agent/` and `contract/driver-contract.json` | See `licenses/` |
+| Driver runtime | `xpedition_cli/_driver/` | See `licenses/` |
+
+{{fill: every other component the native program or the host component bundles, with its license; or delete this line when there is none}}

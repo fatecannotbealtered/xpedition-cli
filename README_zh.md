@@ -1,31 +1,201 @@
-# xpedition-cli — 限定预览版
+# xpedition-cli
 
-这是面向已合法安装 Siemens Xpedition 的 Windows CLI 和三个 Agent Skill。项目独立于
-Siemens，不包含 Xpedition、商业 CAD SDK、许可证凭据、私人工程或私人运行证据。
+{{fill: 一句话定位：本工具让 Agent 在 Xpedition 里做什么}}
 
-CLI 显示版本为 `2.0.0-dev.1`，Python 分发版本规范化为 `2.0.0.dev1`。请从
-[预发布页面](https://github.com/fatecannotbealtered/xpedition-cli/releases/tag/v2.0.0-dev.1)
-下载 Windows x64 完整目录包并核对 SHA-256；保留整个 `app/` 目录。安装 Xpedition
-及其许可证是独立前提。
+<!-- driver:badges:start -->
+![Agent-native](https://img.shields.io/badge/🤖-Agent--native-6f42c1)
+[![CI](https://github.com/fatecannotbealtered/xpedition-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/fatecannotbealtered/xpedition-cli/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@fateforge/xpedition-cli)](https://www.npmjs.com/package/@fateforge/xpedition-cli)
+![drives](https://img.shields.io/badge/drives-Xpedition_2604-1f6feb)
+![mode](https://img.shields.io/badge/mode-file_%C2%B7_session-0e8a16)
+![platform](https://img.shields.io/badge/platform-Windows-555555)
+![risk](https://img.shields.io/badge/risk-T1-d29922)
+![maturity](https://img.shields.io/badge/maturity-draft-8957e5)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.0-0969da)
+![license](https://img.shields.io/badge/license-Apache--2.0-blue)
+<!-- driver:badges:end -->
 
-本版仅为限定预览。运行时 `reference` 仍报告 `unpublishable`、功能合同覆盖缺失；
-本次没有确认 PCB 保存重开、通用编辑、完整规则、DRC 或制造交付。丝印编辑仍禁用。
-[限定实机 smoke](docs/E2E.md) 只覆盖自有启动、关闭诊断和退出，工程持久性仍为 unknown。
+[English](README.md) | 中文
 
-运行准确候选的 `--version`、`reference --index --compact` 和目标命令的 reference，
-使用用户授权的 scope 与独立 `XPEDITION_CLI_CONFIG_DIR`。确认写入前检查实际预览、
-目标和保护门禁；未知结果不得通过换 journal 自动重放。
+<!-- driver:info-card:start -->
+| 项目 | 内容 |
+|---|---|
+| 软件 | Xpedition 2604 |
+| 模式 | file, session |
+| 系统与 CPU | Windows (x64) |
+| 风险等级 | T1 |
+| 成熟度 | draft：draft 0 个，verified 0 个，stable 0 个 |
+| 规范 | tool-driver-cli-spec 1.0.0 |
+| 宿主组件 | 不需要 |
+<!-- driver:info-card:end -->
 
-三个匹配 Skill 可从同一 Release 或[固定标签源码](https://github.com/fatecannotbealtered/xpedition-cli/tree/v2.0.0-dev.1/skills)获取：
+## 安装
 
-```powershell
-npx skills add https://github.com/fatecannotbealtered/xpedition-cli/tree/v2.0.0-dev.1 -y -g
+1. 从 npm 安装 xpedition-cli：
+
+   ```bash
+   npm install -g @fateforge/xpedition-cli
+   ```
+
+2. 运行一次 `update`。刚装好的已经是最新版本，所以 `update` 只把命令入口指向原生程序；这样每次调用都不用先启动 Node.js：
+
+   ```bash
+   xpedition-cli update
+   ```
+
+3. 从已安装的包里安装 Skill，Skill 从不从网络获取。把它们复制到 Agent 的 Skill 目录。用 bash：
+
+   ```bash
+   mkdir -p ~/.agents/skills
+   cp -r "$(npm root -g)/@fateforge/xpedition-cli/skills/"* ~/.agents/skills/
+   ```
+
+   用 PowerShell：
+
+   ```powershell
+   New-Item -ItemType Directory -Force "$HOME\.agents\skills" | Out-Null
+   Copy-Item -Recurse -Force "$(npm root -g)\@fateforge/xpedition-cli\skills\*" "$HOME\.agents\skills\"
+   ```
+
+   其他 Agent 的 Skill 目录做法相同。以后运行 `xpedition-cli update` 时，这几个目录里的副本会跟着工具一起更新：`~/.agents/skills/`、`~/.claude/skills/`、`~/.codex/skills/`、`~/.cursor/skills/`、`~/.gemini/skills/`。放在别处的副本不会更新。
+
+## 能力
+
+下面是 xpedition-cli 的全部命令，由命令登记生成；`(dangerous)` 表示该命令属于危险级，`xpedition-cli reference --command "<path>"` 给出单个命令的完整说明。
+
+<!-- driver:command-map:start -->
+- `reference`
+- `context`
+- `doctor`
+- `changelog`
+- `operation`: get, list, resolve
+- `update`
+- `session`: list, get, open, close
+- `doc`: list, get, create, open, save, save-as, close, undo
+- `job`: list, get, cancel
+- `knowledge`: list, get, search, create, delete
+<!-- driver:command-map:end -->
+
+## 工作方式
+
+xpedition-cli 每次调用都输出一个 JSON 信封。`xpedition-cli reference` 列出全部命令，`xpedition-cli reference --command "<path>"` 说明单个命令，包括它的参数、效果和在每种模式下的确认级别。
+
+**实例与文档。** xpedition-cli 驱动正在运行的 Xpedition 实例。`xpedition-cli session list` 列出每个实例的会话 ID、状态和打开的文档，`xpedition-cli doc list` 列出文档。用 `--session <id>` 指定实例，用 `--doc <path-or-id>` 指定文档。有多个实例在运行而命令没有指定时，命令返回 `E_AMBIGUOUS` 和候选列表：xpedition-cli 从不按窗口焦点或最近使用来挑实例。`--doc` 指定的文档只有一个实例打开时，就选中这个实例。被某个实例打开的文件只经由这个实例修改，直接写这个文件会被 `E_CONFLICT` 拒绝。
+
+**文件。** xpedition-cli 直接读写 Xpedition 的文件，不需要运行中的实例。`--doc <path>` 指定文件。
+
+**确认级别。** 每次写操作都会检查授权范围、生成预览、在派发前再检查一次状态、锁定目标、读回修改并返回回执。只有确认方式随级别不同，级别由 xpedition-cli 根据命令声明的效果得出：
+
+| 级别 | 适用 | 调用方式 |
+|---|---|---|
+| 直接执行 | 保存之前只在内存里的修改；启动实例；新建和打开文档；不覆盖已有文件的新文件；停止工作 | 一次调用就执行 |
+| 两步确认 | 保存和覆盖文件；文件模式和设备模式下的修改；设置；宿主组件 | 第一次调用什么都不改，返回 `E_CONFIRMATION_REQUIRED`，带预览和确认令牌；再带 `--confirm <token>` 运行同一条命令才执行 |
+| 危险 | 物理动作；把内容交给外部的人或系统；不可撤回的修改；放弃未保存的修改；关闭不是 xpedition-cli 启动的实例 | 与两步确认相同，确认的那次调用还要加 `--dangerous`；授权范围必须允许危险操作 |
+
+`--dry-run` 显示任何写操作的预览，什么都不改。确认令牌只能用一次，10 分钟内有效，而且只对它预览过的那次修改有效。授权范围文件设了 `"confirm": "always"` 时，除停止工作外的所有写操作都改为两步确认，人可以逐个批准预览。
+
+**会话模式下的保存。** 修改不等于保存。修改之后，回执报告 `persistence: unchanged`，文档仍有未保存的修改；只有 `xpedition-cli doc save` 才写入文档的文件。保存的预览列出上次保存以来的所有修改，包括人在 Xpedition 里做的修改（`origin: external`），以及结果仍然未知的写操作。
+
+**文件模式下的保存。** 写文件就是保存：回执报告 `persistence: saved`，xpedition-cli 会重新读取文件来验证修改。
+
+**回执。** 每次写操作都返回回执，分别报告修改是否执行、是否生效、是否送达、是否保存、是否验证。写操作的回复丢失时，xpedition-cli 返回 `E_OUTCOME_UNKNOWN` 和查明结果的命令，绝不会把写操作再发一遍。
+
+## 授权
+
+xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允许的内容。这个 JSON 文件由人亲手写；没有命令会写它，Agent 也从不创建或修改它。xpedition-cli 从 `XPEDITION_CLI_SCOPE_FILE` 指定的路径读取它；没有设置这个变量时，读取状态目录里的 `scope.json`，不从其他任何地方读取。
+
+```json
+{
+  "scope_id": "demo-rework",
+  "effects": ["change", "persist"],
+  "dangerous": false,
+  "targets": ["file:///D:/projects/demo/"],
+  "expires_at": "2027-01-31T18:00:00Z"
+}
 ```
 
-历史私有证据及其真实工程夹具不随快照分发；依赖这些夹具的 49 个历史测试函数
-已替换为明确跳过的占位，原始断言与原生记录字节覆盖未在此复现。测试必须先隔离
-配置、用户目录和输出，且不得连接已有 CAD 会话。
-部分开发登记仍保留脱敏的历史证据元数据和哈希：其中示例路径不指向快照内的
-真实证据，历史生成结果的 `errors=[]` 也不是本版检查通过。这些被排除的证据
-无法仅凭本快照独立复验。
-第三方许可见 `THIRD-PARTY-LICENSES` 和 `license-index-v4.json`。
+| 字段 | 含义 |
+|---|---|
+| `scope_id` | 这份授权的名称；操作记录会带上它 |
+| `effects` | 写操作可以有的效果；读取不需要授权范围 |
+| `dangerous` | 是否允许危险级的操作 |
+| `targets` | 写操作可以触及的对象的目标键前缀：`file:///D:/projects/demo/` 覆盖这个文件夹下的所有文件，`untitled:` 覆盖新建的文档，`device:<id>` 覆盖一台设备 |
+| `expires_at` | 授权到期的时间，用 UTC |
+| `confirm` | 可选；设为 `always` 时，除停止工作外的每个写操作都要等人批准预览后才执行 |
+
+授权范围不覆盖的写操作什么都不改，返回 `E_FORBIDDEN`，说明缺什么，并给出一段人可以直接粘贴进文件的片段。`xpedition-cli context` 显示当前生效的授权范围，`SECURITY_zh.md` 完整说明了授权范围。
+
+{{fill: xpedition-cli 的命令需要哪些效果、每种效果用于哪些命令，比如用一张效果与命令的表}}
+
+## 关于本工具
+
+{{fill: Xpedition 的领域特点、Agent 用 xpedition-cli 完成的典型任务，以及截图或简短示例}}
+
+## 配置
+
+| 变量 | 默认值 | 含义 |
+|---|---|---|
+| `XPEDITION_CLI_STATE_DIR` | `~/.xpedition-cli` | 状态目录：操作记录、锁、更新检查的缓存和团队知识的登记 |
+| `XPEDITION_CLI_SCOPE_FILE` | 状态目录里的 `scope.json` | 授权范围文件（见「授权」） |
+| `HTTPS_PROXY`、`HTTP_PROXY`、`NO_PROXY` | 未设置 | `update` 和 `doctor` 用的代理，只有这两个命令访问 npm 仓库 |
+| `XPEDITION_CLI_FAKE_HOST` | 未设置 | 只用于测试：把每次调用发给模拟宿主而不是 Xpedition，并把每个结果标为模拟结果 |
+
+### 怎样找到 Xpedition
+
+{{fill: xpedition-cli 怎样找到 Xpedition：安装位置、版本识别、运行中的实例，以及用户可以修改的设置}}
+
+## 卸载
+
+趁 npm 包还在、能列出 Skill 名称时，删除已安装的 Skill。用 bash：
+
+```bash
+for skill in "$(npm root -g)/@fateforge/xpedition-cli/skills/"*; do rm -rf ~/.agents/skills/"$(basename "$skill")"; done
+```
+
+用 PowerShell：
+
+```powershell
+Get-ChildItem "$(npm root -g)\@fateforge/xpedition-cli\skills" | ForEach-Object { Remove-Item -Recurse -Force "$HOME\.agents\skills\$($_.Name)" -ErrorAction SilentlyContinue }
+```
+
+复制过 Skill 的其他 Agent Skill 目录，如 `~/.claude/skills/`，也照此删除。然后卸载 npm 包：
+
+```bash
+npm uninstall -g @fateforge/xpedition-cli
+```
+
+在 Windows 上，如果 npm 全局 `node_modules` 文件夹（`npm root -g`）里有 `.xpedition-cli-trash`，也把它删掉；状态目录在另一块磁盘上时，`update` 会把旧的程序文件放在那里，等下次运行再删。
+
+最后删除状态目录：`~/.xpedition-cli`，或 `XPEDITION_CLI_STATE_DIR` 指定的文件夹。里面有操作记录、锁、默认位置的授权范围文件和团队知识的登记；想保留记录就留着它。
+
+```bash
+rm -rf ~/.xpedition-cli
+```
+
+```powershell
+Remove-Item -Recurse -Force "$HOME\.xpedition-cli"
+```
+
+## 开发
+
+xpedition-cli 用 Python 写成，建立在 `xpedition_cli/_driver/` 里的驱动运行时之上；这是固定副本，从不修改。领域命令在 `xpedition_cli/commands/`，适配层在 `xpedition_cli/adapter/`。
+
+```bash
+python -m pip install --require-hashes --no-deps -r requirements-dev.txt
+python scripts/spec.py check
+python -m unittest discover -s tests
+python scripts/spec.py suites
+```
+
+测试和一致性测试都用模拟宿主，从不需要 Xpedition。工作流程、行为矩阵和真实软件运行见 `CONTRIBUTING_zh.md`。
+
+## 链接
+
+- 规范：[tool-driver-cli-spec 1.0.0](.agent/)，固定副本在 `.agent/`
+- [CHANGELOG.md](CHANGELOG.md)：每个版本的改动（英文）
+- [SECURITY_zh.md](SECURITY_zh.md)：安全模型，以及怎样报告漏洞
+- [CONTRIBUTING_zh.md](CONTRIBUTING_zh.md)：怎样参与贡献
+- [docs/APPLICATION_zh.md](docs/APPLICATION_zh.md)：Xpedition 的能力调查
+- [docs/COMPATIBILITY_zh.md](docs/COMPATIBILITY_zh.md)：xpedition-cli 在哪里能用
+- [docs/E2E_zh.md](docs/E2E_zh.md)：真实软件验收及其记录
+- 问题跟踪：<https://github.com/fatecannotbealtered/xpedition-cli/issues>
