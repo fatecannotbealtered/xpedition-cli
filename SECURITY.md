@@ -45,6 +45,18 @@ Risk tier: **T1**, set by these commands:
 - `doc close`: lifecycle
 - `doc undo`: change
 - `job cancel`: lifecycle
+- `project create`: artifact
+- `part create`: change
+- `packager run`: change
+- `schematic create`: change, persist
+- `schematic export`: artifact
+- `pcb create`: artifact, persist
+- `forward-annotation run`: change
+- `pcb update`: change
+- `placement run`: change
+- `plane create`: change
+- `router run`: change
+- `pcb export`: artifact, persist
 <!-- driver:risk:end -->
 
 ## Authorization
