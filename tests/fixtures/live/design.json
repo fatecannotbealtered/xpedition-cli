@@ -3,13 +3,21 @@
   "revision": "R1",
   "status": "TEST DESIGN - NOT A PRODUCT",
   "sheet_size": "A4",
-  "partition": "Demo",
+  "partition": "PartQuest",
   "boxed_labels": true,
   "symbols": {
-    "J_DEMO": {"part": "DEMO-CONN-2"},
-    "R_DEMO": {"part": "DEMO-RES-1K-0603"},
-    "D_DEMO": {"part": "DEMO-LED-0603"},
-    "C_DEMO": {"part": "DEMO-CAP-100N-0603"}
+    "J_DEMO": {
+      "part": "DEMO-CONN-2"
+    },
+    "R_DEMO": {
+      "part": "DEMO-RES-1K-0603"
+    },
+    "D_DEMO": {
+      "part": "DEMO-LED-0603"
+    },
+    "C_DEMO": {
+      "part": "DEMO-CAP-100N-0603"
+    }
   },
   "sheets": [
     {
@@ -18,12 +26,69 @@
       "description": "A 5 V connector, a decoupling capacitor and a power indicator.",
       "zone": "DEMO",
       "blocks": [
-        {"kind": "text", "text": "5 V INPUT", "x": 90, "y": 620, "size": 9},
-        {"kind": "connector", "refdes": "J1", "symbol": "J_DEMO", "x": 140, "y": 480, "pins": {"1": "power:5V", "2": "gnd"}},
-        {"kind": "text", "text": "DECOUPLING", "x": 420, "y": 620, "size": 9},
-        {"kind": "ladder", "x": 460, "y": 560, "path": ["power:5V", {"refdes": "C1", "symbol": "C_DEMO"}, "gnd"]},
-        {"kind": "text", "text": "INDICATOR", "x": 700, "y": 620, "size": 9},
-        {"kind": "ladder", "x": 740, "y": 560, "path": ["power:5V", {"refdes": "R1", "symbol": "R_DEMO"}, "none", {"refdes": "D1", "symbol": "D_DEMO"}, "gnd"]}
+        {
+          "kind": "text",
+          "text": "5 V INPUT",
+          "x": 90,
+          "y": 620,
+          "size": 9
+        },
+        {
+          "kind": "connector",
+          "refdes": "J1",
+          "symbol": "J_DEMO",
+          "x": 140,
+          "y": 480,
+          "pins": {
+            "1": "power:5V",
+            "2": "gnd"
+          }
+        },
+        {
+          "kind": "text",
+          "text": "DECOUPLING",
+          "x": 420,
+          "y": 620,
+          "size": 9
+        },
+        {
+          "kind": "ladder",
+          "x": 460,
+          "y": 560,
+          "path": [
+            "power:5V",
+            {
+              "refdes": "C1",
+              "symbol": "C_DEMO"
+            },
+            "gnd"
+          ]
+        },
+        {
+          "kind": "text",
+          "text": "INDICATOR",
+          "x": 700,
+          "y": 620,
+          "size": 9
+        },
+        {
+          "kind": "ladder",
+          "x": 740,
+          "y": 560,
+          "path": [
+            "power:5V",
+            {
+              "refdes": "R1",
+              "symbol": "R_DEMO"
+            },
+            "none",
+            {
+              "refdes": "D1",
+              "symbol": "D_DEMO"
+            },
+            "gnd"
+          ]
+        }
       ]
     }
   ]

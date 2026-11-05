@@ -112,6 +112,8 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 ### Build a board
 
+Before `part create`, read [references/parts-file.md](references/parts-file.md) for the parts file; before `schematic create` or `placement run`, read [references/design-file.md](references/design-file.md) for the design file.
+
 1. `project create --doc <template.prj> --output <new.prj>`, then `part create --doc <new.prj> --file <parts.json>` for every part the design uses.
 2. `session open --doc <new.prj>`, `schematic create --design <design.json>` (a long job), `schematic check`, then `doc save`. Close and open the project (`doc close`, `doc open`) before reading the schematic again.
 3. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`; file-mode writes are refused while Designer has the project open.
