@@ -28,4 +28,12 @@ TOOL = Tool(
 
 
 def main() -> None:
+    import os
+
+    if os.environ.get("XPEDITION_CLI_WORKER"):
+        # A long job's worker process: it runs the job, never the CLI (adapter/jobs.py).
+        from .adapter.worker import main as worker
+
+        worker()
+        return
     TOOL.main()
