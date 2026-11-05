@@ -13,6 +13,7 @@ since that would change the document in a read.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 from pathlib import Path
@@ -287,7 +288,26 @@ class BoardGet(base.Handler):
 
     def read(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        return L.in_layout(ctx, lambda app, doc: board_facts(doc, path), budget_s=L.READ_BUDGET_S, what="reading the board")
+        output = ctx.inputs.get("output")
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            facts = board_facts(doc, path)
+            if output:
+                model = board_model(doc, full=True) if L.geometry_scale(doc) is not None else None
+                full = {**facts, "model": model, "metrics_full": board_metrics.measure(model) if model else None}
+                facts["output"] = write_output(str(output), full)
+            return facts
+
+        return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the board")
+
+
+def write_output(path: str, data: dict[str, Any]) -> str:
+    """Write the whole result to ``--output`` and return the path; the response keeps the summary (DCLI-008)."""
+    target = os.path.abspath(path)
+    os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+    with open(target, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=1, default=str)
+    return target
 
 
 # ------------------------------------------------------------------ pcb check
@@ -399,7 +419,7 @@ def rule_findings(model: dict[str, Any] | None, reason: str = UNIT_NOTE) -> list
             for index, row in enumerate(rows, 1)]
 
 
-def check_board(app: Any, doc: Any, pid: int | None) -> dict[str, Any]:
+def check_board(app: Any, doc: Any, pid: int | None, output: str | None = None) -> dict[str, Any]:
     """Run Batch DRC and read its hazards and the board rules. The lists carry the first
     ``CHECK_LISTED`` entries, errors first, so that the result fits one response; the counts are whole."""
     drc = run_batch_drc(app, pid)
@@ -417,8 +437,11 @@ def check_board(app: Any, doc: Any, pid: int | None) -> dict[str, Any]:
                               "rules were not checked; the hazards above stand.")
     rules.sort(key=lambda row: SEVERITY_ORDER.get(row["severity"], 3))
     severities = [row["severity"] for row in hazards] + [row["severity"] for row in rules]
-    return {"hazards": hazards[:CHECK_LISTED], "rules": rules[:CHECK_LISTED], "errors": severities.count("error"),
-            "warnings": severities.count("warning"), "hazard_count": len(hazards), "rule_count": len(rules), "drc": drc}
+    out = {"hazards": hazards[:CHECK_LISTED], "rules": rules[:CHECK_LISTED], "errors": severities.count("error"),
+           "warnings": severities.count("warning"), "hazard_count": len(hazards), "rule_count": len(rules), "drc": drc}
+    if output:
+        out["output"] = write_output(output, {**out, "hazards": hazards, "rules": rules})
+    return out
 
 
 class BoardCheck(base.Handler):
@@ -430,7 +453,7 @@ class BoardCheck(base.Handler):
 
     def read(self, ctx: Context) -> dict[str, Any]:
         ref = ctx.need_session(base.LAYOUT)
-        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid), budget_s=L.READ_BUDGET_S, rules=dialogs.DRC_PROMPTS,
+        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid, ctx.inputs.get("output")), budget_s=L.READ_BUDGET_S, rules=dialogs.DRC_PROMPTS,
                            what="running Batch DRC")
 
 
