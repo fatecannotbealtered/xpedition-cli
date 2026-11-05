@@ -35,6 +35,15 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `doc`: list, get, create, open, save, save-as, close, undo
 - `job`: list, get, cancel
 - `knowledge`: list, get, search, create, delete
+- `project`: get, create
+- `part`: list, get, create
+- `packager`: run
+- `schematic`: get, create (dangerous), check, export
+- `pcb`: create, update, get, check, export
+- `forward-annotation`: run
+- `placement`: run
+- `plane`: create
+- `router`: run
 <!-- driver:command-map:end -->
 
 ## Write recipe

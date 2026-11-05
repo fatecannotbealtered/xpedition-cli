@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | draft：draft 0 个，verified 0 个，stable 0 个 |
+| 成熟度 | draft：draft 19 个，verified 0 个，stable 0 个 |
 | 规范 | tool-driver-cli-spec 1.0.0 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -74,6 +74,15 @@
 - `doc`: list, get, create, open, save, save-as, close, undo
 - `job`: list, get, cancel
 - `knowledge`: list, get, search, create, delete
+- `project`: get, create
+- `part`: list, get, create
+- `packager`: run
+- `schematic`: get, create (dangerous), check, export
+- `pcb`: create, update, get, check, export
+- `forward-annotation`: run
+- `placement`: run
+- `plane`: create
+- `router`: run
 <!-- driver:command-map:end -->
 
 ## 工作方式
