@@ -292,7 +292,17 @@ def _warnings(log: Path) -> int:
 
 
 class PackagerRun(Handler):
+    """``package.exe`` on the project. It runs as a long job (DCLI-065): packaging a large design
+    takes longer than one call may. ``apply`` does the work; the worker calls it through ``run``."""
+
     command = "packager run"
+    long_job = True
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        progress(0, 1, "packaging runs")
+        out = self.apply(ctx)
+        progress(1, 1, "packaging runs")
+        return {"change": out["change"], "persistence": out["persistence"], "result": out.get("result", {})}
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         project = lib.project_path(ctx)

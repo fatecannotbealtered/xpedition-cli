@@ -221,7 +221,7 @@
     },
     {
       "path": "packager run",
-      "summary": "Package the schematic for Layout with Xpedition's packager and report its errors and warnings.",
+      "summary": "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
       "effects": [
         "change"
       ],

@@ -13,9 +13,10 @@ After sheet operations, Designer reads the design wrongly until the project is c
 
 After them, Designer reports the schematic (`Schematic1`) as the active design instead of the block (`Board1`). Reading the components then fails with a type mismatch (`DesignComponents`).
 
-schematic create replaces the sheets, then saves, reopens the project and compares the netlist it reads back with the design file. That is why it ends with a reopen.
+schematic create replaces the sheets but does not save or reopen the project: in a session, only doc save saves. It reads the netlist back from the open project without reopening; when Designer cannot give it then, its receipt says the read-back is incomplete.
 
 What to do:
 
-- If schematic get or schematic check fails with a type mismatch, or reports counts that do not match the drawing, reopen the project: doc save, doc close, then doc open in the same Designer session. Then read again.
+- After schematic create, run doc save. Then, before schematic get or schematic check, reopen the project: doc close, then doc open in the same Designer session.
+- If schematic get or schematic check fails with a type mismatch, or reports counts that do not match the drawing, reopen the project the same way, saving first if the drawing is not saved. Then read again.
 - Symbols without a reference designator (power, ground and no-connect marks) do not expose their symbol name through COM. They can be recognized only by where they sit.
