@@ -43,7 +43,6 @@ def obj(**props: dict[str, Any]) -> dict[str, Any]:
     return {"type": "object", "properties": props}
 
 
-FILES = arr(obj(path=STR, bytes=INT, sha256=STR))
 FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
 
 
@@ -263,7 +262,7 @@ COMMANDS: list[dict[str, Any]] = [
         effects=["artifact", "persist"], modes=["session"], target_kind="pcb", survey_ids=["CAP-081"],
         flags=[{"name": "--output", "type": "path", "required": True, "output": True,
                 "summary": "The folder for the package; it must not exist or must be empty."}],
-        output=obj(path=STR, files=FILES, board=obj(width_mm=NUM, height_mm=NUM, layers=INT), problems=arr(STR),
+        output=obj(path=STR, file_count=INT, manifest=STR, board=obj(width_mm=NUM, height_mm=NUM, layers=INT), problems=arr(STR),
                    setups_patched=arr(STR), setups_rewritten=arr(STR)),
         untrusted=["problems"],
         examples=["xpedition-cli pcb export --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/fab"],
