@@ -14,7 +14,7 @@
 
 真实软件运行使用这些电脑：
 
-{{fill: 真实软件运行用到的电脑、操作系统、Xpedition 版本和模式}}
+- 一台 Windows 11 x64 电脑，装 Xpedition Enterprise 2604，用 file 和 session 两种模式。练习工程和评测文件夹由人列进「授权目标」。
 
 在真实的 Xpedition 上运行行为矩阵：
 

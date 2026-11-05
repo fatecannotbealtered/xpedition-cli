@@ -1,6 +1,6 @@
 # xpedition-cli
 
-{{fill: one-line pitch: what the tool lets an Agent do in Xpedition}}
+Lets an AI Agent build Xpedition designs from the command line, from central-library parts and the schematic to the board and its fabrication package, with every change previewed, confirmed and read back.
 
 <!-- driver:badges:start -->
 ![Agent-native](https://img.shields.io/badge/🤖-Agent--native-6f42c1)
@@ -134,11 +134,31 @@ xpedition-cli reads without asking, but it writes only what a person has granted
 
 A write the scope does not cover changes nothing and returns `E_FORBIDDEN`, with what is missing and a snippet the person can paste into the file. `xpedition-cli context` shows the scope in force, and `SECURITY.md` describes the scope in full.
 
-{{fill: the effects the commands of xpedition-cli need, and which commands need each, for example as a table of effect and commands}}
+Commands and the effects a scope must grant for them:
+
+| Effect | Commands |
+|---|---|
+| `artifact` | `project create`, `schematic export`, `pcb create`, `pcb export` |
+| `change` | `part create`, `packager run`, `schematic create`, `forward-annotation run`, `pcb update`, `placement run`, `plane create`, `router run` |
+| `persist` | `schematic create` (writes symbol files), `pcb create` (writes the project file), `pcb export` (rewrites the output setup files), `doc save` |
+| `lifecycle` | `session open`, `session close`, `doc open`, `doc close`, `job cancel` |
+
+`schematic create` is dangerous because it replaces the sheets it draws; it runs only with `"dangerous": true` in the scope. Building a board in one project folder needs `lifecycle`, `change`, `artifact` and `persist` on that folder.
 
 ## About This Tool
 
-{{fill: the domain of Xpedition, the typical tasks an Agent does with xpedition-cli, and screenshots or short examples}}
+Xpedition is Siemens' printed-circuit-board design suite. Designer draws the schematic, Layout draws the board, and the project's central library holds the parts, symbols, footprints (cells) and padstacks. xpedition-cli drives a licensed Xpedition 2604 on the same Windows computer: Designer and Layout through their COM interfaces, and the central library, packaging, board creation and PDF export through Xpedition's own command-line programs.
+
+The first release covers the path from an empty project to a fabrication package:
+
+1. `project create` copies a template project; `part create` adds parts to its central library from a parts file.
+2. `session open --doc Demo.prj` starts Designer; `schematic create` draws the schematic from a design file; `schematic check` runs Designer's verification; `doc save` saves it; `schematic export` writes a PDF.
+3. After `doc close` in Designer, `packager run` packages the schematic and `pcb create` creates the board.
+4. `session open --doc PCB/Demo.pcb` starts Layout; `forward-annotation run` brings the schematic in; `pcb update` sets the outline; `placement run`, `plane create` and `router run` place, pour and route; `pcb check` runs the design rule check; `doc save` saves; `pcb export` writes ODB++, Gerber, NC drill, a centroid file and a BOM.
+
+Every change is previewed, confirmed when its tier asks for it, and read back from Xpedition. `schematic create`, `forward-annotation run` and `pcb export` run as long jobs that `job get` follows.
+
+Upgrading from version 1.0.3 or earlier: those versions have no `update` command. Reinstall with `npm install -g @fateforge/xpedition-cli`, then delete their Skill folders `xpedition-schematic` and `xpedition-pcb` from your Agent's Skill folders; this version has a single Skill, `xpedition-cli`.
 
 ## Configuration
 
@@ -151,7 +171,10 @@ A write the scope does not cover changes nothing and returns `E_FORBIDDEN`, with
 
 ### Finding Xpedition
 
-{{fill: how xpedition-cli finds Xpedition: install location, version detection, running instances, and any setting the user can change}}
+- **Install:** xpedition-cli looks for the Xpedition install (`SDD_HOME`) in this order: the variables `XPEDITION_SDD_HOME` and `SDD_HOME` (from the process, then the user's and the machine's Windows environment settings), the release entries under `HKEY_LOCAL_MACHINE\Software\Mentor Graphics\Releases`, and a release folder beside the licence file. The folder must hold `common/win64/bin/ExpeditionPCB.exe`. Set `XPEDITION_SDD_HOME` to choose one install when several are present.
+- **Version:** read from the release folder name, such as `XPED2604` or `XENTP2604`. `doctor` reports it.
+- **Starting programs:** always through the launchers in `SDD_HOME/common/win64/bin`, which set up the release environment; licence settings missing from the process are taken from the Windows environment settings and never printed.
+- **Running instances:** found from the process list (`viewdraw.exe` for Designer, `ExpeditionPCB.exe` for Layout) and reached through COM. COM reaches only one instance of each program, so xpedition-cli drives one Designer and one Layout at a time; `session list` shows the others as blocked.
 
 ## Uninstall
 

@@ -71,7 +71,19 @@ A person grants writes in a scope file, a JSON file with the fields `scope_id`, 
 - **Records and settings.** `operation resolve` needs a scope that covers the effects and targets of the operation it settles. `knowledge create` and `knowledge delete` change only the tool's own list of team knowledge links and need no scope.
 - **Limits.** The scope guards against mistakes by the Agent and against instructions injected through untrusted content. It cannot stop an Agent that ignores its Skills, because the scope file is an ordinary file in the user's account; keep such an Agent away from the file through the permissions you give the Agent itself.
 
-{{fill: the scope a person typically grants for xpedition-cli: the effects and targets of a common task, with an example scope file}}
+A person who lets the Agent build a board in one practice project grants the effects of the board flow on that project folder until a date, for example:
+
+```json
+{
+  "scope_id": "demo-board",
+  "effects": ["lifecycle", "change", "artifact", "persist"],
+  "dangerous": true,
+  "targets": ["file:///D:/work/demo/"],
+  "expires_at": "2027-01-31T18:00:00Z"
+}
+```
+
+`dangerous: true` is needed only for `schematic create`, which replaces the sheets it draws; leave it `false` for every other task.
 
 ## Write Confirmation
 
@@ -112,9 +124,9 @@ Only the writer named in the table writes an entry. Only the current user may re
 - **Connections.** xpedition-cli connects only to the npm registry, from `update` and `doctor`, and to the Xpedition services or devices it drives, from the commands that drive them. It sends no telemetry. Every request honors `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY`, and every TLS connection verifies the server certificate; nothing turns that check off.
 - **Team knowledge.** xpedition-cli stores only the links of registered team knowledge. It never connects to Feishu and keeps no Feishu account; the Agent reads team documents itself with lark-cli.
 
-{{fill: the secrets xpedition-cli handles, such as license keys or device passwords, and how a person supplies them; or that it handles none}}
+xpedition-cli handles no secrets. Xpedition's licence settings stay in the Windows environment; the tool copies missing ones into the programs it starts and never prints, records or returns their values.
 
-{{fill: the Xpedition services or devices xpedition-cli connects to, with their addresses and ports; or that it talks only to Xpedition on the same machine}}
+xpedition-cli talks only to Xpedition on the same computer, through COM and its command-line programs. Xpedition itself contacts its licence server as its own settings say; the tool never does.
 
 ## Untrusted Content
 

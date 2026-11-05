@@ -29,4 +29,9 @@ xpedition-cli has no host component, so there are no host component versions.
 
 ## Known Limitations
 
-{{fill: known gaps and failures, each with the tool and application versions it affects; or None known.}}
+- Live runs so far: none on this version. Every command is `draft` until its behavior matrix passes on the real application.
+- Only Xpedition 2604 on Windows x64 is supported; COM exists only on Windows.
+- One Designer and one Layout at a time: COM reaches only one instance of each program.
+- Xpedition does not report unsaved changes or a change counter through COM, so `dirty` and `revision` come from the tool's own writes; edits a person makes in the application are not seen (knowledge `xpedition-external-edits-not-tracked`).
+- After sheet operations Designer reads its design correctly only once the project is saved, closed and opened again (knowledge `designer-reopen-after-sheet-changes`); `schematic create` reads back without reopening, which is not yet proven.
+- Bottom-side placement, window screenshots, Designer's NewProject and refreshing a board's cells are not offered.

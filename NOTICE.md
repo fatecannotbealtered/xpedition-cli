@@ -18,5 +18,7 @@ xpedition-cli drives Xpedition. Xpedition is a trademark of its owner. xpedition
 | PyInstaller bootloader | Bundled in the native program | GNU General Public License 2.0 or later, with an exception that allows distributing programs built with it |
 | tool-driver-cli-spec 1.0.0 | `.agent/` and `contract/driver-contract.json` | See `licenses/` |
 | Driver runtime | `xpedition_cli/_driver/` | See `licenses/` |
-
-{{fill: every other component the native program or the host component bundles, with its license; or delete this line when there is none}}
+| pywin32 | Bundled in the native program | Python Software Foundation License |
+| pywinauto | Bundled in the native program | BSD 3-Clause License |
+| comtypes | Bundled in the native program | MIT License |
+| six | Bundled in the native program | MIT License |
