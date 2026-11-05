@@ -14,7 +14,7 @@ No target is authorized yet.
 
 Live runs are made on these machines:
 
-{{fill: the machines, operating systems, Xpedition versions and modes used for live runs}}
+- One Windows 11 x64 computer with Xpedition Enterprise 2604, in file and session mode. The person lists the practice projects and the evaluation folder under Authorized Targets.
 
 To run a behavior matrix on the real Xpedition:
 

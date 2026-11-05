@@ -71,7 +71,19 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - **记录与设置。** `operation resolve` 需要一个授权范围，覆盖它所处理的那次操作的效果和目标。`knowledge create` 和 `knowledge delete` 只改工具自己的团队知识链接列表，不需要授权范围。
 - **局限。** 授权范围防的是 Agent 的失误，以及经不可信内容注入的指令。它拦不住无视 Skill 的 Agent，因为授权范围文件只是用户账户里的一个普通文件；要让这样的 Agent 碰不到这个文件，得靠你给 Agent 本身设定的权限。
 
-{{fill: 人通常为 xpedition-cli 授予的授权范围：一项常见任务需要的效果和目标，附一个授权范围文件示例}}
+人让 Agent 在一个练习工程里做一块板时，在这个工程文件夹上准许做板流程用到的效果，并设一个截止时间，例如：
+
+```json
+{
+  "scope_id": "demo-board",
+  "effects": ["lifecycle", "change", "artifact", "persist"],
+  "dangerous": true,
+  "targets": ["file:///D:/work/demo/"],
+  "expires_at": "2027-01-31T18:00:00Z"
+}
+```
+
+只有 `schematic create` 需要 `dangerous: true`，因为它会替换它画的各页；其他任务都设成 `false`。
 
 ## 写入确认
 
@@ -112,9 +124,9 @@ xpedition-cli 把状态保存在每个用户一个的目录里：`XPEDITION_CLI_
 - **连接。** xpedition-cli 只连接 npm 仓库（只有 `update` 和 `doctor` 会连），以及它驱动的 Xpedition 服务或设备（只由驱动它们的命令连接）。它不发送任何遥测数据。每个网络请求都遵守 `HTTPS_PROXY`、`HTTP_PROXY` 和 `NO_PROXY`，每个 TLS 连接都校验服务器证书，没有任何办法关掉这项校验。
 - **团队知识。** xpedition-cli 只保存已登记的团队知识的链接。它从不连接飞书，也不保存飞书账号；团队文档由 Agent 自己用 lark-cli 读取。
 
-{{fill: xpedition-cli 经手的机密，如许可证密钥或设备密码，以及人怎样提供它们；或者写明它不经手任何机密}}
+xpedition-cli 不经手任何机密。Xpedition 的许可证设置留在 Windows 环境设置里；工具只把缺的设置带给它启动的程序，从不打印、记录或返回它们的值。
 
-{{fill: xpedition-cli 连接的 Xpedition 服务或设备，以及它们的地址和端口；或者写明它只与同一台电脑上的 Xpedition 通信}}
+xpedition-cli 只与同一台电脑上的 Xpedition 通信，经 COM 和它的命令行程序。Xpedition 自己按它的设置连许可证服务器；工具从不连接。
 
 ## 不可信内容
 

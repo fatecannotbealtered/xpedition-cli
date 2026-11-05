@@ -1,6 +1,6 @@
 # xpedition-cli
 
-{{fill: 一句话定位：本工具让 Agent 在 Xpedition 里做什么}}
+让 AI Agent 用命令行完成 Xpedition 设计：从中心库元件、原理图，到板和生产文件，每次修改都先预览、确认，再读回核对。
 
 <!-- driver:badges:start -->
 ![Agent-native](https://img.shields.io/badge/🤖-Agent--native-6f42c1)
@@ -134,11 +134,31 @@ xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允
 
 授权范围不覆盖的写操作什么都不改，返回 `E_FORBIDDEN`，说明缺什么，并给出一段人可以直接粘贴进文件的片段。`xpedition-cli context` 显示当前生效的授权范围，`SECURITY_zh.md` 完整说明了授权范围。
 
-{{fill: xpedition-cli 的命令需要哪些效果、每种效果用于哪些命令，比如用一张效果与命令的表}}
+各命令需要授权范围准许的效果：
+
+| 效果 | 命令 |
+|---|---|
+| `artifact` | `project create`、`schematic export`、`pcb create`、`pcb export` |
+| `change` | `part create`、`packager run`、`schematic create`、`forward-annotation run`、`pcb update`、`placement run`、`plane create`、`router run` |
+| `persist` | `schematic create`（写符号文件）、`pcb create`（写工程文件）、`pcb export`（改输出设置文件）、`doc save` |
+| `lifecycle` | `session open`、`session close`、`doc open`、`doc close`、`job cancel` |
+
+`schematic create` 会替换它画的各页，属于危险档，授权范围里要有 `"dangerous": true` 才能运行。在一个工程文件夹里做完一块板，需要对这个文件夹准许 `lifecycle`、`change`、`artifact` 和 `persist`。
 
 ## 关于本工具
 
-{{fill: Xpedition 的领域特点、Agent 用 xpedition-cli 完成的典型任务，以及截图或简短示例}}
+Xpedition 是 Siemens 的印制电路板设计软件。Designer 画原理图，Layout 画板，工程的中心库存放元件、符号、封装（cell）和焊盘栈。xpedition-cli 驱动同一台 Windows 电脑上装好并有许可证的 Xpedition 2604：Designer 和 Layout 经它们的 COM 接口驱动；中心库、打包、建板和导出 PDF 用 Xpedition 自带的命令行程序。
+
+第一版覆盖从空工程到生产文件的整条流程：
+
+1. `project create` 从模板复制工程；`part create` 按元件描述文件往中心库加元件。
+2. `session open --doc Demo.prj` 启动 Designer；`schematic create` 按设计描述文件画原理图；`schematic check` 运行 Designer 的校验；`doc save` 存盘；`schematic export` 导出 PDF。
+3. 在 Designer 里 `doc close` 以后，`packager run` 打包原理图，`pcb create` 建板。
+4. `session open --doc PCB/Demo.pcb` 启动 Layout；`forward-annotation run` 把原理图带进板；`pcb update` 设板框；`placement run`、`plane create`、`router run` 布局、铺铜、布线；`pcb check` 跑 DRC；`doc save` 存盘；`pcb export` 出 ODB++、Gerber、NC 钻孔、坐标文件和 BOM。
+
+每次修改都先预览，按确认档确认，执行后从 Xpedition 读回核对。`schematic create`、`forward-annotation run` 和 `pcb export` 是长作业，用 `job get` 跟进。
+
+从 1.0.3 或更早的版本升级：这些版本没有 `update` 命令。请用 `npm install -g @fateforge/xpedition-cli` 重装，再从 Agent 的 Skill 文件夹里删掉旧的 `xpedition-schematic` 和 `xpedition-pcb` 两个文件夹；本版本只有一个 Skill：`xpedition-cli`。
 
 ## 配置
 
@@ -151,7 +171,10 @@ xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允
 
 ### 怎样找到 Xpedition
 
-{{fill: xpedition-cli 怎样找到 Xpedition：安装位置、版本识别、运行中的实例，以及用户可以修改的设置}}
+- **安装：**xpedition-cli 按这个顺序找 Xpedition 的安装（`SDD_HOME`）：变量 `XPEDITION_SDD_HOME` 和 `SDD_HOME`（先看进程，再看用户和本机的 Windows 环境设置），`HKEY_LOCAL_MACHINE\Software\Mentor Graphics\Releases` 下的版本条目，以及许可证文件旁边的版本文件夹。这个文件夹里必须有 `common/win64/bin/ExpeditionPCB.exe`。装了几套时，设 `XPEDITION_SDD_HOME` 指定一套。
+- **版本：**从版本文件夹的名字读出，例如 `XPED2604` 或 `XENTP2604`。`doctor` 会报告。
+- **启动程序：**一律经 `SDD_HOME/common/win64/bin` 下的启动器，它会设好这个版本的环境；进程里缺的许可证设置从 Windows 环境设置里取，从不打印。
+- **运行中的实例：**从进程列表找（Designer 是 `viewdraw.exe`，Layout 是 `ExpeditionPCB.exe`），经 COM 连接。COM 每种程序只连得上一个实例，所以 xpedition-cli 同时只驱动一个 Designer 和一个 Layout；`session list` 把其余的显示为 blocked。
 
 ## 卸载
 

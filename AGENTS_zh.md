@@ -33,6 +33,11 @@ xpedition-cli 驱动 Xpedition，支持的版本是 2604，模式如下：
 
 适配层怎样连到 Xpedition：
 
-{{fill: 适配层连到 Xpedition 所用的自动化接口，以及编程 Agent 必须了解的相关情况}}
+- Designer：进程外 COM `Viewdraw.Application`（pywin32），用 `GetActiveObject` 连接。它的对象说不出自己的进程号，所以只能驱动一个 Designer。
+- Layout：进程外 COM `MGCPCB.ExpeditionPCBApplication`；每打开一个文档都要换许可证 token（`Validate` → `MGCPCBAutomationLicensing.Application.GetToken` → `Validate`）。Batch DRC 和生产文件输出是菜单命令（`Gui.ProcessCommand`），会弹对话框。
+- 中心库、打包、建板和导出 PDF 用 Xpedition 自带的命令行程序（`HKP2*DB`、`*DB2HKP`、`package.exe`、`JobWizard.exe`、`sch2pdf.exe`），一律经 `SDD_HOME/common/win64/bin` 下的启动器启动。
+- 模态对话框会挡住所有 COM 调用。`adapter/platform/dialogs.py` 只回答规则表里已知的提示，从不按未知对话框的默认按钮，也从不碰许可证和登录窗口。
+- 超过 60 秒的工作在工作进程里运行（`adapter/jobs.py`、`adapter/worker.py`）。
+- 单元测试模拟 COM 和这些程序。测试里绝不启动 Xpedition 或运行它的程序；真实软件运行按 `docs/E2E.md` 做。
 
 常用命令见 `CONTRIBUTING_zh.md` 的「常用命令」一节。真实软件测试只用 `docs/E2E.md` 里「Authorized Targets」一节的目标；本文件不列任何目标。

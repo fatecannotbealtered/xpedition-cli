@@ -33,6 +33,11 @@ Where the code lives:
 
 How the adapter reaches Xpedition:
 
-{{fill: the automation interfaces the adapter uses to reach Xpedition, and what a coding Agent must know about them}}
+- Designer: out-of-process COM `Viewdraw.Application` (pywin32), reached with `GetActiveObject`. Its object cannot tell its process ID, so only one Designer can be driven.
+- Layout: out-of-process COM `MGCPCB.ExpeditionPCBApplication`; every opened document needs the licence token step (`Validate` → `MGCPCBAutomationLicensing.Application.GetToken` → `Validate`). Batch DRC and the fabrication outputs are menu commands (`Gui.ProcessCommand`) that raise dialogs.
+- The central library, packaging, board creation and PDF export use Xpedition's command-line programs (`HKP2*DB`, `*DB2HKP`, `package.exe`, `JobWizard.exe`, `sch2pdf.exe`), always started through the launchers in `SDD_HOME/common/win64/bin`.
+- A modal dialog blocks every COM call. `adapter/platform/dialogs.py` answers only the known prompts in its rule tables, never presses a default button of an unknown dialog, and never touches licence or sign-in windows.
+- Work longer than 60 s runs in a worker process (`adapter/jobs.py`, `adapter/worker.py`).
+- Unit tests fake COM and the programs. Never start Xpedition or run its programs from tests; live runs follow `docs/E2E.md`.
 
 The common commands are listed in the Commands section of `CONTRIBUTING.md`. Live tests use only the targets under Authorized Targets in `docs/E2E.md`; this file lists none.
