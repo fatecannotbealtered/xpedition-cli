@@ -128,7 +128,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules', 'library-part-value-is-numeric', 'cell-pin-count-must-match', 'xpedition-ascii-paths-only'],
     ),
     command(
-        "packager run", "Package the schematic for Layout with Xpedition's packager and report its errors and warnings.",
+        "packager run", "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
         effects=["change"], modes=["file"], target_kind="project", survey_ids=["CAP-043"],
         output=obj(packaged=BOOL, design=STR, errors=arr(STR), warnings=INT, verdict=STR, log=STR),
         untrusted=["errors", "verdict"],
