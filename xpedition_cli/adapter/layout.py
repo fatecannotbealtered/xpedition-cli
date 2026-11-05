@@ -842,7 +842,8 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
 
     readers: dict[str, Callable[[list[str]], dict[str, Any]]] = {
         "forward-annotation": lambda parts: {"status": annotation_state(doc)["status"]},
-        "outline": lambda parts: outline_values(doc),
+        # a radius that cannot be read (a board not in mils) is left out: "not read back", never null
+        "outline": lambda parts: {k: v for k, v in outline_values(doc).items() if not (k == "radius_mm" and v is None)},
         "routing": lambda parts: routing_values(doc),
         "components": lambda parts: component_values(find_component(doc, parts[1])),
         "planes": lambda parts: plane_values(doc, parts[1], int(parts[2])),

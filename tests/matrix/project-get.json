@@ -5,54 +5,51 @@
       "row": "normal",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the normal situation; name every target only with the sample placeholders}}"
+        "--doc",
+        "{doc}"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "The practice project's designs, board, central library and library lists, read from the .prj on disk."
       }
     },
     {
       "row": "empty",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the empty situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 0
-      }
+      "applies": false,
+      "reason": "project get returns one project; a project file that does not exist is the not_found row (DCLI-022), and a project always yields its object."
     },
     {
       "row": "invalid_input",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the invalid_input situation; name every target only with the sample placeholders}}"
+        "--doc",
+        "{doc}",
+        "--id",
+        "Demo"
       ],
       "expected": {
         "exit": 2,
-        "code": "E_USAGE"
+        "code": "E_USAGE",
+        "summary": "project get has no --id flag; the problem names it and the correct form."
       }
     },
     {
       "row": "not_found",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the not_found situation; name every target only with the sample placeholders}}"
+        "--doc",
+        "{dir}/Missing.prj"
       ],
       "expected": {
         "exit": 3,
-        "code": "E_NOT_FOUND"
+        "code": "E_NOT_FOUND",
+        "summary": "No project file at that path."
       }
     },
     {
       "row": "ambiguous",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the ambiguous situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      }
+      "applies": false,
+      "reason": "The command works in file mode on the project file named by its path and selects nothing by name, so nothing can match several objects; no two instances can report one project open (with two Designers running the adapter reports the documents of neither)."
     },
     {
       "row": "conflict",
@@ -83,10 +80,12 @@
       "row": "unsaved",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the unsaved situation; name every target only with the sample placeholders}}"
+        "--doc",
+        "{doc}"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "Designer holds the project open with unsaved changes (a schematic create not yet saved): project get still reads the .prj on disk and returns what was last saved; Designer is not asked anything."
       }
     },
     {

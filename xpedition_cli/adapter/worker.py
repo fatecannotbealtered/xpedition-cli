@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .._driver import AdapterError
-from . import jobs
+from . import jobs, sessions
 
 
 class _FileStore:
@@ -62,6 +62,11 @@ def run(path: Path) -> int:
     except Exception as exc:  # noqa: BLE001 - the job's outcome is then not known
         final = {"state": "unknown", "native_message": f"{type(exc).__name__}: {exc}"}
         traceback.print_exc()
+    if request.get("session") and request.get("document") and sessions.changed({"dispatch_state": "dispatched", **final}):
+        store = _FileStore(path.parent)
+        kept = store.get(sessions.preview_key(request), {}) or {}
+        sessions.note_change(store, request["session"], request["document"], kept.get("changes", []))  # type: ignore[arg-type]
+        store.delete(sessions.preview_key(request))
     current = jobs.read(path) or record
     current.update(final, finished_at=jobs.utc_now())
     if current.get("action") and current["state"] != "blocked":

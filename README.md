@@ -138,8 +138,8 @@ Commands and the effects a scope must grant for them:
 
 | Effect | Commands |
 |---|---|
-| `artifact` | `project create`, `schematic export`, `pcb create`, `pcb export` |
-| `change` | `part create`, `packager run`, `schematic create`, `forward-annotation run`, `pcb update`, `placement run`, `plane create`, `router run` |
+| `artifact` | `project create`, `schematic export`, `pcb export` |
+| `change` | `part create`, `packager run`, `pcb create`, `schematic create`, `forward-annotation run`, `pcb update`, `placement run`, `plane create`, `router run` |
 | `persist` | `schematic create` (writes symbol files), `pcb create` (writes the project file), `pcb export` (rewrites the output setup files), `doc save` |
 | `lifecycle` | `session open`, `session close`, `doc open`, `doc close`, `job cancel` |
 

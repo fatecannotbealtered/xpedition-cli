@@ -22,8 +22,6 @@ Layout of the package:
 """
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any
 
 from .._driver import Adapter as BaseAdapter
@@ -63,11 +61,6 @@ class _Lazy(dict):  # type: ignore[type-arg]
 
 
 HANDLERS: dict[str, Handler] = _Lazy()
-
-
-def _fingerprint(request: dict[str, Any]) -> str:
-    keep = {k: request.get(k) for k in ("command", "inputs", "session", "document")}
-    return "pv-" + hashlib.sha256(json.dumps(keep, sort_keys=True, default=str).encode()).hexdigest()[:24]
 
 
 class Adapter(BaseAdapter):
@@ -118,17 +111,20 @@ class Adapter(BaseAdapter):
             return sessions.save_preview(self.store, request)
         out = self._handler(request).preview(Context(self.store, request))
         if request.get("session"):
-            self.store.set(_fingerprint(request), {"changes": out.get("changes", [])})
+            self.store.set(sessions.preview_key(request), {"changes": out.get("changes", [])})
         return out
 
     def apply(self, request: dict[str, Any]) -> dict[str, Any]:
         handler = self._handler(request)
         ctx = Context(self.store, request)
-        facts = jobs.start(self.store, request) if handler.long_job else handler.apply(ctx)
-        if request.get("session") and request.get("document") and facts.get("dispatch_state") != "not_started":
-            kept = self.store.get(_fingerprint(request), {}) or {}
+        if handler.long_job:
+            return jobs.start(self.store, request)  # the worker notes the change when the job ends
+        facts = handler.apply(ctx)
+        if request.get("session") and request.get("document") and sessions.changed(facts):
+            kept = self.store.get(sessions.preview_key(request), {}) or {}
             sessions.note_change(self.store, request["session"], request["document"], kept.get("changes", []))
-            self.store.delete(_fingerprint(request))
+        if request.get("session"):
+            self.store.delete(sessions.preview_key(request))
         return facts
 
     def read_back(self, request: dict[str, Any]) -> dict[str, Any]:

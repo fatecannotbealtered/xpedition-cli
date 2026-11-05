@@ -5,130 +5,159 @@
       "row": "normal",
       "applies": true,
       "arguments": [
-        "{{fill: the write sample; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "sch2pdf writes the saved schematic to {dir}/Demo.pdf; verified by the file, pages listed."
       }
     },
     {
       "row": "empty",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the empty situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 0
-      }
+      "applies": false,
+      "reason": "schematic export always writes one PDF of every sheet; there is no call with nothing to write."
     },
     {
       "row": "invalid_input",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the invalid_input situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Demo.txt"
       ],
       "expected": {
         "exit": 2,
-        "code": "E_USAGE"
+        "code": "E_VALIDATION",
+        "summary": "--output must name a .pdf file; refused at the preview."
       }
     },
     {
       "row": "not_found",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the not_found situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.prj",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 3,
-        "code": "E_NOT_FOUND"
+        "code": "E_NOT_FOUND",
+        "summary": "The session has no such project open."
       }
     },
     {
       "row": "ambiguous",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the ambiguous situation; name every target only with the sample placeholders}}"
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 2,
-        "code": "E_AMBIGUOUS"
+        "code": "E_AMBIGUOUS",
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents. (Run the matrix with --mode session.)"
       }
     },
     {
       "row": "conflict",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the conflict situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 6,
-        "code": "E_CONFLICT"
+        "code": "E_CONFLICT",
+        "summary": "An earlier export to the same file was interrupted: its CLI process was ended (Task Manager) while sch2pdf ran, so its outcome is unknown and the PDF's target stays locked until operation resolve: E_CONFLICT target_locked."
       }
     },
     {
       "row": "no_scope",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the no_scope situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 4,
-        "code": "E_FORBIDDEN"
+        "code": "E_FORBIDDEN",
+        "summary": "Run under a scope file that does not cover the target ({dir}/Demo.pdf); nothing is previewed to the application's files or sent."
       }
     },
     {
       "row": "busy",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the busy situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 7,
-        "code": "E_BUSY"
+        "code": "E_BUSY",
+        "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
       }
     },
     {
       "row": "dialog",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the dialog situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
         "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
+        "code": "E_HUMAN_REQUIRED",
+        "summary": "A person leaves a modal dialog open in Designer before the call, such as Setup > Settings or Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open. The runtime refuses on the session state, although sch2pdf itself would not need Designer."
       }
     },
     {
       "row": "disconnect",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the disconnect situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 8,
-        "code": "E_OUTCOME_UNKNOWN"
-      }
+      "applies": false,
+      "reason": "schematic export runs the headless sch2pdf on the project files and never calls Designer during the write, so there is no connection to lose; an instance that stops answering before the call is the busy row, and an sch2pdf that fails is E_NATIVE_FAILURE."
     },
     {
       "row": "unsaved",
       "applies": true,
       "arguments": [
-        "{{fill: the arguments of the unsaved situation; name every target only with the sample placeholders}}"
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Demo.pdf"
       ],
       "expected": {
-        "exit": 0
+        "exit": 0,
+        "summary": "Designer holds unsaved changes (schematic create not yet saved): the PDF shows the project as last saved, and the preview's action and the result's warnings say so."
       }
     },
     {
       "row": "read_back_mismatch",
-      "applies": true,
-      "arguments": [
-        "{{fill: the arguments of the read_back_mismatch situation; name every target only with the sample placeholders}}"
-      ],
-      "expected": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
-      }
+      "applies": false,
+      "reason": "schematic export is an artifact write verified only by the file it writes: the PDF exists, with its size and SHA-256 recorded, checked in the same call; there is no stored value to read back."
     }
   ]
 }

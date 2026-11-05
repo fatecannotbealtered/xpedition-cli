@@ -847,6 +847,9 @@ class RouterRun(L.ReadsBack):
         layers = _layers(ctx)
         path = ctx.document_path()
         look = L.in_layout(ctx, lambda app, doc: _route_look(doc, layers), budget_s=L.READ_BUDGET_S, what="reading the nets")
+        if look["unplaced"]:
+            return base.preview("Route the open nets.", [base.target(path, "net", L.NETS_KEY)], [],
+                                blocked_by=[_unplaced_reason(look["unplaced"])])
         if not look["open"]:
             return base.preview("Every net is routed already; the autorouter has nothing to do.", [], [])
         targets = [base.target(path, "net", L.NETS_KEY, label=f"{len(look['open'])} open nets")]

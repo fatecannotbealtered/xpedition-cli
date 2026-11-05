@@ -459,10 +459,11 @@ class PcbCreate(Handler):
             problems.append(f"the cell partitions could not be listed in the project: {exc}")
             cells = []
         result = {"path": str(board.pcb), "template": board.template, "files": copied or 0, "cells_registered": cells}
-        files = [{"path": str(board.pcb)}]
+        # Verified by reading the board back (read_back: exists), not by hashing files: the
+        # command changes the project, so no `files` are reported (writes.DomainWrite.verify).
         if problems:
-            return facts("partial", "partial", result=result, files=files, native_message="; ".join(problems[:10]))
-        return facts("not_applicable", "saved", result=result, files=files)
+            return facts("partial", "partial", result=result, native_message="; ".join(problems[:10]))
+        return facts("applied", "saved", result=result)
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
         project = lib.project_path(ctx)

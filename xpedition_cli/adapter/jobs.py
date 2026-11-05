@@ -124,8 +124,8 @@ def cancel(store: AdapterStore, job_id: str) -> dict[str, Any]:
     if record is None:
         raise AdapterError("E_NOT_FOUND", f"There is no job {job_id}.", dispatch_state="not_started")
     if record.get("state") in FINAL:
-        return {"dispatch_state": "not_started", "change": "not_applied", "delivery": "not_applicable",
-                "persistence": "not_applicable"}
+        raise AdapterError("E_VALIDATION", f"Job {job_id} has already ended ({record.get('state')}); there is nothing to cancel.",
+                           dispatch_state="not_started")
     record["cancel_requested"] = True
     write(path, record)
     end = time.monotonic() + CANCEL_WAIT_S
