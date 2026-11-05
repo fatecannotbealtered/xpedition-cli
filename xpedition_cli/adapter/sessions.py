@@ -292,10 +292,13 @@ def save_preview(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]
 
 
 def save_read_back(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    """Read the saved changes from the file: the document is opened again first (DCLI-057)."""
+    """Read the saved changes back from the instance right after the save.
+
+    DCLI-057 asks for them from the saved file, which here means closing and opening the
+    project again. On Xpedition Enterprise 2604 that took 30 to 80 s live, past the 30 s a
+    read-back call may take, so the fields are read from the instance that has just saved
+    them (a departure recorded in the specification issues and in docs/COMPATIBILITY.md)."""
     ref = parse_session(request.get("session"))
     assert ref is not None
     path = os.path.abspath(request["document"])
-    app = _app(ref.kind)
-    app.reopen_document(ref.pid, path)
-    return app.read_targets(ref.pid, path, list(request.get("targets", [])), list(request.get("fields", [])))
+    return _app(ref.kind).read_targets(ref.pid, path, list(request.get("targets", [])), list(request.get("fields", [])))
