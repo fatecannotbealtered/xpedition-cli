@@ -116,7 +116,8 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 2. `session open --doc <new.prj>`, `schematic create --design <design.json>` (a long job), `schematic check`, then `doc save`. Close and open the project (`doc close`, `doc open`) before reading the schematic again.
 3. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`; file-mode writes are refused while Designer has the project open.
 4. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
-5. Report each step's receipt; stop at the first failure and say which step failed.
+5. When `session open` reports `starting`, run `session get --session <id>` until it is `ready`, then `doc open --doc <file>` if the file is not open yet.
+6. Report each step's receipt; stop at the first failure and say which step failed.
 
 ## Report
 

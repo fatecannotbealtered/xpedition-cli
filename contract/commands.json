@@ -649,7 +649,11 @@
           "summary": "Write the full preview, with every change, to this file."
         }
       ],
-      "untrusted_fields": [],
+      "untrusted_fields": [
+        "clusters",
+        "outside",
+        "labels"
+      ],
       "adapter_capabilities": [
         "preview",
         "apply",
@@ -766,7 +770,9 @@
           "summary": "Write the full preview, with every change, to this file."
         }
       ],
-      "untrusted_fields": [],
+      "untrusted_fields": [
+        "open"
+      ],
       "adapter_capabilities": [
         "preview",
         "apply",
@@ -805,11 +811,18 @@
           "name": "--doc",
           "type": "string",
           "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the whole result to this JSON file; the response keeps the summary.",
+          "output": true
         }
       ],
       "untrusted_fields": [
         "stackup",
-        "net_classes"
+        "net_classes",
+        "metrics"
       ],
       "adapter_capabilities": [
         "read"
@@ -847,10 +860,17 @@
           "name": "--doc",
           "type": "string",
           "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the whole result to this JSON file; the response keeps the summary.",
+          "output": true
         }
       ],
       "untrusted_fields": [
-        "hazards"
+        "hazards",
+        "rules"
       ],
       "adapter_capabilities": [
         "read"
@@ -898,7 +918,9 @@
           "output": true
         }
       ],
-      "untrusted_fields": [],
+      "untrusted_fields": [
+        "problems"
+      ],
       "adapter_capabilities": [
         "preview",
         "apply",
