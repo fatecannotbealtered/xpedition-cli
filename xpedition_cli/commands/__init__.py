@@ -50,7 +50,8 @@ FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
 def command(path: str, summary: str, *, effects: list[str], modes: list[str], target_kind: str,
             flags: list[dict[str, Any]] | None = None, survey_ids: list[str], output: dict[str, Any],
             examples: list[str], untrusted: list[str] | None = None, irreversible: bool = False,
-            tolerances: dict[str, float] | None = None, default_fields: list[str] | None = None) -> dict[str, Any]:
+            tolerances: dict[str, float] | None = None, default_fields: list[str] | None = None,
+            knowledge: list[str] | None = None) -> dict[str, Any]:
     writes = effects != ["observe"]
     return {
         "path": path,
@@ -66,7 +67,7 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
         "halt": False,
         "tolerances": tolerances or {},
         "default_fields": default_fields or [],
-        "related_knowledge": [],
+        "related_knowledge": knowledge or [],
         "output_schema": output,
         "examples": examples,
         "maturity": "draft",
@@ -94,6 +95,7 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(path=STR, template=STR, files=INT, bytes=INT, rewritten=arr(obj(key=STR, value=STR)),
                    parts_databases=obj(created=arr(STR), registered=arr(STR))),
         examples=["xpedition-cli project create --doc D:/templates/Template/Template.prj --output D:/work/demo/Demo.prj"],
+        knowledge=['xpedition-ascii-paths-only', 'xpedition-template-library-is-empty'],
     ),
     # ------------------------------------------------------------------ central library
     command(
@@ -103,6 +105,7 @@ COMMANDS: list[dict[str, Any]] = [
                                  symbols=arr(STR), pins=INT, value=STR)), total=INT),
         untrusted=["description", "value"], default_fields=["id", "partition", "description", "cell", "pins"],
         examples=["xpedition-cli part list --doc D:/work/demo/Demo.prj --limit 20"],
+        knowledge=['library-converter-rules'],
     ),
     command(
         "part get", "Read one part: its pin map, symbols, footprint cell, padstacks and the problems found.",
@@ -113,6 +116,7 @@ COMMANDS: list[dict[str, Any]] = [
                    also_in=arr(STR), findings=arr(FINDING)),
         untrusted=["description", "value", "properties"],
         examples=["xpedition-cli part get --doc D:/work/demo/Demo.prj --id RES-10K-0402"],
+        knowledge=['library-converter-rules', 'cell-pin-count-must-match'],
     ),
     command(
         "part create", "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
@@ -121,6 +125,7 @@ COMMANDS: list[dict[str, Any]] = [
                 "summary": "The parts file (JSON). A part identical to the library's is skipped; a part number the library holds with other content is refused."}],
         output=obj(partition=STR, created=arr(STR), skipped=arr(STR), symbols=arr(STR), cells=arr(STR), padstacks=arr(STR)),
         examples=["xpedition-cli part create --doc D:/work/demo/Demo.prj --file D:/work/demo/parts.json"],
+        knowledge=['library-converter-rules', 'library-part-value-is-numeric', 'cell-pin-count-must-match', 'xpedition-ascii-paths-only'],
     ),
     command(
         "packager run", "Package the schematic for Layout with Xpedition's packager and report its errors and warnings.",
@@ -128,6 +133,7 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(packaged=BOOL, design=STR, errors=arr(STR), warnings=INT, verdict=STR, log=STR),
         untrusted=["errors", "verdict"],
         examples=["xpedition-cli packager run --doc D:/work/demo/Demo.prj"],
+        knowledge=['prj-cell-library-list', 'cell-pin-count-must-match'],
     ),
     # ------------------------------------------------------------------ schematic (Designer)
     command(
@@ -136,6 +142,7 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(design=STR, sheets=arr(obj(number=INT, name=STR, size=STR)), components=INT, nets=INT),
         untrusted=["design", "sheets"],
         examples=["xpedition-cli schematic get --session designer-4120 --doc D:/work/demo/Demo.prj"],
+        knowledge=['designer-reopen-after-sheet-changes'],
     ),
     command(
         "schematic create", "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
@@ -143,23 +150,26 @@ COMMANDS: list[dict[str, Any]] = [
         flags=[{"name": "--design", "type": "path", "required": True,
                 "summary": "The design file (JSON): sheets, parts by central-library part number, and the pin of every connection."}],
         output=obj(sheets=arr(INT), parts=INT, nets=INT, operations=INT, symbols_written=arr(STR), warnings=arr(STR)),
-        irreversible=True,
+        untrusted=["warnings"], irreversible=True,
         examples=["xpedition-cli schematic create --session designer-4120 --doc D:/work/demo/Demo.prj --design D:/work/demo/design.json"],
+        knowledge=['designer-power-symbols', 'designer-pin-on-wire-corner', 'designer-symbol-cache', 'designer-reopen-after-sheet-changes', 'designer-one-instance-only'],
     ),
     command(
         "schematic check", "Run Designer's verification and this tool's netlist rules, and list the problems found.",
         effects=["observe"], modes=["session"], target_kind="schematic", survey_ids=["CAP-041"],
-        output=obj(findings=arr(FINDING), errors=INT, warnings=INT),
+        output=obj(findings=arr(FINDING), errors=INT, warnings=INT, complete=BOOL, logs=OBJ),
         untrusted=["findings"],
         examples=["xpedition-cli schematic check --session designer-4120 --doc D:/work/demo/Demo.prj"],
+        knowledge=['designer-pin-types-and-erc', 'designer-reopen-after-sheet-changes'],
     ),
     command(
         "schematic export", "Export the schematic to a PDF with Xpedition's sch2pdf.",
         effects=["artifact"], modes=["file", "session"], target_kind="schematic", survey_ids=["CAP-042"],
         flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The PDF file to write."}],
-        output=obj(path=STR, pages=arr(obj(sheet=STR, width_mm=NUM, height_mm=NUM))),
-        untrusted=["pages"],
+        output=obj(path=STR, pages=arr(obj(sheet=STR, width_mm=NUM, height_mm=NUM)), warnings=arr(STR)),
+        untrusted=["pages", "warnings"],
         examples=["xpedition-cli schematic export --doc D:/work/demo/Demo.prj --output D:/work/demo/out/Demo.pdf"],
+        knowledge=['designer-chinese-text-in-pdf'],
     ),
     # ------------------------------------------------------------------ board (Layout)
     command(
@@ -169,6 +179,7 @@ COMMANDS: list[dict[str, Any]] = [
                {"name": "--name", "type": "string", "summary": "The board's name: letters, digits, - and _; the project's name by default."}],
         output=obj(path=STR, template=STR, files=INT, cells_registered=arr(STR)),
         examples=["xpedition-cli pcb create --doc D:/work/demo/Demo.prj"],
+        knowledge=['prj-cell-library-list'],
     ),
     command(
         "forward-annotation run", "Bring the packaged schematic into the open board; runs as a long job.",
@@ -176,6 +187,7 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(outcome=STR, components=INT, nets=INT, pins=INT, errors=arr(STR), warnings=arr(STR)),
         untrusted=["errors", "warnings"],
         examples=["xpedition-cli forward-annotation run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb"],
+        knowledge=['forward-annotation-in-synch', 'forward-annotation-keeps-old-cells', 'layout-open-prompts'],
     ),
     command(
         "pcb update", "Replace the board outline by a rectangle from the origin; the route border and manufacturing outline follow.",
@@ -195,6 +207,7 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(placed=INT, clusters=arr(obj(name=STR, parts=arr(STR))), outside=arr(STR)),
         tolerances={"x_mm": 0.001, "y_mm": 0.001, "rotation_deg": 0.01},
         examples=["xpedition-cli placement run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --design D:/work/demo/design.json"],
+        knowledge=['layout-placement-drc', 'layout-unplaced-parts-invisible'],
     ),
     command(
         "plane create", "Pour a plane shape for one net on one layer, inside the board outline.",
@@ -204,6 +217,7 @@ COMMANDS: list[dict[str, Any]] = [
                {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from the board outline; 1 mm by default."}],
         output=obj(net=STR, layer=INT, margin_mm=NUM, generated=BOOL),
         examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2"],
+        knowledge=['layout-plane-draft-state', 'layout-pour-after-routing'],
     ),
     command(
         "router run", "Route every open net with Layout's autorouter passes.",
@@ -211,6 +225,7 @@ COMMANDS: list[dict[str, Any]] = [
         flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."}],
         output=obj(nets=INT, routed=INT, open=arr(STR), traces=INT, vias=INT),
         examples=["xpedition-cli router run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --layers 1,4"],
+        knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad', 'layout-trace-widths-through-cm'],
     ),
     command(
         "pcb get", "Read the open board: counts, layer stack, net classes and widths, geometry and layout metrics.",
@@ -219,6 +234,7 @@ COMMANDS: list[dict[str, Any]] = [
                    net_classes=arr(OBJ), keepouts=INT, geometry=OBJ, metrics=OBJ),
         untrusted=["stackup", "net_classes"],
         examples=["xpedition-cli pcb get --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --fields layers,nets,metrics"],
+        knowledge=['layout-trace-widths-through-cm'],
     ),
     command(
         "pcb check", "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard.",
@@ -228,6 +244,7 @@ COMMANDS: list[dict[str, Any]] = [
                    rules=arr(FINDING), errors=INT, warnings=INT),
         untrusted=["hazards"],
         examples=["xpedition-cli pcb check --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb"],
+        knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad'],
     ),
     command(
         "pcb export", "Write the fabrication package: ODB++, Gerber, NC drill, a centroid file, a BOM and a manifest; runs as a long job.",
@@ -236,5 +253,6 @@ COMMANDS: list[dict[str, Any]] = [
                 "summary": "The folder for the package; it must not exist or must be empty."}],
         output=obj(path=STR, files=FILES, board=obj(width_mm=NUM, height_mm=NUM, layers=INT)),
         examples=["xpedition-cli pcb export --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/fab"],
+        knowledge=['layout-output-setups', 'layout-drillprefs-held'],
     ),
 ]
