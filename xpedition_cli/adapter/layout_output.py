@@ -12,7 +12,6 @@ since that would change the document in a read.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import time
@@ -565,11 +564,6 @@ def package_components(doc: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def _file_row(path: str) -> dict[str, Any]:
-    data = Path(path).read_bytes()
-    return {"path": path, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-
-
 class BoardExport(base.Handler):
     """The fabrication package (``plan.fab_package``) from the open board, which stays open.
 
@@ -647,7 +641,9 @@ class BoardExport(base.Handler):
             raise AdapterError("E_NATIVE_FAILURE", f"The package could not be written: {exc}", dispatch_state="dispatched") from None
         files = [*manifest["files"], str(target / "manifest.json")]
         progress(total, total, "steps")
-        result = {"path": str(target), "files": [_file_row(item) for item in files],
+        # the receipt records every file with its size and SHA-256; the result keeps only the count
+        # and the manifest, so that job get stays within one response (DCLI-008)
+        result = {"path": str(target), "file_count": len(files), "manifest": str(target / "manifest.json"),
                   "board": {"width_mm": size["width"], "height_mm": size["height"], "layers": layers},
                   "problems": manifest["checks"]["problems"], "setups_patched": sorted(set(patched)),
                   "setups_rewritten": pending_setups(config)}

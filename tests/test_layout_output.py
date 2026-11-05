@@ -332,7 +332,8 @@ class BoardExportTest(unittest.TestCase):
         self.assertIn(str(Path(self.output) / "drill" / "ThruHolePlated.drl"), paths)
         self.assertTrue(all(os.path.isfile(path) for path in paths))
         self.assertEqual(out["result"]["board"], {"width_mm": 30.0, "height_mm": 20.0, "layers": 2})
-        self.assertEqual(out["result"]["files"][0].keys(), {"path", "bytes", "sha256"})
+        self.assertEqual(out["result"]["file_count"], len(out["files"]))  # the receipt records each file; the result counts them
+        self.assertTrue(out["result"]["manifest"].endswith("manifest.json"))
         self.assertEqual(out["result"]["setups_rewritten"], [])
         self.assertTrue((self.board_dir / "Config" / "ODBSetup.ocf.bak-xpedition-cli").read_text(encoding="utf-8").endswith("NO\n"))
         self.assertIn(".BOARD_OUTLINE YES", (self.board_dir / "Config" / "ODBSetup.ocf").read_text(encoding="utf-8"))
