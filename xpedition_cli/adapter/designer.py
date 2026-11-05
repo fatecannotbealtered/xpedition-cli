@@ -69,7 +69,7 @@ OPEN_PROMPTS = tuple(rule for rule in dialogs.DESIGNER_PROMPTS if rule[0] == "Ca
 # discards is not recorded, so the person is told what was asked for.
 _DISCARD = " (the unsaved changes are to be discarded: answer No to a question about saving them)"
 POLL_S = 0.5
-OPEN_TIMEOUT_S = 25.0
+OPEN_TIMEOUT_S = 36.0  # opening after library changes took over 25 s live; plus the settle, within the 45 s of a call
 OPEN_SETTLE_S = 6.0  # the old open waited this long before reading the project
 REOPEN_OPEN_TIMEOUT_S = 15.0
 CLOSE_TIMEOUT_S = 20.0
@@ -518,10 +518,47 @@ def new_project(pid: int, target: str, template: str, library: str, progress: An
 
     designs = _must(_watched(pid, new_schematic, rules=dialogs.DESIGNER_PROMPTS, timeout_s=NEW_SCHEMATIC_TIMEOUT_S),
                     "creating the board design and its schematic", NEW_SCHEMATIC_TIMEOUT_S)
-    progress(4, 5, "steps")
+    progress(4, 7, "steps")
     save_document(pid, target)
-    progress(5, 5, "steps")
-    return {"designs": designs, "library": own}
+    # Designer finds symbols and parts only in the partitions the design's section lists, and the
+    # project file can be changed only while the project is closed: list the stock symbol
+    # partitions a drawing uses (ground, no-connect, borders) and the library's PartQuest
+    # partition, then open the project again. Opening and closing are slow (tens of seconds).
+    progress(5, 7, "steps")
+
+    def close(app: Any) -> Any:
+        return app.CloseProject()
+
+    _must(_watched(pid, close, timeout_s=FIRST_OPEN_TIMEOUT_S), f"closing {target} to list its partitions", FIRST_OPEN_TIMEOUT_S)
+    listed = _list_partitions(target, os.path.dirname(own))
+    progress(6, 7, "steps")
+    _open_project(pid, target, dialogs.DESIGNER_PROMPTS, FIRST_OPEN_TIMEOUT_S)
+    progress(7, 7, "steps")
+    return {"designs": designs, "library": own, "listed": listed}
+
+
+STOCK_SYMBOL_PARTITIONS = ("Globals", "builtin", "Borders")
+DEFAULT_PARTITION = "PartQuest"
+
+
+def _list_partitions(project: str, library_root: str) -> list[str]:
+    """Add the stock symbol partitions and the PartQuest partition to the board design's lists,
+    as far as the library holds them; the entries the project gained."""
+    from . import library as lib
+
+    root, path = Path(library_root), Path(project)
+    sep = "\\"
+    wanted = [("Symbols", f"SymbolLibs{sep}{name}") for name in (*STOCK_SYMBOL_PARTITIONS, DEFAULT_PARTITION)
+              if (root / "SymbolLibs" / name).is_dir()]
+    if (root / "PartsDBLibs" / f"{DEFAULT_PARTITION}.pdb").is_file():
+        wanted.append(("PDBs", f"PartsDBLibs{sep}{DEFAULT_PARTITION}.pdb"))
+    if (root / "CellDBLibs" / f"{DEFAULT_PARTITION}.cel").is_file():
+        wanted.append(("2dCellLibraries", f"CellDBLibs{sep}{DEFAULT_PARTITION}.cel"))
+    added = []
+    for list_name, entry in wanted:
+        if lib.ensure_prj_list(path, list_name, entry):
+            added.append(f"{list_name}: {entry}")
+    return added
 
 
 def _point_library_at(project: str, stock: str, own: str) -> None:
