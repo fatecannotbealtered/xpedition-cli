@@ -543,10 +543,13 @@ class DocumentsTest(DesignerCase):
         self.assertEqual((self.app.closed, self.app.opened_paths), (0, []))
 
     def test_a_project_opens_and_its_design_view_follows(self):
+        text = PRJ_TEXT.replace('KEY ConfigType "PCB"\n', 'KEY ConfigType "PCB"\nKEY RootBlock "Schematic1"\n')
+        Path(self.prj).write_text(text, encoding="utf-8")
         self.app.project, self.app.opened, self.app.view = "", False, False
         designer.open_document(PID, self.prj)
         self.assertEqual(self.app.opened_paths, [self.prj])
-        self.assertEqual(self.app.design_opened, "Board1")  # Documents is a property; Open takes the design
+        # sheet 1 of the root block opens; Documents.Open with the design's name would create an empty schematic
+        self.assertEqual(([d.number for d in self.app.open_docs], self.app.design_opened), ([1], None))
 
     def test_a_dialog_during_the_open_needs_a_person(self):
         self.app.project, self.app.opened = "", False

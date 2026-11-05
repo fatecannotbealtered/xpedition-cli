@@ -456,17 +456,36 @@ def _open_project(pid: int, path: str, rules: tuple[dialogs.Rule, ...], timeout_
 
 
 def _show_design(app: Any) -> None:
-    """Open the design's view when the project opened without one: drawing and reading go to
-    the active view. ``Documents`` is a property; its ``Open`` takes the design's name."""
+    """Open sheet 1 of the board design's schematic (its ``RootBlock``) when the project opened
+    without a view: drawing and reading go to the active view. Never ``Documents.Open`` with
+    the design's name: in a project whose schematic has another name (a new project's design
+    ``Board1`` has root block ``Schematic1``), Designer then creates an empty schematic named
+    after the design (seen live)."""
     if _try_get(app, "ActiveView") is not None:
         return
-    design = str(_try_get(app, "GetActiveDesign", "") or "")
-    if design:
+    root = _root_block(_project_state(app)[1])
+    if root:
         try:
-            _get(app, "Documents").Open(design)
+            _sheet_documents(app).Open(root, "1")
             _settle(1.0)
         except Exception:  # noqa: BLE001 - a project without its view still reads
             pass
+
+
+def _root_block(prj: str) -> str:
+    """The schematic of the project's board design: ``KEY RootBlock`` in the design's section."""
+    if not prj:
+        return ""
+    try:
+        text = Path(prj).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    board = project_file.board_design(project_file.designs(text))
+    if board is None:
+        return ""
+    section = re.search(rf"^SECTION {re.escape(board.name)}[ \t]*\r?\n(.*?)^ENDSECTION", text, re.M | re.S)
+    found = re.search(r'^KEY RootBlock[ \t]+"([^"]*)"', section.group(1), re.M) if section else None
+    return found.group(1) if found else ""
 
 
 NEW_SCHEMATIC_COMMAND = 34158  # File > New > Schematic: creates the board design and its schematic
@@ -686,7 +705,11 @@ def _sheet_documents(app: Any) -> Any:
 
 
 def _schematic_name(app: Any) -> str:
-    """The schematic that owns the sheets (``Schematic1`` in a stock project)."""
+    """The schematic that owns the sheets: the board design's root block (``Schematic1`` in a
+    stock project), else the first schematic Designer lists."""
+    root = _root_block(_project_state(app)[1])
+    if root:
+        return root
     docs = _sheet_documents(app)
     try:
         names = _strings(docs.GetAvailableSchematics())
