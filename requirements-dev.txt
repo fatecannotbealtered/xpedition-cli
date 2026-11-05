@@ -2,6 +2,8 @@
 #   python -m pip install --require-hashes --no-deps -r requirements-dev.txt
 # jsonschema runs the project check and the conformance suites, ruff lints, and
 # PyInstaller builds the native program (DREPO-051).
+# pywin32, pywinauto and their dependencies comtypes and six are bundled into the native
+# program: the adapter reaches Xpedition through COM and answers its dialogs through UI Automation.
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
@@ -178,3 +180,11 @@ pywin32-ctypes==0.2.3; sys_platform == "win32" \
     --hash=sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8
 macholib==1.16.4; sys_platform == "darwin" \
     --hash=sha256:da1a3fa8266e30f0ce7e97c6a54eefaae8edd1e5f86f3eb8b95457cae90265ea
+pywin32==311; sys_platform == "win32" \
+    --hash=sha256:b8c095edad5c211ff31c05223658e71bf7116daa0ecf3ad85f3201ea3190d067
+pywinauto==0.6.9; sys_platform == "win32" \
+    --hash=sha256:5924b3072864a1d730c5546bbeb17cf4063ba518b618dbc5e43c18276c7c9356
+comtypes==1.4.16; sys_platform == "win32" \
+    --hash=sha256:e18d85179ff12955524c5a8c3bc09cb3c0d890f1da4d7123d14244c7b78f84c8
+six==1.17.0; sys_platform == "win32" \
+    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
