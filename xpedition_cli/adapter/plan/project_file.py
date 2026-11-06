@@ -81,10 +81,10 @@ def relative_owned_library_keys(
         except OSError as error:
             raise ValueError("target_library_reference_unreadable") from error
 
-    root = Path(target)
-    if not root.is_absolute() or str(root).startswith(("\\\\", "//")):
+    given = Path(target)
+    if not given.is_absolute() or str(given).startswith(("\\\\", "//")):
         raise ValueError("plain_new_target_directory_required")
-    root = plain(root)
+    root = plain(given)
     if not root.is_dir():
         raise ValueError("plain_new_target_directory_required")
     lines, rewritten, seen = [], [], set()
@@ -114,10 +114,10 @@ def relative_owned_library_keys(
             raise ValueError("absolute_target_library_reference_after_reopen")
         if not path.is_absolute():
             path = root.joinpath(*windows.parts)
-        try:
-            path.relative_to(root)
-        except ValueError as error:
-            raise ValueError("target_library_reference_not_self_contained") from error
+        # Before anything on disk is read, the path must lie in the target as given or as resolved
+        # (short and long folder names); after resolving, it must lie in the resolved target.
+        if not (path.is_relative_to(root) or path.is_relative_to(given)):
+            raise ValueError("target_library_reference_not_self_contained")
         path = plain(path)
         if not path.is_file() or path.stat().st_nlink != 1:
             raise ValueError("target_library_file_required")

@@ -15,7 +15,7 @@ class SymbolsTest(unittest.TestCase):
     def tmp_dir(self) -> Path:
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        return Path(folder.name)
+        return Path(folder.name).resolve()  # long folder names, as the tool reports them
 
     def test_two_terminal_parts_have_two_grid_pins_forty_apart(self):
         for factory in [

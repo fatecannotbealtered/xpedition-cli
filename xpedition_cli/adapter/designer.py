@@ -42,7 +42,7 @@ from typing import Any
 from .._driver import AdapterError
 from .._driver.targets import normalize, path_of
 from . import base, jobs, sessions
-from .base import DESIGNER, Context, Handler, need_input
+from .base import DESIGNER, Context, Handler, need_input, same_path
 from .plan import PlanError, pdf_pages, project_file, review_engine, verification
 from .plan import schematic_layout as L
 from .platform import com, dialogs, env, processes
@@ -173,10 +173,6 @@ def _com_errors(what: str, dispatch_state: str | None = None) -> Iterator[None]:
         raise com.to_adapter_error(exc, what, dispatch_state=dispatch_state or com.call_state(exc)) from None
 
 
-def _same_path(a: str, b: str) -> bool:
-    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
-
-
 # ------------------------------------------------------------------ processes and attaching
 
 
@@ -238,7 +234,7 @@ def _project_state(app: Any) -> tuple[bool | None, str]:
 
 def _check_open(app: Any, prj: str) -> None:
     _, current = _project_state(app)
-    if not current or not _same_path(current, prj):
+    if not current or not same_path(current, prj):
         raise base.blocked(f"Designer has {current or 'no project'} open, not {prj}; open the project with doc open first.")
 
 
@@ -483,7 +479,7 @@ def _open_project(pid: int, path: str, rules: tuple[dialogs.Rule, ...], timeout_
     with com.initialized(), _com_errors(f"checking that {path} opened", "dispatched"):
         app = _attach()
         _, current = _project_state(app)
-        if not current or not _same_path(current, path):
+        if not current or not same_path(current, path):
             raise AdapterError("E_NATIVE_FAILURE", f"Designer did not open {path}; it reports {current or 'no project'} open.",
                                dispatch_state="dispatched")
         _show_design(app)
@@ -639,7 +635,7 @@ def open_document(pid: int, path: str) -> None:
     _require_single(pid)
     with com.initialized():
         opened, current = _project_state(_attach())
-    if current and _same_path(current, path):
+    if current and same_path(current, path):
         return  # opening the open project again is refused with 64185
     if current and opened is not False:
         raise base.blocked(f"Designer has another project open ({current}); close it with doc close first.")
@@ -665,7 +661,7 @@ def close_document(pid: int, path: str, discard: bool) -> None:
     _require_single(pid)
     with com.initialized():
         opened, current = _project_state(_attach())
-    if not current or not _same_path(current, path):
+    if not current or not same_path(current, path):
         if opened:
             raise AdapterError("E_NOT_FOUND", f"Designer does not have {path} open; it has {current or 'another project'}.",
                                dispatch_state="not_started")

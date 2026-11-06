@@ -117,8 +117,10 @@ def _setup_template(ctx: Context) -> tuple[Path, Path]:
     """The setup template of a new project in a Designer session, and its central library:
     ``--template``, or Xpedition's stock template."""
     given = ctx.inputs.get("template")
-    stock = env.sdd_home() / "standard" / "templates" / "dxdesigner" / "expedition" / "Default.prj"
-    template = Path(os.path.abspath(str(given))) if given else stock
+    if given:
+        template = Path(os.path.abspath(str(given)))
+    else:
+        template = env.sdd_home() / "standard" / "templates" / "dxdesigner" / "expedition" / "Default.prj"
     if not template.is_file():
         raise _refuse(f"There is no setup template {template}.", code="E_NOT_FOUND")
     library = lib.central_library(template)

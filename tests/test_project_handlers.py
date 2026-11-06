@@ -43,7 +43,7 @@ class Case(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.tmp = Path(tmp.name)
+        self.tmp = Path(tmp.name).resolve()  # long folder names, as the tool reports them
         self.store = AdapterStore(StateDir(self.tmp / "state"))
         self.runs: list[tuple[str, list[str], dict[str, Any]]] = []
         for patch in (mock.patch.object(env, "configure_environment"),
@@ -513,7 +513,7 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        root = Path(self.tmp.name)
+        root = Path(self.tmp.name).resolve()  # long folder names, as the tool reports them
         self.lib = root / "Stock" / "Lib" / "Stock.lmc"
         self.lib.parent.mkdir(parents=True)
         self.lib.write_text("lmc", encoding="utf-8")

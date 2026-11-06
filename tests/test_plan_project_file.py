@@ -71,7 +71,7 @@ class ProjectFileTest(unittest.TestCase):
     def tmp_dir(self) -> Path:
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        return Path(folder.name)
+        return Path(folder.name).resolve()  # long folder names, as the tool reports them
 
     def test_new_native_relative_keys_preserve_other_text_and_survive_a_new_root(self):
         tmp_path = self.tmp_dir()

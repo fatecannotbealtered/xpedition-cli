@@ -111,7 +111,7 @@ class LibraryCase(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.tmp = Path(tmp.name)
+        self.tmp = Path(tmp.name).resolve()  # long folder names, as the tool reports them
         self.folder = self.tmp / "demo"
         self.root = self.folder / "Library"
         for name in ("PartsDBLibs", "CellDBLibs", "Layout", "SymbolLibs"):
