@@ -386,6 +386,18 @@ class BoardExportTest(unittest.TestCase):
                                                 fields=["exists"]))
         self.assertEqual([out["observed"][t]["exists"] for t in targets], [True, False])
 
+    def test_read_back_reports_whether_a_setup_holds_the_patch(self):
+        config = self.board_dir / "Config"
+        config.mkdir(parents=True, exist_ok=True)
+        setup = config / "ODBSetup.ocf"
+        setup.write_text(ODB_SETUP, encoding="utf-8")
+        request = {"targets": [base.key(str(setup))], "fields": ["patched"]}
+        self.assertEqual(O.BoardExport().read_back(context("pcb export", {"output": self.output}, document=self.pcb, **request))["observed"],
+                         {base.key(str(setup)): {"patched": False}})
+        O.patch_setups(config)
+        out = O.BoardExport().read_back(context("pcb export", {"output": self.output}, document=self.pcb, **request))
+        self.assertEqual((out["observed"], out["unreadable"]), ({base.key(str(setup)): {"patched": True}}, []))
+
 
 if __name__ == "__main__":
     unittest.main()

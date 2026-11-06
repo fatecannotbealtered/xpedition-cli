@@ -218,6 +218,17 @@ class InstancesTest(unittest.TestCase):
         self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "activate_license", "title": "Siemens Licensing",
                                                                       "knowledge": ["xpedition-license-sign-in"]}))
 
+    def test_a_dialog_box_blocks_the_layout_that_still_answers(self):
+        box = {"hwnd": 5, "pid": PID, "title": "Xpedition Layout", "owner": 4, "style": 0, "class": "#32770"}
+        panel = {"hwnd": 6, "pid": PID, "title": "Properties", "owner": 4, "style": 0, "class": "Qt683QWindowIcon"}
+        question = {"title": "Xpedition Layout", "text": "", "buttons": ["Save", "Don't Save", "Cancel"]}
+        with world(FakeApp(FakeDoc()), windows=[panel], blocking=[question]):
+            self.assertEqual(L.instances(2.0)[0]["state"], "ready")  # a floating panel is no dialog box
+        with world(FakeApp(FakeDoc()), windows=[panel, box], blocking=[question]):
+            row = L.instances(2.0)[0]
+        self.assertEqual((row["state"], row["blocker"]["action"], row["blocker"]["knowledge"]),
+                         ("blocked", "dismiss_dialog", ["layout-open-prompts"]))
+
     def test_another_layout_is_unreachable(self):
         with world(FakeApp(None), running=[process(), process(77, "D:/x/ExpeditionPCB.exe")]):
             rows = {row["pid"]: row for row in L.instances(2.0)}
@@ -327,11 +338,14 @@ class DocumentTest(unittest.TestCase):
 
 
 class QuitTest(unittest.TestCase):
-    def test_quit_goes_and_is_confirmed(self):
-        app = FakeApp(FakeDoc())
+    def test_quit_closes_the_board_unsaved_then_goes(self):
+        # Layout asks to save a board on quit even right after a save; the runtime has already
+        # refused this tool's unsaved changes, so the board is closed without saving, as doc close does
+        doc = FakeDoc()
+        app = FakeApp(doc)
         with world(app):
             L.quit(PID, False)
-        self.assertEqual(app.calls, [("Quit",)])
+        self.assertEqual((doc.calls, app.calls), ([("Close", False)], [("Quit",)]))
 
     def test_discard_closes_the_board_unsaved_first(self):
         doc = FakeDoc()
@@ -348,8 +362,21 @@ class QuitTest(unittest.TestCase):
                 L.quit(PID, False)
         self.assertEqual((code(caught), caught.exception.data["action"]), ("E_HUMAN_REQUIRED", "dismiss_dialog"))
 
-    def test_a_layout_that_stays_is_reported_with_the_held_file(self):
-        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: True), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
+    def test_a_layout_left_on_its_start_page_is_ended(self):
+        ended: list[int] = []
+        alive = {PID: True}
+
+        def end(pid: int) -> bool:
+            ended.append(pid)
+            alive[pid] = False
+            return True
+
+        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: alive[pid]),                 mock.patch.object(processes, "end", end), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
+            L.quit(PID, False)
+        self.assertEqual(ended, [PID])
+
+    def test_a_layout_that_cannot_be_ended_is_reported_with_the_held_file(self):
+        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: True),                 mock.patch.object(processes, "end", lambda pid: False), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
             with self.assertRaises(AdapterError) as caught:
                 L.quit(PID, False)
         self.assertEqual(caught.exception.data["knowledge"], ["layout-drillprefs-held"])

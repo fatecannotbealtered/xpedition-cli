@@ -156,7 +156,7 @@ The first release covers the path from an empty project to a fabrication package
 3. After `doc close` in Designer, `packager run` packages the schematic and `pcb create` creates the board.
 4. `session open --doc PCB/Demo.pcb` starts Layout; `forward-annotation run` brings the schematic in; `pcb update` sets the outline; `placement run`, `plane create` and `router run` place, pour and route; `pcb check` runs the design rule check; `doc save` saves; `pcb export` writes ODB++, Gerber, NC drill, a centroid file and a BOM.
 
-Every change is previewed, confirmed when its tier asks for it, and read back from Xpedition. `schematic create`, `forward-annotation run` and `pcb export` run as long jobs that `job get` follows.
+Every change is previewed, confirmed when its tier asks for it, and read back from Xpedition. Work that takes Xpedition longer than one call runs as a long job that `job get` follows: starting and quitting Designer and Layout, opening, saving and closing documents, `project create`, `packager run`, `schematic create`, `forward-annotation run` and `pcb export`.
 
 Upgrading from version 1.0.3 or earlier: those versions have no `update` command. Reinstall with `npm install -g @fateforge/xpedition-cli`, then delete their Skill folders `xpedition-schematic` and `xpedition-pcb` from your Agent's Skill folders; this version has a single Skill, `xpedition-cli`.
 

@@ -56,11 +56,12 @@ WRITE_BUDGET_S = 40.0  # apply calls end at 45 s
 PROBE_S = 3.0
 START_POLL_S = 1.0
 OPEN_MIN_S = 10.0  # time a start needs left to open the board too
-QUIT_CALL_S = 15.0
-QUIT_WAIT_S = 20.0
+# Opening, closing, saving and quitting run in the runtime's long-job worker (DCLI-065): they
+# may take minutes, and these limits only tell a Layout that hangs from a slow one.
+LIFECYCLE_BUDGET_S = 150.0
+QUIT_CALL_S = 60.0
+QUIT_WAIT_S = 60.0
 CLOSE_SETTLE_S = 0.5
-REOPEN_CLOSE_S = 6.0  # doc save's read-back reopens the board and reads it within 30 s
-REOPEN_OPEN_S = 14.0
 READ_TARGETS_S = 8.0
 
 ANNOTATION_KEY = "/forward-annotation"
@@ -521,7 +522,15 @@ def _probe() -> dict[str, Any]:
     return {"registered": True, "pid": app_pid(app), "documents": [str(doc.FullName)] if doc is not None else []}
 
 
-def _quietly_list(fn: Callable[[], list[str]]) -> list[str]:
+def modal_box(pid: int) -> dict[str, Any] | None:
+    """A standard dialog box (window class ``#32770``) over Layout that waits for a person.
+    Layout goes on answering COM while such a box is up, so it is looked for even then; Layout's
+    floating panels are Qt windows, never dialog boxes."""
+    boxes = _quietly_list(lambda: [w for w in dialogs.top_windows(pid) if w.get("class") == "#32770" and w.get("owner")])
+    return holding_dialog(pid) if boxes else None
+
+
+def _quietly_list(fn: Callable[[], list[Any]]) -> list[Any]:
     try:
         return list(fn())
     except Exception:  # noqa: BLE001 - the windows cannot be read
@@ -567,10 +576,13 @@ def instances(timeout_s: float) -> list[dict[str, Any]]:
             if proc.pid == reached:
                 row: dict[str, Any] = {"pid": proc.pid, "state": "ready", "documents": list(seen.get("documents", []))}
                 # A licence window is told by its title alone (no UI Automation); other windows are
-                # looked at only when Layout stops answering, since its floating panels look like dialogs.
+                # dialog boxes only, since Layout's floating panels look like dialogs too.
                 licence = _quietly_list(lambda pid=proc.pid: dialogs.licence_windows(pid))
+                box = None if licence else modal_box(proc.pid)
                 if licence:
                     row.update(state="blocked", blocker=blocker({"title": licence[0], "buttons": []}))
+                elif box is not None:
+                    row.update(state="blocked", blocker=blocker(box))
                 rows.append(row)
             else:
                 reason = OTHER_INSTANCE if reached is not None else UNIDENTIFIED
@@ -640,13 +652,16 @@ def start(path: str | None, wait_s: float) -> dict[str, Any]:
 
 
 def quit(pid: int, discard: bool) -> None:
-    """Quit Layout and check that its process went. With ``discard`` the board is closed without
-    saving first. Layout's known prompts are answered meanwhile; one no rule covers is reported."""
+    """Quit Layout and check that its process went. The board is closed without saving first, as
+    doc close does: the runtime has refused this tool's unsaved changes unless ``discard`` gives
+    them up, and Layout asks to save a board on quit even right after it was saved (seen live).
+    Layout's known prompts are answered meanwhile; one no rule covers is reported."""
     def work() -> None:
         app = attach(pid)
-        if discard and licensed(app) is not None:
+        doc = licensed(app)  # the licensed document: Layout refuses Close on an unlicensed one
+        if doc is not None:
             try:
-                app.ActiveDocument.Close(False)
+                doc.Close(False)
             except Exception as exc:  # noqa: BLE001 - classified
                 raise com_error(exc, "closing the board without saving", com.call_state(exc)) from None
         try:
@@ -656,20 +671,30 @@ def quit(pid: int, discard: bool) -> None:
 
     with dialogs.PromptAnswerer(dialogs.LAYOUT_PROMPTS, pid) as answerer:
         call(work, QUIT_CALL_S, pid, write=True, what="quitting Layout")
-        end = time.monotonic() + QUIT_WAIT_S
-        while processes.alive(pid) and time.monotonic() < end:
-            time.sleep(0.5)
+        _wait_gone(pid, QUIT_WAIT_S)
         seen = answerer.blocking_dialogs()
     if processes.alive(pid):
         dialog = holding_dialog(pid, seen, dialogs.LAYOUT_PROMPTS)
         if dialog is not None:
             raise human(dialog, "quitting", "dispatched")
+        # Quit through automation leaves Layout on its start page, holding files (knowledge
+        # layout-drillprefs-held). Its board was closed above and nothing else is open, so ending
+        # the process loses nothing.
+        if processes.end(pid):
+            _wait_gone(pid, QUIT_WAIT_S)
+    if processes.alive(pid):
         raise AdapterError("E_NATIVE_FAILURE", f"Layout was asked to quit, and its process {pid} still runs after {QUIT_WAIT_S:g} s; "
                            "it may stay on its start page holding files. Ask the person to end it.", dispatch_state="dispatched",
                            knowledge=["layout-drillprefs-held"])
 
 
-def open_document(pid: int, path: str, budget_s: float = WRITE_BUDGET_S) -> None:
+def _wait_gone(pid: int, seconds: float) -> None:
+    end = time.monotonic() + seconds
+    while processes.alive(pid) and time.monotonic() < end:
+        time.sleep(0.5)
+
+
+def open_document(pid: int, path: str, budget_s: float = LIFECYCLE_BUDGET_S) -> None:
     """Open a board with Layout's open prompts answered (stale lock: Open; recovery: the saved
     database; "annotate now?": No). Refused while another board is open: opening one would raise
     Layout's Save All prompt."""
@@ -710,10 +735,10 @@ def save_document(pid: int, path: str) -> None:
             raise AdapterError("E_NATIVE_FAILURE", f"Layout's Save answered {saved!r}, not True; the board may not be saved.",
                                dispatch_state="dispatched")
 
-    call(work, WRITE_BUDGET_S, pid, rules=dialogs.LAYOUT_PROMPTS, write=True, what="saving the board")
+    call(work, LIFECYCLE_BUDGET_S, pid, rules=dialogs.LAYOUT_PROMPTS, write=True, what="saving the board")
 
 
-def close_document(pid: int, path: str, discard: bool, budget_s: float = WRITE_BUDGET_S) -> None:
+def close_document(pid: int, path: str, discard: bool, budget_s: float = LIFECYCLE_BUDGET_S) -> None:
     """Close the board without saving (the caller has saved, or discards), then check it is gone.
     ``discard`` changes nothing here: the runtime refuses to close unsaved changes without it."""
     def work() -> None:
@@ -733,8 +758,8 @@ def close_document(pid: int, path: str, discard: bool, budget_s: float = WRITE_B
 
 def reopen_document(pid: int, path: str) -> None:
     """Close the saved board and open it again, licensed, so that reads come from the file."""
-    close_document(pid, path, False, budget_s=REOPEN_CLOSE_S)
-    open_document(pid, path, budget_s=REOPEN_OPEN_S)
+    close_document(pid, path, False, budget_s=LIFECYCLE_BUDGET_S)
+    open_document(pid, path, budget_s=LIFECYCLE_BUDGET_S)
 
 
 def read_targets(pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:

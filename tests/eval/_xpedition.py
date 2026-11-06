@@ -298,12 +298,10 @@ def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
         designer = start(run, project(run))
         need(write(run, "schematic", "create", "--session", designer, "--doc", prj, "--design", str(design(run))),
              "schematic create")
+        # doc save also opens the project again, so Designer then reads the design right
+        # (knowledge entry designer-reopen-after-sheet-changes).
         need(write(run, "doc", "save", "--session", designer, "--doc", prj), "doc save of the schematic")
         if keep_open and upto == "drawn":
-            # Designer reads the design right only after the project is opened again
-            # (knowledge entry designer-reopen-after-sheet-changes).
-            need(write(run, "doc", "close", "--session", designer, "--doc", prj), "doc close of the project")
-            need(write(run, "doc", "open", "--session", designer, "--doc", prj), "doc open of the project")
             return designer
         stop_all(run)  # file-mode writes are refused while Designer has the project open
     if level >= STAGES.index("board"):

@@ -23,8 +23,9 @@ class FakeKernel:
     enumeration step fail with ``error``; the documented end is ERROR_NO_MORE_FILES."""
 
     def __init__(self, rows, *, fail_at: int | None = None, error: int = 5, images: dict | None = None,
-                 snapshot: int | None = SNAPSHOT) -> None:
+                 snapshot: int | None = SNAPSHOT, ended: tuple[int, ...] = ()) -> None:
         self.rows, self.fail_at, self.error, self.images, self.snapshot = list(rows), fail_at, error, images or {}, snapshot
+        self.ended = set(ended)
         self.step = 0
         self.closed: list[int] = []
         self.last_error = 0
@@ -68,6 +69,10 @@ class FakeKernel:
         created._obj.dwLowDateTime = FILETIME_2026 & 0xFFFFFFFF
         return 1
 
+    def GetExitCodeProcess(self, handle, code):  # noqa: N802
+        code._obj.value = 0 if handle - 1000 in self.ended else P.STILL_ACTIVE
+        return 1
+
     def CloseHandle(self, handle):  # noqa: N802
         self.closed.append(handle)
         return 1
@@ -93,6 +98,12 @@ class Toolhelp(unittest.TestCase):
         self.assertEqual(found, [P.ProcessInfo(pid=4242, path=program, start_time=FILETIME_2026 // 10_000_000, parent_pid=7)])
         self.assertIn(SNAPSHOT, kernel.closed)
         self.assertIn(1000 + 4242, kernel.closed)
+
+    def test_a_process_that_has_ended_is_not_listed(self) -> None:
+        program = "C:/Siemens/XPED2604/SDD_HOME/wg/win64/bin/viewdraw.exe"
+        kernel = self.use(FakeKernel([(5000, 7, "viewdraw.exe")], images={5000: program}, ended=(5000,)))
+        self.assertEqual(P.processes("viewdraw.exe"), [])
+        self.assertIn(1000 + 5000, kernel.closed)
 
     def test_a_process_this_user_may_not_open_is_still_listed(self) -> None:
         self.use(FakeKernel([(4242, 7, "ExpeditionPCB.exe")]))

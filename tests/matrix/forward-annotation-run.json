@@ -12,8 +12,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); with the project packaged and closed in Designer, the job brings the packaged schematic into the open board (J1, C1, R1, D1, unplaced) and reads back the forward-annotation status in_synch. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "With the project packaged and closed in Designer, the job brings the packaged schematic into the open board (J1, C1, R1, D1, unplaced) and reads back the forward-annotation status in_synch."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051534-forward-annotation-run.json#normal"
     },
     {
       "row": "empty",
@@ -26,8 +30,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); the board is in sync already: the preview lists no change, and the job ends completed with outcome in_synch and change not_applied. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "The board is in sync already: the preview lists no change, and the job ends completed with outcome in_synch and change not_applied."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051604-forward-annotation-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -44,7 +52,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "forward-annotation run has no --design flag."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051148-forward-annotation-run.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -59,7 +72,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051148-forward-annotation-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -69,7 +87,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053156-forward-annotation-run.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -83,8 +106,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "An earlier forward-annotation job on this board has ended, and no job get or job list has read its end yet, so its operation still locks the board's forward annotation: E_CONFLICT target_locked."
-      }
+        "summary": "An earlier forward-annotation job on this board was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps the board's forward annotation locked until operation resolve: E_CONFLICT target_locked."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051325-forward-annotation-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -112,7 +140,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053436-forward-annotation-run.json#busy"
     },
     {
       "row": "dialog",
@@ -124,8 +157,13 @@
       "expected": {
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
-        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout stops answering COM, the session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Layout does not say which board it has open."
-      }
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054153-forward-annotation-run.json#dialog"
     },
     {
       "row": "disconnect",
@@ -153,8 +191,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); the board holds unsaved changes of this tool (a pcb update not yet saved); the job runs as usual and saves nothing. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "The board holds unsaved changes of this tool (a pcb update not yet saved); the job runs as usual and saves nothing."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051625-forward-annotation-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -166,8 +208,9 @@
         "{doc}"
       ],
       "expected": {
-        "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); after the job has ended and before job get, packager run packages the project once more (Designer closed), so Layout reports forward annotation required again; the read-back job get runs finds status required, not in_synch, and job get reports ok false with E_VERIFY_FAILED. The live record checks the job's final receipt with job get separately."
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "The job's worker waits before its read-back, and meanwhile packager run packages the project once more (Designer closed; --tamper), so Layout reports forward annotation required again. The read-back finds status required, and the job ends with E_VERIFY_FAILED."
       }
     }
   ]

@@ -18,6 +18,8 @@ from ..._driver.records import pid_alive
 TH32CS_SNAPPROCESS = 0x2
 ERROR_NO_MORE_FILES = 18
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+STILL_ACTIVE = 259  # the exit code of a process that runs
+PROCESS_TERMINATE = 0x0001
 FILETIME_PER_SECOND = 10_000_000
 
 
@@ -68,6 +70,7 @@ def _kernel32() -> Any:
         ("QueryFullProcessImageNameW", (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)),
          wintypes.BOOL),
         ("GetProcessTimes", (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4, wintypes.BOOL),
+        ("GetExitCodeProcess", (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)), wintypes.BOOL),
         ("CloseHandle", (wintypes.HANDLE,), wintypes.BOOL),
     ):
         function = getattr(api, name)
@@ -117,8 +120,10 @@ def _snapshot(api: Any) -> list[tuple[int, int, str]]:
     return rows
 
 
-def _identity(api: Any, pid: int) -> tuple[str, int]:
-    """The executable path and the start time in seconds of a process, or ``("", 0)``."""
+def _identity(api: Any, pid: int) -> tuple[str, int] | None:
+    """The executable path and the start time in seconds of a process, or ``("", 0)`` when it
+    cannot be opened. None for a process that has ended: the snapshot still lists an ended
+    process while another one holds a handle to it, as a quitting Designer for a while."""
     import ctypes
     from ctypes import wintypes
 
@@ -126,6 +131,9 @@ def _identity(api: Any, pid: int) -> tuple[str, int]:
     if not handle:
         return "", 0
     try:
+        code = wintypes.DWORD()
+        if api.GetExitCodeProcess(handle, ctypes.byref(code)) and code.value != STILL_ACTIVE:
+            return None
         size = wintypes.DWORD(32768)
         buffer = ctypes.create_unicode_buffer(size.value)
         path = buffer.value if api.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)) else ""
@@ -147,7 +155,10 @@ def processes(image_name: str) -> list[ProcessInfo]:
     found: list[ProcessInfo] = []
     for pid, parent, exe in _snapshot(api):
         if exe.lower() == want:
-            path, start = _identity(api, pid)
+            identity = _identity(api, pid)
+            if identity is None:
+                continue
+            path, start = identity
             found.append(ProcessInfo(pid=pid, path=path, start_time=start, parent_pid=parent))
     return found
 
@@ -176,6 +187,27 @@ def descendants(pid: int) -> list[int]:
 def alive(pid: int) -> bool:
     """Whether the process still runs; one Windows refuses to open still exists."""
     return pid_alive(int(pid))
+
+
+def end(pid: int) -> bool:
+    """End a process as Task Manager does (TerminateProcess); whether Windows took the request."""
+    if os.name != "nt":
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.OpenProcess.restype = wintypes.HANDLE
+    api.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    api.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    api.CloseHandle.argtypes = (wintypes.HANDLE,)
+    handle = api.OpenProcess(PROCESS_TERMINATE, False, int(pid))
+    if not handle:
+        return False
+    try:
+        return bool(api.TerminateProcess(handle, 1))
+    finally:
+        api.CloseHandle(handle)
 
 
 def window_pid(hwnd: int) -> int:

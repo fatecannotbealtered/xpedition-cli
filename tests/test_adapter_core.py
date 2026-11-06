@@ -128,6 +128,19 @@ class DocumentStateTest(unittest.TestCase):
                                                          "targets": [base.key(doc, "/a"), base.key(doc)],
                                                          "fields": ["v", "saved"]})
 
+    def test_a_save_in_the_long_job_worker_reopens_the_document(self):
+        app = self._fake_app()
+        app.save_document.side_effect = None
+        app.reopen_document.side_effect = lambda pid, path: Path(path).write_text("written on close", encoding="utf-8")
+        sid, doc = "designer-1-1", os.path.abspath(self.doc)
+        os.utime(doc, ns=(1_000_000_000, 1_000_000_000))
+        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})),                 mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
+            sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
+            out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
+                                                        "fields": ["saved"]})
+        app.reopen_document.assert_called_once_with(1, doc)
+        self.assertEqual(out["observed"][base.key(doc)], {"saved": True})
+
     def test_the_save_read_back_says_saved_only_when_the_files_changed(self):
         out = self._save(writes=True)
         doc_key = base.key(os.path.abspath(self.doc))

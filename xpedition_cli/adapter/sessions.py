@@ -30,7 +30,7 @@ from .._driver.targets import file_key, normalize
 from .base import DESIGNER, LAYOUT, SessionRef, make_session_id, parse_session
 
 INSTANCE_TIMEOUT_S = 2.0  # one instance that does not answer in time is reported unresponsive (DCLI-205)
-START_WAIT_S = 40.0
+START_WAIT_S = 300.0  # session open runs in the long-job worker: start, register for COM and open the file
 KINDS = {"project": DESIGNER, "board": LAYOUT}  # the document kinds, and the program that opens each
 STAMP_FILES = 50000  # at most this many files are looked at to see that a save reached the disk
 
@@ -301,6 +301,11 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     path = os.path.abspath(request["document"])
     before, started = disk_stamp(path), time.time_ns()
     _app(ref.kind).save_document(ref.pid, path)
+    if jobs.in_worker():
+        # Closing and opening the document again makes Xpedition write it out (Designer's
+        # database server writes the project files only when the project closes), and the
+        # read-back then reads what was saved (DCLI-057).
+        _app(ref.kind).reopen_document(ref.pid, path)
     after = disk_stamp(path)
     pending = doc_state(store, ref.id, path).get("changes", [])
     note_saved(store, ref.id, path)
@@ -332,11 +337,9 @@ def save_preview(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]
 
 
 def save_read_back(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    """Read the saved changes back from the instance right after the save (DCLI-057).
-
-    Reading them from the saved file would mean closing and opening the project again, which
-    takes Xpedition 30 to 80 s, so the fields come from the instance that has just saved them,
-    and the document's ``saved`` says whether the save was seen to write the files on disk."""
+    """Read the saved changes back from the document the save closed and opened again, so they
+    come from the saved files (DCLI-057); the document's ``saved`` says whether the save was seen
+    to write the files on disk."""
     ref = parse_session(request.get("session"))
     assert ref is not None
     path = os.path.abspath(request["document"])

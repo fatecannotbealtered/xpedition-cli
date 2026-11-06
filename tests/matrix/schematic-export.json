@@ -15,7 +15,11 @@
       "expected": {
         "exit": 0,
         "summary": "sch2pdf writes the saved schematic to {dir}/Demo.pdf; verified by the file, pages listed."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-050648-schematic-export.json#normal"
     },
     {
       "row": "empty",
@@ -37,7 +41,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "--output must name a .pdf file; refused at the preview."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045254-schematic-export.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -54,7 +63,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such project open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045254-schematic-export.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -67,7 +81,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents. (Run the matrix with --mode session.)"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053154-schematic-export.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -84,7 +103,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "An earlier export to the same file was interrupted: its CLI process was ended (Task Manager) while sch2pdf ran, so its outcome is unknown and the PDF's target stays locked until operation resolve: E_CONFLICT target_locked."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-050746-schematic-export.json#conflict"
     },
     {
       "row": "no_scope",
@@ -116,7 +140,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045650-schematic-export.json#busy"
     },
     {
       "row": "dialog",
@@ -131,7 +160,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Designer before the call, such as Setup > Settings or Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open. The runtime refuses on the session state, although sch2pdf itself would not need Designer."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054820-schematic-export.json#dialog"
     },
     {
       "row": "disconnect",
@@ -152,7 +186,11 @@
       "expected": {
         "exit": 0,
         "summary": "Designer holds unsaved changes (schematic create not yet saved): the PDF shows the project as last saved, and the preview's action and the result's warnings say so."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045412-schematic-export.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "Layout runs with no board open: it opens the board {doc}, answering its known open prompts; the board is found open afterwards."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051456-doc-open.json#normal"
     },
     {
       "row": "empty",
@@ -27,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "Layout has this board open already: nothing to open; exit 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051222-doc-open.json#empty"
     },
     {
       "row": "invalid_input",
@@ -42,7 +50,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "A Layout session opens .pcb files; refused before Layout is asked."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051222-doc-open.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -57,7 +70,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No board file at that path."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051222-doc-open.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -70,7 +88,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running, and the call names the file to open but no --session: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053147-doc-open.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -84,8 +107,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "A forward-annotation job on this board has ended, and no job get or job list has read its end yet, so its operation still locks part of the board: E_CONFLICT target_locked."
-      }
+        "summary": "A forward-annotation job on this board was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps part of the board locked until operation resolve: E_CONFLICT target_locked."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051328-doc-open.json#conflict"
     },
     {
       "row": "no_scope",
@@ -115,7 +143,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation or pcb export job of this tool runs in Layout: E_BUSY; nothing is opened."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051524-doc-open.json#busy"
     },
     {
       "row": "dialog",
@@ -130,7 +163,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Layout: the session is blocked; E_HUMAN_REQUIRED with the dialog's title."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054212-doc-open.json#dialog"
     },
     {
       "row": "disconnect",
@@ -159,8 +197,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "Layout has this board open with unsaved changes of this tool: nothing is opened, exit 0; the adapter then reports the board clean although Layout still holds the changes."
-      }
+        "summary": "Layout has this board open with unsaved changes of this tool: nothing is opened, exit 0, and the board keeps its unsaved changes (dirty true)."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051630-doc-open.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

@@ -156,7 +156,7 @@ Xpedition 是 Siemens 的印制电路板设计软件。Designer 画原理图，L
 3. 在 Designer 里 `doc close` 以后，`packager run` 打包原理图，`pcb create` 建板。
 4. `session open --doc PCB/Demo.pcb` 启动 Layout；`forward-annotation run` 把原理图带进板；`pcb update` 设板框；`placement run`、`plane create`、`router run` 布局、铺铜、布线；`pcb check` 跑 DRC；`doc save` 存盘；`pcb export` 出 ODB++、Gerber、NC 钻孔、坐标文件和 BOM。
 
-每次修改都先预览，按确认档确认，执行后从 Xpedition 读回核对。`schematic create`、`forward-annotation run` 和 `pcb export` 是长作业，用 `job get` 跟进。
+每次修改都先预览，按确认档确认，执行后从 Xpedition 读回核对。一次调用做不完的工作是长作业，用 `job get` 跟进：启动和退出 Designer、Layout，打开、保存和关闭文档，以及 `project create`、`packager run`、`schematic create`、`forward-annotation run` 和 `pcb export`。
 
 从 1.0.3 或更早的版本升级：这些版本没有 `update` 命令。请用 `npm install -g @fateforge/xpedition-cli` 重装，再从 Agent 的 Skill 文件夹里删掉旧的 `xpedition-schematic` 和 `xpedition-pcb` 两个文件夹；本版本只有一个 Skill：`xpedition-cli`。
 
