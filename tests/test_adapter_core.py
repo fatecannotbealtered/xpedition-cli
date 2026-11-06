@@ -44,7 +44,10 @@ class DocumentStateTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.store = store_in(self.tmp.name)
-        self.doc = os.path.join(self.tmp.name, "Demo.prj")
+        # The project has a folder of its own: a save is seen in the files of that folder, and the
+        # state directory beside it must not count.
+        self.doc = os.path.join(self.tmp.name, "project", "Demo.prj")
+        Path(self.doc).parent.mkdir()
         Path(self.doc).write_text("x", encoding="utf-8")
         self.sid = "designer-1-1"
 
