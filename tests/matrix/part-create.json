@@ -115,7 +115,12 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the project's parts and its central library); nothing is previewed to the application's files or sent."
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-160011-part-create.json#no_scope"
     },
     {
       "row": "busy",
