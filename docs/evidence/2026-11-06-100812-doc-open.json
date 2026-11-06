@@ -2,29 +2,31 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "8e5d73e342f9",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T05:09:42Z",
+  "recorded_at": "2026-11-06T10:08:12Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "session close",
+      "command": "doc open",
       "arguments": [
         "--session",
-        "designer-31272-320fdeee2"
+        "designer-41908-320fe3765",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc2\\Demo\\Demo.prj"
       ],
       "exit": 0,
       "result": "pass",
       "matrix_row": "normal",
       "mode": "session",
-      "notes": "job job-c2b498e7c7 ended completed"
+      "notes": "job job-3cbdf2cce4 ended completed"
     }
   ]
 }

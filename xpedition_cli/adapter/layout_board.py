@@ -249,6 +249,40 @@ def _rows(points: list[list[float]]) -> tuple[tuple[float, ...], ...]:
     return tuple(tuple(round(float(value), 4) for value in row) for row in points)
 
 
+OUTSIDE_LIMIT = 3000  # placed parts, traces and vias checked in a preview; a bigger board is left to Layout
+
+
+def _outside(doc: Any, width: float, height: float) -> str | None:
+    """Why Layout would refuse the route border of a ``width`` x ``height`` outline: placed parts,
+    traces or vias that reach outside it (its preventive DRC refuses the border, seen live). None
+    when everything fits, or when the board has more objects than a preview can look at."""
+    counts = [L.count(doc, name) for name in ("Components", "Traces", "Vias")]
+    if any(c is None for c in counts) or sum(c or 0 for c in counts) > OUTSIDE_LIMIT:
+        return None
+    inset = plan_outline.INSET_MM
+    names: list[str] = []
+    reach_x = reach_y = 0.0
+    behind = False
+    for name in ("Components", "Traces", "Vias"):
+        for item in L.collection(doc, name):
+            if name == "Components" and not item.Placed:
+                continue
+            low_x, low_y, high_x, high_y = L.extrema_mm(item)
+            reach_x, reach_y = max(reach_x, high_x), max(reach_y, high_y)
+            if low_x < inset or low_y < inset or high_x > width - inset or high_y > height - inset:
+                behind = behind or low_x < inset or low_y < inset
+                names.append(str(item.RefDes) if name == "Components" else name[:-1].lower())
+    if not names:
+        return None
+    shown = Counter(names)
+    listed = ", ".join(f"{n} x{k}" if k > 1 else n for n, k in shown.most_common(8))
+    fix = "Move or unplace them first" if behind else (
+        f"Move or unplace them first, or choose an outline that holds them, such as "
+        f"{max(width, math.ceil((reach_x + inset) * 10) / 10):g} x {max(height, math.ceil((reach_y + inset) * 10) / 10):g} mm")
+    return (f"Placed parts or routing reach outside the route border of a {width:g} x {height:g} mm outline, which Layout "
+            f"refuses: {listed}. {fix}.")
+
+
 class OutlineUpdate(L.ReadsBack):
     """The board outline as a rectangle from the origin, with rounded corners when asked
     (``plan.outline``): ``PutBoardOutline``, ``PutRouteBorder`` 0.3 mm inside it and
@@ -258,8 +292,16 @@ class OutlineUpdate(L.ReadsBack):
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        current = L.in_layout(ctx, lambda app, doc: L.outline_values(doc), budget_s=L.READ_BUDGET_S, what="reading the board outline")
-        width, height, radius = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
+
+        def look(app: Any, doc: Any) -> tuple[dict[str, Any], tuple[float, float, float], str | None]:
+            current = L.outline_values(doc)
+            new = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
+            return current, new, _outside(doc, new[0], new[1])
+
+        current, (width, height, radius), refused = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S,
+                                                                what="reading the board outline")
+        if refused:
+            raise base.blocked(refused)
         key = base.key(path, L.OUTLINE_KEY)
         changes = [base.change(key, field, current.get(field), value)
                    for field, value in (("width_mm", width), ("height_mm", height), ("radius_mm", radius))]
