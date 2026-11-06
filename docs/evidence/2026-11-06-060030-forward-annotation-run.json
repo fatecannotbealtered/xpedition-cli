@@ -1,0 +1,34 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.0.4",
+  "commit": "85c8a02bf2d8",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-06T06:00:30Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "forward-annotation run",
+      "arguments": [
+        "--session",
+        "layout-46368-320fdfd98",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\live\\PCB\\Live.pcb"
+      ],
+      "exit": 1,
+      "result": "pass",
+      "matrix_row": "read_back_mismatch",
+      "mode": "session",
+      "doc_kind": "board",
+      "tampered": true,
+      "notes": "job job-ea6ee1d60f ended completed"
+    }
+  ]
+}

@@ -10,7 +10,7 @@ registration that breaks a rule, so a mistake shows up at once. A command needs:
 - ``doc_kinds``: the kind of document it works on, ``project`` or ``board`` (DCLI-210)
 - ``long``: the runtime runs it as a long job in its own worker (DCLI-065)
 - ``irreversible``, ``halt``, ``tolerances``, ``default_fields``, ``related_knowledge``
-- ``output_schema``, ``examples``, ``maturity`` and ``evidence``
+- ``output_schema`` and ``examples``; ``maturity`` and ``evidence`` come from ``VERIFIED``
 
 Every command also gets a behavior matrix in tests/matrix/; its ``normal`` row is the write
 sample (DVER-002, DVER-030). Run ``python scripts/spec.py generate`` after a change.
@@ -40,6 +40,83 @@ def obj(**props: dict[str, Any]) -> dict[str, Any]:
 
 FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
 
+# The commands whose behavior matrix passed in full on Xpedition 2604, and the live records of
+# those runs (DVER-040, DVER-041).
+VERIFIED: dict[str, list[str]] = {
+    "part get": [
+        "live:docs/evidence/2026-11-06-044923-part-get.json",
+        "live:docs/evidence/2026-11-06-045406-part-get.json",
+    ],
+    "part list": [
+        "live:docs/evidence/2026-11-06-044837-part-list.json",
+        "live:docs/evidence/2026-11-06-045404-part-list.json",
+    ],
+    "pcb check": [
+        "live:docs/evidence/2026-11-06-051209-pcb-check.json",
+        "live:docs/evidence/2026-11-06-051524-pcb-check.json",
+        "live:docs/evidence/2026-11-06-051621-pcb-check.json",
+        "live:docs/evidence/2026-11-06-052020-pcb-check.json",
+        "live:docs/evidence/2026-11-06-053207-pcb-check.json",
+        "live:docs/evidence/2026-11-06-054206-pcb-check.json",
+    ],
+    "pcb get": [
+        "live:docs/evidence/2026-11-06-051200-pcb-get.json",
+        "live:docs/evidence/2026-11-06-051524-pcb-get.json",
+        "live:docs/evidence/2026-11-06-051613-pcb-get.json",
+        "live:docs/evidence/2026-11-06-052012-pcb-get.json",
+        "live:docs/evidence/2026-11-06-053205-pcb-get.json",
+        "live:docs/evidence/2026-11-06-054204-pcb-get.json",
+    ],
+    "project get": [
+        "live:docs/evidence/2026-11-06-044832-project-get.json",
+        "live:docs/evidence/2026-11-06-045403-project-get.json",
+    ],
+    "schematic check": [
+        "live:docs/evidence/2026-11-06-045235-schematic-check.json",
+        "live:docs/evidence/2026-11-06-045359-schematic-check.json",
+        "live:docs/evidence/2026-11-06-045502-schematic-check.json",
+        "live:docs/evidence/2026-11-06-050645-schematic-check.json",
+        "live:docs/evidence/2026-11-06-053150-schematic-check.json",
+        "live:docs/evidence/2026-11-06-054816-schematic-check.json",
+    ],
+    "schematic get": [
+        "live:docs/evidence/2026-11-06-045231-schematic-get.json",
+        "live:docs/evidence/2026-11-06-045459-schematic-get.json",
+        "live:docs/evidence/2026-11-06-050547-schematic-get.json",
+        "live:docs/evidence/2026-11-06-050641-schematic-get.json",
+        "live:docs/evidence/2026-11-06-053148-schematic-get.json",
+        "live:docs/evidence/2026-11-06-054815-schematic-get.json",
+    ],
+}
+
+# The standard commands whose behavior matrix passed in full on Xpedition 2604 (DVER-040).
+STANDARD_MATURITY: dict[str, dict[str, Any]] = {
+    "doc get": {"maturity": "verified", "evidence": [
+        "live:docs/evidence/2026-11-06-044532-doc-get.json",
+        "live:docs/evidence/2026-11-06-045401-doc-get.json",
+        "live:docs/evidence/2026-11-06-045650-doc-get.json",
+        "live:docs/evidence/2026-11-06-054838-doc-get.json",
+    ]},
+    "doc list": {"maturity": "verified", "evidence": [
+        "live:docs/evidence/2026-11-06-044539-doc-list.json",
+        "live:docs/evidence/2026-11-06-045408-doc-list.json",
+        "live:docs/evidence/2026-11-06-045522-doc-list.json",
+        "live:docs/evidence/2026-11-06-053211-doc-list.json",
+        "live:docs/evidence/2026-11-06-054824-doc-list.json",
+    ]},
+    "session get": {"maturity": "verified", "evidence": [
+        "live:docs/evidence/2026-11-06-044507-session-get.json",
+        "live:docs/evidence/2026-11-06-045456-session-get.json",
+        "live:docs/evidence/2026-11-06-053138-session-get.json",
+        "live:docs/evidence/2026-11-06-054219-session-get.json",
+    ]},
+    "session list": {"maturity": "verified", "evidence": [
+        "live:docs/evidence/2026-11-06-044529-session-list.json",
+        "live:docs/evidence/2026-11-06-045458-session-list.json",
+        "live:docs/evidence/2026-11-06-054221-session-list.json",
+    ]},
+}
+
 
 def command(path: str, summary: str, *, effects: list[str], modes: list[str], target_kind: str,
             flags: list[dict[str, Any]] | None = None, output: dict[str, Any],
@@ -62,8 +139,8 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
         "related_knowledge": knowledge or [],
         "output_schema": output,
         "examples": examples,
-        "maturity": "draft",
-        "evidence": [],
+        "maturity": "verified" if path in VERIFIED else "draft",
+        "evidence": list(VERIFIED.get(path, [])),
     }
     if long:
         reg["long"] = True

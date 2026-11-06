@@ -24,7 +24,7 @@ English | [中文](README_zh.md)
 | Modes | file, session |
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
-| Maturity | draft: 19 draft, 0 verified, 0 stable |
+| Maturity | draft: 12 draft, 7 verified, 0 stable |
 | Specification | tool-driver-cli-spec 1.0.3 |
 | Host component | no |
 <!-- driver:info-card:end -->
