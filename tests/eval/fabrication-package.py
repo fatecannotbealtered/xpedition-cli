@@ -10,6 +10,7 @@ from _report import says_count, says_number, says_verified
 from _xpedition import board, build, confirm, fake, fake_board, inside, job_of, ok_calls, outline_of, path_of, poll, read, \
     result, same_path, session_with, start, stop_all, wait_job
 
+LAYER_WORDS = ("layer", "copper layer", "conductor layer", "signal layer", "-layer", "层")  # "4 layers", "4 copper layers", "4-layer"
 SCENARIO = "scoped_change"
 COMMANDS = ["pcb export", "job get", "pcb get"]
 TURNS = ["Layout has the board Demo.pcb open. Write its fabrication package into the folder {documents}/fab, then tell me the "
@@ -54,7 +55,7 @@ def grade(run):
     message = run.messages[-1]
     run.check(width is not None and says_number(message, width) and says_number(message, height),
               f"the answer does not give the board's size, {width} x {height} mm")
-    run.check(says_count(message, laid.get("layers"), "layer", "层"), f"the answer does not give the {laid.get('layers')} layers")
+    run.check(says_count(message, laid.get("layers"), *LAYER_WORDS), f"the answer does not give the {laid.get('layers')} layers")
     run.check(run.said("fab"), "the report does not say where the package is")
     run.check(outcome.get("verification") != "passed" or says_verified(message), "read-back verified the package, but the report does not say so")
 

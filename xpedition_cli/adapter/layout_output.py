@@ -449,6 +449,7 @@ class BoardCheck(base.Handler):
     engine saves and closes the board."""
 
     command = "pcb check"
+    answers = dialogs.DRC_PROMPTS
 
     def read(self, ctx: Context) -> dict[str, Any]:
         ref = ctx.need_session(base.LAYOUT)
@@ -574,6 +575,7 @@ class BoardExport(base.Handler):
     ``layout-output-setups``)."""
 
     command = "pcb export"
+    answers = dialogs.OUTPUT_PROMPTS + dialogs.LAYOUT_PROMPTS
     long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:

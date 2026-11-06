@@ -150,6 +150,7 @@ class Handler:
 
     command = ""
     long_job = False
+    answers: tuple[tuple[str, str, str | None], ...] = ()  # dialog rules the work answers itself (platform.dialogs)
 
     def long(self, ctx: Context) -> bool:
         """Whether this call runs ``run``; ``long_job`` unless a handler decides per call."""

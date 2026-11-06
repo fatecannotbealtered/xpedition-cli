@@ -109,7 +109,12 @@ class Adapter(BaseAdapter):
         return handler
 
     def read(self, request: dict[str, Any]) -> dict[str, Any]:
-        return {"result": self._handler(request).read(Context(self.store, request))}
+        handler = self._handler(request)
+        if jobs.in_worker():
+            # a long read, such as a DRC: the instance is busy meanwhile
+            with jobs.running(self.store, request.get("session"), handler.command, handler.answers):
+                return {"result": handler.read(Context(self.store, request))}
+        return {"result": handler.read(Context(self.store, request))}
 
     def preview(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("command") == "doc save":
@@ -133,7 +138,7 @@ class Adapter(BaseAdapter):
         if handler.long(ctx):
             # The runtime calls this in its long job's worker (DCLI-065); meanwhile the
             # instance shows as busy to other calls.
-            with jobs.running(self.store, request.get("session"), handler.command):
+            with jobs.running(self.store, request.get("session"), handler.command, handler.answers):
                 out = handler.run(ctx, jobs.Progress())
             facts = {"dispatch_state": "dispatched", "delivery": "not_applicable", **out}
         else:

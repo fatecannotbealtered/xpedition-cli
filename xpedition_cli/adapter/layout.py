@@ -39,6 +39,7 @@ from .platform import com, dialogs, env, processes
 T = TypeVar("T")
 
 APPLICATION = "Xpedition Layout"
+ANSWERS = dialogs.LAYOUT_PROMPTS  # the prompts opening, saving and closing answer (for sessions)
 PROCESS = "ExpeditionPCB.exe"
 PROGID_BASES = ("MGCPCB.ExpeditionPCBApplication", "MGCPCB.Application")
 LICENSING_PROGID = "MGCPCBAutomationLicensing.Application"
@@ -595,7 +596,7 @@ def _held(pid: int, fallback: str) -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - out of time, or the windows cannot be read: no dialog is known
             dialog = None
     if dialog is not None:
-        return {"state": "blocked", "blocker": blocker(dialog)}
+        return {"state": "blocked", "blocker": blocker(dialog), "blocker_text": str(dialog.get("text") or "")}
     try:
         if dialogs.processing_windows(pid):
             return {"state": "busy"}
@@ -635,7 +636,7 @@ def instances(timeout_s: float) -> list[dict[str, Any]]:
                 if licence:
                     row.update(state="blocked", blocker=blocker({"title": licence[0], "buttons": []}))
                 elif box is not None:
-                    row.update(state="blocked", blocker=blocker(box))
+                    row.update(state="blocked", blocker=blocker(box), blocker_text=box["text"])
                 rows.append(row)
             else:
                 reason = OTHER_INSTANCE if reached is not None else UNIDENTIFIED
