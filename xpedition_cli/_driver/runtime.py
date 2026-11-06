@@ -75,6 +75,9 @@ class Run:
         self.resolved: dict[str, str] = {}  # target flags filled in by the runtime, for generated commands
         self.dispatching: str | None = None  # the operation whose change may be in flight
         self.on_hang: Any = None  # set by the tool: reports a hung in-process adapter call and exits
+        # Set while a read follows a write whose apply replied: settles it with the note given,
+        # before the hang ends the process (DCLI-278).
+        self.settle_hang: Any = None
         self._sessions: dict[str, Any] | None = None
         self._devices: list[dict[str, Any]] | None = None
 
@@ -172,7 +175,9 @@ class Run:
         if code not in self.contract["host_protocol"]["allowed_error_codes"]:
             return DriverError("E_PROTOCOL", f"The adapter answered with an error it may not use: {code}.",
                                dispatch_state=dispatch_state)
-        if code in ("E_AMBIGUOUS", "E_CONFLICT", "E_BACKEND_UNAVAILABLE", "E_TIMEOUT") and exc.dispatch_state != "not_started":
+        # A read sends no change, so only a write's reply must say that nothing was sent.
+        if code in ("E_AMBIGUOUS", "E_CONFLICT", "E_BACKEND_UNAVAILABLE", "E_TIMEOUT") and write and \
+                exc.dispatch_state != "not_started":
             return DriverError("E_PROTOCOL", f"The adapter answered {code} after sending the change; it comes only before.",
                                dispatch_state=dispatch_state)
         if code == "E_TIMEOUT" and write:

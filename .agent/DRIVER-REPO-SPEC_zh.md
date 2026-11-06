@@ -2,7 +2,7 @@
 
 [English](DRIVER-REPO-SPEC.md) | 中文
 
-> 版本 1.0.3 · 条款 DREPO-001 至 DREPO-062
+> 版本 1.0.4 · 条款 DREPO-001 至 DREPO-062
 
 ## 怎么读
 
@@ -25,7 +25,7 @@
 - 项目的文件和目录
 - 项目文档的章节，英文版和中文版
 - 徽章行、信息卡和状态标签
-- 规范、契约和驱动运行时的固定副本
+- 规范、契约、驱动运行时和共用脚本的固定副本
 - 版本、CI 和发布
 - 通过 npm 分发
 - 能力调查，以及接入新软件的步骤
@@ -41,7 +41,7 @@
 | 驱动工具 | 让 AI Agent 操作专业桌面软件或设备的命令行工具 |
 | 工具项目 | 一个驱动工具的代码仓库 |
 | 模板 | 随本规范提供的项目模板，用来生成新的工具项目 |
-| 固定副本 | 从某一个规范发布原样复制来的文件：规范、契约、驱动运行时和它们的许可证 |
+| 固定副本 | 从某一个规范发布原样复制来的文件：规范、契约、驱动运行时、它们的许可证，以及每个工具共用的脚本 |
 | 同步脚本 | `sync_spec`，把固定副本复制进工具项目，升级时整体替换 |
 | 项目检查 | `check_project`，对照本规范检查工具项目的脚本 |
 | 驱动运行时 | `<pkg>/_driver/` 里的共享代码，实现内置命令、标准命令、写操作流程和自更新 |
@@ -69,7 +69,7 @@
 | 方面 | 模板、同步脚本和检查提供 | 工具作者要做 |
 |---|---|---|
 | 项目骨架 | 所有必需的文件和目录，两种语言的固定标题和固定原文都已写好：工作方式、必须遵守的底线、安装块和 SECURITY 的五个固定章节 | 填写工具自己的章节，去掉所有占位符 |
-| 固定副本 | `sync_spec` 复制规范、契约、运行时和许可证，升级时整体替换 | 升级时运行 `sync_spec`，从不手改固定副本 |
+| 固定副本 | `sync_spec` 复制规范、契约、运行时、许可证和共用脚本，升级时整体替换 | 升级时运行 `sync_spec`，从不手改固定副本 |
 | 生成的内容 | 根据数据生成 `contract/commands.json`、命令地图、徽章行、信息卡和支持矩阵的脚本 | 登记命令，让证据和 `docs/COMPATIBILITY.md` 的其他章节保持真实 |
 | 检查 | `check_project`：布局、根目录文件、章节、双语对应、占位符、哈希、徽章、标签和能力对应 | 改正 `check_project` 报出的每个问题 |
 | CI 与发布 | 工作流 `ci.yml` 和 `release.yml`，包含合并门槛、平台交付和带来源证明的发布 | 让两个工作流保持通过，为平台交付选定关键操作 |
@@ -182,7 +182,7 @@
 | `docs/E2E.md` | 真实软件验收，含唯一的授权目标清单（DREPO-017、DVER-051） |
 | `docs/E2E_zh.md` | 中文真实软件验收文档 |
 | `docs/evidence/` | 真实软件记录和评测报告（DVER-042、DSKL-043） |
-| `scripts/` | 构建、打包、冒烟测试和检查脚本 |
+| `scripts/` | 构建、打包、冒烟测试和检查脚本；其中一部分是固定副本（DREPO-035） |
 | `tests/` | 工具的测试，包括一致性测试的运行和行为矩阵（DVER-001、DVER-030） |
 | `tests/matrix/` | 每条命令一份行为矩阵（DVER-030） |
 | `.github/workflows/ci.yml` | 合并门槛（DREPO-041） |
@@ -420,7 +420,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 | `platform` | 出包平台：Windows、macOS、Linux | `package.json` 里的平台包（DREPO-043） |
 | `risk` | 工具的风险等级，T0 至 T2（DSEC-002） | `reference` |
 | `maturity` | 工具各领域命令中最低的成熟度（DVER-040） | `reference` |
-| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.3 | `.agent/SPEC_VERSION` |
+| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.4 | `.agent/SPEC_VERSION` |
 | `license` | 工具的许可证 | `package.json` |
 
 驱动 KiCad 10.0、支持文件和会话模式的工具，徽章行大致如下；具体样式由模板定义：
@@ -434,7 +434,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.3-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.4-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 
@@ -523,12 +523,19 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 
 ### DREPO-034 只同步，不手改
 
-- 固定副本（DREPO-030 至 DREPO-033）禁止手改。
+- 固定副本（DREPO-030 至 DREPO-033 和 DREPO-035）禁止手改。
 - 升级时，作者运行同步脚本 `sync_spec`，它从同一个规范发布整体替换所有固定副本。
 - 禁止用其他方式固定规范、契约或运行时，如只复制一部分、用子模块或包依赖。
 
 为什么：只有一种固定方式，又按哈希核对，每个工具依据哪套规则、运行哪份运行时就一清二楚，谁的本地修补也藏不进副本里。
 检查：🤖 `check_project` 按 `.agent/SPEC_VERSION` 指明的发布核对每个固定文件的哈希。
+
+### DREPO-035 脚本副本
+
+`scripts/spec.py`、`scripts/build.py`、`scripts/pack.py`、`scripts/platforms.py` 和 `scripts/release_gate.py` 必须是同一个发布里模板的脚本，原样不改。`scripts/smoke.py` 和 `scripts/` 里的其他脚本归作者。
+
+为什么：这些脚本在每个工具里都一样；只有 `sync_spec` 把它们和发布的其余部分一起替换，这些脚本的修正才会进到各个工具里。
+检查：🤖 `check_project` 核对哈希（DREPO-034）。
 
 ## 版本、CI 与发布
 
@@ -702,6 +709,7 @@ README 的「安装」一节必须按顺序给出下面几步：
 - [ ] DREPO-032 运行时副本
 - [ ] DREPO-033 许可证
 - [ ] DREPO-034 只同步，不手改
+- [ ] DREPO-035 脚本副本
 - [ ] DREPO-040 版本与标签
 - [ ] DREPO-041 合并门槛
 - [ ] DREPO-042 平台交付

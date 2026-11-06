@@ -11,7 +11,7 @@ Lets an AI Agent build Xpedition designs from the command line, from central-lib
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-draft-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.3-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.4-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -25,7 +25,7 @@ English | [中文](README_zh.md)
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
 | Maturity | draft: 11 draft, 0 verified, 7 stable |
-| Specification | tool-driver-cli-spec 1.0.3 |
+| Specification | tool-driver-cli-spec 1.0.4 |
 | Host component | no |
 <!-- driver:info-card:end -->
 
