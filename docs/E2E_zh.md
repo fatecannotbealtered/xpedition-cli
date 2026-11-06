@@ -36,6 +36,7 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-06-060030-forward-annotation-run.json](evidence/2026-11-06-060030-forward-annotation-run.json) | 2026-11-06T06:00:30Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-054838-doc-get.json](evidence/2026-11-06-054838-doc-get.json) | 2026-11-06T05:48:38Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-054824-doc-list.json](evidence/2026-11-06-054824-doc-list.json) | 2026-11-06T05:48:24Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-054820-schematic-export.json](evidence/2026-11-06-054820-schematic-export.json) | 2026-11-06T05:48:20Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

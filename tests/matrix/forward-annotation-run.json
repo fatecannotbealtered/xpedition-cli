@@ -211,7 +211,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The job's worker waits before its read-back, and meanwhile packager run packages the project once more (Designer closed; --tamper), so Layout reports forward annotation required again. The read-back finds status required, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-060030-forward-annotation-run.json#read_back_mismatch"
     }
   ]
 }

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._driver import Tool
 from .adapter import Adapter
-from .commands import COMMANDS
+from .commands import COMMANDS, STANDARD_MATURITY
 
 # package.json, CHANGELOG.md, knowledge/, skills/ and contract/ sit at the project root; in the
 # native program they are bundled next to the code.
@@ -28,6 +28,7 @@ TOOL = Tool(
     # quit; the runtime runs these as long jobs in its own worker (DCLI-065). A save closes and
     # opens the document again, so that Xpedition writes it out and the read-back reads the file.
     long_commands=["session open", "session close", "doc open", "doc save", "doc close"],
+    maturity=STANDARD_MATURITY,
 )
 
 
