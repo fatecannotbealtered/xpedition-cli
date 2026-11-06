@@ -575,7 +575,7 @@ class BoardExport(base.Handler):
     ``layout-output-setups``)."""
 
     command = "pcb export"
-    answers = dialogs.OUTPUT_PROMPTS + dialogs.LAYOUT_PROMPTS
+    answers = dialogs.OUTPUT_PROMPTS
     long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:

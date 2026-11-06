@@ -39,7 +39,9 @@ from .platform import com, dialogs, env, processes
 T = TypeVar("T")
 
 APPLICATION = "Xpedition Layout"
-ANSWERS = dialogs.LAYOUT_PROMPTS  # the prompts opening, saving and closing answer (for sessions)
+# The prompts each session and document command answers itself (for sessions).
+ANSWERS: dict[str, tuple[dialogs.Rule, ...]] = {command: dialogs.LAYOUT_PROMPTS
+                                                for command in ("doc open", "doc save", "doc close", "session close")}
 PROCESS = "ExpeditionPCB.exe"
 PROGID_BASES = ("MGCPCB.ExpeditionPCBApplication", "MGCPCB.Application")
 LICENSING_PROGID = "MGCPCBAutomationLicensing.Application"
@@ -388,8 +390,11 @@ def needs_person(dialog: dict[str, Any]) -> bool:
 
 
 def covered(dialog: dict[str, Any], rules: tuple[dialogs.Rule, ...] | list[dialogs.Rule]) -> bool:
+    """Whether a rule answers the dialog, as ``dialogs.answer_prompts`` does: its marker is in the
+    title or text and its button is on the dialog."""
     haystack = f"{dialog.get('title', '')} {dialog.get('text', '')}".lower()
-    return any(marker.lower() in haystack for marker, _button, _option in rules)
+    buttons = {str(b).replace("&", "").strip() for b in dialog.get("buttons") or []}
+    return any(marker.lower() in haystack and button in buttons for marker, button, _option in rules)
 
 
 def action_for(dialog: dict[str, Any]) -> str:
@@ -556,6 +561,8 @@ def open_documents(pid: int, timeout_s: float) -> list[str] | None:
         return None
     if not seen.get("registered"):
         return []
+    if seen.get("pid") is None and len(layout_processes()) > 1:
+        return None  # which Layout COM reached is not known: what each last showed stands
     if seen.get("pid") is not None and seen["pid"] != pid:
         return []
     return list(seen.get("documents", []))
@@ -596,7 +603,8 @@ def _held(pid: int, fallback: str) -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - out of time, or the windows cannot be read: no dialog is known
             dialog = None
     if dialog is not None:
-        return {"state": "blocked", "blocker": blocker(dialog), "blocker_text": str(dialog.get("text") or "")}
+        return {"state": "blocked", "blocker": blocker(dialog), "blocker_text": str(dialog.get("text") or ""),
+                "blocker_buttons": list(dialog.get("buttons") or [])}
     try:
         if dialogs.processing_windows(pid):
             return {"state": "busy"}
@@ -636,7 +644,7 @@ def instances(timeout_s: float) -> list[dict[str, Any]]:
                 if licence:
                     row.update(state="blocked", blocker=blocker({"title": licence[0], "buttons": []}))
                 elif box is not None:
-                    row.update(state="blocked", blocker=blocker(box), blocker_text=box["text"])
+                    row.update(state="blocked", blocker=blocker(box), blocker_text=box["text"], blocker_buttons=box["buttons"])
                 rows.append(row)
             else:
                 reason = OTHER_INSTANCE if reached is not None else UNIDENTIFIED

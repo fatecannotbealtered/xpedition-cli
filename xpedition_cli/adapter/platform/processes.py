@@ -163,6 +163,14 @@ def processes(image_name: str) -> list[ProcessInfo]:
     return found
 
 
+def start_time(pid: int) -> int | None:
+    """When a process started, in seconds; 0 when Windows does not tell, None when it has ended."""
+    if os.name != "nt" or pid <= 0:
+        return 0
+    identity = _identity(_kernel32(), int(pid))
+    return None if identity is None else identity[1]
+
+
 def descendants(pid: int) -> list[int]:
     """The processes ``pid`` started, and theirs: a launcher's real program, for one."""
     if os.name != "nt":

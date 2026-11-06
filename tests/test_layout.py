@@ -152,6 +152,12 @@ class DeadlineTest(unittest.TestCase):
             self.assertIsNone(L.holding_dialog(PID, [prompt], dialogs.LAYOUT_PROMPTS))
             self.assertIs(L.holding_dialog(PID, [prompt], ()), prompt)
 
+    def test_a_rules_dialog_without_its_button_waits_for_a_person(self):
+        # the answerer presses a rule's button only; a box with the marker but not the button stays
+        failed = {"title": "Layout", "text": "确定设计状态 failed", "buttons": ["OK"]}
+        with world(FakeApp(), blocking=[]):
+            self.assertIs(L.holding_dialog(PID, [failed], dialogs.LAYOUT_PROMPTS), failed)
+
     def test_a_raw_com_fault_is_classified(self):
         def fail():
             raise FakeComError(text="unexpected")
@@ -229,6 +235,7 @@ class InstancesTest(unittest.TestCase):
             row = L.instances(2.0)[0]
         self.assertEqual((row["state"], row["blocker"]["action"], row["blocker"]["knowledge"]),
                          ("blocked", "dismiss_dialog", ["layout-open-prompts"]))
+        self.assertEqual(row["blocker_buttons"], ["Save", "Don't Save", "Cancel"])  # for sessions to tell the job's own dialogs
 
     def test_another_layout_is_unreachable(self):
         with world(FakeApp(None), running=[process(), process(77, "D:/x/ExpeditionPCB.exe")]):
