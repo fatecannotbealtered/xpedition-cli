@@ -92,7 +92,12 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not grant the lifecycle effect; nothing starts."
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-160051-session-open.json#no_scope"
     },
     {
       "row": "busy",

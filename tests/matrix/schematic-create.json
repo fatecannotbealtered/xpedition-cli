@@ -125,7 +125,12 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that covers the project but does not allow dangerous operations (or does not cover the project): E_FORBIDDEN names what is missing; nothing is drawn."
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-160146-schematic-create.json#no_scope"
     },
     {
       "row": "busy",
