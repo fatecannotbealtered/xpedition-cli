@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from contextlib import nullcontext
 from typing import Any, Protocol
 
 from .._driver import AdapterError
@@ -177,8 +178,12 @@ def list_sessions(store: AdapterStore) -> dict[str, Any]:
         for inst in found:
             sid = make_session_id(kind, int(inst["pid"]))
             state = inst.get("state", "ready")
-            if state == "ready" and jobs.running_on(store, sid):
-                state = "busy"  # a long job drives this instance
+            answers = jobs.answered_by_job(store, sid)
+            if answers is not None:
+                # a long job of this tool drives the instance: busy, unless a dialog the job does
+                # not answer itself waits for a person
+                if state in ("ready", "unresponsive") or (state == "blocked" and _answered(inst, answers)):
+                    state = "busy"
             known = store.get(_docs_key(sid))
             if state == "ready":
                 docs = [os.path.abspath(p) for p in inst.get("documents", [])]
@@ -212,6 +217,13 @@ def session_of(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[s
 def document_view(store: AdapterStore, session: str | None, path: str) -> dict[str, Any]:
     """A document as the documents capability reports it."""
     return _document(store, session, path)
+
+
+def _answered(inst: dict[str, Any], answers: list[tuple[str, str, str | None]]) -> bool:
+    """Whether the instance's blocker is a dialog the running job answers itself."""
+    blocker = inst.get("blocker") or {}
+    haystack = f"{blocker.get('title', '')} {inst.get('blocker_text', '')}".lower()
+    return any(marker.lower() in haystack for marker, _button, _option in answers)
 
 
 def _session(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[str, Any]]:
@@ -299,9 +311,19 @@ def open_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]
             "persistence": "not_applicable", "session": session}
 
 
+def _driving(store: AdapterStore, ref: SessionRef, command: str) -> Any:
+    """While a long job's worker opens, saves or closes a document or quits an instance, that
+    instance is busy, and the prompts the adapter answers then do not block it."""
+    if jobs.in_worker():
+        answers = getattr(_app(ref.kind), "ANSWERS", ())
+        return jobs.running(store, ref.id, command, tuple(answers) if isinstance(answers, (tuple, list)) else ())
+    return nullcontext()
+
+
 def close_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     ref, item = _session(store, request["session"])
-    _app(ref.kind).quit(ref.pid, bool(request.get("discard")))
+    with _driving(store, ref, "session close"):
+        _app(ref.kind).quit(ref.pid, bool(request.get("discard")))
     for doc in item["documents"]:
         forget(store, ref.id, doc["path"])
     store.set("owned", [s for s in _owned(store) if s != ref.id])
@@ -316,7 +338,8 @@ def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     if not path.lower().endswith(want):
         raise AdapterError("E_VALIDATION", f"This session opens {want} files.", dispatch_state="not_started")
     already = any(os.path.normcase(d["path"]) == os.path.normcase(path) for d in _session(store, ref.id)[1]["documents"])
-    _app(ref.kind).open_document(ref.pid, path)
+    with _driving(store, ref, "doc open"):
+        _app(ref.kind).open_document(ref.pid, path)
     if not already:
         note_saved(store, ref.id, path)  # freshly opened from the file: clean; an open document keeps its state
     return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
@@ -354,12 +377,13 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     ref, _ = _session(store, request["session"])
     path = os.path.abspath(request["document"])
     before, started = disk_stamp(path), time.time_ns()
-    _app(ref.kind).save_document(ref.pid, path)
-    if jobs.in_worker():
-        # Closing and opening the document again makes Xpedition write it out (Designer's
-        # database server writes the project files only when the project closes), and the
-        # read-back then reads what was saved (DCLI-057).
-        _app(ref.kind).reopen_document(ref.pid, path)
+    with _driving(store, ref, "doc save"):
+        _app(ref.kind).save_document(ref.pid, path)
+        if jobs.in_worker():
+            # Closing and opening the document again makes Xpedition write it out (Designer's
+            # database server writes the project files only when the project closes), and the
+            # read-back then reads what was saved (DCLI-057).
+            _app(ref.kind).reopen_document(ref.pid, path)
     after = disk_stamp(path)
     pending = doc_state(store, ref.id, path).get("changes", [])
     note_saved(store, ref.id, path)
@@ -373,7 +397,8 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
 def close_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     ref, _ = _session(store, request["session"])
     path = os.path.abspath(request["document"])
-    _app(ref.kind).close_document(ref.pid, path, bool(request.get("discard")))
+    with _driving(store, ref, "doc close"):
+        _app(ref.kind).close_document(ref.pid, path, bool(request.get("discard")))
     forget(store, ref.id, path)
     return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
             "persistence": "not_applicable"}

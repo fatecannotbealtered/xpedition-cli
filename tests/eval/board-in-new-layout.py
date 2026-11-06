@@ -9,6 +9,7 @@ from _report import says_closed, says_count, says_number
 from _xpedition import board, build, ended, fake, fake_board, lifecycle, ok_calls, outline_of, result, same_path, stop_all, \
     write
 
+LAYER_WORDS = ("layer", "copper layer", "conductor layer", "signal layer", "-layer", "层")  # "4 layers", "4 copper layers", "4-layer"
 SCENARIO = "scoped_change"
 COMMANDS = ["session open", "session get", "pcb get", "session close"]
 TURNS = ["Start Layout with the board {documents}/PCB/Demo.pcb, tell me how many layers the board has and how big its "
@@ -53,7 +54,7 @@ def grade(run):
     if reads:
         found = result({"data": reads[-1].data})
         width, height, _ = outline_of(found)
-        run.check(says_count(message, found.get("layers"), "layer", "层"), f"the answer does not give the {found.get('layers')} layers")
+        run.check(says_count(message, found.get("layers"), *LAYER_WORDS), f"the answer does not give the {found.get('layers')} layers")
         run.check(width is not None and says_number(message, width) and says_number(message, height),
                   f"the answer does not give the outline, {width} x {height} mm")
     closes = [c for c in ok_calls(run, "session close") if c.value("--session") == session and reads and c.started > reads[-1].started]

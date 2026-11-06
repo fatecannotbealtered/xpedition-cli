@@ -56,6 +56,7 @@ DISP_E_TYPEMISMATCH = 0x80020005 - (1 << 32)
 REOPEN = "designer-reopen-after-sheet-changes"
 ONE_INSTANCE = "designer-one-instance-only"
 PROMPTS = "designer-project-prompts"
+ANSWERS = dialogs.DESIGNER_PROMPTS  # the prompts opening, saving and closing answer (for sessions)
 SEVERAL = "Several Designer instances are running; close all but one."
 SIZE_NAMES = ("A", "B", "C", "D", "E", "A4", "A3", "A2", "A1", "A0")
 SCH2PDF_COLOUR = 1  # colour on white, as the old export
@@ -359,7 +360,7 @@ def _dialog_blocker(pid: int) -> dict[str, str] | None:
     except Exception:  # noqa: BLE001 - an unreadable desktop shows no dialog
         return None
     if found:
-        return _blocker(str(found[0].get("title", "")))
+        return {**_blocker(str(found[0].get("title", ""))), "_text": str(found[0].get("text") or "")}
     return None
 
 
@@ -384,7 +385,8 @@ def _instance(pid: int, timeout_s: float) -> dict[str, Any]:
     if out["state"] != "blocked":
         blocker = _dialog_blocker(pid)
         if blocker is not None:
-            out.update(state="blocked", blocker=blocker)
+            text = blocker.pop("_text", "")
+            out.update(state="blocked", blocker=blocker, blocker_text=text)
         elif out["state"] == "ready" and dialogs.processing_windows(pid):
             out["state"] = "busy"
     return out
@@ -1320,6 +1322,7 @@ def _component_key(prj: str, refdes: str) -> str:
 
 class SchematicCreate(Handler):
     command = "schematic create"
+    answers = dialogs.DESIGNER_PROMPTS
     long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:

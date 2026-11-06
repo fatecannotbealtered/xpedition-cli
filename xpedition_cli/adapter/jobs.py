@@ -5,7 +5,8 @@ A command registered ``long: true`` returns a job at once; the runtime runs the 
 it ended. This module holds what the adapter needs around that:
 
 - ``in_worker``: whether this process is such a worker, so a step may take longer than a call;
-- ``running``: while a worker drives an instance, ``sessions`` reports that instance ``busy``;
+- ``running``: while a worker drives an instance, ``sessions`` reports that instance ``busy``,
+  and a dialog the worker answers itself does not block it;
 - ``Progress``: what a handler's ``run`` reports steps and dialogs to;
 - ``read`` and ``write``: small JSON files, such as the library cache's index.
 """
@@ -51,24 +52,40 @@ def _running_key(session: str) -> str:
 
 
 @contextmanager
-def running(store: AdapterStore, session: str | None, command: str) -> Iterator[None]:
-    """Mark the instance of ``session`` as driven by this worker until the block ends."""
+def running(store: AdapterStore, session: str | None, command: str,
+            answers: tuple[tuple[str, str, str | None], ...] = ()) -> Iterator[None]:
+    """Mark the instance of ``session`` as driven by this worker until the block ends, with the
+    dialog rules (``platform.dialogs``) the worker answers itself meanwhile."""
     if not session:
         yield
         return
-    store.set(_running_key(session), {"pid": os.getpid(), "command": command, "started_at": utc_now()})
+    store.set(_running_key(session), {"pid": os.getpid(), "command": command, "started_at": utc_now(),
+                                      "answers": [list(rule) for rule in answers]})
     try:
         yield
     finally:
         store.delete(_running_key(session))
 
 
-def running_on(store: AdapterStore, session: str) -> str | None:
-    """The command a live worker is running on a session, if any; that session is busy."""
+def _live_mark(store: AdapterStore, session: str) -> dict[str, Any] | None:
     mark = store.get(_running_key(session))
     if isinstance(mark, dict) and pid_alive(int(mark.get("pid", 0))) and int(mark.get("pid", 0)) != os.getpid():
-        return str(mark.get("command", ""))
+        return mark
     return None
+
+
+def running_on(store: AdapterStore, session: str) -> str | None:
+    """The command a live worker is running on a session, if any; that session is busy."""
+    mark = _live_mark(store, session)
+    return str(mark.get("command", "")) if mark is not None else None
+
+
+def answered_by_job(store: AdapterStore, session: str) -> list[tuple[str, str, str | None]] | None:
+    """The dialog rules a live worker on the session answers itself, or None without one."""
+    mark = _live_mark(store, session)
+    if mark is None:
+        return None
+    return [tuple(rule) for rule in mark.get("answers", []) if isinstance(rule, list) and len(rule) == 3]
 
 
 class Progress:

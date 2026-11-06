@@ -145,6 +145,7 @@ class ForwardAnnotation(L.ReadsBack):
 
     command = "forward-annotation run"
     long_job = True
+    answers = dialogs.LAYOUT_PROMPTS_ANNOTATE
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()

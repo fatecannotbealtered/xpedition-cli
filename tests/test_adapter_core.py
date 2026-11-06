@@ -245,6 +245,40 @@ class LongJobTest(unittest.TestCase):
             self.assertFalse(jobs.in_worker())
 
 
+class JobDialogTest(unittest.TestCase):
+    """A dialog the running job answers itself does not block its session; another one does."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = store_in(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _listed(self, inst: dict) -> dict:
+        app = mock.Mock(APPLICATION="Xpedition Layout", VERSION="2604")
+        app.instances.return_value = [inst]
+        idle = mock.Mock(APPLICATION="Xpedition Designer", VERSION="2604")
+        idle.instances.return_value = []
+        apps = {base.DESIGNER: idle, base.LAYOUT: app}
+        sid = sessions.make_session_id(base.LAYOUT, 4242)
+        rules = (("ODB++ Design Output", "OK", None),)
+        with mock.patch.object(sessions, "_app", side_effect=lambda kind: apps[kind]),                 mock.patch.object(jobs.os, "getpid", return_value=1), mock.patch.object(jobs, "pid_alive", return_value=True):
+            self.store.set(jobs._running_key(sid), {"pid": 7, "command": "pcb export", "answers": [list(r) for r in rules]})
+            return sessions.list_sessions(self.store)["items"][0]
+
+    def test_the_jobs_own_dialog_leaves_the_session_busy(self):
+        row = self._listed({"pid": 4242, "state": "blocked", "documents": [], "blocker": {"action": "dismiss_dialog",
+                            "title": "ODB++ Design Output"}, "blocker_text": ""})
+        self.assertEqual(row["state"], "busy")
+        self.assertNotIn("blocker", row)
+
+    def test_another_dialog_blocks_the_session(self):
+        row = self._listed({"pid": 4242, "state": "blocked", "documents": [], "blocker": {"action": "dismiss_dialog",
+                            "title": "Xpedition Layout"}, "blocker_text": "Save changes?"})
+        self.assertEqual((row["state"], row["blocker"]["title"]), ("blocked", "Xpedition Layout"))
+
+
 class _ChangeHandler(base.Handler):
     command = "demo update"
 
