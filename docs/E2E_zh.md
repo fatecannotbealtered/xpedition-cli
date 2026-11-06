@@ -36,6 +36,7 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-06-083227-doc-save.json](evidence/2026-11-06-083227-doc-save.json) | 2026-11-06T08:32:27Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-073450-session-open.json](evidence/2026-11-06-073450-session-open.json) | 2026-11-06T07:34:50Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-073351-pcb-create.json](evidence/2026-11-06-073351-pcb-create.json) | 2026-11-06T07:33:51Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-073339-pcb-create.json](evidence/2026-11-06-073339-pcb-create.json) | 2026-11-06T07:33:39Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
@@ -127,7 +128,6 @@
 | [2026-11-06-051913-plane-create.json](evidence/2026-11-06-051913-plane-create.json) | 2026-11-06T05:19:13Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-051911-plane-create.json](evidence/2026-11-06-051911-plane-create.json) | 2026-11-06T05:19:11Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-051739-placement-run.json](evidence/2026-11-06-051739-placement-run.json) | 2026-11-06T05:17:39Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-06-051717-doc-save.json](evidence/2026-11-06-051717-doc-save.json) | 2026-11-06T05:17:17Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-051630-doc-open.json](evidence/2026-11-06-051630-doc-open.json) | 2026-11-06T05:16:30Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-051627-doc-close.json](evidence/2026-11-06-051627-doc-close.json) | 2026-11-06T05:16:27Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-051625-forward-annotation-run.json](evidence/2026-11-06-051625-forward-annotation-run.json) | 2026-11-06T05:16:25Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

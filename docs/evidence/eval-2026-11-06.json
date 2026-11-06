@@ -1,0 +1,237 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.0.4",
+  "date": "2026-11-06",
+  "agent": "Claude Code 2.1.318",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/eval/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "board-in-new-layout",
+      "passed": true,
+      "notes": "Start Layout with a board, report the board's layers and outline, then quit that Layout.",
+      "sha256": "6f6d1cb26058effd271241bbe990ff7b0a7e850ccf570a773253a4a22577cdbc",
+      "commands": [
+        "session open",
+        "session get",
+        "pcb get",
+        "session close"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb get",
+        "reference",
+        "session close",
+        "session list",
+        "session open",
+        "update"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "draw-and-check-schematic",
+      "passed": true,
+      "notes": "Draw the schematic from the design file when the user explicitly asks for it, save it, check it,",
+      "sha256": "b0f7739a2be4575cd9167824b44c1e0e5507a52e16b2dcf613917c9642a65f5a",
+      "commands": [
+        "session list",
+        "doc list",
+        "schematic create",
+        "job get",
+        "doc save",
+        "schematic check"
+      ],
+      "ran": [
+        "doc save",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "schematic check",
+        "schematic create",
+        "session list",
+        "update"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "export-schematic-pdf",
+      "passed": true,
+      "notes": "Export the open schematic to a PDF and report its sheets, components and nets.",
+      "sha256": "f4f565e67af8dabbc8ac4f56caf858f32ea60134e851344b26fa311b7658b27c",
+      "commands": [
+        "schematic get",
+        "schematic export"
+      ],
+      "ran": [
+        "doctor",
+        "reference",
+        "schematic export",
+        "schematic get",
+        "session list"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "fabrication-package",
+      "passed": true,
+      "notes": "Write the fabrication package of the open board, follow its long job to the end, and report the",
+      "sha256": "aaaf891aa530fd75f77aad6158c9d24531afc5fbd499b2489c89bfd4993a0df7",
+      "commands": [
+        "pcb export",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb export",
+        "reference",
+        "session list"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "lay-out-board",
+      "passed": true,
+      "notes": "Lay out the open board: forward annotation, outline, placement, a GND plane and routing, then the",
+      "sha256": "28bb42562b11fb73dd676969a3f67d8266ac72183f9057e7bddd8aeff156ae55",
+      "commands": [
+        "forward-annotation run",
+        "job get",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "pcb check"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "forward-annotation run",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "session list"
+      ]
+    },
+    {
+      "scenario": "knowledge_lookup",
+      "id": "library-value-rule",
+      "passed": true,
+      "notes": "A question only the knowledge base answers: what the parts database keeps of a part's Value.",
+      "sha256": "65f8116e8177882d5694f15772f53847d0b06c8cd2a7a48941bdefa4adefc30f",
+      "commands": [
+        "knowledge search",
+        "knowledge get"
+      ],
+      "ran": [
+        "knowledge get",
+        "knowledge list",
+        "knowledge search"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "new-project-with-parts",
+      "passed": true,
+      "notes": "Create a project from a template and add the sample parts to its central library, then report",
+      "sha256": "262e2e67f3428d09ad642ea3c124eac9508bf972dc453d6f508bbd1bf4bb3df4",
+      "commands": [
+        "doc create",
+        "part create",
+        "part get"
+      ],
+      "ran": [
+        "doc create",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "part create",
+        "update"
+      ]
+    },
+    {
+      "scenario": "separate_save",
+      "id": "outline-then-save",
+      "passed": true,
+      "notes": "Open a board, change its outline, then save it as a separate step and close it: the file changes",
+      "sha256": "477e746348ad1e09c7e5cf64ddbe046db982117d4c4c62c1da184ef544fe645f",
+      "commands": [
+        "doc open",
+        "pcb update",
+        "doc get",
+        "doc save",
+        "doc close"
+      ],
+      "ran": [
+        "doc close",
+        "doc get",
+        "doc open",
+        "doc save",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "pcb update",
+        "reference",
+        "session list",
+        "update"
+      ]
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "package-and-create-board",
+      "passed": true,
+      "notes": "Package the drawn schematic and create the board from a layout template, then report where the",
+      "sha256": "04b039a09dd6ece9d533fcb0c1b94ffd81d80012860637f5468c5ecc40d7cab5",
+      "commands": [
+        "packager run",
+        "pcb create",
+        "project get"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "packager run",
+        "pcb create",
+        "reference",
+        "update"
+      ]
+    },
+    {
+      "scenario": "read_answer",
+      "id": "project-library-read",
+      "passed": true,
+      "notes": "Answer questions about a project and its central library by reading them, and change nothing.",
+      "sha256": "c744a8d22ede8b00ff22de469d5dfab9ec4cec71b0a4978c9d554056d3726b4e",
+      "commands": [
+        "project get",
+        "part list",
+        "part get"
+      ],
+      "ran": [
+        "doctor",
+        "part get",
+        "part list",
+        "project get"
+      ]
+    }
+  ]
+}

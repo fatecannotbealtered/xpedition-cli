@@ -10,7 +10,7 @@ registration that breaks a rule, so a mistake shows up at once. A command needs:
 - ``doc_kinds``: the kind of document it works on, ``project`` or ``board`` (DCLI-210)
 - ``long``: the runtime runs it as a long job in its own worker (DCLI-065)
 - ``irreversible``, ``halt``, ``tolerances``, ``default_fields``, ``related_knowledge``
-- ``output_schema`` and ``examples``; ``maturity`` and ``evidence`` come from ``VERIFIED``
+- ``output_schema`` and ``examples``; ``maturity`` and ``evidence`` come from ``VERIFIED`` and ``STABLE``
 
 Every command also gets a behavior matrix in tests/matrix/; its ``normal`` row is the write
 sample (DVER-002, DVER-030). Run ``python scripts/spec.py generate`` after a change.
@@ -92,13 +92,20 @@ VERIFIED: dict[str, list[str]] = {
     ],
 }
 
+# The evaluation report in which every question passed on Xpedition 2604 (DSKL-043).
+EVALUATION = "eval:docs/evidence/eval-2026-11-06.json"
+
+# Verified commands that an evaluation question lists and the Agent ran there (DSKL-043).
+STABLE = {"part get", "part list", "pcb check", "pcb get", "project get", "schematic check", "schematic get"}
+
 # The standard commands whose behavior matrix passed in full on Xpedition 2604 (DVER-040).
 STANDARD_MATURITY: dict[str, dict[str, Any]] = {
-    "doc get": {"maturity": "verified", "evidence": [
+    "doc get": {"maturity": "stable", "evidence": [
         "live:docs/evidence/2026-11-06-044532-doc-get.json",
         "live:docs/evidence/2026-11-06-045401-doc-get.json",
         "live:docs/evidence/2026-11-06-045650-doc-get.json",
         "live:docs/evidence/2026-11-06-054838-doc-get.json",
+        EVALUATION,
     ]},
     "doc list": {"maturity": "verified", "evidence": [
         "live:docs/evidence/2026-11-06-044539-doc-list.json",
@@ -113,10 +120,11 @@ STANDARD_MATURITY: dict[str, dict[str, Any]] = {
         "live:docs/evidence/2026-11-06-053138-session-get.json",
         "live:docs/evidence/2026-11-06-054219-session-get.json",
     ]},
-    "session list": {"maturity": "verified", "evidence": [
+    "session list": {"maturity": "stable", "evidence": [
         "live:docs/evidence/2026-11-06-044529-session-list.json",
         "live:docs/evidence/2026-11-06-045458-session-list.json",
         "live:docs/evidence/2026-11-06-054221-session-list.json",
+        EVALUATION,
     ]},
 }
 
@@ -143,8 +151,8 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
         "related_knowledge": knowledge or [],
         "output_schema": output,
         "examples": examples,
-        "maturity": "verified" if path in VERIFIED else "draft",
-        "evidence": list(VERIFIED.get(path, [])),
+        "maturity": "stable" if path in STABLE else "verified" if path in VERIFIED else "draft",
+        "evidence": [*VERIFIED.get(path, []), *([EVALUATION] if path in STABLE else [])],
     }
     if long:
         reg["long"] = True

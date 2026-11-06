@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | draft：draft 11 个，verified 7 个，stable 0 个 |
+| 成熟度 | draft：draft 11 个，verified 0 个，stable 7 个 |
 | 规范 | tool-driver-cli-spec 1.0.3 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
