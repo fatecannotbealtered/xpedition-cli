@@ -36,6 +36,7 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-06-110322-pcb-export.json](evidence/2026-11-06-110322-pcb-export.json) | 2026-11-06T11:03:22Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-100837-session-close.json](evidence/2026-11-06-100837-session-close.json) | 2026-11-06T10:08:37Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-100812-doc-open.json](evidence/2026-11-06-100812-doc-open.json) | 2026-11-06T10:08:12Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-100729-doc-close.json](evidence/2026-11-06-100729-doc-close.json) | 2026-11-06T10:07:29Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
@@ -119,7 +120,6 @@
 | [2026-11-06-053140-session-close.json](evidence/2026-11-06-053140-session-close.json) | 2026-11-06T05:31:40Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-053138-session-get.json](evidence/2026-11-06-053138-session-get.json) | 2026-11-06T05:31:38Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-053043-pcb-export.json](evidence/2026-11-06-053043-pcb-export.json) | 2026-11-06T05:30:43Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-06-053019-pcb-export.json](evidence/2026-11-06-053019-pcb-export.json) | 2026-11-06T05:30:19Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-052836-pcb-export.json](evidence/2026-11-06-052836-pcb-export.json) | 2026-11-06T05:28:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-052803-pcb-export.json](evidence/2026-11-06-052803-pcb-export.json) | 2026-11-06T05:28:03Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-06-052601-plane-create.json](evidence/2026-11-06-052601-plane-create.json) | 2026-11-06T05:26:01Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
