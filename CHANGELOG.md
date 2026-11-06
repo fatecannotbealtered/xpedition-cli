@@ -6,7 +6,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Added
 
-- The xpedition-cli project, built on tool-driver-cli-spec 1.0.4. This version starts over: commands, flags, output, confirmation, saving and exit codes differ from 1.0.3 and earlier, which had no `update` command; reinstall with `npm install -g @fateforge/xpedition-cli`. The Skills `xpedition-schematic` and `xpedition-pcb` of 1.0.3 are gone; the entry Skill `xpedition-cli` covers their work.
+- The xpedition-cli project, built on tool-driver-cli-spec 1.0.5. This version starts over: commands, flags, output, confirmation, saving and exit codes differ from 1.0.3 and earlier, which had no `update` command; reinstall with `npm install -g @fateforge/xpedition-cli`. The Skills `xpedition-schematic` and `xpedition-pcb` of 1.0.3 are gone; the entry Skill `xpedition-cli` covers their work.
 - `doc create --kind project`: in a Designer session, a new project from Xpedition's stock setup template with its own copy of the central library and a board design; in file mode, a copy of a template project.
 - File-mode commands on a project: `project get`, `part list`, `part get`, `part create`, `packager run`, `pcb create`, and `schematic export` (also in a Designer session).
 - Designer session commands: `schematic get`, `schematic create`, `schematic check`.

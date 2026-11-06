@@ -11,7 +11,7 @@
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-draft-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.4-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.5-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -25,7 +25,7 @@
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
 | 成熟度 | draft：draft 11 个，verified 0 个，stable 7 个 |
-| 规范 | tool-driver-cli-spec 1.0.4 |
+| 规范 | tool-driver-cli-spec 1.0.5 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
 

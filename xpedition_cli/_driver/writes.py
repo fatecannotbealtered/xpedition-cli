@@ -90,7 +90,7 @@ class WriteSpec:
         return None
 
     def outputs(self) -> list[str]:
-        """The files the call names with its ``output`` flags."""
+        """The files and folders the call names with its ``output`` flags."""
         return []
 
     def refresh(self) -> None:
@@ -155,7 +155,7 @@ class DomainWrite(WriteSpec):
         self.secrets = self.inputs.secrets or {}
         self.bound = {"inputs": self.inputs.bound, "document": (self.where.document or {}).get("id"),
                       "device": (self.where.device or {}).get("id")}
-        if "artifact" in self.command.effects and any(os.path.exists(p) for p in self.outputs()):
+        if "artifact" in self.command.effects and any(made(p) for p in self.outputs()):
             self.conditions.append("target_exists")
         if self.command.long and self.batch:
             raise usage(f"{self.command.path} is a long job and takes one object per call.", "--ids")
@@ -403,8 +403,17 @@ def worker_argv(run: Run) -> list[str]:
     return argv
 
 
+def made(path: str) -> bool:
+    """A file exists, or a folder holds at least one file or folder (DCLI-051)."""
+    if os.path.isdir(path):
+        with os.scandir(path) as entries:
+            return any(True for _ in entries)
+    return os.path.isfile(path)
+
+
 def verify_files(facts: dict[str, Any], changes: list[dict[str, Any]]) -> Verification:
-    """Every produced file exists; its size and SHA-256 are recorded (DCLI-057)."""
+    """Every produced file exists; its size and SHA-256 are recorded. A folder an ``output`` flag
+    names counts as made when it holds something; the files in it are those in ``files`` (DCLI-057)."""
     paths = [f["path"] for f in facts.get("files", [])]
     for change in changes:
         path = path_of(change["target"])
@@ -415,6 +424,9 @@ def verify_files(facts: dict[str, Any], changes: list[dict[str, Any]]) -> Verifi
     observed, missing = {}, []
     for path in paths:
         key = file_key(path)
+        if os.path.isdir(path) and made(path):
+            observed[key] = {"exists": True, "path": path, "folder": True}
+            continue
         if not os.path.isfile(path):
             observed[key] = {"exists": False}
             missing.append(f"exists@{key}")
