@@ -20,7 +20,7 @@
     "tool.py": "dca20a7350df63a736cd5e24e5fdf7e4f9a0be347f3c35dd3e4fb4e1b0268cee",
     "units.py": "df3f08e7a5b29ea7e8ff147b9eadf8f1c70b09dbaeb2f5f06f2a0011e8cea991",
     "update.py": "63504a826e6ce38b29d2022eee491ac29bc915edbae185fc459bbf152c2134e2",
-    "writes.py": "25362f69766e7f2f855e9977841604655df96d19b0a0579f5fb5a50118fb58d5"
+    "writes.py": "7c99d6accbd6268cd37d1dad4397fe1952de9cc0fd020f0b14e1de2caced2fc6"
   },
-  "spec_version": "1.0.4"
+  "spec_version": "1.0.5"
 }

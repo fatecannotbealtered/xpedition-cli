@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.4 · Clauses DCLI-001 to DCLI-281
+> Version 1.0.5 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -424,7 +424,7 @@ Every command MUST be registered before it can run. The runtime registers the bu
 | `effects` | Its effects (DCLI-051) |
 | `modes` | The modes it supports (DCLI-201) |
 | `target_kind` | The kind of object it acts on, which becomes the target key's kind (DCLI-028) |
-| `flags` | Every flag, each with its type (`string`, `integer`, `number`, `boolean`, `quantity`, `path` or `json`, and `list`, `input` or `duration` for the shared flags of DCLI-026), the `schema` of a `json` flag, the unit quantity of a `quantity` flag (DCLI-080), `secret: true` when it carries a secret (DSEC-040), and `output: true`, with the type `path`, when it names a file the command creates (DCLI-051) |
+| `flags` | Every flag, each with its type (`string`, `integer`, `number`, `boolean`, `quantity`, `path` or `json`, and `list`, `input` or `duration` for the shared flags of DCLI-026), the `schema` of a `json` flag, the unit quantity of a `quantity` flag (DCLI-080), `secret: true` when it carries a secret (DSEC-040), and `output: true`, with the type `path`, when it names a file or folder the command creates (DCLI-051) |
 | `untrusted_fields` | The output fields that hold untrusted text (DSEC-021) |
 | `irreversible` | `true` when the application cannot take the change back; the command is then dangerous (DCLI-051) |
 | `halt` | `true` for a halt command (DSEC-018) |
@@ -589,6 +589,7 @@ Every command MUST declare its effects. The effect sets the default confirmation
 
 - A command that declares several effects MUST take the strictest confirmation tier among them.
 - A command that creates a new file as well as changing a document, such as one that adds a board to a project, declares `artifact` with its other effects. So does a command that creates a file only in some calls, such as one that defines a symbol in a new library only when the library does not exist yet.
+- An `output` flag MAY name a folder that the command writes its files into, such as a set of fabrication files. The folder exists, for the tier of `artifact`, when it holds a file or folder; the apply reports each file in `files` (DCLI-260).
 - An `artifact` command whose file the application names itself has no `output` flag; its preview MUST name as a target the file or the document it goes into, so the scope covers it, and its apply reports the file in `files` (DCLI-260).
 - Whatever the effect, these operations MUST be dangerous: an irreversible change, discarding unsaved changes, and closing an instance the tool did not start. A change is irreversible when no command of the application or of the tool can set the earlier state back: a delete without undo is irreversible, in file mode too, while a move or a field change, which another call can set back, is not. Such a command MUST declare `irreversible: true` in its registration (DCLI-029); the runtime then makes it dangerous and never guesses.
 - Halt commands declare `lifecycle` and are always direct (DSEC-018).
@@ -721,7 +722,7 @@ What the read-back checks depends on the write:
 | `create` | The object exists with the given fields |
 | `delete` | The object is absent |
 | `import` | The imported objects are present, by count |
-| An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. The receipt makes no claim about bytes the application wrote itself |
+| An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. A folder an `output` flag names holds a file or folder. The receipt makes no claim about bytes the application wrote itself |
 | `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
 | A long job | The job's outputs, when it ends (DCLI-065) |
 

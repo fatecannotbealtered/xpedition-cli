@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.4 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.0.5 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 
@@ -424,7 +424,7 @@
 | `effects` | 命令的效果（DCLI-051） |
 | `modes` | 命令支持的模式（DCLI-201） |
 | `target_kind` | 命令作用的对象类型，也就是目标键里的类型（DCLI-028） |
-| `flags` | 每个参数，各带类型（`string`、`integer`、`number`、`boolean`、`quantity`、`path` 或 `json`；DCLI-026 的共享参数还有 `list`、`input` 和 `duration`），`json` 类型参数的 `schema`，`quantity` 类型参数所属的物理量（DCLI-080），携带机密时的 `secret: true`（DSEC-040），以及指明命令所创建文件时的 `output: true`，此时类型为 `path`（DCLI-051） |
+| `flags` | 每个参数，各带类型（`string`、`integer`、`number`、`boolean`、`quantity`、`path` 或 `json`；DCLI-026 的共享参数还有 `list`、`input` 和 `duration`），`json` 类型参数的 `schema`，`quantity` 类型参数所属的物理量（DCLI-080），携带机密时的 `secret: true`（DSEC-040），以及指明命令所创建的文件或文件夹时的 `output: true`，此时类型为 `path`（DCLI-051） |
 | `untrusted_fields` | 存放不可信文字的输出字段（DSEC-021） |
 | `irreversible` | 软件无法撤回这项修改时为 `true`，命令因此成为危险级（DCLI-051） |
 | `halt` | 停止命令为 `true`（DSEC-018） |
@@ -589,6 +589,7 @@
 
 - 声明了多个效果的命令，必须取其中最严的确认级别。
 - 既修改文档、又新建文件的命令，比如往工程里加一块板，在其他效果之外再声明 `artifact`。只在部分调用里新建文件的命令也这样声明，比如只在库还不存在时才新建库文件、再在里面定义符号的命令。
+- `output` 参数可以指明一个文件夹，命令把文件写进这个文件夹，比如一套生产文件。按 `artifact` 定确认级别时，文件夹里有文件或子文件夹才算已存在；执行时在 `files` 里逐个报告写出的文件（DCLI-260）。
 - 文件名由软件自己定的 `artifact` 命令没有 `output` 参数；它的预览必须把这个文件或文件所在的文档列为目标，授权范围才能覆盖它，执行时在 `files` 里报告这个文件（DCLI-260）。
 - 不论效果是什么，以下操作都必须是危险级：不可撤回的修改、放弃未保存的修改、关闭不是本工具启动的实例。软件和本工具都没有命令能恢复原状的修改，就是不可撤回的：没有撤销功能的删除不可撤回，文件模式下也一样；移动和改字段可以用另一次调用改回去，不算不可撤回。这样的命令必须在登记里声明 `irreversible: true`（DCLI-029）；运行时据此把它定为危险级，从不靠猜。
 - 停止命令声明 `lifecycle`，并且总是直接执行（DSEC-018）。
@@ -721,7 +722,7 @@
 | `create` | 对象存在，且带有给定的字段 |
 | `delete` | 对象已不存在 |
 | `import` | 导入的对象都在，按数量核对 |
-| `artifact` 类写操作，如 `export`、`render`、`doc save-as` | 生成的每个文件都存在，并记下路径、大小和 SHA-256；可以有多个文件。回执不对软件自己写出的字节内容作任何声明 |
+| `artifact` 类写操作，如 `export`、`render`、`doc save-as` | 生成的每个文件都存在，并记下路径、大小和 SHA-256；可以有多个文件。`output` 参数指明的文件夹里有文件或子文件夹。回执不对软件自己写出的字节内容作任何声明 |
 | 会话模式下的 `doc save` | 重新读取保存后的文件，在其中找到被改的字段，且文档的 `saved` 字段为 `true`。软件要把文档关掉再打开才能读这个文件时，适配层改为从实例读这些字段，只有看到磁盘上的文件确实变了才报 `saved: true`。适配层判断不了时，验证为 `incomplete` |
 | 长任务 | 任务结束时核实它的产出（DCLI-065） |
 
