@@ -810,11 +810,6 @@ def close_document(pid: int, path: str, discard: bool, budget_s: float = LIFECYC
     call(work, budget_s, pid, rules=dialogs.LAYOUT_PROMPTS, write=True, what="closing the board")
 
 
-def reopen_document(pid: int, path: str) -> None:
-    """Close the saved board and open it again, licensed, so that reads come from the file."""
-    close_document(pid, path, False, budget_s=LIFECYCLE_BUDGET_S)
-    open_document(pid, path, budget_s=LIFECYCLE_BUDGET_S)
-
 
 def read_targets(pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
     return call(lambda: read_keys(board(attach(pid), path), path, targets, fields), READ_TARGETS_S, pid,
