@@ -499,6 +499,7 @@ def world(app: FakeApp | None, *, running: list[processes.ProcessInfo] | None = 
         mock.patch.object(dialogs, "processing_windows", lambda pid: list(processing or [])),
         mock.patch.object(dialogs, "licence_windows", lambda pid: []),
         mock.patch.object(dialogs, "top_windows", lambda pid=None, titled_only=True: list(windows or [])),
+        mock.patch.object(dialogs, "find_dialogs", lambda pid=None: []),
         mock.patch.object(L, "_dispatch", lambda progid: licensing),
         mock.patch.object(L, "CLOSE_SETTLE_S", 0.0),
     ]

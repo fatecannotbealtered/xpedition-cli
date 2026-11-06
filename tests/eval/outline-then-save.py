@@ -7,8 +7,8 @@ starts and quits, packages it and creates the board PCB/Demo.pcb; then it starts
 board and closes the board, so that Layout runs with nothing open. after quits that Layout.
 """
 from _report import says_closed, says_not_saved, says_saved
-from _xpedition import board, build, confirm, digest, fake, fake_board, near, need, ok_calls, outline_of, result, same_path, \
-    start, stop_all, write
+from _xpedition import board, board_data, build, confirm, fake, fake_board, near, need, ok_calls, outline_of, result, \
+    same_path, start, stop_all, write
 
 SCENARIO = "separate_save"
 COMMANDS = ["doc open", "pcb update", "doc get", "doc save", "doc close"]
@@ -28,12 +28,12 @@ def before(run, turn):
             fake_board(run, FAKE_BOARD)
         layout = run.notes["layout"] = start(run, board(run))
         need(write(run, "doc", "close", "--session", layout, "--doc", path), "doc close of the board")
-        run.notes["at_start"] = digest(board(run))
+        run.notes["at_start"] = board_data(board(run))
     if turn == 1:
         pcb = ["--session", run.notes["layout"], "--doc", path]
         live = run.tool("pcb", "get", *pcb)
         state = run.tool("doc", "get", *pcb)
-        run.notes["after_change"] = {"file": digest(board(run)), "outline": outline_of(result(live)),
+        run.notes["after_change"] = {"file": board_data(board(run)), "outline": outline_of(result(live)),
                                      "dirty": (state.get("data") or {}).get("dirty")}
 
 
@@ -48,8 +48,8 @@ def grade(run):
     run.check(near(width, 70) and near(height, 48) and near(radius, 3),
               f"after the first turn the outline in Layout is {width} x {height} mm, radius {radius}, not 70 x 48 mm, radius 3 mm")
     run.check(middle.get("dirty") is True, f"after the first turn Layout reports no unsaved change: {middle.get('dirty')}")
-    run.check(middle.get("file") == run.notes.get("at_start"), "the board file changed before the save")
-    run.check(digest(path) != middle.get("file"), "the board file did not change with the save")
+    run.check(middle.get("file") == run.notes.get("at_start"), "the board's design data changed before the save")
+    run.check(board_data(path) != middle.get("file"), "the board's design data did not change with the save")
     opens = [c for c in ok_calls(run, "doc open", turn=0) if same_path(c.value("--doc"), path)]
     run.check(opens, "doc open of the board never succeeded in the first turn")
     run.check(ok_calls(run, "pcb update", turn=0), "pcb update never succeeded in the first turn")

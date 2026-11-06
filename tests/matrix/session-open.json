@@ -134,7 +134,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "No Designer runs: the job starts Designer with the project, its worker waits before the read-back, and meanwhile that Designer process is ended (--tamper): the read-back finds no such session, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-073450-session-open.json#read_back_mismatch"
     }
   ]
 }

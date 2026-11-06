@@ -207,7 +207,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The call waits before its read-back, and meanwhile the new PDF is deleted (--tamper): the check of the file finds it missing."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-073136-schematic-export.json#read_back_mismatch"
     }
   ]
 }

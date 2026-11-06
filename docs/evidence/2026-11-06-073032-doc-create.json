@@ -2,36 +2,34 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "cd8acdf74d94",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T05:18:53Z",
+  "recorded_at": "2026-11-06T07:30:32Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "placement run",
+      "command": "doc create",
       "arguments": [
         "--session",
-        "layout-31352-320fdf268",
-        "--doc",
-        "D:\\driver-work\\xpedition-cli\\practice\\live\\PCB\\Live.pcb",
-        "--design",
-        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/design.json",
-        "--all"
+        "designer-9008-320fe11fa",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc/Gone/Gone.prj"
       ],
       "exit": 1,
       "result": "pass",
       "matrix_row": "read_back_mismatch",
       "mode": "session",
-      "doc_kind": "board",
       "tampered": true,
-      "notes": "--tamper exited 0"
+      "notes": "--tamper exited 0; job job-c504992734 ended completed"
     }
   ]
 }

@@ -201,7 +201,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The board is saved and clean: the job closes it, its worker waits before the read-back, and meanwhile the board is opened again in Layout (--tamper): the read-back finds it open, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-072116-doc-close.json#read_back_mismatch"
     }
   ]
 }

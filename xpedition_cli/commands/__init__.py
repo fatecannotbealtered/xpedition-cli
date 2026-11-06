@@ -48,6 +48,7 @@ VERIFIED: dict[str, list[str]] = {
     "part get": [
         "live:docs/evidence/2026-11-06-044923-part-get.json",
         "live:docs/evidence/2026-11-06-045406-part-get.json",
+        "live:docs/evidence/2026-11-06-073333-part-get.json",
     ],
     "part list": [
         "live:docs/evidence/2026-11-06-044837-part-list.json",
@@ -56,18 +57,18 @@ VERIFIED: dict[str, list[str]] = {
     "pcb check": [
         "live:docs/evidence/2026-11-06-051209-pcb-check.json",
         "live:docs/evidence/2026-11-06-051524-pcb-check.json",
-        "live:docs/evidence/2026-11-06-051621-pcb-check.json",
-        "live:docs/evidence/2026-11-06-052020-pcb-check.json",
         "live:docs/evidence/2026-11-06-053207-pcb-check.json",
         "live:docs/evidence/2026-11-06-054206-pcb-check.json",
+        "live:docs/evidence/2026-11-06-070334-pcb-check.json",
+        "live:docs/evidence/2026-11-06-072359-pcb-check.json",
     ],
     "pcb get": [
         "live:docs/evidence/2026-11-06-051200-pcb-get.json",
         "live:docs/evidence/2026-11-06-051524-pcb-get.json",
-        "live:docs/evidence/2026-11-06-051613-pcb-get.json",
-        "live:docs/evidence/2026-11-06-052012-pcb-get.json",
         "live:docs/evidence/2026-11-06-053205-pcb-get.json",
         "live:docs/evidence/2026-11-06-054204-pcb-get.json",
+        "live:docs/evidence/2026-11-06-070324-pcb-get.json",
+        "live:docs/evidence/2026-11-06-072404-pcb-get.json",
     ],
     "project get": [
         "live:docs/evidence/2026-11-06-044832-project-get.json",
@@ -75,11 +76,11 @@ VERIFIED: dict[str, list[str]] = {
     ],
     "schematic check": [
         "live:docs/evidence/2026-11-06-045235-schematic-check.json",
-        "live:docs/evidence/2026-11-06-045359-schematic-check.json",
         "live:docs/evidence/2026-11-06-045502-schematic-check.json",
-        "live:docs/evidence/2026-11-06-050645-schematic-check.json",
         "live:docs/evidence/2026-11-06-053150-schematic-check.json",
         "live:docs/evidence/2026-11-06-054816-schematic-check.json",
+        "live:docs/evidence/2026-11-06-073131-schematic-check.json",
+        "live:docs/evidence/2026-11-06-073214-schematic-check.json",
     ],
     "schematic get": [
         "live:docs/evidence/2026-11-06-045231-schematic-get.json",

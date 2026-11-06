@@ -219,12 +219,13 @@ class InstancesTest(unittest.TestCase):
                                                                       "knowledge": ["xpedition-license-sign-in"]}))
 
     def test_a_dialog_box_blocks_the_layout_that_still_answers(self):
-        box = {"hwnd": 5, "pid": PID, "title": "Xpedition Layout", "owner": 4, "style": 0, "class": "#32770"}
-        panel = {"hwnd": 6, "pid": PID, "title": "Properties", "owner": 4, "style": 0, "class": "Qt683QWindowIcon"}
-        question = {"title": "Xpedition Layout", "text": "", "buttons": ["Save", "Don't Save", "Cancel"]}
-        with world(FakeApp(FakeDoc()), windows=[panel], blocking=[question]):
-            self.assertEqual(L.instances(2.0)[0]["state"], "ready")  # a floating panel is no dialog box
-        with world(FakeApp(FakeDoc()), windows=[panel, box], blocking=[question]):
+        question = dialogs.Dialog(hwnd=5, pid=PID, process="ExpeditionPCB.exe", title="Xpedition Layout", text="",
+                                  buttons=["Save", "Don't Save", "Cancel"])
+        progress = dialogs.Dialog(hwnd=6, pid=PID, process="ExpeditionPCB.exe", title="Opening", text="", buttons=["Cancel"])
+        quiet = dialogs.Dialog(hwnd=7, pid=PID, process="ExpeditionPCB.exe", title="Note", text="", buttons=[])
+        with world(FakeApp(FakeDoc())), mock.patch.object(dialogs, "find_dialogs", lambda pid=None: [progress, quiet]):
+            self.assertEqual(L.instances(2.0)[0]["state"], "ready")  # a progress box waits for nobody
+        with world(FakeApp(FakeDoc())), mock.patch.object(dialogs, "find_dialogs", lambda pid=None: [progress, question]):
             row = L.instances(2.0)[0]
         self.assertEqual((row["state"], row["blocker"]["action"], row["blocker"]["knowledge"]),
                          ("blocked", "dismiss_dialog", ["layout-open-prompts"]))
@@ -243,7 +244,9 @@ class InstancesTest(unittest.TestCase):
         question = {"title": "Database Recovery", "text": "", "buttons": ["OK", "Cancel"]}
 
         def late(fn, timeout):
-            raise TimeoutError
+            if timeout != L.DIALOG_LOOK_S:
+                raise TimeoutError  # the COM probe does not answer; the look for a dialog does
+            return fn()
 
         with world(FakeApp()), mock.patch.object(com, "call_with_timeout", late):
             self.assertEqual(L.instances(2.0)[0]["state"], "unresponsive")
@@ -251,6 +254,10 @@ class InstancesTest(unittest.TestCase):
             row = L.instances(2.0)[0]
         self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "dismiss_dialog", "title": "Database Recovery",
                                                                       "knowledge": ["layout-open-prompts"]}))
+
+    def test_a_dialog_look_that_hangs_leaves_the_layout_unresponsive(self):
+        with world(FakeApp()), mock.patch.object(com, "call_with_timeout", mock.Mock(side_effect=TimeoutError)):
+            self.assertEqual(L.instances(2.0)[0]["state"], "unresponsive")
 
     def test_a_refused_probe_is_busy(self):
         def busy(fn, timeout):

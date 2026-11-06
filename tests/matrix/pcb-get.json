@@ -17,7 +17,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-052012-pcb-get.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-070324-pcb-get.json#normal"
     },
     {
       "row": "empty",
@@ -172,7 +172,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051613-pcb-get.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-06-072404-pcb-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

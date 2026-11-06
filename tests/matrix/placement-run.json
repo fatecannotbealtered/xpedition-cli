@@ -19,7 +19,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051720-placement-run.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-072244-placement-run.json#normal"
     },
     {
       "row": "empty",
@@ -39,7 +39,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051725-placement-run.json#empty"
+      "evidence": "live:docs/evidence/2026-11-06-072246-placement-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -218,7 +218,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051723-placement-run.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-06-072249-placement-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -241,7 +241,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-06-051853-placement-run.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-06-072254-placement-run.json#read_back_mismatch"
     }
   ]
 }
