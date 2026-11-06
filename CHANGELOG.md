@@ -4,6 +4,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-06
+
 ### Added
 
 - The xpedition-cli project, built on tool-driver-cli-spec 1.0.5. This version starts over: commands, flags, output, confirmation, saving and exit codes differ from 1.0.3 and earlier, which had no `update` command; reinstall with `npm install -g @fateforge/xpedition-cli`. The Skills `xpedition-schematic` and `xpedition-pcb` of 1.0.3 are gone; the entry Skill `xpedition-cli` covers their work.
