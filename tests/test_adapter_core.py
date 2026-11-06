@@ -51,6 +51,16 @@ class DocumentStateTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_a_later_change_of_a_field_replaces_the_earlier_one_for_the_save(self):
+        outline = base.key(self.doc, "/outline")
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(outline, "width_mm", 70.0, 61.0),
+                                                              base.change(outline, "radius_mm", 3.0, 3.0)])
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(outline, "width_mm", 61.0, 72.0)])
+        changes = sessions.doc_state(self.store, self.sid, self.doc)["changes"]
+        width = [c for c in changes if c["field"] == "width_mm"]
+        self.assertEqual([(c["before"], c["after"]) for c in width], [(70.0, 72.0)])
+        self.assertEqual(len(changes), 2)
+
     def test_a_change_makes_the_document_dirty_and_a_save_clears_it(self):
         change = base.change(base.key(self.doc, "/schematic/nets/GND"), "pins", None, ["R1.2"])
         sessions.note_change(self.store, self.sid, self.doc, [change])

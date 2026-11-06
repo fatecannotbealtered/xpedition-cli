@@ -17,7 +17,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051438-doc-close.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-100729-doc-close.json#normal"
     },
     {
       "row": "empty",
@@ -132,7 +132,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-06-051524-doc-close.json#busy"
+      "evidence": "live:docs/evidence/2026-11-06-100443-doc-close.json#busy"
     },
     {
       "row": "dialog",

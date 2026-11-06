@@ -112,11 +112,19 @@ def _dirty(store: AdapterStore, session: str, path: str) -> bool | None:
 
 def note_change(store: AdapterStore, session: str, path: str, changes: list[dict[str, Any]]) -> None:
     """A session-mode write changed the document in memory: dirty, new revision, and the changes
-    kept for the next save preview (DCLI-058)."""
+    kept for the next save preview (DCLI-058). A later change of a field replaces an earlier one,
+    keeping the earlier one's ``before``: the save stores only the last value."""
     state = doc_state(store, session, path)
     state["revision"] = int(state.get("revision", 0)) + 1
     state["dirty"] = True
-    state["changes"] = list(state.get("changes", [])) + [dict(c, origin="tool") for c in changes]
+    kept = list(state.get("changes", []))
+    for change in changes:
+        entry = dict(change, origin="tool")
+        same = [c for c in kept if c.get("target") == change.get("target") and c.get("field") == change.get("field")]
+        if same and "before" in same[0]:
+            entry["before"] = same[0]["before"]
+        kept = [c for c in kept if c not in same] + [entry]
+    state["changes"] = kept
     store.set(_doc_key(session, path), state)
 
 

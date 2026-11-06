@@ -299,6 +299,20 @@ class OutlineTest(unittest.TestCase):
         self.assertAlmostEqual(radius["after"], 3.0, places=3)
         self.assertAlmostEqual(facts["result"]["radius_mm"], 3.0, places=3)
 
+    def test_an_outline_whose_route_border_would_cut_placed_parts_is_blocked(self):
+        # Layout's preventive DRC refuses such a route border after the board outline is written
+        parts = [FakeComponent("R1", 3.0, 1.5, placed=True, x=14.0, y=42.5), FakeComponent("C1", placed=False)]
+        with world(FakeApp(FakeDoc(width=70.0, height=48.0, components=parts))):
+            with self.assertRaises(AdapterError) as caught:
+                self.handler.preview(context("pcb update", {"width_mm": 61.0, "height_mm": 41.0}))
+            fits = self.handler.preview(context("pcb update", {"width_mm": 70.0, "height_mm": 44.0}))
+        message = str(caught.exception)
+        self.assertEqual((code(caught), caught.exception.data["conflict"]), ("E_CONFLICT", "application_state"))
+        self.assertIn("R1", message)
+        self.assertIn("such as 61 x 43.6 mm", message)
+        self.assertNotIn("C1", message)
+        self.assertTrue(fits["can_apply"])
+
     def test_a_setter_that_fails_after_the_first_leaves_a_partial_change(self):
         doc = FakeDoc()
         doc.PutRouteBorder = mock.Mock(side_effect=FakeComError(text="bad contour"))
