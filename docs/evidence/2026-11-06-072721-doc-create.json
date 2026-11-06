@@ -1,0 +1,44 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.0.4",
+  "commit": "cd8acdf74d94",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-06T07:27:21Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "doc create",
+      "arguments": [
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc/Copy/Copy.prj",
+        "--template",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc/Missing.prj"
+      ],
+      "exit": 2,
+      "result": "fail",
+      "matrix_row": "not_found",
+      "mode": "file"
+    },
+    {
+      "command": "doc create",
+      "arguments": [
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc\\Demo\\Demo.prj",
+        "--template",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc\\Demo\\Demo.prj"
+      ],
+      "exit": 6,
+      "result": "pass",
+      "matrix_row": "conflict",
+      "mode": "file"
+    }
+  ]
+}

@@ -2,32 +2,35 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "cd8acdf74d94",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T04:49:15Z",
+  "recorded_at": "2026-11-06T07:31:36Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "part create",
+      "command": "schematic export",
       "arguments": [
+        "--session",
+        "designer-9008-320fe11fa",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\live\\Live.prj",
-        "--file",
-        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts-rounded.json"
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\live/Gone.pdf"
       ],
       "exit": 1,
       "result": "pass",
       "matrix_row": "read_back_mismatch",
-      "mode": "file",
+      "mode": "session",
       "doc_kind": "project",
-      "tampered": true
+      "tampered": true,
+      "notes": "--tamper exited 0"
     }
   ]
 }

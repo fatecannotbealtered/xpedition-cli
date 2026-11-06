@@ -83,6 +83,21 @@ class DocumentStateTest(unittest.TestCase):
         app.instances.return_value = []
         return app
 
+    def test_a_sessions_documents_ask_that_instance_only_and_fall_back_on_what_it_last_showed(self):
+        app = self._fake_app()
+        sid = "layout-7-abc"
+        with mock.patch.object(sessions, "_app", return_value=app), mock.patch.object(sessions, "make_session_id", return_value=sid):
+            app.open_documents.return_value = [self.doc]
+            first = sessions.documents(self.store, {"session": sid})["items"]
+            app.open_documents.return_value = None  # busy: no answer within the time
+            second = sessions.documents(self.store, {"session": sid})["items"]
+        self.assertEqual([d["id"] for d in first], [os.path.abspath(self.doc)])
+        self.assertEqual([d["id"] for d in second], [os.path.abspath(self.doc)])
+        app.instances.assert_not_called()
+        app.open_documents.assert_called_with(7, sessions.DOCS_TIMEOUT_S)
+        with mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.object(sessions, "make_session_id", return_value="layout-7-other"), self.assertRaises(AdapterError):
+            sessions.documents(self.store, {"session": sid})  # that process has ended; pid 7 is another one now
+
     def test_session_open_starts_the_program_of_the_kind(self):
         designer_app, layout_app = self._fake_app(), self._fake_app()
         apps = {base.DESIGNER: designer_app, base.LAYOUT: layout_app}
@@ -140,6 +155,20 @@ class DocumentStateTest(unittest.TestCase):
                                                         "fields": ["saved"]})
         app.reopen_document.assert_called_once_with(1, doc)
         self.assertEqual(out["observed"][base.key(doc)], {"saved": True})
+
+    def test_a_save_is_seen_in_the_design_data_not_in_the_files_an_open_rewrites(self):
+        board_dir = Path(self.tmp.name) / "PCB"
+        (board_dir / "Layout").mkdir(parents=True)
+        board = board_dir / "Demo.pcb"
+        board.write_text("pointer", encoding="utf-8")
+        data = board_dir / "Layout" / "HLFS.cah"
+        data.write_text("design", encoding="utf-8")
+        os.utime(data, ns=(1_000_000_000, 1_000_000_000))
+        before = sessions.disk_stamp(str(board))
+        board.write_text("pointer, rewritten on open", encoding="utf-8")
+        self.assertEqual(sessions.disk_stamp(str(board)), before)
+        data.write_text("design, saved", encoding="utf-8")
+        self.assertNotEqual(sessions.disk_stamp(str(board)), before)
 
     def test_the_save_read_back_says_saved_only_when_the_files_changed(self):
         out = self._save(writes=True)

@@ -41,6 +41,9 @@ class Application(Protocol):
     APPLICATION: str  # the name in session objects, such as "Xpedition Designer"
     VERSION: str
 
+    def open_documents(self, pid: int, timeout_s: float) -> list[str] | None:
+        """The files the instance has open, or None when it does not answer within ``timeout_s``."""
+
     def instances(self, timeout_s: float) -> list[dict[str, Any]]:
         """Every running process of this program: ``{pid, state, documents: [path], blocker, version}``.
         ``state`` is ready, starting, busy, unresponsive, blocked or unreachable; ``blocker``
@@ -150,14 +153,25 @@ def _owned(store: AdapterStore) -> list[str]:
     return list(store.get("owned", []))
 
 
+def _instances(kind: str) -> list[dict[str, Any]] | None:
+    try:
+        return _app(kind).instances(INSTANCE_TIMEOUT_S)
+    except AdapterError:
+        return None
+
+
 def list_sessions(store: AdapterStore) -> dict[str, Any]:
+    """Designer and Layout are asked side by side: the runtime gives the whole list 5 s, and an
+    instance that does not answer takes its probe and a look for a dialog."""
+    from concurrent.futures import ThreadPoolExecutor
+
     items: list[dict[str, Any]] = []
     complete = True
-    for kind in (DESIGNER, LAYOUT):
+    with ThreadPoolExecutor(2, thread_name_prefix="xpedition-sessions") as pool:
+        answers = list(pool.map(_instances, (DESIGNER, LAYOUT)))
+    for kind, found in zip((DESIGNER, LAYOUT), answers, strict=True):
         app = _app(kind)
-        try:
-            found = app.instances(INSTANCE_TIMEOUT_S)
-        except AdapterError:
+        if found is None:
             complete = False
             continue
         for inst in found:
@@ -165,10 +179,10 @@ def list_sessions(store: AdapterStore) -> dict[str, Any]:
             state = inst.get("state", "ready")
             if state == "ready" and jobs.running_on(store, sid):
                 state = "busy"  # a long job drives this instance
-            known = store.get("docs-" + sid.replace("-", "_").lower()[:90])
+            known = store.get(_docs_key(sid))
             if state == "ready":
                 docs = [os.path.abspath(p) for p in inst.get("documents", [])]
-                store.set("docs-" + sid.replace("-", "_").lower()[:90], docs)
+                store.set(_docs_key(sid), docs)
             elif inst.get("documents"):
                 docs = [os.path.abspath(p) for p in inst["documents"]]
             else:
@@ -209,10 +223,29 @@ def _session(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[str
     raise AdapterError("E_NOT_FOUND", f"There is no session {session_id}.", dispatch_state="not_started")
 
 
+DOCS_TIMEOUT_S = 1.2  # the runtime gives a session's documents 2 s (DCLI-205)
+
+
+def _docs_key(session_id: str) -> str:
+    return "docs-" + session_id.replace("-", "_").lower()[:90]
+
+
 def documents(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
+    """A session's documents ask that one instance only, within the runtime's 2 s; one that does
+    not answer in time reports what it had when it last answered."""
     if request.get("session"):
-        _, item = _session(store, request["session"])
-        return {"items": [_document(store, item["id"], d["path"]) for d in item["documents"]]}
+        session_id = request["session"]
+        ref = parse_session(session_id)
+        assert ref is not None
+        if make_session_id(ref.kind, ref.pid) != session_id:
+            raise AdapterError("E_NOT_FOUND", f"There is no session {session_id}.", dispatch_state="not_started")
+        paths = _app(ref.kind).open_documents(ref.pid, DOCS_TIMEOUT_S)
+        if paths is None:
+            paths = list(store.get(_docs_key(session_id)) or [])
+        else:
+            paths = [os.path.abspath(p) for p in paths]
+            store.set(_docs_key(session_id), paths)
+        return {"items": [_document(store, session_id, p) for p in paths]}
     path = os.path.abspath(str(request.get("path", "")))
     if os.path.isfile(path) and path.lower().endswith(".prj"):
         return {"items": [_document(store, None, path)]}
@@ -290,11 +323,22 @@ def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
             "persistence": "not_applicable", "document": _document(store, ref.id, path)}
 
 
+def design_data(path: str) -> str:
+    """Where a save writes the design: a project's database folder (``icdb.dat`` is written when
+    the project closes) or a board's ``Layout`` folder. Not the document's own file: Layout rewrites
+    a board's ``.pcb`` whenever it opens it, and Designer its logs, saved or not (seen live). The
+    document's folder when that folder is missing."""
+    folder = os.path.dirname(os.path.abspath(path))
+    data = os.path.join(folder, "database" if path.lower().endswith(".prj") else "Layout")
+    return data if os.path.isdir(data) else folder
+
+
 def disk_stamp(path: str) -> tuple[int, int]:
-    """The newest modification time and the number of files in the document's folder (the
-    project folder, or the board's PCB folder): what a save writes into."""
+    """The newest modification time and the number of the files a save of the document writes."""
     newest, count = 0, 0
-    for root, _dirs, names in os.walk(os.path.dirname(os.path.abspath(path))):
+    data = design_data(path)
+    for root, dirs, names in os.walk(data):
+        dirs[:] = [d for d in dirs if d.lower() != "cdbsvr"]  # the database server's logs and addresses, written on open
         for name in names:
             try:
                 newest = max(newest, os.stat(os.path.join(root, name)).st_mtime_ns)

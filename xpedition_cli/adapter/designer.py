@@ -80,6 +80,7 @@ QUIT_TIMEOUT_S = 60.0
 QUIT_WAIT_S = 60.0
 START_PROCESS_SHARE = 0.55  # of the start wait spent waiting for COM; the rest opens the project
 VERIFY_WAIT_S = 15.0
+DIALOG_LOOK_S = 1.5  # UI Automation may not answer while Designer is busy; the whole session list gets 5 s
 READ_BUDGET_S = 25.0
 JOB_BUDGET_S = 3600.0  # work in the long-job worker: this only tells a Designer that hangs from a slow one
 VERIFY_JOB_S = 600.0  # Designer's verification in the long-job worker
@@ -335,13 +336,26 @@ def _identity() -> dict[str, Any]:
     return {"state": "ready", "documents": [path] if path and opened is not False else []}
 
 
+def open_documents(pid: int, timeout_s: float) -> list[str] | None:
+    """The project the Designer has open, or None when it does not answer in time. With several
+    Designers, none can be read (``instances``)."""
+    if len(_designer_processes()) > 1:
+        return []
+    try:
+        seen = com.call_with_timeout(_identity, timeout_s)
+    except Exception:  # noqa: BLE001 - out of time or refused: what it last showed stands
+        return None
+    return list(seen.get("documents", []))
+
+
 def _dialog_blocker(pid: int) -> dict[str, str] | None:
     """A visible prompt of Designer that waits for a person, as a session blocker."""
     licence = dialogs.licence_windows(pid)
     if licence:
         return _blocker(licence[0])
     try:
-        found = dialogs.blocking_dialogs(pid)
+        # UI Automation may not answer while Designer is busy: a session probe waits a few seconds only
+        found = com.call_with_timeout(lambda: dialogs.blocking_dialogs(pid), DIALOG_LOOK_S)
     except Exception:  # noqa: BLE001 - an unreadable desktop shows no dialog
         return None
     if found:

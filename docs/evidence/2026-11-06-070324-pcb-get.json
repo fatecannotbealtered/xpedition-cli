@@ -2,32 +2,31 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "cd8acdf74d94",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T05:22:15Z",
+  "recorded_at": "2026-11-06T07:03:24Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "router run",
+      "command": "pcb get",
       "arguments": [
         "--session",
-        "layout-31352-320fdf268",
+        "layout-32020-320fe0c10",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\live\\PCB\\Live.pcb"
       ],
-      "exit": 1,
+      "exit": 0,
       "result": "pass",
-      "matrix_row": "read_back_mismatch",
+      "matrix_row": "normal",
       "mode": "session",
-      "doc_kind": "board",
-      "tampered": true
+      "doc_kind": "board"
     }
   ]
 }

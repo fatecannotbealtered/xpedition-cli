@@ -17,7 +17,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-052228-router-run.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-072314-router-run.json#normal"
     },
     {
       "row": "empty",
@@ -35,7 +35,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-052007-router-run.json#empty"
+      "evidence": "live:docs/evidence/2026-11-06-072317-router-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -112,7 +112,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-06-052132-router-run.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-06-072323-router-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -197,7 +197,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-052009-router-run.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-06-072321-router-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -217,7 +217,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-06-052215-router-run.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-06-072336-router-run.json#read_back_mismatch"
     }
   ]
 }

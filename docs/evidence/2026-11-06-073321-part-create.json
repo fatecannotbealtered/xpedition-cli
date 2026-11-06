@@ -2,31 +2,32 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "cd8acdf74d94",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T05:06:45Z",
+  "recorded_at": "2026-11-06T07:33:21Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "schematic check",
+      "command": "part create",
       "arguments": [
-        "--session",
-        "designer-31272-320fdeee2",
         "--doc",
-        "D:\\driver-work\\xpedition-cli\\practice\\live\\Live.prj"
+        "D:\\driver-work\\xpedition-cli\\practice\\dc\\Demo\\Demo.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts.json"
       ],
       "exit": 0,
       "result": "pass",
       "matrix_row": "normal",
-      "mode": "session",
-      "doc_kind": "project"
+      "mode": "file",
+      "doc_kind": "project",
+      "notes": "job job-93f0aa9e75 ended completed"
     }
   ]
 }

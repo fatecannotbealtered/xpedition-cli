@@ -17,7 +17,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-044855-part-create.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-073321-part-create.json#normal"
     },
     {
       "row": "empty",
@@ -35,7 +35,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-044909-part-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-06-073325-part-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -155,7 +155,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-06-044915-part-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-06-073331-part-create.json#read_back_mismatch"
     }
   ]
 }

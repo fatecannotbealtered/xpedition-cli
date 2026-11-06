@@ -15,7 +15,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-06-051032-pcb-create.json#normal"
+      "evidence": "live:docs/evidence/2026-11-06-073338-pcb-create.json#normal"
     },
     {
       "row": "empty",
@@ -33,7 +33,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-06-051033-pcb-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-06-073339-pcb-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -144,7 +144,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "On a project without a board: the job's worker waits before its read-back, and meanwhile the new board file PCB/Gone.pcb is deleted (--tamper): the check of the file finds it missing, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-073351-pcb-create.json#read_back_mismatch"
     }
   ]
 }

@@ -2,29 +2,32 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.0.4",
-  "commit": "54f28419d8c3",
+  "commit": "cd8acdf74d94",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-06T05:10:33Z",
+  "recorded_at": "2026-11-06T07:27:43Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
   "runs": [
     {
-      "command": "pcb create",
+      "command": "doc create",
       "arguments": [
-        "--doc",
-        "D:\\driver-work\\xpedition-cli\\practice\\live\\Live.prj"
+        "--session",
+        "designer-1-0",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\dc/Copy/Copy.prj"
       ],
-      "exit": 6,
+      "exit": 3,
       "result": "pass",
-      "matrix_row": "empty",
-      "mode": "file",
-      "doc_kind": "project"
+      "matrix_row": "not_found",
+      "mode": "session"
     }
   ]
 }

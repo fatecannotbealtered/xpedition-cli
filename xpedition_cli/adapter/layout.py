@@ -546,12 +546,32 @@ def _probe() -> dict[str, Any]:
     return {"registered": True, "pid": app_pid(app), "documents": [str(doc.FullName)] if doc is not None else []}
 
 
+def open_documents(pid: int, timeout_s: float) -> list[str] | None:
+    """The board the Layout has open, or None when it does not answer in time. Another Layout
+    than the one COM reaches has none that can be read."""
+    try:
+        seen = com.call_with_timeout(_probe, timeout_s)
+    except Exception:  # noqa: BLE001 - out of time or refused: what it last showed stands
+        return None
+    if not seen.get("registered"):
+        return []
+    if seen.get("pid") is not None and seen["pid"] != pid:
+        return []
+    return list(seen.get("documents", []))
+
+
 def modal_box(pid: int) -> dict[str, Any] | None:
-    """A standard dialog box (window class ``#32770``) over Layout that waits for a person.
-    Layout goes on answering COM while such a box is up, so it is looked for even then; Layout's
-    floating panels are Qt windows, never dialog boxes."""
-    boxes = _quietly_list(lambda: [w for w in dialogs.top_windows(pid) if w.get("class") == "#32770" and w.get("owner")])
-    return holding_dialog(pid) if boxes else None
+    """A standard dialog box (window class ``#32770``) over Layout that waits for a person. Layout
+    goes on answering COM while such a box is up, so it is looked for even then; Layout's floating
+    panels are Qt windows, never dialog boxes. Read with Win32 calls only, which never wait on a busy
+    Layout: UI Automation can hang while Layout opens a board, and a probe that hangs ends the job."""
+    for box in _quietly_list(lambda: dialogs.find_dialogs(pid)):
+        if not box.buttons and not dialogs.is_licence_window(box.title):
+            continue  # a box without buttons, such as a progress note, waits for nobody
+        row = {"title": box.title, "text": box.text, "buttons": list(box.buttons)}
+        if needs_person(row):
+            return row
+    return None
 
 
 def _quietly_list(fn: Callable[[], list[Any]]) -> list[Any]:
@@ -561,10 +581,19 @@ def _quietly_list(fn: Callable[[], list[Any]]) -> list[Any]:
         return []
 
 
+DIALOG_LOOK_S = 1.5  # UI Automation may not answer while Layout is busy; the whole session list gets 5 s
+
+
 def _held(pid: int, fallback: str) -> dict[str, Any]:
     """The state of a Layout process that does not answer: blocked by a dialog or a licence
-    window, busy with a progress window, else ``fallback``."""
-    dialog = holding_dialog(pid)
+    window, busy with a progress window, else ``fallback``. A dialog box is read with Win32 first;
+    UI Automation, which also reads Qt dialogs, gets ``DIALOG_LOOK_S``."""
+    dialog = modal_box(pid)
+    if dialog is None:
+        try:
+            dialog = com.call_with_timeout(lambda: holding_dialog(pid), DIALOG_LOOK_S)
+        except Exception:  # noqa: BLE001 - out of time, or the windows cannot be read: no dialog is known
+            dialog = None
     if dialog is not None:
         return {"state": "blocked", "blocker": blocker(dialog)}
     try:

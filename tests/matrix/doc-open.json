@@ -217,7 +217,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "Layout runs with no board open: the job opens the board, its worker waits before the read-back, and meanwhile the board is closed in Layout (--tamper): the read-back finds it closed, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-072212-doc-open.json#read_back_mismatch"
     }
   ]
 }
