@@ -4,9 +4,6 @@ title: Start Designer and Layout through the launcher
 kind: troubleshooting
 applies_to: [session open, session list, session get, doctor, packager run]
 tags: [startup, com, launcher]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (COM activation needs the launcher; Forward annotation without a GUI; Opening a board and attaching to Layout) and docs/NATIVE_ADAPTER.md of npm @fateforge/xpedition-cli@1.0.3, measured on XPED2604 in September 2026; capability survey docs/APPLICATION.md (Automation Interfaces); old implementation (commit 4a054a3), native_com_adapter.py (LAUNCH_WAIT)
-updated_on: 2026-11-05
 ---
 
 ## Symptom

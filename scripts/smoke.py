@@ -172,7 +172,7 @@ def main(argv: list[str]) -> int:
             "recorded_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         out = ROOT / "dist" / f"delivery-{system}-{cpu}.json"
-        out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8", newline="\n")
         print(f"Delivery on {system}-{cpu}: {record['result']} ({out.relative_to(ROOT)})")
         return 0 if ok else 1
     finally:

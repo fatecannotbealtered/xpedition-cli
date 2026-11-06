@@ -41,7 +41,7 @@ from typing import Any
 
 from .._driver import AdapterError
 from .._driver.targets import normalize, path_of
-from . import base, jobs, sessions
+from . import base, sessions
 from .base import DESIGNER, Context, Handler, need_input
 from .plan import PlanError, pdf_pages, project_file, review_engine, verification
 from .plan import schematic_layout as L
@@ -154,7 +154,7 @@ def _com_errors(what: str, dispatch_state: str | None = None) -> Iterator[None]:
     """A COM failure inside the block becomes the ``AdapterError`` its number says."""
     try:
         yield
-    except (AdapterError, jobs.Cancelled):
+    except AdapterError:
         raise
     except Exception as exc:  # noqa: BLE001 - classified by its number
         raise com.to_adapter_error(exc, what, dispatch_state=dispatch_state or com.call_state(exc)) from None
@@ -183,7 +183,7 @@ def _require_single(pid: int) -> None:
     if pid not in pids:
         raise AdapterError("E_NOT_FOUND", f"Designer process {pid} is not running.", dispatch_state="not_started")
     if len(pids) > 1:
-        raise AdapterError("E_VALIDATION", SEVERAL + " COM reaches only one of them, and it cannot tell which.",
+        raise AdapterError("E_BACKEND_UNAVAILABLE", SEVERAL + " COM reaches only one of them, and it cannot tell which.",
                            dispatch_state="not_started", knowledge=[ONE_INSTANCE])
 
 
@@ -226,8 +226,14 @@ def _project_state(app: Any) -> tuple[bool | None, str]:
 def _check_open(app: Any, prj: str) -> None:
     _, current = _project_state(app)
     if not current or not _same_path(current, prj):
-        raise AdapterError("E_VALIDATION", f"Designer has {current or 'no project'} open, not {prj}; open the project with "
-                           "doc open first.", dispatch_state="not_started")
+        raise base.blocked(f"Designer has {current or 'no project'} open, not {prj}; open the project with doc open first.")
+
+
+def _blocker(title: str) -> dict[str, Any]:
+    """A session blocker for a window that waits for a person, with the entry that tells how to handle it."""
+    action = _blocker_action(title)
+    return {"action": action, "title": title,
+            "knowledge": [PROMPTS] if action == "dismiss_dialog" else ["xpedition-license-sign-in"]}
 
 
 def _blocker_action(title: str) -> str:
@@ -324,14 +330,13 @@ def _dialog_blocker(pid: int) -> dict[str, str] | None:
     """A visible prompt of Designer that waits for a person, as a session blocker."""
     licence = dialogs.licence_windows(pid)
     if licence:
-        return {"action": _blocker_action(licence[0]), "title": licence[0]}
+        return _blocker(licence[0])
     try:
         found = dialogs.blocking_dialogs(pid)
     except Exception:  # noqa: BLE001 - an unreadable desktop shows no dialog
         return None
     if found:
-        title = str(found[0].get("title", ""))
-        return {"action": _blocker_action(title), "title": title}
+        return _blocker(str(found[0].get("title", "")))
     return None
 
 
@@ -339,7 +344,7 @@ def _instance(pid: int, timeout_s: float) -> dict[str, Any]:
     out: dict[str, Any] = {"pid": pid, "state": "ready", "documents": [], "version": _version()}
     licence = dialogs.licence_windows(pid)
     if licence:  # a licence or sign-in window comes before COM registration; COM is not tried
-        out.update(state="blocked", blocker={"action": _blocker_action(licence[0]), "title": licence[0]})
+        out.update(state="blocked", blocker=_blocker(licence[0]))
         return out
     try:
         out.update(com.call_with_timeout(_identity, timeout_s))
@@ -349,7 +354,8 @@ def _instance(pid: int, timeout_s: float) -> dict[str, Any]:
         code = exc.data.get("code")
         out["state"] = {"E_BUSY": "busy", "E_BACKEND_UNAVAILABLE": "starting"}.get(code, "unresponsive")
         if code == "E_HUMAN_REQUIRED":
-            out.update(state="blocked", blocker={"action": "activate_license", "title": "Xpedition automation licence"})
+            out.update(state="blocked", blocker={"action": "activate_license", "title": "Xpedition automation licence",
+                                                 "knowledge": ["xpedition-license-sign-in"]})
     except Exception:  # noqa: BLE001 - one Designer that cannot be read must not hide the others
         out["state"] = "unresponsive"
     if out["state"] != "blocked":
@@ -363,11 +369,11 @@ def _instance(pid: int, timeout_s: float) -> dict[str, Any]:
 
 def instances(timeout_s: float) -> list[dict[str, Any]]:
     """Every running Designer: ``{pid, state, documents, blocker, version}``. With several, none is
-    attached: COM would reach one of them without telling which."""
+    attached: COM would reach one of them without telling which, so each is unreachable (DCLI-204)."""
     found = _designer_processes()
     if len(found) > 1:
-        return [{"pid": p.pid, "state": "blocked", "documents": [], "version": _version(),
-                 "blocker": {"action": "other", "title": SEVERAL}} for p in found]
+        return [{"pid": p.pid, "state": "unreachable", "documents": [], "version": _version(), "reason": SEVERAL}
+                for p in found]
     return [_instance(p.pid, timeout_s) for p in found]
 
 
@@ -410,9 +416,8 @@ def start(path: str | None, wait_s: float) -> dict[str, Any]:
     ``path`` in it; ``{pid, state}`` of the real Designer process."""
     running = _designer_processes()
     if running:
-        raise AdapterError("E_VALIDATION", f"Designer already runs (process {running[0].pid}); a second one could not be "
-                           "driven. Use the running one: open the project in it with doc open.", dispatch_state="not_started",
-                           knowledge=[ONE_INSTANCE])
+        raise base.blocked(f"Designer already runs (process {running[0].pid}); a second one could not be driven. Use the "
+                           "running one: open the project in it with doc open.", knowledge=[ONE_INSTANCE])
     env.configure_environment()
     program = env.launcher("viewdraw")
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
@@ -608,8 +613,7 @@ def open_document(pid: int, path: str) -> None:
     if current and _same_path(current, path):
         return  # opening the open project again is refused with 64185
     if current and opened is not False:
-        raise AdapterError("E_VALIDATION", f"Designer has another project open ({current}); close it with doc close first.",
-                           dispatch_state="not_started")
+        raise base.blocked(f"Designer has another project open ({current}); close it with doc close first.")
     _open_project(pid, path, OPEN_PROMPTS, OPEN_TIMEOUT_S)
 
 
@@ -941,15 +945,15 @@ def _design_read_error(exc: BaseException, active: str, board: str) -> AdapterEr
     schematic instead of the board design and the read fails with a type mismatch."""
     native = com.com_text(exc)
     if active and board and active != board:
-        return AdapterError("E_VALIDATION", f"Designer cannot read the design until the project is reopened: after sheets were "
-                            f"added, removed or resized it reports {active} as the active design instead of {board}. Save, close "
-                            "and open the project (doc save, doc close, doc open), then read again.", dispatch_state="not_started",
-                            knowledge=[REOPEN], native_message=native)
+        return base.blocked(f"Designer cannot read the design until the project is reopened: after sheets were added, "
+                            f"removed or resized it reports {active} as the active design instead of {board}. Save, close and "
+                            "open the project (doc save, doc close, doc open), then read again.", knowledge=[REOPEN],
+                            native_message=native)
     if com.hresult(exc) == DISP_E_TYPEMISMATCH:
-        return AdapterError("E_VALIDATION", "Designer could not read the design's components (type mismatch). Sheets changed "
-                            "since the project was opened, or the schematic changed since it was last packaged: save, close and "
-                            "open the project (doc save, doc close, doc open) and read again; if it persists, run packager run.",
-                            dispatch_state="not_started", knowledge=[REOPEN], native_message=native)
+        return base.blocked("Designer could not read the design's components (type mismatch). Sheets changed since the "
+                            "project was opened, or the schematic changed since it was last packaged: save, close and open the "
+                            "project (doc save, doc close, doc open) and read again; if it persists, run packager run.",
+                            knowledge=[REOPEN], native_message=native)
     return com.to_adapter_error(exc, "reading the design's components", dispatch_state="not_started")
 
 
@@ -1148,8 +1152,9 @@ def _library_parts(prj: str, design: dict[str, Any]) -> dict[str, Any] | None:
     for number in numbers:
         rows = held.find_parts(number)
         if len(rows) > 1:
-            raise AdapterError("E_VALIDATION", f"The central library holds part {number} in several partitions "
-                               f"({', '.join(r['partition'] for r in rows[:8])}); keep one.", dispatch_state="not_started")
+            raise AdapterError("E_AMBIGUOUS", f"The central library holds part {number} in several partitions "
+                               f"({', '.join(r['partition'] for r in rows[:8])}); keep one.", dispatch_state="not_started",
+                               candidates=[{"part": number, "partition": r["partition"]} for r in rows])
         try:
             symbol = held.find_symbol(rows[0]["symbols"][0]) if rows and rows[0]["symbols"] else None
         except PlanError as exc:
@@ -1323,7 +1328,7 @@ class SchematicCreate(Handler):
         ref = ctx.need_session(DESIGNER)
         draw = _plan_draw(ctx)
         if draw.blocked_by:
-            raise AdapterError("E_VALIDATION", " ".join(draw.blocked_by), dispatch_state="not_started")
+            raise base.blocked(" ".join(draw.blocked_by))
         tick = _Progress(progress)
         with com.initialized():
             with _com_errors("attaching to Designer", "not_started"):
@@ -1397,7 +1402,7 @@ class _Progress:
 
     def __call__(self, done: int, total: int) -> None:
         with self._lock:
-            self._progress(done, total, "operations")  # raises jobs.Cancelled when a cancel was asked for
+            self._progress(done, total, "operations")
 
     def blocked(self, action: str, message: str) -> None:
         with self._lock:
@@ -1482,8 +1487,6 @@ class _Drawer:
             kind = str(op.get("op", ""))
             try:
                 self.step(op, kind)
-            except jobs.Cancelled:
-                raise
             except AdapterError as exc:
                 raise self._located(exc, index, op, kind) from None
             except Exception as exc:  # noqa: BLE001 - classified by its number

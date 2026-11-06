@@ -319,11 +319,11 @@ class PartCreateTest(LibraryCase):
     def test_a_number_the_library_holds_with_other_content_is_refused(self):
         parts = self.parts_file({**RES, "description": "resistor 10k 1% 0402"})
         error = self.error(lambda: L.PartCreate().preview(self.ctx("part create", {"file": str(parts)})))
-        self.assertEqual((error["code"], error["dispatch_state"]), ("E_VALIDATION", "not_started"))
+        self.assertEqual((error["code"], error["conflict"], error["dispatch_state"]), ("E_CONFLICT", "application_state", "not_started"))
         self.assertIn("RES-10K", error["message"])
         self.assertEqual(error["knowledge"], ["library-converter-rules"])
         self.assertEqual(self.error(lambda: L.PartCreate().apply(self.ctx("part create", {"file": str(parts)})))["code"],
-                         "E_VALIDATION")
+                         "E_CONFLICT")
         self.assertEqual(self.tools.imports(), [])
 
     def test_a_number_another_partition_holds_is_refused(self):

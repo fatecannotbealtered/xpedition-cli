@@ -4,9 +4,6 @@ title: The questions Layout asks when it opens a board
 kind: troubleshooting
 applies_to: [session open, session get, doc open, doc close, doc save, forward-annotation run, pcb export, session close]
 tags: [dialog, layout, open]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it; Layout facts from the placement and routing round) and docs/E2E.md (Recorded run, checked, 2026-09-14) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), native_com_adapter.py (LAYOUT_PROMPTS) and CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 When Layout opens a board, it can ask up to three questions. The open call does not return until each one is answered, so the command hangs or the session shows as blocked. These are Qt windows, not standard Windows dialogs. Their texts below come from a Chinese installation.

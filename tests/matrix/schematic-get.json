@@ -133,9 +133,9 @@
         "{doc}"
       ],
       "expected": {
-        "exit": 2,
-        "code": "E_VALIDATION",
-        "summary": "Right after schematic create, not yet saved: the drawing changed sheets, and Designer cannot read the design until the project is reopened (knowledge designer-reopen-after-sheet-changes); the message says to save, close and open it."
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "Right after schematic create, not yet saved: the drawing changed sheets, and Designer cannot read the design until the project is reopened (knowledge designer-reopen-after-sheet-changes): E_CONFLICT application_state, and the message says to save, close and open it."
       }
     },
     {

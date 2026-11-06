@@ -4,9 +4,6 @@ title: Designer keeps a symbol it has placed; give a changed symbol a new name
 kind: guide
 applies_to: [part create, part get, schematic create]
 tags: [designer, symbols, cache, library]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Designer drawing facts verified on XPED2604; The library converters: HKP out and in; The central library as text) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md; this release's command registry (part create)
-updated_on: 2026-11-05
 ---
 
 Designer keeps the definition of every symbol it has placed in the open project. If a symbol file is written again under the same name, Designer ignores the new file and keeps drawing the old symbol.

@@ -1,7 +1,7 @@
 """Answer questions about a project and its central library by reading them, and change nothing.
 
 File mode; no Designer or Layout runs. On the real Xpedition the hook makes Demo.prj from the
-template project and adds the four parts of tests/fixtures/live/parts.json with part create.
+template project and adds the four parts of tests/inputs/parts.json with part create.
 The grader compares the answer with what the tool reads at the end.
 """
 from _xpedition import PART_NUMBERS, build, project, read, result
@@ -10,7 +10,7 @@ SCENARIO = "read_answer"
 COMMANDS = ["project get", "part list", "part get"]
 TURNS = ["Look at the project {documents}/Demo.prj without changing anything: which of its designs is the board design, "
          "which parts does its central library hold, and which footprint cell does part DEMO-RES-1K-0603 use?"]
-FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "objects": {
+FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "kind": "project", "objects": {
     "": {"path": "Demo.prj", "xpedition_version": "2604", "central_library": {"path": "Library/Demo.lmc", "exists": True},
          "designs": [{"name": "Board1", "kind": "board", "board": "", "board_exists": False, "layout_template": ""},
                      {"name": "Schematic1", "kind": "schematic", "board": "", "board_exists": False, "layout_template": ""}],

@@ -4,9 +4,6 @@ title: A part's Value is a number with an SI multiplier
 kind: rule
 applies_to: [part create, part get, part list, packager run]
 tags: [library, parts, value]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (The central library as text, verified 2026-09-29) and docs/E2E.md (run of 2026-09-29 and 30) of npm @fateforge/xpedition-cli@1.0.3; capability survey docs/APPLICATION.md (Read-back)
-updated_on: 2026-11-05
 severity: error
 check: run part get after part create; value reads back as the number given (10k reads back as 10K)
 ---

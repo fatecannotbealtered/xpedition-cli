@@ -115,9 +115,10 @@ class ForwardAnnotationTest(unittest.TestCase):
         for integration in (FakeIntegration(status=3), FakeIntegration(allowed=False)):
             doc = FakeDoc()
             doc.ProjectIntegration = integration
-            with world(FakeApp(doc)), self.assertRaises(AdapterError) as caught:
-                self.handler.preview(context("forward-annotation run"))
-            self.assertEqual((code(caught), caught.exception.data["dispatch_state"]), ("E_VALIDATION", "not_started"))
+            with world(FakeApp(doc)):
+                out = self.handler.preview(context("forward-annotation run"))
+            self.assertFalse(out["can_apply"])
+            self.assertEqual(len(out["blocked_by"]), 1)
 
     def test_designer_holding_the_project_is_refused_before_anything(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,15 +129,15 @@ class ForwardAnnotationTest(unittest.TestCase):
             board.write_bytes(b"board")
             rows = [{"pid": 4120, "state": "ready", "documents": [str(prj)]}]
             with world(FakeApp(FakeDoc(str(board)))), mock.patch.object(B, "designer_projects", lambda: rows):
-                with self.assertRaises(AdapterError) as caught:
-                    self.handler.preview(context("forward-annotation run", document=str(board)))
-            self.assertIn("doc save", str(caught.exception))
-            self.assertIn("doc close", str(caught.exception))
-            self.assertIn("designer-4120-", str(caught.exception))
+                out = self.handler.preview(context("forward-annotation run", document=str(board)))
+            self.assertFalse(out["can_apply"])
+            reason = " ".join(out["blocked_by"])
+            self.assertIn("doc save", reason)
+            self.assertIn("doc close", reason)
+            self.assertIn("designer-4120-", reason)
             busy = [{"pid": 4120, "state": "blocked", "documents": []}]
             with world(FakeApp(FakeDoc(str(board)))), mock.patch.object(B, "designer_projects", lambda: busy):
-                with self.assertRaises(AdapterError):
-                    self.handler.preview(context("forward-annotation run", document=str(board)))
+                self.assertFalse(self.handler.preview(context("forward-annotation run", document=str(board)))["can_apply"])
             other = [{"pid": 4120, "state": "ready", "documents": [str(Path(tmp) / "Other.prj")]}]
             with world(FakeApp(FakeDoc(str(board)))), mock.patch.object(B, "designer_projects", lambda: other):
                 self.assertTrue(self.handler.preview(context("forward-annotation run", document=str(board)))["changes"])

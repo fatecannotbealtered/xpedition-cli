@@ -7,7 +7,7 @@ starts and quits, packages it, creates the board PCB/Demo.pcb and starts Layout 
 quits that Layout, discarding the layout.
 """
 from _report import says_count, says_not_saved, says_open_nets, says_verified
-from _xpedition import board, build, confirm, design, fake, fake_board, fake_job, job_of, near, observed, ok_calls, outline_of, \
+from _xpedition import board, build, confirm, design, fake, fake_board, job_of, near, observed, ok_calls, outline_of, \
     poll, read, result, same_path, session_with, start, stop_all, verified, wait_job
 
 SCENARIO = "scoped_change"
@@ -32,7 +32,6 @@ def before(run, turn):
         build(run, "board")
         if fake(run):
             fake_board(run, FAKE_BOARD)
-            fake_job(run, "forward-annotation run")
         run.notes["layout"] = start(run, board(run))
 
 

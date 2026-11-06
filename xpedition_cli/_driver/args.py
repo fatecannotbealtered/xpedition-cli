@@ -273,6 +273,22 @@ class Parser:
             if not items:
                 raise usage(f"{name} needs at least one ID; an empty list does nothing.", name)
             return items
+        if flag.type == "json":
+            # Inline JSON, or the path of a file that holds it (DCLI-026).
+            text = value
+            if not value.lstrip().startswith(("{", "[")):
+                try:
+                    with open(value, encoding="utf-8") as handle:
+                        text = handle.read()
+                except OSError as exc:
+                    raise usage(f"{name} cannot read {value}: {exc.strerror}.", name) from None
+            try:
+                data = json.loads(text)
+            except ValueError as exc:
+                raise usage(f"{name} is not valid JSON: {exc}.", name) from None
+            from .runtime import json_value
+
+            return json_value(flag, data, name)
         if flag.type == "input":
             return self._input(value, name)
         raise usage(f"{name} has the unknown type {flag.type}.", name)

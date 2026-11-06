@@ -4,9 +4,6 @@ title: Vias keep the clearance from pads, even on their own net
 kind: rule
 applies_to: [router run, pcb check, part create]
 tags: [layout, via, clearance, test-point]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Hand routing through the automation, verified 2026-09-15) and docs/E2E.md (Recorded run: the board routed by hand, 2026-09-15) of npm @fateforge/xpedition-cli@1.0.3; capability survey docs/APPLICATION.md (CAP-074, CAP-075)
-updated_on: 2026-11-05
 severity: error
 check: run pcb check and look for clearance hazards at vias and Hangers hazards at test points
 ---

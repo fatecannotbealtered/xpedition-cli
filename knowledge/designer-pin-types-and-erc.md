@@ -4,9 +4,6 @@ title: Pin types and the drc-BI-POWER and drc-BI-GROUND checks
 kind: rule
 applies_to: [part create, schematic check, schematic create]
 tags: [designer, erc, pin-types, verification]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Designer drawing facts verified on XPED2604) and docs/E2E.md (Recorded run, a demo project end to end, 2026-09-12) of npm @fateforge/xpedition-cli@1.0.3
-updated_on: 2026-11-05
 severity: warning
 check: run schematic check and look for drc-BI-POWER and drc-BI-GROUND findings
 ---

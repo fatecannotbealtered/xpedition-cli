@@ -8,7 +8,6 @@ no scope (DSEC-017).
 """
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import urllib.parse
@@ -16,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 
 from .errors import DriverError, usage
 from .output import Result, page
-from .records import utc_now
 from .registry import Command, Flag
 from .runtime import Run, Where
 from .state import read_json, write_json
@@ -172,7 +170,8 @@ def knowledge_get(run: Run) -> Result:
     base, wanted = Base(run), run.call.values["--id"]
     for e in base.team_entries():
         if e["id"] == wanted:  # the team entry wins a clash (DSKL-123)
-            return Result({"source": "team", "entry": e, "reader": base.kn["providers"][0]["reader"]}, TEAM_UNTRUSTED)
+            entry = {k: v for k, v in e.items() if k in base.kn["team_fields"]}
+            return Result({"source": "team", "entry": entry, "reader": base.kn["providers"][0]["reader"]}, TEAM_UNTRUSTED)
     for e in base.builtin():
         if e["front"]["id"] == wanted:
             return Result({"source": "builtin", "entry": e["front"], "body": e["body"]})
@@ -268,15 +267,13 @@ class KnowledgeCreate(_Registration):
             self.entry["about"] = about
         if applies:
             self.entry["applies_to"] = applies
-        self.entry["provider"] = kn["providers"][0]["provider"]
         self.where = Where(run.tool.modes[0])
         self.bound = {"inputs": dict(self.entry)}
-        self.echo = {k: v for k, v in self.entry.items() if k != "provider"}
+        self.echo = dict(self.entry)
         self.action = f"Register the Feishu document {url} as team knowledge {entry_id}."
 
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         base = Base(self.run)
-        self.entry["added_at"] = utc_now()
         self.save(base.team_entries() + [self.entry])
         return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable", "persistence": "saved"}
 
@@ -324,12 +321,6 @@ def doctor_check(run: Run) -> dict[str, Any]:
     """The ``knowledge`` check of doctor (DSKL-125); it never calls lark-cli or Feishu."""
     base = Base(run)
     problems, warnings = [], []
-    index = base.folder / base.kn["index_file"]
-    if base.folder.is_dir() and index.exists():
-        try:
-            json.loads(index.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            problems.append(f"{index} cannot be read")
     required = base.kn["builtin_fields"]
     builtin = base.builtin()
     for e in builtin:

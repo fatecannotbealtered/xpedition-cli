@@ -4,9 +4,6 @@ title: Common Xpedition dialogs and errors
 kind: troubleshooting
 applies_to: [doctor, session list, session get, session open, session close, doc open, doc close, part create, packager run, pcb create, schematic create, schematic check, schematic export, forward-annotation run, placement run, router run, pcb check, pcb export]
 tags: [dialog, error, index]
-lang: en
-based_on: capability survey docs/APPLICATION.md (Threading and Blocking, Licensing); xpedition-cli 1.0.3 live records docs/E2E.md, docs/COMPATIBILITY.md and docs/NATIVE_ADAPTER.md of npm @fateforge/xpedition-cli@1.0.3, 2026-09-12 to 2026-09-30; old implementation (commit 4a054a3), native_com_adapter.py and win_dialogs.py
-updated_on: 2026-11-05
 ---
 
 The measured installation had a Chinese user interface, so most texts below are Chinese. Each row names the entry with the details. Read it with `knowledge get --id <id>`.

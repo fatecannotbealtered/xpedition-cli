@@ -4,6 +4,7 @@ operation get, list and resolve, --help and --version. All are declared ``observ
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from datetime import datetime, timedelta, timezone
@@ -23,10 +24,6 @@ from .writes import read_back, same
 if TYPE_CHECKING:
     from .tool import Tool
 
-WRITE_ERRORS = ["E_FORBIDDEN", "E_CONFIRMATION_REQUIRED", "E_CONFLICT", "E_OUTCOME_UNKNOWN", "E_PARTIAL",
-                "E_VERIFY_FAILED", "E_VERIFY_INCOMPLETE", "E_IO"]
-READ_ERRORS = ["E_USAGE", "E_NOT_FOUND", "E_AMBIGUOUS", "E_UNSUPPORTED", "E_BUSY", "E_HUMAN_REQUIRED",
-               "E_BACKEND_UNAVAILABLE", "E_VALIDATION", "E_NATIVE_FAILURE", "E_PROTOCOL"]
 
 
 def commands(tool: Tool) -> list[Command]:
@@ -44,7 +41,8 @@ def commands(tool: Tool) -> list[Command]:
              capabilities=[], examples=["doctor"]),
         make(tool, "changelog", "Release notes from the bundled CHANGELOG.", [Flag("--since", "string", "Only versions newer than this one.")],
              changelog, kind="builtin", schema="changelog.schema.json", capabilities=[], examples=["changelog --since 1.0.0"]),
-        make(tool, "operation get", "One operation record.", [Flag("--id", "string", "The operation ID.", required=True)],
+        make(tool, "operation get", "One operation record.", [Flag("--id", "string", "The operation ID.", required=True),
+             Flag("--output", "path", "Write the whole record, with every produced file, to this file.")],
              operation_get, kind="builtin", schema="operation.schema.json", capabilities=[], examples=["operation get --id op_7mq2xk4v"]),
         make(tool, "operation list", "Operation records, newest first.",
              [Flag("--state", "string", "Only records in this state; all for every state.", choices=states),
@@ -100,8 +98,9 @@ def tier_of(tool: Tool, command: Command) -> str | dict[str, str]:
     return tool.tiers.per_mode(command)
 
 
-def describe(tool: Tool, command: Command) -> dict[str, Any]:
-    """One command as ``reference`` shows it (DCLI-031)."""
+def describe(tool: Tool, command: Command, full: bool = False) -> dict[str, Any]:
+    """One command as ``reference`` shows it (DCLI-031). ``full``: for ``--all``, with the adapter
+    capabilities and evidence the project scripts check."""
     flags = []
     for flag in command.flags:
         entry: dict[str, Any] = {"name": flag.name, "summary": flag.summary}
@@ -120,24 +119,30 @@ def describe(tool: Tool, command: Command) -> dict[str, Any]:
             entry["secret"] = True
         if flag.coordinate_system:
             entry["coordinate_system"] = flag.coordinate_system
+        if flag.schema is not None:
+            entry["schema"] = flag.schema
         flags.append(entry)
     out: dict[str, Any] = {"path": command.path, "summary": command.summary, "flags": flags,
                            "output_schema": command.output_schema, "examples": command.examples,
                            "effects": command.effects, "tier": tier_of(tool, command)}
     if command.writes and command.tier_when:
         out["tier_when"] = command.tier_when
-    out.update(maturity=command.maturity, evidence=command.evidence, modes=command.modes,
-               capabilities=command.adapter_capabilities,
-               errors=READ_ERRORS + (WRITE_ERRORS if command.writes or command.path == "operation resolve" else []))
+    out.update(maturity=command.maturity, modes=command.modes)
+    if full:
+        out.update(evidence=command.evidence, capabilities=command.adapter_capabilities)
     if command.default_fields:
         out["default_fields"] = command.default_fields
     if command.related_knowledge:
         out["related_knowledge"] = command.related_knowledge
-    if command.departures:
-        out["departures"] = command.departures
     out["formats"] = command.formats
     if command.output_coordinate_system:
         out["output_coordinate_system"] = command.output_coordinate_system
+    if command.doc_kinds:
+        out["doc_kinds"] = command.doc_kinds
+    if command.long or command.jobs:
+        out["long"] = True  # it returns a job, whoever runs it (DCLI-065)
+    if command.verify_after_save:
+        out["verify_after_save"] = True
     return out
 
 
@@ -151,7 +156,7 @@ def reference(run: Run) -> Result:
     if call.values.get("--all"):
         if not call.has("--output"):
             raise usage("reference --all writes every command to a file; add --output <path>.", "--output")
-        full = {**head, "commands": [describe(tool, c) for c in tool.commands.values()]}
+        full = {**head, "commands": [describe(tool, c, full=True) for c in tool.commands.values()]}
         text = json.dumps(full, ensure_ascii=False, indent=1)
         path = call.values["--output"]
         try:
@@ -166,7 +171,7 @@ def reference(run: Run) -> Result:
         if path not in tool.commands:
             raise usage(f"There is no command {path!r}.", "--command", f"Run `{tool.name} reference` to list the commands.")
         return Result(describe(tool, tool.commands[path]))
-    index = [{"path": c.path, "summary": c.summary, "effects": c.effects, "tier": tier_of(tool, c)} for c in tool.commands.values()]
+    index = [{"path": c.path, "summary": c.summary} for c in tool.commands.values()]
     return Result({**head, "index": index})
 
 
@@ -470,8 +475,23 @@ def _record(run: Run, operation_id: str) -> dict[str, Any]:
 
 
 def operation_get(run: Run) -> Result:
+    from .writes import slim_receipt
+
     record = _record(run, run.call.values["--id"])
-    return Result(public(record), _record_untrusted())
+    data = public(record)
+    if run.call.has("--output"):
+        # The whole record, however many files the write produced, goes to a new file (DCLI-008).
+        path = run.call.values["--output"]
+        if os.path.exists(path):
+            raise usage(f"{path} exists; --output writes a new file and never replaces one.", "--output")
+        try:
+            with open(path, "x", encoding="utf-8", newline="\n") as handle:
+                handle.write(json.dumps(data, ensure_ascii=False, indent=1))
+        except OSError as exc:
+            raise DriverError("E_IO", f"Cannot write {path}: {exc.strerror}.") from None
+    if isinstance(data.get("receipt"), dict):
+        data["receipt"] = slim_receipt(run, data["receipt"])
+    return Result(data, _record_untrusted())
 
 
 def _record_untrusted() -> list[str]:

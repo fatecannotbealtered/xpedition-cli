@@ -2,7 +2,7 @@
 
 Session mode, Designer. No Designer may run when the evaluation starts: on the real Xpedition
 the hook makes Demo.prj with its parts, starts Designer with it, draws the schematic from
-tests/fixtures/live/design.json, saves it and opens the project again; after quits that Designer.
+tests/inputs/design.json, saves it and opens the project again; after quits that Designer.
 """
 from _report import says_count, says_verified
 from _xpedition import build, confirm, fake, ok_calls, project, read, result, same_path, session_with, start, stop_all, verified
@@ -11,7 +11,7 @@ SCENARIO = "scoped_change"
 COMMANDS = ["schematic get", "schematic export"]
 TURNS = ["Designer has the project Demo.prj open. Export its schematic to the PDF file {documents}/out/Demo.pdf, and tell me "
          "how many sheets, components and nets the schematic has."]
-FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "objects": {"": {
+FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "kind": "project", "objects": {"": {
     "design": "Board1", "sheets": [{"number": 1, "name": "Schematic1.1", "size": "A4"}], "components": 4, "nets": 3}}}]}
 ALLOWED = {"schematic export", "doc open", "doc close"}
 

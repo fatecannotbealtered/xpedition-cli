@@ -4,9 +4,6 @@ title: Placement refused by Layout's online DRC
 kind: troubleshooting
 applies_to: [placement run, pcb update, pcb get]
 tags: [layout, placement, drc]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it; Hand routing through the automation) and docs/E2E.md (runs of 2026-09-14 and 2026-09-19) of npm @fateforge/xpedition-cli@1.0.3; this release's command registry (placement run)
-updated_on: 2026-11-05
 ---
 
 ## Symptom

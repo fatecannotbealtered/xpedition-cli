@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-VERIFY-SPEC_zh.md)
 
-> Version 1.0.0 · Clauses DVER-001 to DVER-051
+> Version 1.0.3 · Clauses DVER-001 to DVER-051
 
 ## How to Read
 
@@ -14,7 +14,7 @@ The normative words mean:
 - SHOULD and SHOULD NOT: the expected choice. Depart from it only for a reason you can state.
 - MAY: allowed, not required.
 
-The machine contract `contract/driver-contract.json` holds the test IDs, the behavior matrix rows, when each test and each row applies, the maturity levels and the evidence kinds as data. The schemas in `contract/schemas/` define the files that hold evidence. Tables that repeat contract values carry a contract marker. When such a table and the contract disagree, the contract wins.
+The machine contract `contract/driver-contract.json` holds the test IDs, the behavior matrix rows, when each test and each row applies, the maturity levels and the evidence kinds as data. The schemas in `contract/schemas/` define the files that hold evidence. They are the schemas of the release a tool pins: a tool project does not copy them, and `check_project` reads them from that release. Tables that repeat contract values carry a contract marker. When such a table and the contract disagree, the contract wins.
 
 ## Scope
 
@@ -40,7 +40,7 @@ One idea runs through this specification: only what is tested counts. Not run is
 | domain command | A command the tool author registers, as opposed to the built-in and standard commands of the runtime |
 | write command | A command whose declared effect is anything other than `observe` (DCLI-051) |
 | halt command | A command that only stops work in progress: a `stop` command or `job cancel`, registered with `halt: true`. It runs at once, without confirmation (DSEC-018) |
-| conformance test | One test of the two suites in this specification: general (G00 to G10, R01 to R05) and driver (D01 to D25) |
+| conformance test | One test of the two suites in this specification: general (G00 to G10, R01 to R05) and driver (D01 to D26) |
 | write sample | The arguments of one valid call to a write command, kept in the `normal` row of its behavior matrix and used by the general suite (DVER-002) |
 | fake host | A small program from the tool-driver-cli-spec repository that stands in for the application in tests (DVER-020) |
 | behavior matrix | A JSON file per command, with one row per situation: arguments, expected and actual result, and evidence (DVER-030) |
@@ -77,7 +77,7 @@ Check: 👀 Review of the CI workflow: both suites run on every shipped platform
 
 The tool MUST supply one valid sample for each domain write command, as the arguments of the `normal` row of its behavior matrix (DVER-030). A sample is the arguments of one call that the command accepts and that, run with `--dry-run`, returns a valid preview (G02). The general suite runs the samples in its write tests against the fake host (DVER-020). Samples for built-in and standard commands come with the suites. A command at maturity `draft` still needs its sample (DVER-040).
 
-The same arguments serve the fake host and the real application. A sample MUST therefore name its session, document, device and output directory only through these placeholders, which the suites fill from the fake host and the matrix runner fills from the authorized targets (DVER-050). Every row of a behavior matrix MAY use them.
+The same arguments serve the fake host and the real application. A sample MUST therefore name its session, document, device, output directory, job and input files only through these placeholders, which the suites fill from the fake host and the matrix runner fills from the authorized targets (DVER-050). Every row of a behavior matrix MAY use them.
 
 <!-- contract:sample_placeholders -->
 | Placeholder | With the fake host | On the real application |
@@ -86,6 +86,8 @@ The same arguments serve the fake host and the real application. A sample MUST t
 | `{doc}` | A document of the fake host: open in that instance, or a file in file mode | The authorized document or file |
 | `{device}` | The fake host's device | The authorized device |
 | `{dir}` | A new empty temporary directory, for output files | A new empty directory inside an authorized folder |
+| `{job}` | A job the suite started with the sample of a long command | A job started in the same run: `--set job=<id>`, or the job the `normal` row of a long command starts first (`run_matrix --job-from`) |
+| `{inputs}` | The project's `tests/inputs/` folder: files a command only reads, such as a design description | The same folder |
 
 Why: The suite cannot guess valid arguments for a domain command. Without a sample, the confirmation tests cannot run on it, and keeping it in the matrix leaves one place to update.
 Check: 🤖 General conformance test G00.
@@ -101,11 +103,11 @@ The general suite MUST contain the tests below, and every tool MUST pass all of 
 | `G01` | Runs the sample of each two-step command without flags; also without its target flags, and an artifact sample whose output file already exists | Exit code 5 with `E_CONFIRMATION_REQUIRED`; `details` hold `preview`, `confirm_token` and `expires_at`; the generated command names the session and document the runtime chose; an artifact over an existing file is confirmed first; nothing written | DCLI-011, DCLI-014, DCLI-050, DCLI-051, DCLI-053, DSEC-003 |
 | `G02` | Runs each sample with `--dry-run` | Exit code 0; the preview is valid, with the tier the rules give and its values from the application listed in `meta.untrusted`; nothing written | DCLI-054, DSEC-021 |
 | `G03` | Gets a token for a sample, then confirms with each argument changed, each optional argument removed, one argument added, and the sample pointed at another document or device | `E_CONFLICT` with `token_mismatch`, naming the argument; nothing written | DCLI-055, DCLI-056 |
-| `G04` | Confirms with the same arguments, then confirms again with the same token | The first call succeeds; the second gets `E_CONFLICT` with `token_used`; the change is written once | DCLI-055, DCLI-056, DSEC-033 |
-| `G05` | Confirms with tampered tokens | Every attempt is refused with `E_CONFLICT` `token_invalid`; nothing written; a token holds at least 128 random bits | DCLI-055, DSEC-033 |
+| `G04` | Confirms with the same arguments, then confirms again with the same token | The first call succeeds; the second gets `E_CONFLICT` with `token_used`; the change is written once | DCLI-055, DCLI-056 |
+| `G05` | Confirms with tampered tokens | Every attempt is refused with `E_CONFLICT` `token_invalid`; nothing written; a token holds at least 128 random bits | DCLI-055 |
 | `G06` | Runs the sample of a two-step command with `--format text` and no token | Exit code 5; nothing written | DCLI-014, DCLI-053 |
 | `G07` | Dry-runs and confirms with no scope file; then runs each sample under a scope that lacks its effects, its targets or, for a dangerous sample, the dangerous permission, under an expired or invalid scope, and under a prefix that ends inside a name | `E_FORBIDDEN` with `details.scope` naming what is missing; `context` reports the scope status; nothing written | DCLI-050, DSEC-014, DSEC-015, DSEC-016 |
-| `G08` | Makes `operations/` in the state directory unwritable, then runs the write samples and a read | Every write gets `E_IO` and nothing is written; the read still works | DCLI-059, DSEC-033 |
+| `G08` | Makes `operations/` in the state directory unwritable, then runs the write samples and a read | Every write gets `E_IO` and nothing is written; the read still works | DCLI-059 |
 | `G09` | Confirms the token of each dangerous command without `--dangerous`, then with it | Exit code 5 and nothing written; then the same token runs the write | DCLI-014, DCLI-051, DCLI-052, DCLI-053, DSEC-003 |
 | `G10` | Changes the scope file's ID, or its content under the same ID, between the dry run and the confirm; separately, the application's preview can no longer apply, or shows other changes | `E_CONFLICT` with `scope_changed`, `blocked` or `preview_changed`; nothing written | DCLI-056, DSEC-015 |
 | `R01` | Validates `reference` (the index), `reference --command` and `reference --all --output` | Valid structure; the index is at most 8000 characters and one command at most 6000; every command shows its tier per mode; every example parses | DCLI-030, DCLI-031, DCLI-051, DCLI-201 |
@@ -128,11 +130,12 @@ The driver suite MUST contain the tests below, and every tool MUST pass every te
 - `direct_writes`: the tool has a write command that runs in the direct tier, in at least one mode (DCLI-052);
 - `documents`: the tool acts on documents, in file or session mode;
 - `dangerous`: the tool has a command that runs in the dangerous tier, at least in some cases (DCLI-051);
-- `jobs`: the tool has long jobs;
+- `jobs`: the tool has a command registered with `jobs: true`, whose long jobs the application runs;
 - `session` or `device`: the tool supports that mode;
 - `host_component`: the tool has a host component;
 - `physical`: the tool has commands with the `physical` effect;
-- `halt`: the tool has a halt command (DSEC-018) in session or device mode.
+- `halt`: the tool has a halt command (DSEC-018) in session or device mode;
+- `long_jobs`: the tool has a command registered `long: true`, whose job the runtime runs (DCLI-065).
 
 The runtime, not the tool author, decides from the command registration (DCLI-029) which tests apply. It reports a test that does not apply as not applicable, with its condition. The suite runs the CLI with the fake host in place of the application, so its results are simulated results (DVER-021). The last column names the clauses each test checks.
 
@@ -142,7 +145,7 @@ The runtime, not the tool author, decides from the command registration (DCLI-02
 | `D01` | `session` | Several instances; the command has no `--session` | `E_AMBIGUOUS` listing the candidates, each with its session summary | DCLI-202 |
 | `D02` | `session` | The instance reconnects or restarts after the dry run; separately, it loads another host component version | The confirm is refused with `E_CONFLICT` `session_changed`, or `plugin_changed` | DCLI-056, DCLI-203 |
 | `D03` | `documents` | The document, open in an instance or a file in file mode, changes after the dry run; separately, the file changes on disk, and a file-mode write names a file an instance has open | `E_CONFLICT` with `document_changed`, `file_changed_on_disk` or `file_open_in_session`; nothing sent | DCLI-056, DCLI-201, DCLI-210, DCLI-211 |
-| `D04` | `session`, `device` | The application or the device is busy, before the call or between the dry run and the confirm | `E_BUSY`, retryable, with `retry_after_ms`; `dispatch_state` is `not_started`; once it is ready, the same token runs the write | DCLI-055, DCLI-057, DCLI-204, DCLI-276 |
+| `D04` | `session`, `device` | The application or the device is busy, before the call or between the dry run and the confirm; or the instance is `unreachable` | `E_BUSY`, retryable, with `retry_after_ms`, or `E_BACKEND_UNAVAILABLE` for an unreachable instance; `dispatch_state` is `not_started`; once it is ready, the same token runs the write | DCLI-055, DCLI-057, DCLI-204, DCLI-276 |
 | `D05` | `session` | A dialog blocks the application before dispatch; separately, the change itself opens a dialog after dispatch | Before dispatch: `E_HUMAN_REQUIRED` with `action` and a `resume` command that runs the call again. After dispatch: the operation is outcome unknown, the target stays locked and `resume` is the lookup, never the write | DCLI-066, DCLI-204 |
 | `D06` | `session`, `device` | The connection drops after dispatch, for a single write and for one object of a batch | `E_OUTCOME_UNKNOWN` whose `lookup` names `operation resolve`; the target stays locked until the outcome is resolved. For the batch, `lookup` is `operation list --state unknown --batch <id>` and that object stays locked | DCLI-014, DCLI-035, DCLI-060, DCLI-063, DCLI-064, DCLI-275 |
 | `D07` | `writes` | A change is applied but cannot be read back | `E_VERIFY_INCOMPLETE`, with the receipt | DCLI-057, DCLI-062 |
@@ -152,21 +155,22 @@ The runtime, not the tool author, decides from the command registration (DCLI-02
 | `D11` | `jobs` | Cancelling a long job, also while the instance is busy; separately, a job that ends with its outputs read back, not read back, or in part | `cancel_requested` is reported first; while the application still reports the job running, `job get` does not report it cancelled; the job's `state` becomes `cancelled` only after the application confirms it stopped; `job get` gives the `ok` and `code` the receipt derives | DCLI-065, DCLI-220, DCLI-221, DSEC-018 |
 | `D12` | `host_component` | The host component on disk differs from the loaded version, before the call or between the dry run and the confirm | The `plugin` check of `doctor` fails; write commands are refused with `E_HUMAN_REQUIRED`, action `restart_application` | DCLI-240, DSEC-053 |
 | `D13` | `always` | A bare number for a physical parameter of a domain command; separately, for `job get --wait` | `E_USAGE` whose `problem` lists the accepted units | DCLI-026, DCLI-082 |
-| `D14` | `physical` | A physical effect without `--dangerous`, or with a scope that does not allow `physical` | Refused; nothing is dispatched | DSEC-014, DSEC-060 |
+| `D14` | `physical` | A physical effect without `--dangerous`, or with a scope that does not allow `physical` | Refused; nothing is dispatched | DSEC-014 |
 | `D15` | `device` | A simulated device | The device object and the result of every command on it carry `simulated: true` | DCLI-230, DSEC-062 |
 | `D16` | `session` | A direct change in session mode | Done in one call, with an operation record, read-back and a full receipt; refused like any write when there is no scope | DCLI-050, DCLI-052, DSEC-015 |
 | `D17` | `direct_writes` | The scope sets `confirm` to `always` | A direct-tier command run without flags returns `E_CONFIRMATION_REQUIRED` with a preview and a token, and does not run | DCLI-052, DSEC-013 |
 | `D18` | `session` | A person edits the document in the application before save | The `doc save` preview lists both the tool's changes (`origin: tool`) and the external ones (`origin: external`) | DCLI-058, DCLI-277 |
-| `D19` | `always` | Registers a link that is not a Feishu link; then, with no scope file, registers a Feishu link and reads it | The first returns `E_VALIDATION` and registers nothing. The second needs two-step confirmation but no scope; `knowledge get` returns the link and the reader; the link and the description are listed in `meta.untrusted`. No network request at any point | DSEC-021, DSEC-041, DSEC-042, DSKL-102, DSKL-104, DSKL-105, DSKL-107, DSKL-110, DSKL-122, DSKL-123 |
-| `D20` | `host_component` | The host component's protocol major version is newer or older than the CLI's | The handshake fails with `E_PROTOCOL`; no change is sent | DCLI-273, DCLI-280, DSEC-054 |
+| `D19` | `always` | Registers a link that is not a Feishu link; then, with no scope file, registers a Feishu link and reads it | The first returns `E_VALIDATION` and registers nothing. The second needs two-step confirmation but no scope; `knowledge get` returns the link and the reader; the link and the description are listed in `meta.untrusted`. No network request at any point | DSEC-021, DSEC-041, DSKL-102, DSKL-104, DSKL-105, DSKL-107, DSKL-110, DSKL-122, DSKL-123 |
+| `D20` | `host_component` | The host component's protocol major version is newer or older than the CLI's | The handshake fails with `E_PROTOCOL`; no change is sent | DCLI-273, DCLI-280 |
 | `D21` | `host_component` | The host closes the connection before it replies | To a write: the write is recorded as outcome unknown and its target stays locked. To a read: `E_BUSY`, and the session is reported `unresponsive` | DCLI-063, DCLI-204, DCLI-275, DCLI-278 |
 | `D22` | `session` | One of two instances does not respond | `session list` returns both, waiting at most 2 s for the silent one, whose `state` is `unresponsive` | DCLI-204, DCLI-205 |
 | `D23` | `device` | The device is in `emergency_stop` or `fault` when a command other than a halt command acts on it: before the call, between the dry run and the confirm, or during the confirm | `E_HUMAN_REQUIRED` with action `confirm_on_device`; `dispatch_state` is `not_started`; nothing is dispatched; once the device is ready, the `resume` command runs the write | DCLI-055, DCLI-230, DSEC-061 |
 | `D24` | `writes` | A batch in which one object fails; a dangerous batch with a failure; a batch stopped by a busy instance; a batch in which every object fails | `E_PARTIAL` with `details.batch`: the failed item carries its code and the others succeeded; a dangerous batch skips the rest; a busy instance stops the batch and `resume` covers only the unfinished objects; when every object fails, the code is the first object's | DCLI-064 |
 | `D25` | `halt` | A halt command acts on a device that is `busy`, in `fault` or in `emergency_stop`, or on an instance that is `busy` or `blocked`; the scope sets `confirm: always` and covers the target but not the `lifecycle` effect | The command runs at once, with no `E_BUSY` and no confirmation, and returns a receipt | DCLI-230, DSEC-018 |
+| `D26` | `long_jobs` | Each command registered `long: true` runs its sample; a long write also runs with a read-back that does not match; a long read runs with no scope | The call returns a job at once; `job get` reports the write's receipt with verification `passed`, applied once, or `E_VERIFY_FAILED` for the mismatch; the read job returns its result, with `operation_id` `null` | DCLI-065, DCLI-220 |
 
 Why: These are the failures specific to driving an application: two open projects, an unsaved change taken as done, a dialog that hangs the call, a lost connection after a write, a stop that waits behind the work it should stop.
-Check: 🤖 Driver conformance tests D01 to D25.
+Check: 🤖 Driver conformance tests D01 to D26.
 
 ### DVER-011 Black-box testing
 
@@ -188,12 +192,12 @@ The tool-driver-cli-spec repository provides the fake host: a small program that
 - long jobs
 - one simulated device, which can be put in each device state (DCLI-230)
 
-The fake host implements the standard adapter capabilities itself. For a domain command it answers in place of the tool's adapter, from the command's registration (DCLI-029) and the call's inputs. The targets are the objects the call selects with `--id`, `--ids` or the `id` of each `--input` item (DCLI-064), in the session, document or device the call names; when the call selects no object, the target is the document it names, or else its device, and a call that names neither has no target. Every other flag the command registers is a changed field. The fake host treats any object ID as existing unless a test says otherwise. It previews one change per target, applies the change to its memory and reads back the previewed values. For an `artifact` command, the files its `output` flags name start absent, and the apply writes them (DCLI-029). The tool author writes nothing for it. Tests MUST be able to put the fake host into each of these situations; make any adapter call fail, hang or read back a different value, for the whole call or for one item of a batch; and read the fake host's state, so they can see whether a change arrived, how often, and which requests broke the protocol or the payloads.
+The fake host implements the standard adapter capabilities itself. For a domain command it answers in place of the tool's adapter, from the command's registration (DCLI-029) and the call's inputs. The targets are the objects the call selects with `--id`, `--ids` or the `id` of each `--input` item (DCLI-064), in the session, document or device the call names; when the call selects no object, the target is the document it names, or else its device, and a call that names neither has no target. Every other flag the command registers is a changed field. The fake host treats any object ID as existing unless a test says otherwise. It previews one change per target, applies the change to its memory and reads back the previewed values. For an `artifact` command, the files its `output` flags name start absent, and the apply writes them (DCLI-029); an `artifact` command without an `output` flag makes one file that the fake host names itself, as an application does that names the file. Documents are of the kind a test sets, so a command registered with `doc_kinds` runs on a document it works on (DCLI-210). A file that is not a fake host document opens as an empty document. The tool author writes nothing for it. Tests MUST be able to put the fake host into each of these situations; make any adapter call fail, hang or read back a different value, for the whole call or for one item of a batch; and read the fake host's state, so they can see whether a change arrived, how often, and which requests broke the protocol or the payloads.
 
 The conformance suites run the tool's real CLI and its real command registration with the fake host in place of the application. They prove that the runtime handles each situation correctly for this tool. They never run the tool's own adapter (DVER-021).
 
 Why: The failures that matter most, such as a dialog or a lost connection, are rare and hard to cause on demand in a real application.
-Check: 🤖 Driver conformance tests D01 to D25, which need each of these situations.
+Check: 🤖 Driver conformance tests D01 to D26, which need each of these situations.
 
 ### DVER-021 Simulated results are not evidence
 
@@ -255,7 +259,11 @@ The file lists each row of the table below once; each row is one situation. A ro
 
 A row whose condition does not hold MUST be marked as not applying. A row whose condition holds but that cannot happen for the command MUST also stay in the file, marked as not applying, with the reason.
 
-The rows run on the real application, on authorized targets (DVER-031, DVER-050). The matrix runner `run_matrix`, which comes with this specification, fills in the placeholders (DVER-002), runs the rows that apply, writes a live record that names each row (DVER-042), and fills in each row's actual result and its `live:` evidence. A row that applies but has no actual result and evidence has not been run. A row whose actual result differs from its expected result, or whose live run has `result: fail`, has failed. A row that has not been run or has failed MUST NOT count as passed.
+The `read_back_mismatch` row checks that the read-back reads the application, not the tool's own expectation. A correct preview predicts what the application stores, so the row is caused from outside: `run_matrix --row read_back_mismatch` makes the tool wait before its read-back (the variable `<PREFIX>_TEST_PAUSE_BEFORE_READ_BACK`, up to `matrix.max_pause_seconds`; the tool writes `pause.json` in its state directory while it waits), and during the wait a person, or a command given with `--tamper` (in which `{python}` stands for the interpreter `run_matrix` runs on), changes what was just written in the application, or deletes the file a write made. The wait ends early only on a real mismatch: a busy or blocked application keeps the tool waiting. `run_matrix` confirms a two-step or dangerous write with its token, as it does for every row, so the pause falls on the call that dispatches. For a long command it falls in the worker, and the row is decided by how the job ends; for a command registered with `verify_after_save` it falls at the `doc save` that follows the write. The row passes when the tool reports `E_VERIFY_FAILED`; the live record marks the run `tampered`. The row applies to every write whose result can be changed from outside in that wait, artifact writes included. It is not applicable only when it cannot be, such as a delivery to an outside system or a physical action, and the reason MUST say so.
+
+A command that registers `doc_kinds` (DCLI-029) MUST pass its `normal` row on a document of every kind it lists; `run_matrix --kind <kind>` records the kind of each run. The other rows need one kind. The `normal` row of a command registered with `verify_after_save` runs `doc save` on the same document after the write, and passes only when that save verified the change (DCLI-057).
+
+The rows run on the real application, on authorized targets (DVER-031, DVER-050). The matrix runner `run_matrix`, which comes with this specification, fills in the placeholders (DVER-002), runs the rows that apply, writes a live record that names each row (DVER-042), and fills in each row's actual result and its `live:` evidence. A row whose write asks for confirmation is confirmed with its token, unless the row expects `E_CONFIRMATION_REQUIRED`; the row of a long command waits for the job to end and takes the job's outcome. A row that applies but has no actual result and evidence has not been run. A row whose actual result differs from its expected result, or whose live run has `result: fail`, has failed. A row that has not been run or has failed MUST NOT count as passed.
 
 A row that applies but cannot be caused on demand on the real application, such as `disconnect`, MAY be marked `unrunnable`, with the reason. It then needs no live run, and the driver suite covers how the runtime handles it (DVER-010). The `normal`, `dialog` and `read_back_mismatch` rows MUST NOT be marked `unrunnable` (DVER-031).
 
@@ -279,7 +287,7 @@ Every command MUST declare a maturity level and the evidence references behind i
 | Level | Meaning | Evidence needed |
 |---|---|---|
 | `draft` | Declared; not yet shown on the real application, and the interface may still change | None; a write command still needs its sample (G00) |
-| `verified` | Run on the real application, with the real adapter and a record | Current `live:` evidence that every row of the behavior matrix that applies passed, except rows marked `unrunnable` (DVER-030, DVER-043) |
+| `verified` | Run on the real application, with the real adapter and a record | Current `live:` evidence that every row of the behavior matrix that applies passed, except rows marked `unrunnable`, and that the `normal` row passed on every kind of document the command lists (DVER-030, DVER-043) |
 | `stable` | Also passed evaluation, with no open severe defect | Plus a current `eval:` report (DSKL-043) |
 
 Only a run that passed counts as evidence (DVER-030). When evidence stops counting, the level MUST drop to the highest level the remaining evidence supports. A severe defect is one that makes a command report success for a wrong result, change something outside its target or scope, or lose the user's data.
@@ -314,9 +322,9 @@ Each live run MUST leave one JSON record in `docs/evidence/` that validates agai
 - `os`: the operating system as it reports itself, and `platform`: `windows`, `macos` or `linux`
 - `recorded_at`: the time of the run, in UTC
 - `targets`: the authorized targets the run used (DVER-050)
-- `runs`: one entry per command, with the command path, its arguments as run, with the placeholders filled in (DVER-002), the exit code, `result` and the `mode` it ran in
+- `runs`: one entry per command, with the command path, its arguments as run, with the placeholders filled in (DVER-002), the exit code, `result` and the `mode` it ran in; `doc_kind` when the command lists document kinds, and `tampered: true` for a run whose result was changed from outside during the pause (DVER-030)
 
-`result` is `pass` when the command behaved as expected, and `fail` otherwise. When an entry names a behavior matrix row in `matrix_row`, the expected result is the one in that row. An entry MAY add the printed envelope (`envelope`), its SHA-256 (`envelope_sha256`) and notes. Arguments that carry secrets MUST appear as `***` (DSEC-040). The support matrix of `docs/COMPATIBILITY.md` is generated from these records (DREPO-016).
+`result` is `pass` when the command behaved as expected, and `fail` otherwise. When an entry names a behavior matrix row in `matrix_row`, the expected result is the one in that row. An entry MAY add the printed envelope (`envelope`) and notes. The envelope is kept as the tool wrote it and is not checked against the current envelope schema, so a record stays valid while its version does (DVER-043). Arguments that carry secrets MUST appear as `***` (DSEC-040). The support matrix of `docs/COMPATIBILITY.md` is generated from these records (DREPO-016).
 
 ```json
 {
@@ -336,8 +344,7 @@ Each live run MUST leave one JSON record in `docs/evidence/` that validates agai
       "exit": 0,
       "result": "pass",
       "mode": "session",
-      "matrix_row": "normal",
-      "envelope_sha256": "090b93f6516be82d6d224af36e040f4997faff07f3cda65b9c973520bd833fc3"
+      "matrix_row": "normal"
     },
     {
       "command": "footprint move",
@@ -366,7 +373,7 @@ Check: 🤖 `check_project` compares the tool version in each record and report 
 
 ### DVER-050 Authorized targets only
 
-Live runs MUST use only the application instances, files, folders and devices that a person has authorized and listed under Authorized Targets in `docs/E2E.md` (DREPO-017). That section is the only list of authorized targets; other documents, such as `AGENTS.md`, point to it. Only a person adds a target to it. Live runs MUST NOT touch any other project, instance or device. The scope file used for live runs MUST grant only these targets (DSEC-012), so the runtime refuses any write outside them.
+Live runs MUST use only the application instances, files, folders and devices that a person has authorized and listed under Authorized Targets in `docs/E2E.md` (DREPO-017). A file that a command only reads from the project's `tests/inputs/` folder (`{inputs}`, DVER-002) is not a target and needs no authorization; everything a command writes MUST still be an authorized target. That folder is committed, so it holds only files the author made or may publish, reviewed like code. That section is the only list of authorized targets; other documents, such as `AGENTS.md`, point to it. Only a person adds a target to it, or a coding Agent the person explicitly asks to, once the person agrees to the target it showed (DSEC-011). The tool's own locations are not targets and are not listed: its state directory, and the copy of the host component that belongs to that state directory (DSEC-050). Live runs MUST NOT touch any other project, instance or device. The scope file used for live runs MUST grant only these targets (DSEC-012), so the runtime refuses any write outside them.
 
 Why: A live run makes real changes. On an unauthorized project or a production machine, a test can do real damage. A single list cannot disagree with a second one.
 Check: 🤖 `check_project`: every entry in the `targets` of every record in `docs/evidence/` is listed under Authorized Targets; 👀 review of the scope file used for live runs.

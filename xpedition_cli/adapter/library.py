@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from .._driver import AdapterError
-from . import jobs
+from . import base, jobs
 from .base import Context, Handler, change, facts, key, need_input, preview, target
 from .plan import PlanError
 from .plan import library_parts as P
@@ -269,7 +269,7 @@ def default_cache() -> Path:
 
 def _budget() -> float | None:
     """The time all exports of one call may take: none in a long job's worker, else the read limit."""
-    return None if os.environ.get(jobs.WORKER_ENV) else READ_BUDGET_S
+    return None if jobs.in_worker() else READ_BUDGET_S
 
 
 def export(lmc: Path, root: Path, cache: Path, *, kinds: tuple[str, ...] = KINDS, partitions: list[str] | None = None,
@@ -556,8 +556,8 @@ def _refuse_replacements(plan: P.AddPlan) -> None:
                        "number, or leave it out")
     if others:
         reasons.append(f"the library holds {', '.join(others)} with other content; give the footprint or pad another name")
-    raise AdapterError("E_VALIDATION", f"part create only adds to the library: {'; '.join(reasons)}. Nothing was written.",
-                       dispatch_state="not_started", knowledge=["library-converter-rules"])
+    raise base.blocked(f"part create only adds to the library: {'; '.join(reasons)}. Nothing was written.",
+                       knowledge=["library-converter-rules"])
 
 
 @dataclass

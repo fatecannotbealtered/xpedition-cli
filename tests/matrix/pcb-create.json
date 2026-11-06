@@ -21,9 +21,9 @@
         "{doc}"
       ],
       "expected": {
-        "exit": 2,
-        "code": "E_VALIDATION",
-        "summary": "Run again once the project has its board: nothing to create, refused at the preview; this release never replaces a board."
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "Run again once the project has its board: this release never replaces a board, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked."
       }
     },
     {
@@ -59,7 +59,7 @@
     {
       "row": "ambiguous",
       "applies": false,
-      "reason": "The command works in file mode on the project file named by its path and selects nothing by name, so nothing can match several objects; no two instances can report one project open (with two Designers running the adapter reports the documents of neither)."
+      "reason": "The command works in file mode on the project file named by its path and selects nothing by name, so nothing can match several objects; no two instances can report one project open (with two Designers running, both are unreachable and report no documents)."
     },
     {
       "row": "conflict",

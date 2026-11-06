@@ -4,9 +4,6 @@ title: The licence sign-in dialog and licence token failures
 kind: troubleshooting
 applies_to: [session open, session get, session list, doc open, doctor, part create, part list, forward-annotation run, pcb get]
 tags: [license, sign-in, dialog, startup]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/E2E.md (runs of 2026-09-26 and of 2026-09-29 to 30) and docs/NATIVE_ADAPTER.md of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), native_com_adapter.py (_is_license_call_missing, _com_error) and win_dialogs.py (answer_prompts); capability survey docs/APPLICATION.md (Licensing; Automation Interfaces)
-updated_on: 2026-11-05
 ---
 
 ## The sign-in dialog

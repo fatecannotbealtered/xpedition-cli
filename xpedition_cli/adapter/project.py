@@ -19,7 +19,9 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from .._driver import AdapterError
+from . import base
 from . import library as lib
+from . import sessions
 from .base import Context, Handler, change, facts, key, need_input, preview, target
 from .plan import logs, project_file
 from .platform import env
@@ -229,7 +231,8 @@ class ProjectCreate(Handler):
     """In file mode, a copy of the project ``--doc`` names. In a Designer session, a new project
     from a setup template with Designer's ``NewProject``, its own copy of the template's central
     library, and a board design with its schematic; that runs as a long job (DCLI-065): the
-    project's first open builds its database and took more than 30 s live."""
+    project's first open builds its database and took more than 30 s live. The command is
+    registered ``long``, so the runtime runs it in its worker in either mode."""
 
     command = "project create"
 
@@ -245,6 +248,7 @@ class ProjectCreate(Handler):
         if target_path.parent.is_dir():
             target_path.parent.rmdir()  # empty (checked): NewProject creates the folder itself
         made = designer.new_project(ref.pid, str(target_path), str(template), str(library), progress)
+        sessions.note_saved(ctx.store, ref.id, str(target_path))  # open in Designer and just saved: clean
         files, size = _count(target_path.parent)
         result = {"path": str(target_path), "template": str(template), "files": files, "bytes": size, "rewritten": [],
                   "parts_databases": {"created": [], "registered": []}, "designs": made["designs"], "library": made["library"]}
@@ -307,8 +311,7 @@ def package_design(project: Path) -> str:
     listed = project_file.designs(_text(project))
     design = project_file.board_design(listed) or (listed[0] if listed else None)
     if design is None:
-        raise AdapterError("E_VALIDATION", f"The project {project} lists no design to package; draw the schematic first.",
-                           dispatch_state="not_started")
+        raise base.blocked(f"The project {project} lists no design to package; draw the schematic first.")
     return design.name
 
 
@@ -458,8 +461,8 @@ class _Board:
         self.design = design.name
         self.pcb = self.project.parent / "PCB" / f"{self.name}.pcb"
         if design.pcb_path or self.pcb.exists():
-            raise AdapterError("E_VALIDATION", f"The project already has a board ({design.pcb_path or self.pcb}); this release does not "
-                               "replace a board.", dispatch_state="not_started")
+            raise base.blocked(f"The project already has a board ({design.pcb_path or self.pcb}); this release does not replace "
+                               "a board.")
         self.lmc, self.root = lib.library_root(self.project)
         self.template_dir = self.root / "Templates" / "Layout" / self.template
         self.stock: Path | None = None

@@ -33,9 +33,9 @@
         "2"
       ],
       "expected": {
-        "exit": 2,
-        "code": "E_VALIDATION",
-        "summary": "Run again: GND has a plane shape on layer 2 already, so there is nothing to create and the preview refuses it."
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "Run again: GND has a plane shape on layer 2 already, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked."
       }
     },
     {

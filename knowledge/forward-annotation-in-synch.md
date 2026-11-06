@@ -4,9 +4,6 @@ title: Forward annotation when the board is already in sync
 kind: troubleshooting
 applies_to: [forward-annotation run, packager run, doc save]
 tags: [forward-annotation, layout]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it) and docs/E2E.md (Recorded run, from the schematic to a board, 2026-09-14) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), native_com_adapter.py (PRJINT_IN_SYNCH)
-updated_on: 2026-11-05
 ---
 
 ## Symptom

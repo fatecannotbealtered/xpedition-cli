@@ -4,9 +4,6 @@ title: The tool does not see edits a person makes in Xpedition
 kind: guide
 applies_to: [doc save, doc get, doc list, doc close, session get, session close]
 tags: [save, concurrency, sessions]
-lang: en
-based_on: capability survey docs/APPLICATION.md (Save and Undo; Instances and Concurrency; Risks); this release's adapter, xpedition_cli/adapter/sessions.py
-updated_on: 2026-11-05
 ---
 
 Xpedition does not tell automation that a document has changed. The survey found no change counter in either program. Whether either program exposes an "unsaved changes" flag through COM is not known, and the tool does not read one.

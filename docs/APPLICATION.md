@@ -2,7 +2,7 @@
 
 English | [中文](APPLICATION_zh.md)
 
-This survey records what Xpedition can do and how it can be automated. It is filled in before commands are designed: every domain command of xpedition-cli names the capability IDs it implements, and every capability has a disposition.
+This survey records what Xpedition can do and how it can be automated. It is filled in before commands are designed, and every capability has a disposition: `provided` when a command of xpedition-cli offers it.
 
 Source markers:
 - [measured] Records of xpedition-cli 1.0.3 measured on Xpedition Standard XPED2604 (Windows 11), 12 to 30 September 2026. See `docs/E2E.md`, `docs/COMPATIBILITY.md` and `docs/NATIVE_ADAPTER.md` in the npm package `@fateforge/xpedition-cli@1.0.3`.

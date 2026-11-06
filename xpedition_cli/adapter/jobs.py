@@ -1,37 +1,37 @@
-"""Long jobs (DCLI-065): work that can take longer than one call runs in a worker process.
+"""Help for the commands the runtime runs as long jobs (DCLI-065).
 
-``start`` writes a job file into the adapter store and starts a detached worker that runs the
-handler's ``run``. The worker reports progress and the final facts in the same file;
-``status`` reads it and ``cancel`` asks the worker to stop between two steps. A worker that is
-gone without a final state leaves the job ``unknown``, which ``operation resolve`` settles.
+A command registered ``long: true`` returns a job at once; the runtime runs the adapter's
+``apply`` in a worker process of this tool, with the long deadline, and ``job get`` reports how
+it ended. This module holds what the adapter needs around that:
+
+- ``in_worker``: whether this process is such a worker, so a step may take longer than a call;
+- ``running``: while a worker drives an instance, ``sessions`` reports that instance ``busy``;
+- ``Progress``: what a handler's ``run`` reports steps and dialogs to;
+- ``store_dir``, ``read`` and ``write``: files beside the adapter store, such as the library cache.
 """
 from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import time
-import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .._driver import AdapterError
 from .._driver.records import pid_alive
 from .._driver.state import AdapterStore
 
-WORKER_ENV = "XPEDITION_CLI_WORKER"
-FINAL = ("completed", "failed", "partial", "unknown", "cancelled")
-CANCEL_WAIT_S = 20.0
+WORKER_ENV = "XPEDITION_CLI_JOB_WORKER"  # set by the runtime in a long job's worker
+
+
+def in_worker() -> bool:
+    return bool(os.environ.get(WORKER_ENV))
 
 
 def store_dir(store: AdapterStore) -> Path:
-    """The folder of the adapter store; the worker writes its job file there."""
+    """The folder of the adapter store."""
     return store._file("probe").parent  # noqa: SLF001 - the runtime keeps the folder private
-
-
-def job_file(store: AdapterStore, job_id: str) -> Path:
-    return store_dir(store) / f"{job_id}.json"
 
 
 def utc_now() -> str:
@@ -51,122 +51,48 @@ def read(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def worker_command(path: Path) -> tuple[list[str], dict[str, str]]:
-    env = dict(os.environ)
-    env[WORKER_ENV] = str(path)
-    if getattr(sys, "frozen", False):
-        return [sys.executable], env  # the native program checks WORKER_ENV before the CLI starts
-    return [sys.executable, "-m", "xpedition_cli.adapter.worker"], env
+def _running_key(session: str) -> str:
+    return "running-" + session.replace("-", "_").lower()[:80]
 
 
-def start(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    """Start the worker for one write; return the apply facts that name the job."""
-    job_id = "job-" + uuid.uuid4().hex[:12]
-    path = job_file(store, job_id)
-    record = {"id": job_id, "state": "running", "request": request, "started_at": utc_now(),
-              "cancel_requested": False, "progress": None, "pid": None}
-    write(path, record)
-    command, env = worker_command(path)
-    flags = 0
-    if os.name == "nt":
-        flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-    log = path.with_suffix(".log").open("w", encoding="utf-8")
+@contextmanager
+def running(store: AdapterStore, session: str | None, command: str) -> Iterator[None]:
+    """Mark the instance of ``session`` as driven by this worker until the block ends."""
+    if not session:
+        yield
+        return
+    store.set(_running_key(session), {"pid": os.getpid(), "command": command, "started_at": utc_now()})
     try:
-        proc = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                creationflags=flags, close_fds=True)
-    except OSError as exc:
-        path.unlink(missing_ok=True)
-        raise AdapterError("E_NATIVE_FAILURE", f"The worker for the job could not start: {exc}",
-                           dispatch_state="not_started") from None
+        yield
     finally:
-        log.close()
-    record["pid"] = proc.pid
-    current = read(path) or record
-    current["pid"] = proc.pid
-    write(path, current)
-    return {"dispatch_state": "dispatched", "change": "not_applicable", "delivery": "not_applicable",
-            "persistence": "not_applicable", "job": {"id": job_id, "state": "running"}}
+        store.delete(_running_key(session))
 
 
 def running_on(store: AdapterStore, session: str) -> str | None:
-    """The ID of a job still running on a session, if any; that session is busy."""
-    folder = store_dir(store)
-    for path in folder.glob("job-*.json"):
-        record = read(path)
-        if record and record.get("state") == "running" and (record.get("request") or {}).get("session") == session:
-            if record.get("pid") is None or pid_alive(int(record["pid"])):
-                return str(record["id"])
+    """The command a live worker is running on a session, if any; that session is busy."""
+    mark = store.get(_running_key(session))
+    if isinstance(mark, dict) and pid_alive(int(mark.get("pid", 0))) and int(mark.get("pid", 0)) != os.getpid():
+        return str(mark.get("command", ""))
     return None
 
 
-def status(store: AdapterStore, job_id: str) -> dict[str, Any]:
-    path = job_file(store, job_id)
-    record = read(path)
-    if record is None:
-        raise AdapterError("E_NOT_FOUND", f"There is no job {job_id}.")
-    state = record.get("state", "unknown")
-    if state not in FINAL and record.get("pid") and not pid_alive(int(record["pid"])):
-        state = "unknown"
-        record.update(state=state, native_message="The worker ended without reporting a result.")
-        write(path, record)
-    out: dict[str, Any] = {"state": state}
-    if record.get("progress"):
-        out["progress"] = record["progress"]
-    for name in ("change", "delivery", "persistence", "result", "files", "native_message", "action"):
-        if record.get(name) is not None:
-            out[name] = record[name]
-    return out
-
-
-def cancel(store: AdapterStore, job_id: str) -> dict[str, Any]:
-    path = job_file(store, job_id)
-    record = read(path)
-    if record is None:
-        raise AdapterError("E_NOT_FOUND", f"There is no job {job_id}.", dispatch_state="not_started")
-    if record.get("state") in FINAL:
-        raise AdapterError("E_VALIDATION", f"Job {job_id} has already ended ({record.get('state')}); there is nothing to cancel.",
-                           dispatch_state="not_started")
-    record["cancel_requested"] = True
-    write(path, record)
-    end = time.monotonic() + CANCEL_WAIT_S
-    while time.monotonic() < end:
-        current = read(path) or {}
-        if current.get("state") in FINAL:
-            break
-        time.sleep(0.5)
-    return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
-            "persistence": "not_applicable"}
-
-
-class Cancelled(Exception):
-    """The person asked to stop the job; the worker stops between two steps."""
-
-
 class Progress:
-    """What a handler's ``run`` calls to report progress and to notice a cancel request."""
+    """What a handler's ``run`` calls with its steps and with the dialogs it waits on.
 
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self._last = 0.0
+    The runtime's job record has no progress for the work it runs, so the steps are only kept
+    for the worker's own diagnostics. A dialog that waits for a person shows as a ``blocked``
+    session meanwhile, and the runtime then reports the job ``blocked`` too (DCLI-220).
+    """
+
+    def __init__(self) -> None:
+        self.last: dict[str, Any] | None = None
+        self.dialog: dict[str, str] | None = None
 
     def __call__(self, done: float, total: float | None, unit: str) -> None:
-        record = read(self.path) or {}
-        if record.get("cancel_requested"):
-            raise Cancelled()
-        now = time.monotonic()
-        if now - self._last >= 1.0 or (total is not None and done >= total):
-            record["progress"] = {"done": done, "total": total, "unit": unit}
-            write(self.path, record)
-            self._last = now
+        self.last = {"done": done, "total": total, "unit": unit}
 
     def blocked(self, action: str, message: str) -> None:
-        """A dialog or a sign-in waits for the person; the job shows ``blocked`` until it clears."""
-        record = read(self.path) or {}
-        record.update(state="blocked", action=action, native_message=message)
-        write(self.path, record)
+        self.dialog = {"action": action, "message": message}
 
     def unblocked(self) -> None:
-        record = read(self.path) or {}
-        if record.get("state") == "blocked":
-            record.update(state="running", action=None)
-            write(self.path, record)
+        self.dialog = None

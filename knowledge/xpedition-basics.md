@@ -4,9 +4,6 @@ title: Key operating points of Xpedition
 kind: guide
 applies_to: [context, session open, session list, session get, doc open, doc save, doc close, job get, part create, schematic create, packager run, pcb create, forward-annotation run, placement run, plane create, router run, pcb check, pcb export]
 tags: [basics, sessions, save, board-flow]
-lang: en
-based_on: capability survey docs/APPLICATION.md; xpedition-cli 1.0.3 live records docs/E2E.md and docs/COMPATIBILITY.md of npm @fateforge/xpedition-cli@1.0.3, 2026-09-12 to 2026-09-30; old implementation (commit 4a054a3), project_file.py; this release's command registry xpedition_cli/commands/__init__.py and adapter xpedition_cli/adapter/sessions.py and base.py
-updated_on: 2026-11-05
 ---
 
 ## Two programs, two kinds of session

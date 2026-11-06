@@ -38,7 +38,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 2,

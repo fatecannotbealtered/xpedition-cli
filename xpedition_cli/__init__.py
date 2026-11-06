@@ -24,16 +24,12 @@ TOOL = Tool(
     versions="2604",
     modes=["file", "session"],
     host_component=False,
+    # Designer takes about a minute to open or close a project, and Layout as long to start or
+    # quit; the runtime runs these as long jobs in its own worker (DCLI-065). A save is quick:
+    # its read-back reads the instance, not the reopened file.
+    long_commands=["session open", "session close", "doc open", "doc close"],
 )
 
 
 def main() -> None:
-    import os
-
-    if os.environ.get("XPEDITION_CLI_WORKER"):
-        # A long job's worker process: it runs the job, never the CLI (adapter/jobs.py).
-        from .adapter.worker import main as worker
-
-        worker()
-        return
     TOOL.main()

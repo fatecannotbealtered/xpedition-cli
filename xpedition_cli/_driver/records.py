@@ -1,4 +1,4 @@
-"""Operation records (DCLI-059), confirm tokens (DCLI-055, DSEC-033) and target locks (DCLI-060).
+"""Operation records (DCLI-059), confirm tokens (DCLI-055) and target locks (DCLI-060).
 
 Records live in ``operations/<operation_id>.json``. Keys that start with ``_`` are the
 runtime's own bookkeeping, such as the token and what it binds; ``operation get`` never

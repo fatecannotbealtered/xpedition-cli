@@ -111,7 +111,7 @@ class AttachTest(unittest.TestCase):
     def test_the_board_must_be_the_requested_one(self):
         with world(FakeApp(FakeDoc("D:/work/demo/PCB/Other.pcb"))), self.assertRaises(AdapterError) as caught:
             L.board(L.attach(PID), BOARD)
-        self.assertEqual((code(caught), caught.exception.data["dispatch_state"]), ("E_VALIDATION", "not_started"))
+        self.assertEqual((caught.exception.data["conflict"], caught.exception.data["dispatch_state"]), ("application_state", "not_started"))
         with world(FakeApp(None)), self.assertRaises(AdapterError) as caught:
             L.board(L.attach(PID), BOARD)
         self.assertIn("doc open", str(caught.exception))
@@ -215,13 +215,14 @@ class InstancesTest(unittest.TestCase):
     def test_a_licence_window_blocks_the_reached_layout(self):
         with world(FakeApp(FakeDoc())), mock.patch.object(dialogs, "licence_windows", lambda pid: ["Siemens Licensing"]):
             row = L.instances(2.0)[0]
-        self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "activate_license", "title": "Siemens Licensing"}))
+        self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "activate_license", "title": "Siemens Licensing",
+                                                                      "knowledge": ["xpedition-license-sign-in"]}))
 
-    def test_another_layout_is_blocked(self):
+    def test_another_layout_is_unreachable(self):
         with world(FakeApp(None), running=[process(), process(77, "D:/x/ExpeditionPCB.exe")]):
             rows = {row["pid"]: row for row in L.instances(2.0)}
         self.assertEqual(rows[PID]["state"], "ready")
-        self.assertEqual(rows[77]["blocker"], {"action": "other", "title": L.OTHER_INSTANCE})
+        self.assertEqual((rows[77]["state"], rows[77]["reason"]), ("unreachable", L.OTHER_INSTANCE))
 
     def test_a_layout_not_yet_registered_is_starting(self):
         with world(None):
@@ -237,7 +238,8 @@ class InstancesTest(unittest.TestCase):
             self.assertEqual(L.instances(2.0)[0]["state"], "unresponsive")
         with world(FakeApp(), blocking=[question]), mock.patch.object(com, "call_with_timeout", late):
             row = L.instances(2.0)[0]
-        self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "dismiss_dialog", "title": "Database Recovery"}))
+        self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "dismiss_dialog", "title": "Database Recovery",
+                                                                      "knowledge": ["layout-open-prompts"]}))
 
     def test_a_refused_probe_is_busy(self):
         def busy(fn, timeout):
@@ -278,7 +280,7 @@ class DocumentTest(unittest.TestCase):
         app = FakeApp(FakeDoc(os.path.join(self.tmp.name, "Other.pcb")))
         with world(app), self.assertRaises(AdapterError) as caught:
             L.open_document(PID, self.path)
-        self.assertEqual((code(caught), caught.exception.data["dispatch_state"]), ("E_VALIDATION", "not_started"))
+        self.assertEqual((caught.exception.data["conflict"], caught.exception.data["dispatch_state"]), ("application_state", "not_started"))
         self.assertIn("doc close", str(caught.exception))
         self.assertEqual(app.calls, [])
 
@@ -368,7 +370,7 @@ class StartTest(unittest.TestCase):
     def test_a_running_layout_is_not_started_again(self):
         with world(FakeApp()), self.assertRaises(AdapterError) as caught:
             L.start(None, 1.0)
-        self.assertEqual(code(caught), "E_VALIDATION")
+        self.assertEqual((code(caught), caught.exception.data["conflict"]), ("E_CONFLICT", "application_state"))
 
     def test_start_goes_through_the_launcher_and_reports_starting_until_registered(self):
         started = []

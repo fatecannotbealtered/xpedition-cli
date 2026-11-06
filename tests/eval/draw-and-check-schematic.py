@@ -7,7 +7,7 @@ evaluation starts: on the real Xpedition the hook makes Demo.prj with its parts 
 Designer with it (session open); after quits that Designer.
 """
 from _report import says_count, says_saved, says_verified
-from _xpedition import build, confirm, design, fake, fake_job, job_of, ok_calls, poll, project, read, result, same_path, \
+from _xpedition import build, confirm, design, job_of, ok_calls, poll, project, read, result, same_path, \
     session_with, start, stop_all, wait_job
 
 SCENARIO = "scoped_change"
@@ -16,7 +16,7 @@ TURNS = ["Designer has the project Demo.prj open. Draw its schematic from the de
          "(I know this replaces the sheets the design file names; go ahead), save it, then check the schematic and tell me "
          "how many errors and warnings the check found."]
 SCOPE = {"dangerous": True}
-FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "objects": {"": {
+FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "kind": "project", "objects": {"": {
     "design": "Board1", "sheets": [{"number": 1, "name": "Schematic1.1", "size": "A4"}], "components": 4, "nets": 3,
     "findings": [{"id": "unconnected-pin-1", "severity": "warning", "rule": "unconnected_pin", "message": "Pin D1-1 has no net.",
                   "objects": ["D1"]}],
@@ -27,8 +27,6 @@ def before(run, turn):
     if turn == 0:
         build(run, "parts")
         run.notes["designer"] = start(run, project(run))
-        if fake(run):
-            fake_job(run, "schematic create")
 
 
 def after(run):

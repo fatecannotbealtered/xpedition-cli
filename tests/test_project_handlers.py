@@ -15,7 +15,7 @@ from unittest import mock
 
 from xpedition_cli._driver import AdapterError
 from xpedition_cli._driver.state import AdapterStore, StateDir
-from xpedition_cli.adapter import base
+from xpedition_cli.adapter import base, sessions
 from xpedition_cli.adapter import project as PR
 from xpedition_cli.adapter.platform import env
 
@@ -394,7 +394,7 @@ class PackagerRunTest(Case):
     def test_a_project_without_designs_has_nothing_to_package(self):
         prj = self.tmp / "Empty.prj"
         prj.write_text("SECTION iCDB\nENDSECTION\n", encoding="utf-8")
-        self.assertEqual(self.error(lambda: PR.PackagerRun().preview(self.ctx("packager run", prj)))["code"], "E_VALIDATION")
+        self.assertEqual(self.error(lambda: PR.PackagerRun().preview(self.ctx("packager run", prj)))["conflict"], "application_state")
 
 
 # ------------------------------------------------------------------ pcb create
@@ -470,7 +470,7 @@ class PcbCreateTest(Case):
 
     def test_it_refuses_a_second_board_a_bad_name_or_a_project_without_a_board_design(self):
         with_board = self.project(self.tmp / "other", board="PCB\\Old.pcb")
-        self.assertEqual(self.error(lambda: PR.PcbCreate().preview(self.ctx("pcb create", with_board)))["code"], "E_VALIDATION")
+        self.assertEqual(self.error(lambda: PR.PcbCreate().preview(self.ctx("pcb create", with_board)))["conflict"], "application_state")
         bad = self.error(lambda: PR.PcbCreate().preview(self.ctx("pcb create", self.prj, {"name": "my board"})))
         self.assertEqual((bad["code"], bad["dispatch_state"]), ("E_VALIDATION", "not_started"))
         plain = self.tmp / "Plain.prj"
@@ -522,9 +522,9 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
 
         request = {"command": "project create", "session": "designer-12-ab",
                    "inputs": {"output": str(self.target), "template": str(self.template)}, **extra}
-        return Context(mock.Mock(), request)
+        return Context(AdapterStore(StateDir(self.tmp.name)), request)
 
-    def test_it_runs_as_a_long_job_only_in_a_session(self):
+    def test_it_runs_designer_only_in_a_session(self):
         from xpedition_cli.adapter.base import Context
 
         self.assertTrue(PR.ProjectCreate().long(self.ctx()))
@@ -546,6 +546,8 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
         self.assertEqual(called.call_args.args[:4], (12, str(self.target), str(self.template), str(self.lib)))
         self.assertEqual((out["change"], out["persistence"], out["files"]), ("not_applicable", "saved", [{"path": str(self.target)}]))
         self.assertEqual(out["result"]["designs"], ["Board1"])
+        state = sessions.doc_state(AdapterStore(StateDir(self.tmp.name)), "designer-12-ab", str(self.target))
+        self.assertFalse(state["dirty"])  # open in Designer and saved by the tool
 
     def test_a_folder_that_is_not_empty_is_refused(self):
         self.target.parent.mkdir(parents=True)

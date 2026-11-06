@@ -4,17 +4,17 @@ Every question works on the fake host and on the real Xpedition.
 
 On the real Xpedition an Xpedition project cannot come from the repository, so ``build`` makes
 the sample project in the question's documents folder with the tool itself, up to the stage the
-question needs: ``project create`` from a template project, ``part create`` with
-tests/fixtures/live/parts.json, the schematic drawn from tests/fixtures/live/design.json and
-saved, ``packager run`` and ``pcb create``, and the laid-out board. The template is the project
-named by the environment variable XPEDITION_EVAL_TEMPLATE, or else the installation's stock
-project SDD_HOME/standard/templates/dxdesigner/expedition/Default.prj. Designer and Layout are
+question needs: ``project create`` in a Designer session from Xpedition's stock setup template,
+``part create`` with tests/inputs/parts.json, the schematic drawn from tests/inputs/design.json
+and saved, ``packager run`` and ``pcb create``, and the laid-out board. Designer and Layout are
 started by the hooks with ``session open`` and quit by ``after`` with ``session close``, so no
 Designer or Layout may run when the evaluation starts: the tool can drive only one of each
-(knowledge entry ``designer-one-instance-only``).
+(knowledge entry ``designer-one-instance-only``). The hooks follow every long job to its end,
+the session and document lifecycle commands included.
 
 On the fake host the question's ``FAKE_HOST`` holds the project as the real Xpedition would
-show it, and ``build`` only copies the input files. A read of the fake host answers with the
+show it, each document with its kind, and ``build`` only copies the input files; ``start`` tells
+the fake host the kind of the documents the new instance opens. A read of the fake host answers with the
 generic shape ``{"items": [{"key": ..., <fields>}]}``; ``result`` takes the fields out of it,
 so a grader reads both hosts the same way.
 """
@@ -24,14 +24,11 @@ import hashlib
 import json
 import os
 import shutil
-import sys
 import time
 from pathlib import Path
 from typing import Any
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "live"
-TEMPLATE_VARIABLE = "XPEDITION_EVAL_TEMPLATE"
-STOCK_TEMPLATE = ("standard", "templates", "dxdesigner", "expedition", "Default.prj")
+FIXTURES = Path(__file__).resolve().parents[1] / "inputs"
 STAGES = ("project", "parts", "drawn", "board", "laid_out")
 FINAL_JOB_STATES = {"completed", "failed", "partial", "unknown", "cancelled"}
 START_WAIT_S = 300.0
@@ -151,6 +148,14 @@ def job_of(call: Any) -> str | None:
     return job.get("id")
 
 
+def ended(run: Any, call: Any) -> dict[str, Any]:
+    """The result of a call, or of the long job it started once that job has ended."""
+    job = job_of(call)
+    if job is None:
+        return ((call.data or {}).get("result") or {}) if call is not None else {}
+    return wait_job(run, job).get("result") or {}
+
+
 def wait_job(run: Any, job_id: str, rounds: int = 10) -> dict[str, Any]:
     """The job's view once it has ended, or its last view after ``rounds`` waits of 60 s."""
     view: dict[str, Any] = {}
@@ -175,14 +180,24 @@ def near(value: Any, wanted: float, tolerance: float = 0.01) -> bool:
 
 
 def write(run: Any, *args: str) -> dict[str, Any]:
-    """Run a write as a hook, confirming it with its token (and --dangerous when its tier asks)."""
+    """Run a write as a hook, confirming it with its token (and --dangerous when its tier asks).
+    A long job is followed to its end; the envelope returned then holds the job's receipt and
+    result, or its error."""
     out = run.tool(*args)
     error = out.get("error") or {}
     if not out.get("ok") and error.get("code") == "E_CONFIRMATION_REQUIRED":
         details = error.get("details") or {}
         dangerous = ["--dangerous"] if (details.get("preview") or {}).get("tier") == "dangerous" else []
         out = run.tool(*args, "--confirm", details["confirm_token"], *dangerous)
-    return out
+    job = ((out.get("data") or {}).get("result") or {}).get("job") if out.get("ok") else None
+    if not job:
+        return out
+    view = wait_job(run, job["id"])
+    done = view.get("state") == "completed" and bool(view.get("ok"))
+    final: dict[str, Any] = {"ok": done, "data": {"receipt": view.get("receipt"), "result": view.get("result") or {}, "job": view}}
+    if not done:
+        final["error"] = {"code": view.get("code") or "E_UNKNOWN", "message": f"job {job['id']} ended {view.get('state')}"}
+    return final
 
 
 def need(out: dict[str, Any], what: str) -> dict[str, Any]:
@@ -192,33 +207,27 @@ def need(out: dict[str, Any], what: str) -> dict[str, Any]:
     return out
 
 
-def finish(run: Any, out: dict[str, Any], what: str) -> None:
-    """Wait for the long job a write started; fail when it does not complete."""
-    job = ((out.get("data") or {}).get("result") or {}).get("job")
-    if not job:
-        return
-    view = wait_job(run, job["id"])
-    if view.get("state") != "completed" or not view.get("ok"):
-        raise SetupError(f"{what}: job {job['id']} ended {view.get('state')} ({view.get('code')})")
-
-
-def start(run: Any, path: Path) -> str:
-    """Start Designer (for a .prj) or Layout (for a .pcb) with the file open, wait until it is
-    ready, and remember it for ``stop_all``."""
-    out = need(write(run, "session", "open", "--doc", str(path)), f"session open --doc {path.name}")
+def start(run: Any, path: Path | None) -> str:
+    """Start Designer (for a .prj, or with no project for None) or Layout (for a .pcb) with the
+    file open, wait until it is ready, and remember it for ``stop_all``."""
+    if fake(run):
+        # The fake host cannot tell a project from a board by its file name: say which one opens.
+        run.host("set_kind", kind="board" if path is not None and path.suffix.lower() == ".pcb" else "project")
+    what = f"session open --doc {path.name}" if path else "session open --kind project"
+    out = need(write(run, "session", "open", *(["--doc", str(path)] if path else ["--kind", "project"])), what)
     session = ((out.get("data") or {}).get("result") or {}).get("id")
     if not session:
-        raise SetupError(f"session open --doc {path.name} named no session")
+        raise SetupError(f"{what} named no session")
     run.notes.setdefault("sessions", []).append(session)
     deadline = time.monotonic() + START_WAIT_S
     while True:
         view = run.tool("session", "get", "--session", session).get("data") or {}
         if view.get("state") == "ready":
             break
-        if view.get("state") in ("closed", "lost") or time.monotonic() > deadline:
-            raise SetupError(f"session {session} is {view.get('state')}, not ready, after session open --doc {path.name}")
+        if view.get("state") in ("closed", "lost", "unreachable") or time.monotonic() > deadline:
+            raise SetupError(f"session {session} is {view.get('state')}, not ready, after {what}")
         time.sleep(3)
-    if not any(same_path(d.get("path"), path) for d in view.get("documents", [])):
+    if path and not any(same_path(d.get("path"), path) for d in view.get("documents", [])):
         need(write(run, "doc", "open", "--session", session, "--doc", str(path)), f"doc open {path.name}")
     return session
 
@@ -233,11 +242,6 @@ def stop_all(run: Any) -> None:
     run.notes["sessions"] = []
 
 
-def fake_job(run: Any, command: str, steps: int = 2) -> None:
-    """Fake host only: the next run of ``command`` continues as a long job, as on Xpedition."""
-    run.host("fault", rule={"method": "apply", "action": "job", "command": command, "steps": steps})
-
-
 def fake_board(run: Any, fields: dict[str, Any]) -> None:
     """Fake host only: the board file the fake host opens, holding what pcb get and pcb check read."""
     path = board(run)
@@ -246,21 +250,6 @@ def fake_board(run: Any, fields: dict[str, Any]) -> None:
 
 
 # ------------------------------------------------------------------ the sample project on Xpedition
-
-
-def template_source() -> Path:
-    chosen = os.environ.get(TEMPLATE_VARIABLE)
-    if chosen:
-        return Path(chosen)
-    root = str(Path(__file__).resolve().parents[2])
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    from xpedition_cli.adapter.platform import env
-
-    home = env.find_sdd_home()
-    if home is None:
-        raise SetupError(f"Xpedition was not found and {TEMPLATE_VARIABLE} is not set")
-    return home.joinpath(*STOCK_TEMPLATE)
 
 
 def clear(run: Any) -> None:
@@ -273,13 +262,16 @@ def clear(run: Any) -> None:
             item.unlink()
 
 
-def create_project(run: Any, output: Path) -> None:
-    source = template_source()
-    out = write(run, "project", "create", "--doc", str(source), "--output", str(output))
-    if not out.get("ok"):
-        error = out.get("error") or {}
-        raise SetupError(f"project create from the template {source} failed ({error.get('code')}: {error.get('message')}). "
-                         f"Set {TEMPLATE_VARIABLE} to a project Designer created, with its own copy of the central library.")
+def create_project(run: Any, output: Path, *, keep_open: bool = False) -> str | None:
+    """Real Xpedition: make a project with project create in a Designer the hook starts, from
+    Xpedition's stock setup template. With ``keep_open`` that Designer stays open with the new
+    project and its session is returned; otherwise it is quit."""
+    designer = start(run, None)
+    need(write(run, "project", "create", "--session", designer, "--output", str(output)), "project create in Designer")
+    if keep_open:
+        return designer
+    stop_all(run)
+    return None
 
 
 def copy_inputs(run: Any) -> None:
@@ -304,9 +296,8 @@ def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
         need(write(run, "part", "create", "--doc", prj, "--file", str(parts(run))), "part create")
     if level >= STAGES.index("drawn"):
         designer = start(run, project(run))
-        out = need(write(run, "schematic", "create", "--session", designer, "--doc", prj, "--design", str(design(run))),
-                   "schematic create")
-        finish(run, out, "schematic create")
+        need(write(run, "schematic", "create", "--session", designer, "--doc", prj, "--design", str(design(run))),
+             "schematic create")
         need(write(run, "doc", "save", "--session", designer, "--doc", prj), "doc save of the schematic")
         if keep_open and upto == "drawn":
             # Designer reads the design right only after the project is opened again
@@ -321,7 +312,7 @@ def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
     if level >= STAGES.index("laid_out"):
         layout = start(run, board(run))
         pcb = ["--session", layout, "--doc", str(board(run))]
-        finish(run, need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run"), "forward-annotation run")
+        need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run")
         need(write(run, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm"), "pcb update")
         need(write(run, "placement", "run", *pcb, "--design", str(design(run))), "placement run")
         need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
@@ -344,6 +335,11 @@ def confirm(agent: Any, *args: str) -> Any:
         dangerous = ["--dangerous"] if (call.details.get("preview") or {}).get("tier") == "dangerous" else []
         call = agent.run(*args, "--confirm", call.details["confirm_token"], *dangerous)
     return call
+
+
+def lifecycle(agent: Any, *args: str) -> Any:
+    """A session or document lifecycle command, confirmed and followed to the end of its job."""
+    return poll(agent, confirm(agent, *args))
 
 
 def poll(agent: Any, call: Any) -> Any:

@@ -77,7 +77,7 @@ def bundle(version: str) -> tuple[Path, str | None]:
             if not target.is_relative_to(cache.resolve()):
                 raise SystemExit(f"the release archive holds an unsafe path: {member}")
         archive.extractall(cache)
-    (cache / "bundle.sha256").write_text(digest + "\n", encoding="utf-8")
+    (cache / "bundle.sha256").write_text(digest + "\n", encoding="utf-8", newline="\n")
     return folder, digest
 
 
@@ -111,7 +111,7 @@ def main(argv: list[str]) -> int:
             return code
         pin = ROOT / ".agent" / "SPEC_SHA256"
         if digest:
-            pin.write_text(digest + "\n", encoding="utf-8")
+            pin.write_text(digest + "\n", encoding="utf-8", newline="\n")
         else:
             pin.unlink(missing_ok=True)
         return run([python, str(spec / "scripts" / "check_project.py"), str(ROOT), "--fix"])

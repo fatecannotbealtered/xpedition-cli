@@ -4,9 +4,6 @@ title: Keep projects, libraries and partition names ASCII
 kind: rule
 applies_to: [project create, project get, part create, schematic create]
 tags: [paths, ascii, library, partition]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/E2E.md (Recorded run, a demo project end to end, 2026-09-12) and docs/COMPATIBILITY.md (Designer drawing facts verified on XPED2604; The library converters: HKP out and in) of npm @fateforge/xpedition-cli@1.0.3; this release's command registry (project create, project get)
-updated_on: 2026-11-05
 severity: error
 check: run project get and read ascii_path; check each partition name in the parts file by eye
 ---

@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SKILL-SPEC_zh.md)
 
-> Version 1.0.0 · Clauses DSKL-001 to DSKL-127
+> Version 1.0.3 · Clauses DSKL-001 to DSKL-127
 
 ## How to Read
 
@@ -73,7 +73,7 @@ Command output, writes, security, tests and project layout follow the clauses th
 | Release and sync | `update` syncs installed Skills; doctor compares the CLI and Skill versions (DSKL-031) | Ships the Skills in `skills/` of the npm package |
 | Evaluation | The suite for every scenario, run with the fake host and the template tool (DSKL-041); the evaluation runner `run_eval`, which records every run of the tool and writes the report (DSKL-044) | Writes questions and graders in `tests/eval/` for the per-tool scenarios before marking a command stable, and runs them with a real Agent on the real application (DSKL-042 to DSKL-044) |
 | Knowledge commands | `knowledge list`, `get`, `search`, `create` and `delete`; the registration file; link checks; untrusted marking; knowledge in `context` and doctor (DSKL-123 to DSKL-125) | Nothing |
-| Builtin knowledge | The `knowledge/` template, the index generator and the knowledge checks (DSKL-121, DSKL-127) | Writes the entries (DSKL-126); names each command's related entries and the entries for errors the adapter recognizes (DSKL-124) |
+| Builtin knowledge | The `knowledge/` template and the knowledge checks (DSKL-121, DSKL-127) | Writes the entries (DSKL-126); names each command's related entries and the entries for errors the adapter recognizes (DSKL-124) |
 | Team knowledge | Stores registered links only (DSKL-105) | Nothing; teams keep their documents in Feishu, and the Agent reads them with lark-cli |
 
 ## One Skill
@@ -87,7 +87,7 @@ Check: 🤖 `check_project` checks that each Skill has one `SKILL.md` and that i
 
 ### DSKL-002 Front matter
 
-Every `SKILL.md` MUST begin with front matter holding the fields below. Only domain Skills carry `metadata.requires` and `metadata.commands`, and only rename stubs carry `metadata.replaced_by`.
+Every `SKILL.md` MUST begin with front matter holding the fields below. Only domain Skills carry `metadata.commands`, and only rename stubs carry `metadata.replaced_by`.
 
 <!-- contract:skill_frontmatter -->
 | Field | Required in | Content |
@@ -95,7 +95,6 @@ Every `SKILL.md` MUST begin with front matter holding the fields below. Only dom
 | `name` | every Skill | The name of the Skill's directory |
 | `description` | every Skill | What the Skill covers, what it does not cover, and which Skill covers the rest, phrased in Chinese and English (DSKL-001, DSKL-025) |
 | `metadata.version` | every Skill | The tool version from package.json |
-| `metadata.requires` | domain Skills | The name of the entry Skill |
 | `metadata.commands` | domain Skills, except rename stubs | The command paths the Skill owns (DSKL-026) |
 | `metadata.replaced_by` | rename stubs | The Skill to read instead (DSKL-028) |
 
@@ -111,7 +110,6 @@ description: >-
   不负责布板和生产文件，这些请用 kicad-board。
 metadata:
   version: 1.4.0
-  requires: kicad-cli
   commands: [symbol list, symbol create, symbol update, wire create, label create, schematic check]
 ---
 ```
@@ -199,7 +197,7 @@ The entry Skill MUST contain the driver playbooks below, in the text the templat
 | `select_instance_and_document` | List the sessions and documents, then name them with `--session` and `--doc`; never rely on window focus (DCLI-202) |
 | `save` | A change in session mode is not saved until `doc save`; check the save preview, including changes made outside the tool and operations whose outcome is still unknown, before confirming (DCLI-058) |
 | `long_jobs_and_blocking` | Poll a long job with its exact `poll` command; on `E_BUSY`, wait and run the command again, and after 3 retries of the same command ask the person; on `E_HUMAN_REQUIRED`, pass the action to the person and run `resume` afterwards (DCLI-065, DCLI-066) |
-| `physical_effects` | Device mode only: check the device state first, confirm with `--dangerous` within the scope, stop with a halt command at once when needed, and never report simulated results as real (DSEC-018, DSEC-060 to DSEC-062) |
+| `physical_effects` | Device mode only: check the device state first, confirm with `--dangerous` within the scope, stop with a halt command at once when needed, and never report simulated results as real (DSEC-018, DSEC-061 and DSEC-062) |
 | `outcome_unknown_and_partial` | After `E_OUTCOME_UNKNOWN`, never send the write again; first run the `details.lookup` command, which resolves the operation. After `E_PARTIAL`, send again only the items that failed (DCLI-063, DCLI-064) |
 | `scope_refused` | On `E_FORBIDDEN`, pass `details.scope.snippet` and what is missing to the person; never write or change the scope file (DSEC-011, DSEC-015) |
 
@@ -226,6 +224,13 @@ The report MUST answer changed, saved and verified separately. The entry Skill M
 Why: "Done" hides whether the change is on disk and checked, what failed, and what is still waiting; the person needs each answer to decide the next step.
 Check: 🤖 Evaluation scenarios `scoped_change`, `separate_save` and `partial_batch` (DSKL-040); 👀 review of the entry Skill.
 
+### DSKL-011 Check results as data
+
+A Skill MUST tell the Agent to check a change with the write's `result` and receipt (DCLI-068) and with the read commands, which give positions, sizes and connections as data. A Skill MUST NOT tell the Agent to verify a change by taking a screenshot or a render and recognizing it. A render MAY be used for the person, or for a purely visual question, such as whether a drawing looks crowded, and the Skill says so where it applies.
+
+Why: Reading a structured result is fast, exact and repeatable; recognizing an image is slow, costs more and can be wrong.
+Check: 👀 Review of the Skills; the evaluation questions grade the commands the Agent ran (DSKL-041).
+
 ## Several Skills
 
 ### DSKL-020 When to split
@@ -237,7 +242,7 @@ Check: 🤖 `check_project` counts the lines of every `SKILL.md` (DSKL-003); �
 
 ### DSKL-021 Split by the user's words
 
-When a tool splits its Skills (DSKL-020), it MUST split them by the tasks users name, such as "draw the schematic", "lay out the board" or "make fabrication files". It MUST NOT split them by code modules. When a common task needs two Skills loaded together, the tool MUST merge them into one.
+When a tool splits its Skills (DSKL-020), it MUST split them by the tasks users name, such as "draw the schematic", "lay out the board" or "make fabrication files". It MUST NOT split them by code modules. When nearly every task of one Skill also needs another, the tool MUST merge them into one. A flow that crosses Skills, such as creating a part and then placing it on the board, or carrying schematic changes to the board, belongs in the entry Skill's playbooks, which every task loads (DSKL-022).
 
 Why: The Agent picks a Skill by matching the user's request against descriptions, and Skills cut along the user's words match best.
 Check: 👀 Review.
@@ -253,7 +258,8 @@ Every tool MUST have an entry Skill in `skills/<tool>/`. It holds what all tasks
 - the driver playbooks, which cover choosing the instance and the document, saving, and what to do after a refused or uncertain write (DSKL-009);
 - the report format (DSKL-010);
 - where knowledge comes from and that lark-cli reads team knowledge (DSKL-110, DSKL-112);
-- a routing table: which task goes to which Skill.
+- a routing table: which task goes to which Skill;
+- the flows that cross Skills (DSKL-021).
 
 A tool with one Skill has only the entry Skill, which then owns every command.
 
@@ -269,10 +275,10 @@ Check: 🤖 `check_project` checks the directory names and that no domain Skill 
 
 ### DSKL-024 Read the entry Skill first
 
-The body of every domain Skill, except a rename stub (DSKL-028), MUST start by telling the Agent to read the entry Skill first, and its `metadata.requires` MUST name the entry Skill. When the entry Skill is not installed, the Agent MUST stop and ask the user to reinstall the tool's Skills.
+The body of every domain Skill, except a rename stub (DSKL-028), MUST start by telling the Agent to read the entry Skill first, naming it. When the entry Skill is not installed, the Agent MUST stop and ask the user to reinstall the tool's Skills.
 
 Why: An Agent may load a domain Skill by its description alone and would then miss the write recipe and the STOP checkpoints.
-Check: 🤖 `check_project` checks `metadata.requires`; 👀 review checks the opening instruction.
+Check: 🤖 `check_project` checks that the first line of the body names the entry Skill; 👀 review checks the opening instruction.
 
 ### DSKL-025 Descriptions do not overlap
 
@@ -297,7 +303,7 @@ Check: 🤖 `check_project` checks that the area is a noun of a command the Skil
 
 ### DSKL-028 Rename stubs
 
-When a Skill is renamed or merged into another, the old name MUST stay as a stub Skill. The stub only tells the Agent which Skill to read instead. It keeps `metadata.requires`, names that Skill in `metadata.replaced_by` and has no `metadata.commands`.
+When a Skill is renamed or merged into another, the old name MUST stay as a stub Skill. The stub only tells the Agent which Skill to read instead. It names that Skill in `metadata.replaced_by` and has no `metadata.commands`. This covers Skills that a release of the tool built on this specification shipped. A tool rebuilt from scratch on this specification needs no stubs for the Skills of the versions it gives up; its CHANGELOG names those Skills so that users can delete them.
 
 Why: `update` replaces only the Skill directories that are already installed (DCLI-076); without a stub, the user's old copy stays and keeps teaching outdated commands.
 Check: 🤖 `check_project` checks that `metadata.replaced_by` names another Skill of the tool and that the stub owns no commands; 👀 review.
@@ -363,7 +369,7 @@ Driver scenarios:
 | `busy_application` | The application is busy | The Agent waits and runs the command again, and the change is applied once | no |
 | `dialog_after_dispatch` | The change itself opens a dialog after dispatch | The Agent passes the action to the person, then runs `resume`, which resolves the operation, and never sends the write again (DCLI-066) | no |
 | `separate_save` | A change, then a save as a separate step | The file is unchanged until `doc save` and changed after it, and the report matches each step (DCLI-058) | yes |
-| `physical_action` | A physical action | The action runs only with `--dangerous` and a scope that allows it; simulated results are reported as simulated (DSEC-060, DSEC-062) | no |
+| `physical_action` | A physical action | The action runs only with `--dangerous` and a scope that allows it; simulated results are reported as simulated (DCLI-051, DSEC-062) | no |
 | `long_job` | Work that runs longer than one call may take | The Agent polls with the exact `poll` command until the job ends, and reports the job's final receipt as the result (DCLI-065) | no |
 
 Why: These are the tasks in which Agents most often go wrong with driver tools: guessing a target, following injected text, resending a lost write, and calling unsaved, partial or unchecked work done.
@@ -499,7 +505,7 @@ Check: 🤖 Driver conformance test D19.
 
 ### DSKL-105 The tool stores links only
 
-For team knowledge the tool MUST store only the registration (DSKL-122). It MUST NOT download, cache or parse the documents. It does not connect to Feishu or keep a Feishu account either (DSEC-042); sign-in and permissions belong to lark-cli.
+For team knowledge the tool MUST store only the registration (DSKL-122). It MUST NOT download, cache or parse the documents. It MUST NOT connect to Feishu and MUST NOT keep a Feishu account or credential: the Agent reads the documents itself with lark-cli (DSKL-110), which handles sign-in and permissions.
 
 Why: A tool that kept copies or credentials could leak team documents and would serve stale content; lark-cli already handles both.
 Check: 🤖 Driver conformance test D19 checks that no network request is made.
@@ -583,9 +589,6 @@ Each builtin entry MUST be one Markdown file in `knowledge/` that begins with fr
 | `kind` | every entry | One kind from DSKL-101 |
 | `applies_to` | every entry | The application version range, modes, commands or object types it applies to |
 | `tags` | every entry | Tags for filtering, each written like an `id` |
-| `lang` | every entry | `zh` or `en`: the language of the body |
-| `based_on` | every entry | Where the content comes from: a manual chapter, a team standard number or a test record |
-| `updated_on` | every entry | The date of the last update |
 | `severity` | `rule` only | `error`, `warning` or `info` |
 | `check` | `rule` only | How to check the rule: a command, or a manual check |
 | `location` | `resource` only | Where the resource is |
@@ -593,7 +596,7 @@ Each builtin entry MUST be one Markdown file in `knowledge/` that begins with fr
 | `units` | `resource` only | The units the resource uses |
 | `license` | `resource` only | License limits on using the resource |
 
-Only `rule` entries carry `severity` and `check`, and only `resource` entries carry `location`, `version`, `units` and `license`. An entry need not exist in both languages; `lang` names the language of its body.
+Only `rule` entries carry `severity` and `check`, and only `resource` entries carry `location`, `version`, `units` and `license`. An entry need not exist in both languages.
 
 Example:
 
@@ -604,24 +607,21 @@ title: Leave edit mode before saving
 kind: guide
 applies_to: [doc save]
 tags: [save, edit-mode]
-lang: en
-based_on: Application manual, section 5.3
-updated_on: 2026-10-15
 ---
 
 While a property editor is open, the application ignores a save request.
 Close the editor first, then run doc save.
 ```
 
-Why: Fixed fields let the runtime list, filter and index entries, and let the checks find gaps.
+Why: Fixed fields let the runtime list and filter entries, and let the checks find gaps.
 Check: 🤖 `check_project` checks the front matter of every entry (DSKL-127).
 
-### DSKL-121 Entry size and index
+### DSKL-121 Entry size
 
-The body of an entry MUST NOT exceed 6000 characters, so that `knowledge get` fits in one response (DCLI-008); a longer entry MUST be split into several entries. `knowledge/index.json` MUST be generated from the entries by a script and MUST NOT be edited by hand.
+The body of an entry MUST NOT exceed 6000 characters, so that `knowledge get` fits in one response (DCLI-008); a longer entry MUST be split into several entries.
 
-Why: Short entries are cheap to read when a task needs them, and a hand-edited index drifts from the entries.
-Check: 🤖 `check_project` checks the body length and regenerates the index to compare it.
+Why: Short entries are cheap to read when a task needs them.
+Check: 🤖 `check_project` checks the body length.
 
 ### DSKL-122 Team registration fields
 
@@ -636,8 +636,6 @@ Team registrations MUST be stored in `<state_dir>/knowledge-links.json` (DSEC-03
 | `url` | `--url`, required | The Feishu document link (DSKL-104) |
 | `about` | `--about`, optional | What the document covers and when to read it, at most 200 characters |
 | `applies_to` | `--applies-to`, optional | Command paths or nouns that `reference` lists; without it, the entry applies to every task |
-| `provider` | the tool | The document platform: `feishu` |
-| `added_at` | the tool | The time of registration, in UTC |
 
 Why: A fixed record lets `context`, doctor and the Agent read registrations the same way on every machine.
 Check: 🤖 Driver conformance test D19 checks the registered fields.
@@ -669,14 +667,14 @@ Check: 🤖 Driver conformance test D19 covers `knowledge create`, its tier and 
 
 ### DSKL-124 Links from commands and errors
 
-`reference` MUST list the related builtin entries of each command as `related_knowledge`, taken from the command registration (DCLI-029, DCLI-031). When an error has a known remedy in the knowledge base, `error.details.knowledge` MUST list the entry IDs, and `next_action` MUST give the exact `knowledge get` command. For example, when the adapter recognizes a known dialog and the command returns `E_HUMAN_REQUIRED`, the error points to the matching `troubleshooting` entry.
+`reference` MUST list the related builtin entries of each command as `related_knowledge`, taken from the command registration (DCLI-029, DCLI-031). When an error has a known remedy in the knowledge base, `error.details.knowledge` MUST list the entry IDs, and `next_action` MUST give the exact `knowledge get` command. For example, when the adapter recognizes a known dialog and the command returns `E_HUMAN_REQUIRED`, the error points to the matching `troubleshooting` entry. The adapter names the entries in its error, in the `blocker` of a blocked session and in a preview that cannot be applied; the runtime puts them in the error it returns.
 
 Why: The Agent finds the right entry at the moment it needs it, without searching.
 Check: 🤖 `check_project` checks that every `related_knowledge` ID exists; 👀 review checks that known errors point to entries.
 
 ### DSKL-125 Knowledge in context and doctor
 
-`context` MUST report under `knowledge` the number of builtin entries and the team registrations, each with `id`, `title`, `kind` and `url` (DCLI-032). The doctor check `knowledge` MUST check that the builtin index is readable, that the entries are well formed and that the registration file is well formed. It MUST warn when a builtin entry and a team entry share an ID (DSKL-123). When team knowledge is registered, it MUST also check whether lark-cli is on `PATH`; if it is not, the status is `warn`, and `fix` says to install lark-cli and sign in as lark-cli's own instructions describe. doctor MUST NOT call lark-cli or contact Feishu.
+`context` MUST report under `knowledge` the number of builtin entries and the team registrations, each with `id`, `title`, `kind` and `url` (DCLI-032). The doctor check `knowledge` MUST check that the builtin entries are well formed and that the registration file is well formed. It MUST warn when a builtin entry and a team entry share an ID (DSKL-123). When team knowledge is registered, it MUST also check whether lark-cli is on `PATH`; if it is not, the status is `warn`, and `fix` says to install lark-cli and sign in as lark-cli's own instructions describe. doctor MUST NOT call lark-cli or contact Feishu.
 
 Why: The Agent learns at the start whether team knowledge can be read, without the tool touching Feishu.
 Check: 🤖 General conformance test R05 checks that `context` and doctor report knowledge on an empty state; 👀 review of the lark-cli check.
@@ -690,7 +688,7 @@ Check: 🤖 `check_project` checks the two kinds; 👀 review compares the surve
 
 ### DSKL-127 Knowledge checks
 
-`check_project` MUST check the builtin knowledge: complete front matter (DSKL-120), unique IDs, valid kinds, an index that matches the entries, links inside entries that resolve, and the body length (DSKL-121).
+`check_project` MUST check the builtin knowledge: complete front matter with no other fields (DSKL-120), unique IDs, valid kinds, links inside entries that resolve, and the body length (DSKL-121).
 
 Why: Errors in knowledge are silent, because the Agent trusts what it reads.
 Check: 🤖 `check_project`.
@@ -707,6 +705,7 @@ Check: 🤖 `check_project`.
 - [ ] DSKL-008 STOP checkpoints
 - [ ] DSKL-009 Driver playbooks
 - [ ] DSKL-010 Report
+- [ ] DSKL-011 Check results as data
 - [ ] DSKL-020 When to split
 - [ ] DSKL-021 Split by the user's words
 - [ ] DSKL-022 Entry Skill
@@ -740,7 +739,7 @@ Check: 🤖 `check_project`.
 - [ ] DSKL-113 When reading fails
 - [ ] DSKL-114 Writing back
 - [ ] DSKL-120 Builtin entry format
-- [ ] DSKL-121 Entry size and index
+- [ ] DSKL-121 Entry size
 - [ ] DSKL-122 Team registration fields
 - [ ] DSKL-123 Knowledge commands
 - [ ] DSKL-124 Links from commands and errors

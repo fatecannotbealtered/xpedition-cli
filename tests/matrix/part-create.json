@@ -8,7 +8,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts.json"
+        "{inputs}/parts.json"
       ],
       "expected": {
         "exit": 0,
@@ -22,7 +22,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts.json"
+        "{inputs}/parts.json"
       ],
       "expected": {
         "exit": 0,
@@ -36,7 +36,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts-invalid.json"
+        "{inputs}/parts-invalid.json"
       ],
       "expected": {
         "exit": 2,
@@ -51,7 +51,7 @@
         "--doc",
         "{dir}/Missing.prj",
         "--file",
-        "tests/fixtures/live/parts.json"
+        "{inputs}/parts.json"
       ],
       "expected": {
         "exit": 3,
@@ -62,7 +62,7 @@
     {
       "row": "ambiguous",
       "applies": false,
-      "reason": "The command works in file mode on the project file named by its path and selects nothing by name, so nothing can match several objects; no two instances can report one project open (with two Designers running the adapter reports the documents of neither)."
+      "reason": "The command works in file mode on the project file named by its path and selects nothing by name, so nothing can match several objects; no two instances can report one project open (with two Designers running, both are unreachable and report no documents)."
     },
     {
       "row": "conflict",
@@ -71,7 +71,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts.json"
+        "{inputs}/parts.json"
       ],
       "expected": {
         "exit": 6,
@@ -86,7 +86,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts.json"
+        "{inputs}/parts.json"
       ],
       "expected": {
         "exit": 4,
@@ -121,7 +121,7 @@
         "--doc",
         "{doc}",
         "--file",
-        "tests/fixtures/live/parts-rounded.json"
+        "{inputs}/parts-rounded.json"
       ],
       "expected": {
         "exit": 1,

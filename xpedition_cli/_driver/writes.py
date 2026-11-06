@@ -21,11 +21,11 @@ from typing import Any
 
 from .adapter import BadProtocol, CapabilityError, Lost, Unanswered
 from .args import quote
-from .errors import DriverError
+from .errors import DriverError, usage
 from .output import Result
 from .records import conflict_locked, expired, expiry, utc_now
 from .registry import Command, Tiers
-from .runtime import READ_DEADLINE_MS, WRITE_DEADLINE_MS, Inputs, Run, Where
+from .runtime import READ_DEADLINE_MS, Inputs, Run, Where
 from .targets import covers, file_key, kind_of, path_of
 
 STATE_STOPS_BATCH = {"E_BUSY", "E_HUMAN_REQUIRED", "E_BACKEND_UNAVAILABLE"}
@@ -50,7 +50,6 @@ class WriteSpec:
         self.call = run.call
         self.where = Where("file")
         self.bound: dict[str, Any] = {}
-        self.echo: dict[str, Any] = {}
         self.conditions: list[str] = []
         self.selected: list[str] = []
         self.batch = False
@@ -74,6 +73,11 @@ class WriteSpec:
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]],
                child: int | None = None) -> Verification:
         raise NotImplementedError
+
+    def probe(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]],
+              child: int | None = None) -> Verification:
+        """A read-back with no side effect, for the pause of DVER-030."""
+        return self.verify(operation_id, facts, changes, child)
 
     def result(self, facts: dict[str, Any], verification: Verification) -> Any:
         return facts.get("result", {})
@@ -151,9 +155,10 @@ class DomainWrite(WriteSpec):
         self.secrets = self.inputs.secrets or {}
         self.bound = {"inputs": self.inputs.bound, "document": (self.where.document or {}).get("id"),
                       "device": (self.where.device or {}).get("id")}
-        self.echo = self.inputs.echo
         if "artifact" in self.command.effects and any(os.path.exists(p) for p in self.outputs()):
             self.conditions.append("target_exists")
+        if self.command.long and self.batch:
+            raise usage(f"{self.command.path} is a long job and takes one object per call.", "--ids")
         self.gates()
 
     def request(self, inputs: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -192,16 +197,27 @@ class DomainWrite(WriteSpec):
 
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]],
                child: int | None = None) -> Verification:
-        if facts.get("files") or "artifact" in self.command.effects:
-            return verify_files(facts, changes)
+        if self.command.verify_after_save and self.where.mode == "session":
+            # The application shows this change correctly only after a save; doc save reads it
+            # back and settles this record (DCLI-057).
+            return Verification("deferred", notes=["The application shows this change correctly only after a save; "
+                                                   "doc save verifies it."])
         tool_changes = [c for c in changes if c.get("origin", "tool") == "tool"]
-        if not tool_changes:
+        file_changes = [c for c in tool_changes if c.get("field") == "exists" and is_file_target(c["target"])]
+        other = [c for c in tool_changes if c not in file_changes]
+        parts = []
+        if facts.get("files") or "artifact" in self.command.effects or file_changes:
+            parts.append(verify_files(facts, file_changes))
+        if other:
+            # A command that makes files and also changes the document verifies both (DCLI-057).
+            inputs = self.child_inputs(child) if child is not None else None
+            request = {**self.request(inputs), "operation_id": operation_id,
+                       "targets": sorted({c["target"] for c in other}),
+                       "fields": sorted({c["field"] for c in other if "field" in c})}
+            parts.append(read_back(self.run, request, other, self.command.tolerances))
+        if not parts:
             return Verification("incomplete", notes=["The preview held no change to read back, so nothing was verified."])
-        inputs = self.child_inputs(child) if child is not None else None
-        request = {**self.request(inputs), "operation_id": operation_id,
-                   "targets": sorted({c["target"] for c in tool_changes}),
-                   "fields": sorted({c["field"] for c in tool_changes if "field" in c})}
-        return read_back(self.run, request, tool_changes, self.command.tolerances)
+        return combine(parts)
 
     def result(self, facts: dict[str, Any], verification: Verification) -> Any:
         return facts.get("result", {})
@@ -226,13 +242,15 @@ def dispatch(run: Run, cap: str, request: dict[str, Any]) -> dict[str, Any]:
     """Call a write capability; errors keep their dispatch state for the receipt."""
     if not run.backend.has(cap, request.get("session")):
         raise DriverError("E_UNSUPPORTED", f"This tool's adapter has no {cap} capability, so it cannot do this.")
-    return run.backend.call(cap, request, WRITE_DEADLINE_MS)
+    reply = run.backend.call(cap, request, run.write_deadline_ms)
+    run.take_notices(reply)
+    return reply
 
 
 def read_back(run: Run, request: dict[str, Any], changes: list[dict[str, Any]], tolerances: dict[str, float]) -> Verification:
     """Read the changed fields back and compare them with the preview's ``after`` (DCLI-057)."""
     try:
-        result = run.backend.call("read_back", request, READ_DEADLINE_MS)
+        result = run.backend.call("read_back", request, run.read_deadline_ms)
     except (CapabilityError, Unanswered, Lost, BadProtocol) as exc:
         failed = Verification("incomplete", notes=[f"The read-back failed: {exc}"])
         failed.call_failed = True
@@ -267,6 +285,107 @@ def same(expected: Any, actual: Any, tolerance: float | None) -> bool:
             return abs(expected - actual) <= tolerance + 1e-12
         return abs(expected - actual) <= 1e-9 * max(1.0, abs(expected), abs(actual))
     return expected == actual
+
+
+def pause_before_read_back(run: Run, operation_id: str, command: str, facts: dict[str, Any],
+                           changes: list[dict[str, Any]], check: Any) -> str | None:
+    """For the read_back_mismatch row of a live behavior matrix (DVER-030): wait before the
+    read-back so that a person or a script can change what was just written in the
+    application, or delete the file it made. The wait ends early only on a real mismatch; a
+    busy or blocked application keeps it waiting. The variable only makes the tool wait, and
+    the receipt says that it waited; this wait is the one exception to the 60-second limit."""
+    name = f"{run.tool.prefix}_TEST_PAUSE_BEFORE_READ_BACK"
+    raw = run.env.get(name)
+    if not raw:
+        return None
+    try:
+        seconds = min(float(raw), float(run.contract["matrix"]["max_pause_seconds"]))
+    except ValueError:
+        return None
+    path = run.state.path / run.contract["matrix"]["pause_file"]
+    keys = sorted({c["target"] for c in changes if c.get("origin", "tool") == "tool"}
+                  | {file_key(f["path"]) for f in facts.get("files", []) if isinstance(f, dict) and f.get("path")})
+    path.write_text(json.dumps({"operation_id": operation_id, "command": command, "targets": keys,
+                                "fields": sorted({c["field"] for c in changes if "field" in c}),
+                                "seconds": seconds}), encoding="utf-8")
+    end = time.monotonic() + seconds
+    try:
+        while time.monotonic() < end:
+            time.sleep(1)
+            try:
+                if check().status == "failed":
+                    break
+            except Exception:  # noqa: BLE001 - a read that fails now is tried again; the final read-back decides
+                continue
+    finally:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return f"The tool waited up to {seconds:g} s before the read-back, as {name} asked."
+
+
+def is_file_target(key: str) -> bool:
+    """A ``file:`` key that names a whole file, not an object inside it."""
+    return key.startswith("file:///") and "#" not in key
+
+
+def combine(parts: list[Verification]) -> Verification:
+    """One verification from several: passed only when every part passed (DCLI-057)."""
+    if len(parts) == 1:
+        return parts[0]
+    order = ["failed", "incomplete", "not_run", "deferred", "passed", "not_applicable"]
+    status = min((p.status for p in parts), key=lambda s: order.index(s) if s in order else 0)
+    out = Verification(status, {k: v for p in parts for k, v in p.observed.items()},
+                       [m for p in parts for m in p.mismatched], [n for p in parts for n in p.notes])
+    out.call_failed = any(p.call_failed for p in parts)
+    return out
+
+
+def slim_receipt(run: Run, receipt: dict[str, Any]) -> dict[str, Any]:
+    """A receipt that fits the response: past ``receipt.listed_files`` files, the rest give way
+    to their count and the command that writes them all to a file (DCLI-008, DCLI-057)."""
+    limit = int(run.contract["receipt"]["listed_files"])
+    observed = receipt.get("observed") or {}
+    files = sorted((k for k in observed if is_file_target(k)), key=lambda k: observed[k].get("exists") is not False)
+    if len(files) <= limit:
+        return receipt
+    kept = {k: v for k, v in observed.items() if k not in files[limit:]}
+    command = run.cmd("operation get", [("--id", receipt["operation_id"]), ("--output", "<file>")])
+    return {**receipt, "observed": kept, "more_files": {"count": len(files) - limit, "command": command}}
+
+
+def slim_result(run: Run, result: Any) -> Any:
+    """A result's file list keeps as many files as the receipt; the receipt's ``more_files`` leads to the rest."""
+    limit = int(run.contract["receipt"]["listed_files"])
+    if isinstance(result, dict) and isinstance(result.get("files"), list) and len(result["files"]) > limit:
+        return {**result, "files": result["files"][:limit]}
+    return result
+
+
+def worker_argv(run: Run) -> list[str]:
+    """The current call as arguments, with the targets the runtime chose, for a worker to run again."""
+    call = run.call
+    assert call is not None
+    argv = call.command.path.split(" ")
+    for flag in ("--session", "--doc", "--device"):
+        value = call.raw.get(flag) or run.resolved.get(flag)
+        if value and call.command.flag(flag):
+            if flag == "--doc" and call.command.flag(flag).type == "path" or (flag == "--doc" and os.path.exists(str(value))):
+                value = os.path.abspath(str(value))
+            argv += [flag, str(value)]
+    for name in call.given:
+        flag = call.command.flag(name)
+        if name in ("--session", "--doc", "--device") or (name == "--output" and not (flag and flag.output)):
+            continue  # the targets come first; an --output for the full preview is no input
+        if flag is not None and flag.type == "boolean":
+            if call.values.get(name):
+                argv.append(name)
+        elif flag is not None and flag.type == "path":
+            argv += [name, os.path.abspath(str(call.values[name]))]  # the worker may start elsewhere
+        else:
+            argv += [name, call.raw[name]]
+    return argv
 
 
 def verify_files(facts: dict[str, Any], changes: list[dict[str, Any]]) -> Verification:
@@ -310,10 +429,16 @@ class Engine:
         token_record = self.lookup_token() if call.confirm else None
         spec.prepare()
         pv = spec.preview()
+        self.take_raises(spec, pv)
         targets = self._targets(spec, pv)
         changes = self._changes(pv)
         keys = _keys(targets, changes) or self.named_keys(spec)
         tier = self.tier(spec, targets, changes)
+        approved = (token_record or {}).get("preview", {}).get("tier")
+        if approved and self.contract.tier_rank(tier) > self.contract.tier_rank(approved):
+            # The call became stricter than the person confirmed (DCLI-052, DCLI-056 step 8).
+            raise conflict("preview_changed", f"The call is now {tier}, not the {approved} that was confirmed; nothing was sent.",
+                           "Run the command again without --confirm to see the new preview.")
         dangerous = tier == "dangerous"
         if command.needs_scope:
             self.check_scope(command, dangerous, keys, spec.halt)
@@ -327,8 +452,7 @@ class Engine:
                       "blocked_by": list(pv.get("blocked_by", [])) + [f"The target is locked by operation {busy[0]['operation_id']}."]}
         if not pv.get("can_apply", True) and not call.dry_run and not call.confirm:
             raise DriverError("E_CONFLICT", f"The change cannot be applied: {'; '.join(pv.get('blocked_by', []))}.",
-                              conflict="blocked", untrusted=["message"],
-                              next_action="Resolve what blocks it, then run the command again.")
+                              conflict="blocked", untrusted=["message"], **self.blocked_help(pv, "Resolve what blocks it, then run the command again."))
         spec.pending_changes = changes
         binds = self.binds(spec, keys)
         if token_record is not None:
@@ -368,6 +492,17 @@ class Engine:
         if self.run.scope.confirm_always and tier == "direct":
             tier = "two_step"
         return tier
+
+    @staticmethod
+    def take_raises(spec: WriteSpec, pv: dict[str, Any]) -> None:
+        """The conditions the adapter's preview found that make this call stricter: only
+        those the command registered in tier_when (DCLI-031, DCLI-052)."""
+        raises = pv.get("tier_raises") or []
+        registered = {t["when"] for t in spec.command.tier_when}
+        unknown = [w for w in raises if w not in registered]
+        if unknown:
+            raise DriverError("E_PROTOCOL", f"The adapter's preview raises the tier for {unknown[0]!r}, which the command does not register.")
+        spec.conditions.extend(w for w in raises if w not in spec.conditions)
 
     def touches_more(self, spec: WriteSpec, targets: list[dict[str, Any]], changes: list[dict[str, Any]]) -> bool:
         """Whether a preview reaches past the objects the inputs name: more targets than
@@ -458,7 +593,6 @@ class Engine:
             preview["session"] = spec.session_ref()
         if spec.document_ref():
             preview["document"] = spec.document_ref()
-        preview["inputs"] = spec.echo
         preview["can_apply"] = bool(pv.get("can_apply", True))
         if not preview["can_apply"]:
             preview["blocked_by"] = list(pv.get("blocked_by", [])) or ["the application gave no reason"]
@@ -538,6 +672,8 @@ class Engine:
         if request is not None:
             record["_request"] = request
             record["_tolerances"] = dict(spec.command.tolerances)
+        if spec.command.long and spec.command.kind == "standard":
+            record["_argv"] = worker_argv(self.run)  # its worker runs the same call (DCLI-065)
         record["_changes"] = self.mask(spec, [copy.deepcopy(c) for c in self._all_changes
                                               if c.get("origin", "tool") == "tool"])
         return record
@@ -638,8 +774,16 @@ class Engine:
             raise conflict("token_mismatch", "The call now reaches other targets than the previewed one; nothing was sent.",
                            "Run the command again without --confirm to preview it again.")
         if not pv.get("can_apply", True):
+            help_ = self.blocked_help(pv, "Resolve what blocks it, then run the command again without --confirm.")
             raise conflict("blocked", f"The change can no longer be applied: {'; '.join(pv.get('blocked_by', []))}.",
-                           "Resolve what blocks it, then run the command again without --confirm.", untrusted=["message"])
+                           help_.pop("next_action"), untrusted=["message"], **help_)
+
+    def blocked_help(self, pv: dict[str, Any], then: str) -> dict[str, Any]:
+        """The next action for a blocked preview, through the knowledge entries the adapter named (DSKL-124)."""
+        ids = self.run.knowledge_ids(pv)
+        if ids:
+            return {"knowledge": ids, "next_action": self.run.knowledge_first(ids, then)}
+        return {"next_action": then}
 
     # ------------------------------------------------------------------ dispatch
 
@@ -649,7 +793,7 @@ class Engine:
         operation_id = record["operation_id"]
         with run.mutex.hold():
             # The token is spent and the targets locked in one step, so two confirms of one
-            # token cannot both dispatch (DCLI-055, DCLI-060, DSEC-033).
+            # token cannot both dispatch (DCLI-055, DCLI-060).
             fresh = run.records.load(operation_id)
             if fresh is None:
                 raise DriverError("E_IO", f"The record of {operation_id} cannot be read; nothing was sent.")
@@ -682,6 +826,15 @@ class Engine:
             receipt["target"] = target
         receipt.update(effects=list(spec.command.effects), tier=record["preview"]["tier"] if "preview" in record else record["tier"])
         out: dict[str, Any] = {"receipt": receipt, "facts": {}, "error": None, "job": None, "unspend": False, "stop": False}
+        if spec.command.long:
+            # The runtime runs the work in its own worker; this call only starts it (DCLI-065).
+            from .jobs import new_job_id
+
+            job = {"id": new_job_id(), "state": "running", "worker": True}
+            out.update(job=job, facts={"dispatch_state": "dispatched", "job": job})
+            receipt["outcome"] = _outcome("completed", "not_applicable", "not_applicable", "not_applicable", "not_applicable")
+            receipt.update(observed={}, mismatched=[], notes=[f"The work continues as long job {job['id']}."])
+            return out
         try:
             facts = spec.apply(operation_id, child)
         except DriverError as exc:  # refused before dispatch, such as a device in fault
@@ -738,11 +891,15 @@ class Engine:
         lasting = change == "applied" or delivery == "delivered" or persistence == "saved"
         verification = Verification("not_applicable")
         expects = any(c.get("origin", "tool") == "tool" for c in changes)
+        paused = None
         if execution == "completed" and (lasting or change == "partial" or persistence == "partial" or expects):
             try:
+                paused = self.pause_before_read_back(spec, operation_id, facts, changes, child)
                 verification = spec.verify(operation_id, facts, changes, child)
             except Exception as exc:  # noqa: BLE001 - after dispatch, a failure to verify is not a known outcome
                 verification = Verification("incomplete", notes=[f"The read-back could not be done: {type(exc).__name__}: {exc}"])
+            if paused is not None:
+                verification.notes.insert(0, paused)
         receipt["outcome"] = _outcome(execution, change, delivery, persistence, verification.status)
         receipt.update(observed=self.mask_observed(spec, verification.observed), mismatched=verification.mismatched)
         if verification.notes:
@@ -751,21 +908,26 @@ class Engine:
             receipt.setdefault("notes", []).append(f"The application said: {facts['native_message']}")
         return out
 
+    def pause_before_read_back(self, spec: WriteSpec, operation_id: str, facts: dict[str, Any],
+                               changes: list[dict[str, Any]], child: int | None) -> str | None:
+        if spec.command.verify_after_save and spec.where.mode == "session":
+            return None  # its read-back happens at the save, where the pause applies (DVER-030)
+        return pause_before_read_back(self.run, operation_id, spec.command.path, facts, changes,
+                                      lambda: spec.probe(operation_id, facts, changes, child))
+
     def _failed(self, spec: WriteSpec, out: dict[str, Any], exc: CapabilityError) -> dict[str, Any]:
         receipt = out["receipt"]
         code, ds = exc.code, exc.dispatch_state
         receipt.update(observed={}, mismatched=[])
-        error = self.run.host_error(exc, ds)
+        error = self.run.host_error(exc, ds, write=True)
         if ds == "not_started":
             receipt["outcome"] = _outcome("not_started", "not_applied")
             out.update(error=error, unspend=code in ("E_BUSY", "E_HUMAN_REQUIRED"), stop=code in STATE_STOPS_BATCH)
         elif ds == "dispatched" and code == "E_NATIVE_FAILURE":
             receipt["outcome"] = _outcome("failed", "rolled_back")
-            receipt["failed_stage"] = "apply"
             out["error"] = error
         elif ds == "dispatched" and code in ("E_VALIDATION", "E_NOT_FOUND", "E_UNSUPPORTED"):
             receipt["outcome"] = _outcome("failed", "not_applied")
-            receipt["failed_stage"] = "apply"
             out["error"] = error
         else:
             # A dialog the change itself opened, or any other error after dispatch: the
@@ -827,11 +989,31 @@ class Engine:
             run.records.save(record)
             run.dispatching = None
             run.locks.hold_as(operation_id, "job", record["_keys"])
-            result = self.safe_result(spec, out["facts"], Verification("not_applicable"), receipt)
+            if job.get("worker"):
+                from .jobs import new_nonce, start_worker
+
+                # Recorded before the worker starts, so the worker finds itself named (DCLI-065).
+                record["_job"]["worker"] = {"nonce": new_nonce()}
+                run.records.save(record)
+                try:
+                    started = start_worker(run, job["id"], record["_job"]["worker"]["nonce"])
+                except OSError as exc:
+                    record["_job"].update(state="failed", ok=False, code="E_UNKNOWN", finished_at=utc_now())
+                    receipt["outcome"] = _outcome("not_started", "not_applied")
+                    record.update(state="failed", receipt=receipt, finished_at=utc_now())
+                    run.records.save(record)
+                    run.locks.release(operation_id)
+                    raise DriverError("E_UNKNOWN", f"The worker of long job {job['id']} could not start: {exc}. Nothing was sent.") from None
+                with run.mutex.hold():
+                    latest = run.records.load(operation_id) or record
+                    latest["_job"]["worker"] = {**latest["_job"].get("worker", {}), **started}
+                    run.records.save(latest)
+            # A job the runtime runs has no result yet; it comes with `job get` (DCLI-065).
+            result = {} if job.get("worker") else self.safe_result(spec, out["facts"], Verification("not_applicable"), receipt)
             result = dict(result) if isinstance(result, dict) else {"value": result}
             result["job"] = {"id": job["id"], "state": job.get("state", "running"),
                              "poll": run.cmd("job get", [("--job", job["id"]), ("--wait", "60s")])}
-            return Result({"operation_id": operation_id, "receipt": receipt, "result": result},
+            return Result({"operation_id": operation_id, "receipt": slim_receipt(run, receipt), "result": result},
                           self._receipt_untrusted(".receipt") + spec.untrusted_result())
         cause = error.code if error is not None else None
         ok, code = self.derive(receipt, cause)
@@ -848,7 +1030,7 @@ class Engine:
         if ok:
             if isinstance(result, dict) and (spec.where.device or {}).get("simulated"):
                 result = {**result, "simulated": True}  # results from a simulated device say so (DSEC-062)
-            return Result({"operation_id": operation_id, "receipt": receipt, "result": result},
+            return Result({"operation_id": operation_id, "receipt": slim_receipt(run, receipt), "result": slim_result(run, result)},
                           self._receipt_untrusted(".receipt") + spec.untrusted_result())
         raise self.write_error(spec, record, receipt, code or "E_NATIVE_FAILURE", error, out.get("human"))
 
@@ -1067,7 +1249,8 @@ class Engine:
             secret = {f.key for f in spec.command.flags if f.secret} | set(spec.secrets)
             hide = lambda obj: {k: "<secret>" if k in secret else v for k, v in obj.items()}  # noqa: E731 - DSEC-040
             data = hide({k: v for k, v in call.values["--input"].items() if k != "items"})
-            data["items"] = [hide(i) for i in call.values["--input"]["items"] if str(i.get("id")) in ids]
+            data["items"] = [hide(i) for n, i in enumerate(call.values["--input"]["items"])
+                             if str(i.get("id", f"#{n + 1}")) in ids]
             path.write_text(json.dumps(data), encoding="utf-8")
             return run.again(drop=("--input", "--confirm", "--dry-run")) + " --input " + quote(str(path))
         return run.again(drop=("--ids", "--confirm", "--dry-run")) + " --ids " + quote(",".join(ids))

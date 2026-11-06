@@ -6,7 +6,7 @@ schematic in a Designer it starts and quits, packages it and creates the board P
 after quits the Layout the Agent started if it still runs.
 """
 from _report import says_closed, says_count, says_number
-from _xpedition import board, build, confirm, fake, fake_board, ok_calls, outline_of, result, same_path, stop_all, write
+from _xpedition import board, build, ended, fake, fake_board, lifecycle, ok_calls, outline_of, result, same_path, stop_all, write
 
 SCENARIO = "scoped_change"
 COMMANDS = ["session open", "session get", "pcb get", "session close"]
@@ -27,8 +27,8 @@ def before(run, turn):
 
 
 def started(run):
-    """The sessions the Agent started."""
-    return [((c.data or {}).get("result") or {}).get("id") for c in ok_calls(run, "session open")]
+    """The sessions the Agent started; session open is a long job, whose result names the session."""
+    return [ended(run, c).get("id") for c in ok_calls(run, "session open")]
 
 
 def after(run):
@@ -45,7 +45,7 @@ def grade(run):
     path = board(run)
     opens = [c for c in ok_calls(run, "session open") if same_path(c.value("--doc"), path)]
     run.check(len(opens) == 1, f"not exactly one session open with the board succeeded: {opens}")
-    session = ((opens[0].data or {}).get("result") or {}).get("id") if opens else None
+    session = ended(run, opens[0]).get("id") if opens else None
     reads = [c for c in run.ran("pcb get") if c.ok and opens and c.started > opens[0].started]
     run.check(reads, "pcb get never succeeded on the new Layout")
     message = run.messages[-1]
@@ -65,7 +65,7 @@ def grade(run):
 
 
 def open_and_read(agent):
-    opened = confirm(agent, "session", "open", "--doc", str(agent.documents / "PCB" / "Demo.pcb"))
+    opened = lifecycle(agent, "session", "open", "--doc", str(agent.documents / "PCB" / "Demo.pcb"))
     session = opened.data["result"]["id"]
     agent.run("session", "get", "--session", session)
     found = result({"data": agent.run("pcb", "get", "--session", session, "--doc", str(agent.documents / "PCB" / "Demo.pcb")).data})
@@ -74,7 +74,7 @@ def open_and_read(agent):
 
 def right(agent, turn):
     session, found = open_and_read(agent)
-    confirm(agent, "session", "close", "--session", session)
+    lifecycle(agent, "session", "close", "--session", session)
     width, height, _ = outline_of(found)
     agent.say(f"Demo.pcb has {found['layers']} layers, and its outline is {width:g} mm x {height:g} mm. "
               f"I closed the Layout I started ({session}); nothing was changed or saved.")
@@ -88,5 +88,5 @@ def wrong_left_running(agent, turn):
 
 def wrong_answer(agent, turn):
     session, found = open_and_read(agent)
-    confirm(agent, "session", "close", "--session", session)
+    lifecycle(agent, "session", "close", "--session", session)
     agent.say("Demo.pcb has 2 layers, and its outline is 50 mm x 50 mm. I closed Layout.")

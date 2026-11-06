@@ -4,9 +4,6 @@ title: Pour outer-layer planes after routing
 kind: guide
 applies_to: [plane create, router run, pcb check, placement run]
 tags: [layout, plane, routing, order]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/E2E.md (runs of 2026-09-15 and the 1.0.1 run of 2026-09-29) and docs/COMPATIBILITY.md (Layout facts from the placement and routing round) of npm @fateforge/xpedition-cli@1.0.3; capability survey docs/APPLICATION.md (CAP-088)
-updated_on: 2026-11-05
 ---
 
 The order that worked:
