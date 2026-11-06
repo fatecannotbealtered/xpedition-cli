@@ -99,18 +99,36 @@ class Tool:
     def _hang(self, run: Run, cap: str, deadline_ms: int, out: TextIO, fmt: str, pretty: bool, started: float) -> None:
         """The watchdog of an in-process adapter call: report what is known, then end the
         process, because the call on the main thread cannot be interrupted (DCLI-278)."""
-        error = _hang_error(run, cap, deadline_ms)
-        env_out = self.envelopes.failure(error, run.notices)
-        text = (render_text(env_out) if fmt == "text" else dumps(env_out, pretty)) + "\n"
+        code = 1
         try:
-            if hasattr(out, "buffer"):
-                out.buffer.write(text.encode("utf-8"))
-                out.buffer.flush()
-            else:
-                out.write(text)
-                out.flush()
+            code = self._report_hang(run, cap, deadline_ms, out, fmt, pretty)
         finally:
-            os._exit(self.envelopes.exit_code(env_out))
+            os._exit(code)
+
+    def _report_hang(self, run: Run, cap: str, deadline_ms: int, out: TextIO, fmt: str, pretty: bool) -> int:
+        env_out = None
+        settle, run.settle_hang = run.settle_hang, None
+        if settle is not None:
+            # apply replied; only a read after it hangs, so the outcome is known.
+            note = f"The application did not answer {cap} within {deadline_ms} ms, so the read-back could not finish."
+            try:
+                settled = settle(note)
+                env_out = self.envelopes.success(settled, run.notices) if settled is not None else (
+                    self.envelopes.failure(DriverError("E_VERIFY_INCOMPLETE", note), run.notices))
+            except DriverError as exc:
+                env_out = self.envelopes.failure(exc, run.notices)
+            except Exception:  # noqa: BLE001 - the record could not be settled; report the hang
+                env_out = None
+        if env_out is None:
+            env_out = self.envelopes.failure(_hang_error(run, cap, deadline_ms), run.notices)
+        text = (render_text(env_out) if fmt == "text" else dumps(env_out, pretty)) + "\n"
+        if hasattr(out, "buffer"):
+            out.buffer.write(text.encode("utf-8"))
+            out.buffer.flush()
+        else:
+            out.write(text)
+            out.flush()
+        return self.envelopes.exit_code(env_out)
 
     def _add(self, command: Command) -> None:
         if command.path in self.commands:

@@ -6,7 +6,7 @@
 
 ## 必须遵守的底线
 
-1. 禁止修改固定副本：`.agent/`、`contract/driver-contract.json`、`xpedition_cli/_driver/` 和 `licenses/`。它们原样来自 tool-driver-cli-spec 的某一个发布。要换到另一个发布，运行 `python scripts/spec.py sync <version>`，它会把这些副本一起替换。
+1. 禁止修改固定副本：`.agent/`、`contract/driver-contract.json`、`xpedition_cli/_driver/`、`licenses/`，以及 `scripts/` 里的 `spec.py`、`build.py`、`pack.py`、`platforms.py` 和 `release_gate.py`。它们原样来自 tool-driver-cli-spec 的某一个发布。要换到另一个发布，运行 `python scripts/spec.py sync <version>`，它会把这些副本一起替换。
 2. 禁止手改生成的内容：`contract/commands.json`、README 和 Skill 里的命令地图、徽章行、信息卡、风险块、支持矩阵和证据索引。改它们的来源，再运行 `python scripts/spec.py generate`。
 3. 每个领域命令都在 `xpedition_cli/commands/` 里登记，写明它的全部效果、模式、每个物理参数的单位量和目标类型。软件无法撤回的修改要标为 `irreversible`。禁止降低确认级别。
 4. 每个领域命令都要在 `tests/matrix/` 里有行为矩阵。写命令的矩阵中，`normal` 行就是它的样例。

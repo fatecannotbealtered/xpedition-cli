@@ -412,12 +412,13 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
 
 def _job_verification(run: Run, record: dict[str, Any], status: dict[str, Any]) -> Verification:
     """A job's outputs: the files it made and the fields it changed, both when it did both (DCLI-057)."""
-    from .writes import combine, is_file_target
+    from .writes import combine, file_checks, is_file_target
 
     command = run.tool.commands.get(record.get("command", ""))
     if command is not None and command.verify_after_save and (record.get("_call") or {}).get("mode") == "session":
         return Verification("deferred", notes=["The application shows this change correctly only after a save; doc save verifies it."])
     changes = record.get("_changes", [c for c in record["preview"].get("changes", []) if c.get("origin", "tool") == "tool"])
+    changes = changes + file_checks(record, changes)  # the files the call named (DCLI-051)
     files = [c for c in changes if c.get("field") == "exists" and is_file_target(c["target"])]
     fields = [c for c in changes if c not in files]
     parts = []
@@ -449,17 +450,31 @@ def run_write_job(run: Run, record: dict[str, Any]) -> None:
 
     status, _facts = _job_dispatch(run, apply, strict=True)
     if status["state"] == "completed":
-        # The read_back_mismatch row of a long write is caused here, in the worker (DVER-030).
-        from .writes import pause_before_read_back
+        run.settle_hang = lambda note: _settle_hung(run, run, record, status, Verification("incomplete", notes=[note]))
+    try:
+        if status["state"] == "completed":
+            # The read_back_mismatch row of a long write is caused here, in the worker (DVER-030).
+            from .writes import pause_before_read_back
 
-        changes = record.get("_changes") or []
-        note = pause_before_read_back(run, record["operation_id"], record.get("command", ""), status, changes,
-                                      lambda: _job_verification(run, record, status))
-        if note:
-            status["_note"] = note
-    record["_job"]["state"] = status["state"]
-    _settle_job(run, record, status)
+            changes = record.get("_changes") or []
+            note = pause_before_read_back(run, record["operation_id"], record.get("command", ""), status, changes,
+                                          lambda: _job_verification(run, record, status))
+            if note:
+                status["_note"] = note
+        record["_job"]["state"] = status["state"]
+        _settle_job(run, record, status)
+    finally:
+        run.settle_hang = None
     _keep_notices(record, run)
+    run.records.save(record)
+
+
+def _settle_hung(run: Run, sub: Run, record: dict[str, Any], status: dict[str, Any], made: Verification) -> None:
+    """In the worker, a read after the dispatch hangs: the job ends with what is known before
+    the hang ends the worker (DCLI-278)."""
+    record["_job"]["state"] = status["state"]
+    _settle_job(run, record, status, made)
+    _keep_notices(record, sub)
     run.records.save(record)
 
 
@@ -489,6 +504,8 @@ def run_standard_job(run: Run, record: dict[str, Any]) -> None:
 
         status, facts = _job_dispatch(sub, apply, strict=False)
         if status["state"] == "completed":
+            run.settle_hang = lambda note: _settle_hung(
+                run, sub, record, status, made if made is not None else Verification("incomplete", notes=[note]))
             changes = record.get("_changes") or []
             note = pause_before_read_back(sub, operation_id, record["command"], facts, changes,
                                           lambda: spec.probe(operation_id, facts, changes))
@@ -503,11 +520,13 @@ def run_standard_job(run: Run, record: dict[str, Any]) -> None:
             except Exception as exc:  # noqa: BLE001
                 made.notes.append(f"The result could not be read after the write: {exc}")
             _fresh_document(sub, spec, record)
+        run.settle_hang = None
         record["_job"]["state"] = status["state"]
         _settle_job(run, record, status, made)
         _keep_notices(record, sub)
         run.records.save(record)
     finally:
+        run.settle_hang = None
         sub.close()
 
 

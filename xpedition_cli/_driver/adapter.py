@@ -143,7 +143,16 @@ class Backend:
         expect it. A watchdog ends the call when the deadline passes: a call that hangs is a
         call with no reply, as over the host protocol (DCLI-278)."""
         method = getattr(self.adapter, cap)
-        timer = threading.Timer(deadline_ms / 1000, self.on_hang, args=(cap, deadline_ms)) if self.on_hang else None
+        fired, reported = threading.Event(), threading.Event()
+
+        def watchdog() -> None:
+            fired.set()
+            try:
+                self.on_hang(cap, deadline_ms)  # reports the call, then ends the process
+            finally:
+                reported.set()
+
+        timer = threading.Timer(deadline_ms / 1000, watchdog) if self.on_hang else None
         if timer is not None:
             timer.daemon = True
             timer.start()
@@ -156,6 +165,9 @@ class Backend:
         finally:
             if timer is not None:
                 timer.cancel()
+            if fired.is_set():
+                # The watchdog reports this call and ends the process; the call must not go on meanwhile.
+                reported.wait()
 
     def _rpc(self, conn: Connection, cap: str, request: dict[str, Any], deadline_ms: int, host: str | None) -> Any:
         try:

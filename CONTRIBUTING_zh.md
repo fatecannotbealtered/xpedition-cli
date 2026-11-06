@@ -46,7 +46,7 @@ python scripts/spec.py check
 | `python scripts/pack.py` | 构建 npm 包，并做包内容检查 |
 | `python scripts/smoke.py` | 对构建好的包运行平台交付的关键操作 |
 
-固定副本是 `.agent/`、`contract/driver-contract.json`、`xpedition_cli/_driver/` 和 `licenses/`。禁止修改它们；`sync` 会把它们一起替换。
+固定副本是 `.agent/`、`contract/driver-contract.json`、`xpedition_cli/_driver/`、`licenses/`，以及 `scripts/` 里的 `spec.py`、`build.py`、`pack.py`、`platforms.py` 和 `release_gate.py`。禁止修改它们；`sync` 会把它们一起替换，并列出自上次固定的发布以来模板里改过的其他文件，供对照本项目的副本。
 
 ## 分支与提交约定
 
@@ -79,7 +79,7 @@ python scripts/spec.py check
 
 **行为矩阵。** 每个领域命令，以及每个调用适配层能力的标准命令，都在 `tests/matrix/` 里有一个矩阵文件，以命令路径命名，如 `tests/matrix/part-move.json`。文件把每一行各列一次：`normal`、`empty`、`invalid_input`、`not_found`、`ambiguous`、`conflict`、`no_scope`、`busy`、`dialog`、`disconnect`、`unsaved` 和 `read_back_mismatch`。适用的行写明参数和预期的退出码与错误码；不适用的行写 `applies: false` 和原因。写命令 `normal` 行的参数就是它的样例，通用一致性测试会拿它在模拟宿主上运行。参数只通过占位符 `{session}`、`{doc}`、`{device}` 和 `{dir}` 指定会话、文档、设备和输出文件夹，通过 `{job}` 指定作业，通过 `{inputs}`（即 `tests/inputs/` 文件夹）指定命令只读取的文件。
 
-**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行。
+**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行；对象在不同种类里不一样时，用这一行的 `kind_arguments` 给出该种类的参数。
 
 **评测。** 命令标为 stable 之前，`tests/eval/` 里要为每个适用于 xpedition-cli、需要工具自测的场景各出一题，`docs/evidence/` 里还要有一份在真实 Xpedition 上得到的最新评测报告：它覆盖了现在的每道题，每道题都通过了，并且有一道题在 `COMMANDS` 里列出了这条命令、实际运行了它。每道题是一个以题目 ID 命名的 Python 文件；名为 `_*.py` 的文件放各题共用的辅助代码。
 
@@ -109,7 +109,7 @@ def grade(run):
 | `run.scope_changed()`、`run.notes` | 授权范围文件有没有被改；钩子留给评分程序的字典 |
 | `run.host(...)`、`run.state()`、`run.applied()`、`run.document(id)` | 只在模拟宿主上可用 |
 
-可选的 `right(agent, turn)` 和 `wrong(agent, turn)` 脚本代理使用 `agent.run(*args)`、`agent.line(text)`、`agent.say(text)` 和 `agent.calls`。`python scripts/spec.py eval --check --fake-host` 在模拟宿主上证明每个评分程序判 `right` 通过、判每个 `wrong` 不通过；把 `--fake-host` 换成 `--workspace-root`，就在真实的 Xpedition 上做同样的检查。规范自己的评测题在发布包的 `conformance/eval/` 里，可以当作范例；其中 `read_answer`、`scoped_change`、`knowledge_lookup` 和 `separate_save` 的评分只用在真实 Xpedition 上也能用的接口。
+可选的 `right(agent, turn)` 和 `wrong(agent, turn)` 脚本代理使用 `agent.run(*args)`、`agent.line(text)`、`agent.say(text)` 和 `agent.calls`。`python scripts/spec.py eval --check --fake-host` 在模拟宿主上证明每个评分程序判 `right` 通过、判每个 `wrong` 不通过；把 `--fake-host` 换成 `--workspace-root`，就在真实的 Xpedition 上做同样的检查，`FAKE_HOST = None` 的题只能这样检查。规范自己的评测题在发布包的 `conformance/eval/` 里，可以当作范例；其中 `read_answer`、`scoped_change`、`knowledge_lookup` 和 `separate_save` 的评分只用在真实 Xpedition 上也能用的接口。
 
 **成熟度。** 每个命令都声明自己的成熟度和背后的证据，`xpedition-cli reference` 会显示这两项。
 

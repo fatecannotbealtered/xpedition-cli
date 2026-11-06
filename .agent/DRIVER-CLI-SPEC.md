@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.3 · Clauses DCLI-001 to DCLI-281
+> Version 1.0.4 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -206,7 +206,7 @@ These codes and cases MUST carry these fields in `details`:
 |---|---|---|
 | `E_USAGE` | `problem`, `parameter` | What is wrong, and with which parameter; for a number without a unit, `problem` lists the accepted units (DCLI-082) |
 | `E_AMBIGUOUS` | `candidates` | The objects or instances that match; an instance carries the session summary of DCLI-202. The Agent picks one only when the user named it |
-| `E_CONFLICT` | `conflict` | Which precondition failed, one of the contract's `conflict_values` (DCLI-056, DCLI-201, DCLI-206, DCLI-211, DCLI-212). A conflict inside the application, such as another model of that name already open or a model another one uses, is `application_state`, and `message` says what stands in the way; it is for a capability that has no preview of its own, such as `open_doc` or `close_doc`, or a dispatch the state changed under. A domain command's preview reports such a conflict as `can_apply: false` with `blocked_by` (DCLI-054) |
+| `E_CONFLICT` | `conflict` | Which precondition failed, one of the contract's `conflict_values` (DCLI-056, DCLI-201, DCLI-206, DCLI-211, DCLI-212). A conflict inside the application, such as another model of that name already open or a model another one uses, is `application_state`, and `message` says what stands in the way; it is for a read or a capability that has no preview of its own, such as `open_doc` or `close_doc`, or a dispatch the state changed under. A domain command's preview reports such a conflict as `can_apply: false` with `blocked_by` (DCLI-054) |
 | `E_FORBIDDEN` | `scope` | `{missing, snippet}`: `missing` is `{effects, targets, dangerous}`, what the scope lacks; `snippet` is a scope fragment the person can paste into the scope file (DSEC-015) |
 | `E_OUTCOME_UNKNOWN` | `lookup` | The exact command that settles the outcome (DCLI-063) |
 | `E_BUSY` | `retry_after_ms` | How long to wait before trying again |
@@ -588,7 +588,7 @@ Every command MUST declare its effects. The effect sets the default confirmation
 | `physical` | A physical action, such as moving a machine axis or switching power on | dangerous | `T2` |
 
 - A command that declares several effects MUST take the strictest confirmation tier among them.
-- A command that creates a new file as well as changing a document, such as one that adds a board to a project, declares `artifact` with its other effects.
+- A command that creates a new file as well as changing a document, such as one that adds a board to a project, declares `artifact` with its other effects. So does a command that creates a file only in some calls, such as one that defines a symbol in a new library only when the library does not exist yet.
 - An `artifact` command whose file the application names itself has no `output` flag; its preview MUST name as a target the file or the document it goes into, so the scope covers it, and its apply reports the file in `files` (DCLI-260).
 - Whatever the effect, these operations MUST be dangerous: an irreversible change, discarding unsaved changes, and closing an instance the tool did not start. A change is irreversible when no command of the application or of the tool can set the earlier state back: a delete without undo is irreversible, in file mode too, while a move or a field change, which another call can set back, is not. Such a command MUST declare `irreversible: true` in its registration (DCLI-029); the runtime then makes it dangerous and never guesses.
 - Halt commands declare `lifecycle` and are always direct (DSEC-018).
@@ -725,7 +725,7 @@ What the read-back checks depends on the write:
 | `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
 | A long job | The job's outputs, when it ends (DCLI-065) |
 
-- A write that creates files and also changes a document MUST be verified both ways: the files exist, and the changed fields read back. Verification is `passed` only when both pass.
+- A write that creates files and also changes a document MUST be verified both ways: the files exist, and the changed fields read back. Verification is `passed` only when both pass. A call with no file in `files`, in its preview or in an `output` flag is verified by its other changes alone.
 - A command registered with `verify_after_save` (DCLI-029) reports verification `deferred` in session mode, with a note that `doc save` verifies it, because the application shows the change correctly only after a save. The next `doc save` of that document MUST read back the deferred changes from the saved document as well, report `E_VERIFY_FAILED` when one does not match, and settle each deferred operation record with its result. The read-back after the save MUST NOT change the document or discard anything. Deferred changes are matched by session and document. When the document or its session is closed without a save, their records MUST be settled with verification `not_run`.
 
 When anything was applied, saved or delivered, `verification` MUST NOT be `not_applicable`.
@@ -1201,17 +1201,19 @@ Writes, and reads that need the application's main thread, MUST react to each se
 | `unreachable` | The process runs, but the tool cannot drive it, such as a second instance when the application lets a tool reach only one | `E_BACKEND_UNAVAILABLE`; nothing was dispatched |
 | `closed` | The process has ended | The session ID is no longer valid; `E_NOT_FOUND` |
 
+The adapter MUST look for a dialog each time it reports a session, also when the instance answers: some applications keep answering their automation interface while a modal dialog is open. A dialog that the tool's own running work answers itself, such as the options dialog of an export, needs no person; the session is `busy` while it is open.
+
 The standard observe commands `session list`, `session get`, `doc list`, `doc get`, `device list`, `device get`, `job list` and `job get` MUST return the state as data and MUST NOT fail because of it. Halt commands run in every state but `lost`, `unreachable` and `closed` (DSEC-018).
 
 Why: Each state has one fixed reaction, so a busy or blocked application never leaves a call hanging, and the Agent can always see the state.
-Check: 🤖 Driver conformance tests D04, D05, D21 and D22.
+Check: 🤖 Driver conformance tests D04, D05, D21 and D22, and the live `dialog` row of the behavior matrix (DVER-030).
 
 ### DCLI-205 Session read deadline
 
-`session list`, `session get`, `doc list` and `doc get` MUST return within 5 seconds. When an instance does not answer within 2 seconds, the command MUST stop waiting for it, report its `state` as `unresponsive`, and return the other instances normally.
+`session list`, `session get`, `doc list` and `doc get` MUST return within 5 seconds. When an instance does not answer within 2 seconds, the command MUST stop waiting for it, report its `state` as `unresponsive`, and return the other instances normally. An adapter in the CLI's process MUST keep these limits itself, giving each instance its own short limit, because the runtime cannot stop a call on its own thread: a call that passes its deadline ends the process.
 
 Why: One hung instance must not hide every other instance from the Agent.
-Check: 🤖 Driver conformance test D22.
+Check: 🤖 Driver conformance test D22; 👀 review of the `sessions` and `documents` of an adapter in the CLI's process.
 
 ### DCLI-206 Opening and closing sessions
 
@@ -1474,6 +1476,7 @@ Check: 🤖 Driver conformance test D18.
 Each CLI call opens its own connection and closes it when the call ends; no connection stays open between calls.
 
 - When the connection closes before the reply, or no reply arrives within `deadline_ms`, the CLI MUST record a write as outcome unknown (DCLI-063), and MUST report the instance of a read as `unresponsive` (DCLI-204).
+- When `apply` has replied and only a read that follows it, such as the read-back, gets no reply in time, the outcome is known: the runtime MUST record the reported change with verification `incomplete`, never as outcome unknown, also when the call that passed its deadline ends the CLI's process or a long job's worker.
 - When a discovery file names a live process but the connection to its address fails, the session MUST be reported `lost` (DCLI-204).
 - When the runtime connects again to an instance after a lost connection, or detects that the host component was reloaded, the session's `generation` MUST increase by one (DCLI-203).
 
