@@ -125,8 +125,16 @@
     },
     {
       "row": "read_back_mismatch",
-      "applies": false,
-      "reason": "The read-back is the new session in the session list; the adapter builds the receipt's session and the list's from the same process ID and start time, and start fails with E_NATIVE_FAILURE when that process ends, so there is no stored value that can differ."
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "No Designer runs: the job starts Designer with the project, its worker waits before the read-back, and meanwhile that Designer process is ended (--tamper): the read-back finds no such session, and the job ends with E_VERIFY_FAILED."
+      }
     }
   ]
 }

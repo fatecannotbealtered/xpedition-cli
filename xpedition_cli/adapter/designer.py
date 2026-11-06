@@ -41,7 +41,7 @@ from typing import Any
 
 from .._driver import AdapterError
 from .._driver.targets import normalize, path_of
-from . import base, sessions
+from . import base, jobs, sessions
 from .base import DESIGNER, Context, Handler, need_input
 from .plan import PlanError, pdf_pages, project_file, review_engine, verification
 from .plan import schematic_layout as L
@@ -81,6 +81,13 @@ QUIT_WAIT_S = 60.0
 START_PROCESS_SHARE = 0.55  # of the start wait spent waiting for COM; the rest opens the project
 VERIFY_WAIT_S = 15.0
 READ_BUDGET_S = 25.0
+JOB_BUDGET_S = 3600.0  # work in the long-job worker: this only tells a Designer that hangs from a slow one
+VERIFY_JOB_S = 600.0  # Designer's verification in the long-job worker
+
+
+def _job_budget(normal_s: float, long_s: float = JOB_BUDGET_S) -> float:
+    """The time a step may take: ``long_s`` in the long-job worker, else the call's."""
+    return long_s if jobs.in_worker() else normal_s
 SIZE_BUDGET_S = 10.0
 EXPORT_TIMEOUT_S = 38.0
 
@@ -1695,21 +1702,21 @@ def _run_verification(pid: int, vdrc: Path, grc: Path) -> tuple[list[dict[str, A
     def verify(app: Any) -> Any:
         return app.ExecuteCommandByID(verification.FULL_VERIFICATION_COMMAND)
 
-    outcome = _watched(pid, verify, timeout_s=VERIFY_WAIT_S)
+    outcome = _watched(pid, verify, timeout_s=_job_budget(VERIFY_WAIT_S, VERIFY_JOB_S))
     if outcome.done and outcome.error is not None:
-        _must(outcome, "starting Designer's verification", VERIFY_WAIT_S)
+        _must(outcome, "starting Designer's verification", _job_budget(VERIFY_WAIT_S, VERIFY_JOB_S))
     notes: list[dict[str, Any]] = []
     if not outcome.done and outcome.dialogs:
         title = str(outcome.dialogs[0].get("title", ""))
         notes.append(_note(f"Designer shows the dialog {title!r} during its verification; a person must answer it."))
-    while _mtime(vdrc) <= before[vdrc] and time.monotonic() - started < VERIFY_WAIT_S + 2.0:
+    while _mtime(vdrc) <= before[vdrc] and time.monotonic() - started < _job_budget(VERIFY_WAIT_S, VERIFY_JOB_S) + 2.0:
         _settle(POLL_S)
     findings: list[dict[str, Any]] = []
     if _mtime(vdrc) > before[vdrc]:
         _settle(POLL_S)  # let Designer finish writing the log
         findings += verification.parse_vdrc(env.tool_text(vdrc.read_bytes()))
     else:
-        notes.append(_note(f"Designer's verification did not write LogFiles/vdrc.log within {VERIFY_WAIT_S:g} s; its findings "
+        notes.append(_note(f"Designer's verification did not write LogFiles/vdrc.log within {_job_budget(VERIFY_WAIT_S, VERIFY_JOB_S):g} s; its findings "
                            "are not included. Run schematic check again once Designer is idle."))
     if _mtime(grc) > before[grc]:
         findings += verification.parse_grc(env.tool_text(grc.read_bytes()))
@@ -1728,7 +1735,7 @@ class SchematicCheck(Handler):
         logs = Path(prj).parent / "LogFiles"
         designer, notes, free = _run_verification(ref.pid, logs / "vdrc.log", logs / "grc.log")
         project: dict[str, Any] = {"project": "", "components": [], "nets": [], "connections": []}
-        remaining = READ_BUDGET_S - (time.monotonic() - started)
+        remaining = _job_budget(READ_BUDGET_S) - (time.monotonic() - started)
         if not free or remaining < 2.0:
             notes.append(_note("Designer was still busy, so this tool's netlist rules did not run."))
         else:

@@ -7,7 +7,7 @@ it ended. This module holds what the adapter needs around that:
 - ``in_worker``: whether this process is such a worker, so a step may take longer than a call;
 - ``running``: while a worker drives an instance, ``sessions`` reports that instance ``busy``;
 - ``Progress``: what a handler's ``run`` reports steps and dialogs to;
-- ``store_dir``, ``read`` and ``write``: files beside the adapter store, such as the library cache.
+- ``read`` and ``write``: small JSON files, such as the library cache's index.
 """
 from __future__ import annotations
 
@@ -27,11 +27,6 @@ WORKER_ENV = "XPEDITION_CLI_JOB_WORKER"  # set by the runtime in a long job's wo
 
 def in_worker() -> bool:
     return bool(os.environ.get(WORKER_ENV))
-
-
-def store_dir(store: AdapterStore) -> Path:
-    """The folder of the adapter store."""
-    return store._file("probe").parent  # noqa: SLF001 - the runtime keeps the folder private
 
 
 def utc_now() -> str:

@@ -22,11 +22,11 @@ At start-up Designer may stop at the Siemens licence sign-in. Only a person can 
 
 ## File mode and session mode
 
-File-mode commands work on the `.prj` without a session: project get, project create, part list, part get, part create, packager run, pcb create and schematic export. Designer commands: schematic get, schematic create and schematic check. Layout commands: forward-annotation run, pcb update, placement run, plane create, router run, pcb get, pcb check and pcb export.
+File-mode commands work on the `.prj` without a session: project get, doc create (a copy of a template project), part list, part get, part create, packager run, pcb create and schematic export. Designer commands: schematic get, schematic create and schematic check. Layout commands: forward-annotation run, pcb update, placement run, plane create, router run, pcb get, pcb check and pcb export.
 
 ## File-mode writes need the project closed in Designer
 
-While Designer has a project open, its database server locks `database/icdb.dat`. Designer also rewrites the `.prj` when it closes a project, so a change made to the file while the project is open can be lost. Before part create, packager run and pcb create, run doc save, then doc close for the project in Designer. project create needs its template project closed. part list, part get and schematic export only read the project; they worked with the project open.
+While Designer has a project open, its database server locks `database/icdb.dat`. Designer also rewrites the `.prj` when it closes a project, so a change made to the file while the project is open can be lost. Before part create, packager run and pcb create, run doc save, then doc close for the project in Designer. doc create in file mode needs its template project closed. part list, part get and schematic export only read the project; they worked with the project open.
 
 Do not close the project in Designer while Layout is opening the board of that project. Layout's database session broke with "iCDB error getting UID manager". Close it before Layout opens the board, or after the board is open.
 

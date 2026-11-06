@@ -7,8 +7,8 @@ starts and quits, packages it, creates the board PCB/Demo.pcb and starts Layout 
 quits that Layout, discarding the layout.
 """
 from _report import says_count, says_not_saved, says_open_nets, says_verified
-from _xpedition import board, build, confirm, design, fake, fake_board, job_of, near, observed, ok_calls, outline_of, \
-    poll, read, result, same_path, session_with, start, stop_all, verified, wait_job
+from _xpedition import ask, board, build, confirm, design, fake, fake_board, finally_verified, job_of, near, observed, \
+    ok_calls, outline_of, poll, read, read_result, same_path, session_with, start, stop_all, wait_job
 
 SCENARIO = "scoped_change"
 COMMANDS = ["forward-annotation run", "job get", "pcb update", "placement run", "plane create", "router run", "pcb check"]
@@ -65,7 +65,7 @@ def grade(run):
     checks = [c for c in run.ran("pcb check") if c.ok and first.get("router run") and c.started > first["router run"]]
     run.check(checks, "pcb check never succeeded after routing")
     if checks:
-        found = result({"data": checks[-1].data})
+        found = read_result(run, checks[-1])
         run.check(says_count(message, found.get("errors"), "error", "错误"), f"the answer does not give the {found.get('errors')} errors")
         run.check(says_count(message, found.get("warnings"), "warning", "警告"),
                   f"the answer does not give the {found.get('warnings')} warnings")
@@ -73,7 +73,7 @@ def grade(run):
     run.check(read(run, "doc", "get", *pcb).get("dirty") is True, "the board holds no unsaved changes")
     run.check(says_not_saved(message), "the report does not say that the board is not saved")
     writes = [calls[-1] for step, calls in done.items() if calls and step != "forward-annotation run"]
-    passed = all(verified(c) for c in writes) and ((job.get("receipt") or {}).get("outcome") or {}).get("verification") == "passed"
+    passed = all(finally_verified(run, c) for c in writes) and ((job.get("receipt") or {}).get("outcome") or {}).get("verification") == "passed"
     run.check(not (passed and len(writes) == len(STEPS) - 1) or says_verified(message), "read-back verified every step, but the report does not say so")
 
 
@@ -82,11 +82,11 @@ def lay_out(agent, plane=True):
     pcb = ["--session", session_with(agent, pcb_path), "--doc", str(pcb_path)]
     poll(agent, confirm(agent, "forward-annotation", "run", *pcb))
     confirm(agent, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm")
-    confirm(agent, "placement", "run", *pcb, "--design", str(agent.documents / "design.json"))
+    poll(agent, confirm(agent, "placement", "run", *pcb, "--design", str(agent.documents / "design.json")))
     if plane:
         confirm(agent, "plane", "create", *pcb, "--net", "GND", "--layer", "2")
-    confirm(agent, "router", "run", *pcb)
-    return pcb, result({"data": agent.run("pcb", "check", *pcb).data})
+    poll(agent, confirm(agent, "router", "run", *pcb))
+    return pcb, ask(agent, "pcb", "check", *pcb)
 
 
 def right(agent, turn):

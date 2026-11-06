@@ -6,7 +6,7 @@ hook makes Demo.prj with its parts, starts Designer, draws the schematic from
 tests/inputs/design.json, saves it and quits Designer before the turn.
 """
 from _report import says_saved, says_verified
-from _xpedition import build, confirm, ok_calls, project, read, result, same_path, verified
+from _xpedition import build, confirm, finally_verified, ok_calls, poll, project, read, result, same_path
 
 SCENARIO = "scoped_change"
 COMMANDS = ["packager run", "pcb create", "project get"]
@@ -41,14 +41,14 @@ def grade(run):
     message = run.messages[-1]
     run.check(run.said("Demo.pcb"), "the answer does not say where the board file is")
     run.check(says_saved(message), "the report does not say that the packaging and the board are saved")
-    run.check(not (packs and boards and all(verified(c) for c in packs + boards)) or says_verified(message),
+    run.check(not (packs and boards and all(finally_verified(run, c) for c in packs + boards)) or says_verified(message),
               "read-back verified both steps, but the report does not say so")
 
 
 def right(agent, turn):
     prj = str(agent.documents / "Demo.prj")
-    packed = confirm(agent, "packager", "run", "--doc", prj)
-    made = confirm(agent, "pcb", "create", "--doc", prj, "--template", TEMPLATE)
+    packed = poll(agent, confirm(agent, "packager", "run", "--doc", prj))
+    made = poll(agent, confirm(agent, "pcb", "create", "--doc", prj, "--template", TEMPLATE))
     board = result({"data": agent.run("project", "get", "--doc", prj).data}).get("board")
     passed = all(((c.data or {}).get("receipt") or {}).get("outcome", {}).get("verification") == "passed" for c in (packed, made))
     agent.say(f"Changed: packaged the schematic of Demo.prj, then created the board {board} from the {TEMPLATE}.\n"

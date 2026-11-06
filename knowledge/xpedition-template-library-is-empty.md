@@ -2,7 +2,7 @@
 id: xpedition-template-library-is-empty
 title: The installation ships no parts; create them with part create
 kind: guide
-applies_to: [part list, part get, part create, schematic create, project create]
+applies_to: [part list, part get, part create, schematic create, doc create]
 tags: [library, parts, template]
 ---
 

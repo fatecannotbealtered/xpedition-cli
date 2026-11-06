@@ -1,4 +1,4 @@
-"""project get, project create, packager run and pcb create on temporary folders.
+"""project get, doc create (a project), packager run and pcb create on temporary folders.
 
 package.exe and JobWizard are faked at ``env.run_tool``; no Xpedition program runs.
 """
@@ -113,7 +113,7 @@ class ProjectGetTest(Case):
         self.assertEqual(self.error(lambda: PR.ProjectGet().read(self.ctx("project get", other)))["code"], "E_VALIDATION")
 
 
-# ------------------------------------------------------------------ project create
+# ------------------------------------------------------------------ doc create
 
 
 class ProjectCreateTest(Case):
@@ -136,17 +136,19 @@ class ProjectCreateTest(Case):
         self.new = self.tmp / "work" / "demo" / "Demo.prj"
 
     def create(self, output: Path | None = None, **request: Any) -> base.Context:
-        return self.ctx("project create", self.template, {"output": str(output or self.new)}, **request)
+        return self.ctx("doc create", self.template, {"output": str(output or self.new)}, **request)
 
     def test_the_preview_names_the_new_project_and_copies_nothing(self):
-        out = PR.ProjectCreate().preview(self.create())
+        out = PR.NewProject().preview(self.create())
         self.assertEqual(out["targets"], [{"key": base.key(str(self.new)), "kind": "project", "label": str(self.new)}])
         self.assertEqual(out["changes"], [{"target": base.key(str(self.new)), "field": "exists", "before": False, "after": True}])
         self.assertFalse(self.new.parent.exists())
 
-    def test_apply_copies_renames_and_relocates_the_library_references(self):
-        facts = PR.ProjectCreate().apply(self.create(operation_id="op_1"))
-        self.assertEqual((facts["change"], facts["persistence"], facts["files"]), ("not_applicable", "saved", [{"path": str(self.new)}]))
+    def test_doc_create_copies_renames_and_relocates_the_library_references(self):
+        facts = PR.create_doc(self.store, {"operation_id": "op_1", "kind": "project", "path": str(self.new),
+                                           "template": str(self.template)})
+        self.assertEqual((facts["change"], facts["persistence"], facts["files"]), ("applied", "saved", [{"path": str(self.new)}]))
+        self.assertEqual((facts["document"]["id"], facts["document"]["kind"]), (str(self.new), "project"))
         folder = self.new.parent
         self.assertTrue(self.new.is_file() and not (folder / "Tpl.prj").exists())
         self.assertTrue((folder / "database" / "icdb.dat").is_file() and (folder / "PCB" / "Board.pcb").is_file())
@@ -161,8 +163,13 @@ class ProjectCreateTest(Case):
         self.assertEqual(sorted(r["key"] for r in result["rewritten"]), ["CentralLibrary", "DBCFile"])
         self.assertEqual(result["files"], sum(1 for p in folder.rglob("*") if p.is_file()))
         self.assertGreater(result["bytes"], 0)
-        back = PR.ProjectCreate().read_back(self.create(operation_id="op_1", targets=[base.key(str(self.new))], fields=["exists"]))
-        self.assertEqual(back["observed"], {base.key(str(self.new)): {"exists": True}})
+
+    def test_doc_create_refuses_what_it_does_not_make(self):
+        for request, code in (({"kind": "board", "path": str(self.new)}, "E_UNSUPPORTED"),
+                              ({"kind": "project"}, "E_VALIDATION"),
+                              ({"kind": "project", "path": str(self.new)}, "E_VALIDATION")):  # file mode copies a template
+            self.assertEqual(self.error(lambda r=request: PR.create_doc(self.store, {"operation_id": "op_1", **r}))["code"], code)
+        self.assertFalse(self.new.parent.exists())
 
     def test_an_external_library_is_left_where_it_is(self):
         shared = self.tmp / "shared" / "Shared.lmc"
@@ -170,7 +177,7 @@ class ProjectCreateTest(Case):
         shared.write_bytes(b"shared")
         text = self.template.read_bytes().decode("utf-8").replace(str(self.template.parent / "Library" / "Lib.lmc"), str(shared))
         self.template.write_bytes(text.encode("utf-8"))
-        PR.ProjectCreate().apply(self.create(operation_id="op_1"))
+        PR.NewProject().apply(self.create(operation_id="op_1"))
         self.assertIn(f'KEY CentralLibrary "{shared}"', self.new.read_text(encoding="utf-8"))
 
     def test_it_refuses_what_designer_could_not_use(self):
@@ -185,27 +192,27 @@ class ProjectCreateTest(Case):
         (busy / "other.txt").write_text("x", encoding="utf-8")
         cases.append((busy / "E.prj", "E_VALIDATION"))
         for output, code in cases:
-            error = self.error(lambda output=output: PR.ProjectCreate().preview(self.create(output)))
+            error = self.error(lambda output=output: PR.NewProject().preview(self.create(output)))
             self.assertEqual((error["code"], error["dispatch_state"]), (code, "not_started"), output)
-        ascii_error = self.error(lambda: PR.ProjectCreate().preview(self.create(self.tmp / "项目" / "C.prj")))
+        ascii_error = self.error(lambda: PR.NewProject().preview(self.create(self.tmp / "项目" / "C.prj")))
         self.assertEqual(ascii_error["knowledge"], ["xpedition-ascii-paths-only"])
-        missing = self.ctx("project create", self.tmp / "none.prj", {"output": str(self.new)})
-        self.assertEqual(self.error(lambda: PR.ProjectCreate().preview(missing))["code"], "E_NOT_FOUND")
+        missing = self.ctx("doc create", self.tmp / "none.prj", {"output": str(self.new)})
+        self.assertEqual(self.error(lambda: PR.NewProject().preview(missing))["code"], "E_NOT_FOUND")
         self.assertFalse(self.new.parent.exists())
 
     def test_an_empty_folder_is_used(self):
         self.new.parent.mkdir(parents=True)
-        PR.ProjectCreate().apply(self.create(operation_id="op_1"))
+        PR.NewProject().apply(self.create(operation_id="op_1"))
         self.assertTrue(self.new.is_file())
 
     def test_a_setup_template_or_one_without_its_database_is_refused(self):
         (self.template.parent / "database" / "icdb.dat").unlink()
-        self.assertEqual(self.error(lambda: PR.ProjectCreate().preview(self.create()))["code"], "E_VALIDATION")
+        self.assertEqual(self.error(lambda: PR.NewProject().preview(self.create()))["code"], "E_VALIDATION")
         setup = self.tmp / "setup" / "Default.prj"
         setup.parent.mkdir()
         setup.write_text('SECTION DesignInfo\nKEY CentralLibrary "x.lmc"\nENDSECTION\nSECTION iCDB\nKEY iCDBDir "./database"\n'
                          "ENDSECTION\n", encoding="utf-8")
-        error = self.error(lambda: PR.ProjectCreate().preview(self.ctx("project create", setup, {"output": str(self.new)})))
+        error = self.error(lambda: PR.NewProject().preview(self.ctx("doc create", setup, {"output": str(self.new)})))
         self.assertEqual(error["code"], "E_UNSUPPORTED")
 
     def test_a_partition_without_a_parts_database_gets_one_in_the_new_project(self):
@@ -215,7 +222,7 @@ class ProjectCreateTest(Case):
         text = self.template.read_bytes().decode("utf-8")
         text = text.replace('VALUE "SymbolLibs\\Globals"', 'VALUE "SymbolLibs\\Globals"\r\nVALUE "SymbolLibs\\Case"')
         self.template.write_bytes(text.encode("utf-8"))
-        facts = PR.ProjectCreate().apply(self.create(operation_id="op_1"))
+        facts = PR.NewProject().apply(self.create(operation_id="op_1"))
         created = self.new.parent / "Library" / "PartsDBLibs" / "Case.pdb"
         self.assertEqual(created.read_bytes(), b"stock-empty")
         self.assertEqual(facts["result"]["parts_databases"], {"created": [str(created)], "registered": ["Case.pdb"]})
@@ -501,7 +508,7 @@ if __name__ == "__main__":
 
 
 class ProjectCreateInDesignerTest(unittest.TestCase):
-    """project create in a Designer session: a new project from a setup template (Designer's
+    """doc create in a Designer session: a new project from a setup template (Designer's
     NewProject is faked here)."""
 
     def setUp(self):
@@ -520,18 +527,35 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
     def ctx(self, **extra):
         from xpedition_cli.adapter.base import Context
 
-        request = {"command": "project create", "session": "designer-12-ab",
+        request = {"command": "doc create", "session": "designer-12-ab",
                    "inputs": {"output": str(self.target), "template": str(self.template)}, **extra}
         return Context(AdapterStore(StateDir(self.tmp.name)), request)
 
-    def test_it_runs_designer_only_in_a_session(self):
-        from xpedition_cli.adapter.base import Context
+    def test_doc_create_in_a_session_runs_designer_unless_it_holds_a_project(self):
+        def fake_new_project(pid, target, template, library, progress):
+            Path(target).parent.mkdir(parents=True)
+            Path(target).write_text("prj", encoding="utf-8")
+            return {"designs": ["Board1"], "library": str(Path(target).parent / "Lib" / "Stock.lmc")}
 
-        self.assertTrue(PR.ProjectCreate().long(self.ctx()))
-        self.assertFalse(PR.ProjectCreate().long(Context(mock.Mock(), {"command": "project create", "inputs": {}})))
+        store = AdapterStore(StateDir(self.tmp.name))
+        request = {"operation_id": "op_1", "session": "designer-12-ab", "kind": "project", "path": str(self.target),
+                   "template": str(self.template)}
+        busy = (base.parse_session("designer-12-ab"), {"documents": [{"id": "D:/other/Other.prj"}]})
+        with mock.patch.object(sessions, "session_of", return_value=busy), \
+                mock.patch("xpedition_cli.adapter.designer.new_project") as called:
+            with self.assertRaises(AdapterError) as caught:
+                PR.create_doc(store, request)
+        self.assertEqual(caught.exception.data["conflict"], "application_state")
+        called.assert_not_called()
+        free = (base.parse_session("designer-12-ab"), {"documents": []})
+        with mock.patch.object(sessions, "session_of", return_value=free), \
+                mock.patch("xpedition_cli.adapter.designer.new_project", side_effect=fake_new_project):
+            facts = PR.create_doc(store, request)
+        self.assertEqual((facts["dispatch_state"], facts["change"], facts["persistence"]), ("dispatched", "applied", "saved"))
+        self.assertEqual(facts["document"]["id"], str(self.target))
 
     def test_preview_is_blocked_while_designer_has_a_project_open(self):
-        out = PR.ProjectCreate().preview(self.ctx(document=str(self.template)))
+        out = PR.NewProject().preview(self.ctx(document=str(self.template)))
         self.assertFalse(out["can_apply"])
         self.assertIn("doc close", out["blocked_by"][0])
 
@@ -542,7 +566,7 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
             return {"designs": ["Board1"], "library": str(Path(target).parent / "Lib" / "Stock.lmc")}
 
         with mock.patch("xpedition_cli.adapter.designer.new_project", side_effect=fake_new_project) as called:
-            out = PR.ProjectCreate().run(self.ctx(), lambda *a: None)
+            out = PR.NewProject().run(self.ctx(), lambda *a: None)
         self.assertEqual(called.call_args.args[:4], (12, str(self.target), str(self.template), str(self.lib)))
         self.assertEqual((out["change"], out["persistence"], out["files"]), ("not_applicable", "saved", [{"path": str(self.target)}]))
         self.assertEqual(out["result"]["designs"], ["Board1"])
@@ -553,5 +577,5 @@ class ProjectCreateInDesignerTest(unittest.TestCase):
         self.target.parent.mkdir(parents=True)
         (self.target.parent / "other.txt").write_text("x", encoding="utf-8")
         with self.assertRaises(AdapterError) as caught:
-            PR.ProjectCreate().preview(self.ctx())
+            PR.NewProject().preview(self.ctx())
         self.assertEqual(caught.exception.data["dispatch_state"], "not_started")

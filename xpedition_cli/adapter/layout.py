@@ -32,7 +32,7 @@ from urllib.parse import quote, unquote
 
 from .._driver import AdapterError
 from .._driver.targets import normalize
-from . import base
+from . import base, jobs
 from .plan import PlanError
 from .platform import com, dialogs, env, processes
 
@@ -59,6 +59,12 @@ OPEN_MIN_S = 10.0  # time a start needs left to open the board too
 # Opening, closing, saving and quitting run in the runtime's long-job worker (DCLI-065): they
 # may take minutes, and these limits only tell a Layout that hangs from a slow one.
 LIFECYCLE_BUDGET_S = 150.0
+JOB_BUDGET_S = 3600.0  # work in the long-job worker: this only tells a Layout that hangs from a slow one
+
+
+def job_budget(normal_s: float) -> float:
+    """The time a step may take: the long-job worker's limit there, else the call's."""
+    return JOB_BUDGET_S if jobs.in_worker() else normal_s
 QUIT_CALL_S = 60.0
 QUIT_WAIT_S = 60.0
 CLOSE_SETTLE_S = 0.5
@@ -180,9 +186,27 @@ def extrema_mm(obj: Any) -> tuple[float, float, float, float]:
             float(extrema.GetMaxX(UNIT_MM)), float(extrema.GetMaxY(UNIT_MM)))
 
 
+UNIT_SCALES = (0.0254, 25.4, 1.0, 0.001)  # mm per mil, inch, mm and um: the units a board may count in
+
+
 def geometry_scale(doc: Any) -> float | None:
-    """mm per unit of the raw geometry (PointsArray, CircleX, LineWidth). Measured only on boards
-    in mils (``CurrentUnit`` 2, the stock templates); None for any other unit."""
+    """mm per unit of the raw geometry (PointsArray, CircleX, LineWidth), which comes in the board's
+    current unit. It is measured on the board outline: its width in mm, which ``Extrema`` gives in
+    any unit, over its width in raw units, taken as the nearest board unit. Without an outline, a
+    board in mils (the stock templates) counts in mils; otherwise None."""
+    try:
+        outline = doc.BoardOutline
+        if outline is not None:
+            x0, _, x1, _ = extrema_mm(outline)
+            points = outline.Geometry.PointsArray
+            xs = [float(value) for value in points[0]] if points else []
+            raw = max(xs) - min(xs) if xs else 0.0
+            if raw > 0 and x1 > x0:
+                ratio = (x1 - x0) / raw
+                nearest = min(UNIT_SCALES, key=lambda unit: abs(ratio / unit - 1.0))
+                return nearest if abs(ratio / nearest - 1.0) < 0.02 else None
+    except Exception:  # noqa: BLE001 - the outline cannot be measured; fall back on the unit
+        pass
     try:
         return TH_TO_MM if int(doc.CurrentUnit) == UNIT_MILS else None
     except Exception:  # noqa: BLE001 - the unit cannot be read
@@ -204,7 +228,7 @@ def board_rect(doc: Any) -> tuple[float, float, float, float]:
 
 def outline_radius(doc: Any, outline: Any) -> float | None:
     """The board outline's corner radius in mm: the arc-centre rows of its points array carry it.
-    0 for square corners in any unit; None when the corners are rounded and the unit is not mils."""
+    0 for square corners; None when the corners are rounded and the board's unit cannot be measured."""
     points = outline.Geometry.PointsArray
     radii = [abs(float(value)) for value in (points[2] if points else ())]
     biggest = max(radii, default=0.0)

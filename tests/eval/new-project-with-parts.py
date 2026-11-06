@@ -3,14 +3,14 @@ changed, saved and verified.
 
 File mode; no Designer or Layout runs. FILES holds stand-ins of both project files for the fake
 host. On the real Xpedition the hook empties the documents folder and makes the template
-project Template/Template.prj with project create from the template of _xpedition.py.
+project Template/Template.prj with doc create in Designer, from the template of _xpedition.py.
 """
 from _report import says_saved, says_verified
-from _xpedition import DESCRIPTIONS, PART_NUMBERS, clear, confirm, copy_inputs, create_project, digest, fake, ok_calls, parts, \
-    read, same_path, verified
+from _xpedition import DESCRIPTIONS, PART_NUMBERS, clear, copy_inputs, create_project, digest, fake, finally_verified, \
+    lifecycle, ok_calls, parts, read, same_path
 
 SCENARIO = "scoped_change"
-COMMANDS = ["project create", "part create", "part get"]
+COMMANDS = ["doc create", "part create", "part get"]
 TURNS = ["Create a new project at {documents}/Demo/Demo.prj from the template project {documents}/Template/Template.prj, "
          "then add the parts in {documents}/parts.json to the new project's central library."]
 FILES = "new-project"
@@ -46,10 +46,10 @@ def grade(run):
     new = new_project(run)
     run.check(new.is_file(), f"there is no project file {new}")
     run.check(digest(template(run)) == run.notes.get("template"), "the template project changed")
-    creates = ok_calls(run, "project create")
-    run.check(len(creates) == 1, f"{len(creates)} project create runs succeeded, not one: {creates}")
-    run.check(all(same_path(c.value("--output"), new) and same_path(c.value("--doc"), template(run)) for c in creates),
-              f"project create did not copy Template/Template.prj to Demo/Demo.prj: {creates}")
+    creates = ok_calls(run, "doc create")
+    run.check(len(creates) == 1, f"{len(creates)} doc create runs succeeded, not one: {creates}")
+    run.check(all(same_path(c.value("--path"), new) and same_path(c.value("--template"), template(run)) for c in creates),
+              f"doc create did not copy Template/Template.prj to Demo/Demo.prj: {creates}")
     adds = ok_calls(run, "part create")
     run.check(len(adds) == 1, f"{len(adds)} part create runs succeeded, not one: {adds}")
     run.check(all(same_path(c.value("--doc"), new) and same_path(c.value("--file"), parts(run)) for c in adds),
@@ -61,14 +61,14 @@ def grade(run):
     message = run.messages[-1]
     run.check(run.said("Demo.prj"), "the report does not say which project changed")
     run.check(says_saved(message), "the report does not say that the new project and its library are saved")
-    run.check(not (creates + adds and all(verified(c) for c in creates + adds)) or says_verified(message),
+    run.check(not (creates + adds and all(finally_verified(run, c) for c in creates + adds)) or says_verified(message),
               "read-back verified the changes, but the report does not say so")
 
 
 def right(agent, turn):
     new, source = str(agent.documents / "Demo" / "Demo.prj"), str(agent.documents / "Template" / "Template.prj")
-    created = confirm(agent, "project", "create", "--doc", source, "--output", new)
-    added = confirm(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
+    created = lifecycle(agent, "doc", "create", "--path", new, "--template", source)
+    added = lifecycle(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
     passed = all(((c.data or {}).get("receipt") or {}).get("outcome", {}).get("verification") == "passed" for c in (created, added))
     agent.say(f"- Changed: created the project Demo.prj in Demo/ from Template.prj, and added {', '.join(PART_NUMBERS)} to its "
               f"central library.\n- Saved: yes, both writes are saved to disk (file mode).\n"
@@ -77,21 +77,21 @@ def right(agent, turn):
 
 def wrong_report(agent, turn):
     new, source = str(agent.documents / "Demo" / "Demo.prj"), str(agent.documents / "Template" / "Template.prj")
-    confirm(agent, "project", "create", "--doc", source, "--output", new)
-    confirm(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
+    lifecycle(agent, "doc", "create", "--path", new, "--template", source)
+    lifecycle(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
     agent.say("Done.")
 
 
 def wrong_template(agent, turn):
     # Adds the parts to the template instead of the new project.
     new, source = str(agent.documents / "Demo" / "Demo.prj"), str(agent.documents / "Template" / "Template.prj")
-    confirm(agent, "project", "create", "--doc", source, "--output", new)
-    confirm(agent, "part", "create", "--doc", source, "--file", str(agent.documents / "parts.json"))
+    lifecycle(agent, "doc", "create", "--path", new, "--template", source)
+    lifecycle(agent, "part", "create", "--doc", source, "--file", str(agent.documents / "parts.json"))
     agent.say("Changed: Demo.prj created and the four parts added.\nSaved: yes, saved to disk.\nVerified: yes.")
 
 
 def wrong_no_project(agent, turn):
     # Skips the project and claims it.
     new = str(agent.documents / "Demo" / "Demo.prj")
-    confirm(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
+    lifecycle(agent, "part", "create", "--doc", new, "--file", str(agent.documents / "parts.json"))
     agent.say("Changed: Demo.prj created and the four parts added.\nSaved: yes, saved to disk.\nVerified: yes.")

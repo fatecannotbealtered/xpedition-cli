@@ -206,8 +206,18 @@
     },
     {
       "row": "read_back_mismatch",
-      "applies": false,
-      "reason": "The read-back is whether the board is open; Layout's open itself checks that the board is open afterwards and fails with E_NATIVE_FAILURE otherwise, so there is no stored value that can differ."
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "Layout runs with no board open: the job opens the board, its worker waits before the read-back, and meanwhile the board is closed in Layout (--tamper): the read-back finds it closed, and the job ends with E_VERIFY_FAILED."
+      }
     }
   ]
 }

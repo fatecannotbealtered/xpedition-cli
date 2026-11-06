@@ -39,6 +39,8 @@ def obj(**props: dict[str, Any]) -> dict[str, Any]:
 
 
 FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
+BOARD_COORDINATES = ("Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update "
+                     "draws; x to the right, y up, seen from the top side.")
 
 # The commands whose behavior matrix passed in full on Xpedition 2604, and the live records of
 # those runs (DVER-040, DVER-041).
@@ -122,7 +124,8 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
             flags: list[dict[str, Any]] | None = None, output: dict[str, Any],
             examples: list[str], untrusted: list[str] | None = None, irreversible: bool = False,
             kinds: list[str], long: bool = False, tolerances: dict[str, float] | None = None,
-            default_fields: list[str] | None = None, knowledge: list[str] | None = None) -> dict[str, Any]:
+            default_fields: list[str] | None = None, knowledge: list[str] | None = None,
+            coordinates: str | None = None) -> dict[str, Any]:
     reg: dict[str, Any] = {
         "path": path,
         "summary": summary,
@@ -144,6 +147,8 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
     }
     if long:
         reg["long"] = True
+    if coordinates:
+        reg["output_coordinate_system"] = coordinates
     return reg
 
 
@@ -156,22 +161,9 @@ COMMANDS: list[dict[str, Any]] = [
                    designs=arr(obj(name=STR, kind=STR, board=STR, board_exists=BOOL, layout_template=STR)),
                    board=STR, symbol_libraries=arr(STR), parts_databases=arr(STR), cell_libraries=arr(STR),
                    ascii_path=BOOL),
-        untrusted=["designs", "xpedition_version"],
+        untrusted=["designs", "xpedition_version", "central_library", "board", "symbol_libraries", "parts_databases",
+                   "cell_libraries"],
         examples=["xpedition-cli project get --doc D:/work/demo/Demo.prj"],
-    ),
-    command(
-        "project create", "Create a project: in a Designer session from a setup template, with its own copy of the central "
-        "library and a board design (a long job); in file mode by copying the project given with --doc.",
-        effects=["artifact"], modes=["file", "session"], kinds=["project"], target_kind="project", long=True,
-        flags=[{"name": "--output", "type": "path", "required": True, "output": True,
-                "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII."},
-               {"name": "--template", "type": "path",
-                "summary": "In a Designer session: the setup template; Xpedition's stock template (expedition/Default.prj) by default."}],
-        output=obj(path=STR, template=STR, files=INT, bytes=INT, rewritten=arr(obj(key=STR, value=STR)),
-                   parts_databases=obj(created=arr(STR), registered=arr(STR)), designs=arr(STR), library=STR),
-        examples=["xpedition-cli project create --session designer-4120-6553f1a0 --output D:/work/demo/Demo.prj",
-                  "xpedition-cli project create --doc D:/templates/Template/Template.prj --output D:/work/demo/Demo.prj"],
-        knowledge=['xpedition-ascii-paths-only', 'xpedition-template-library-is-empty'],
     ),
     # ------------------------------------------------------------------ central library
     command(
@@ -179,7 +171,8 @@ COMMANDS: list[dict[str, Any]] = [
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         output=obj(items=arr(obj(id=STR, partition=STR, description=STR, prefix=STR, type=STR, cell=STR,
                                  symbols=arr(STR), pins=INT, value=STR)), total=INT),
-        untrusted=["description", "value"], default_fields=["id", "partition", "description", "cell", "pins"],
+        untrusted=["id", "partition", "description", "prefix", "type", "cell", "symbols", "value"],
+        default_fields=["id", "partition", "description", "cell", "pins"],
         examples=["xpedition-cli part list --doc D:/work/demo/Demo.prj --limit 20"],
         knowledge=['library-converter-rules'],
     ),
@@ -188,15 +181,27 @@ COMMANDS: list[dict[str, Any]] = [
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         flags=[{"name": "--id", "type": "string", "required": True, "summary": "The part number."}],
         output=obj(id=STR, partition=STR, description=STR, prefix=STR, value=STR, properties=OBJ,
-                   pins=arr(obj(symbol=STR, name=STR, number=STR)), symbols=arr(OBJ), cell=OBJ, padstacks=OBJ,
-                   also_in=arr(STR), findings=arr(FINDING)),
-        untrusted=["description", "value", "properties"],
+                   pins=arr(obj(symbol=STR, name=STR, number=STR)),
+                   symbols=arr(obj(reference=STR, partition=STR, name=STR, kind=STR, device=STR, version=INT,
+                                   pins=arr(obj(number=STR, name=STR, type=STR, x_mm=NUM, y_mm=NUM, body_x_mm=NUM,
+                                                body_y_mm=NUM, side=STR)),
+                                   bbox_mm=arr(NUM))),
+                   cell=obj(name=STR, partition=STR, kind=STR, group=STR, mount=STR, layers=INT, description=STR,
+                            height_mm=NUM, pins=arr(obj(number=STR, x_mm=NUM, y_mm=NUM, padstack=STR, rotation_deg=NUM)),
+                            holes=arr(OBJ), placement=arr(obj(kind=STR, points_mm=arr(arr(NUM)), width_mm=NUM))),
+                   padstacks=OBJ, also_in=arr(STR), findings=arr(FINDING)),
+        untrusted=["id", "partition", "description", "prefix", "value", "properties", "pins", "symbols", "cell", "padstacks",
+                   "also_in", "findings"],
+        coordinates=("Symbol pins and box: mm from the symbol origin, x to the right, y up. Cell pins, holes and placement "
+                     "outline: mm from the cell origin, x to the right, y up, seen from the top side. Padstack sizes are "
+                     "lengths, not coordinates."),
         examples=["xpedition-cli part get --doc D:/work/demo/Demo.prj --id RES-10K-0402"],
         knowledge=['library-converter-rules', 'cell-pin-count-must-match'],
     ),
     command(
-        "part create", "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
-        effects=["change"], modes=["file"], kinds=["project"], target_kind="part",
+        "part create", "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map; "
+        "runs as a long job.",
+        effects=["change"], modes=["file"], kinds=["project"], target_kind="part", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
                 "summary": "The parts file (JSON). A part identical to the library's is skipped; a part number the library holds with other content is refused."}],
         output=obj(partition=STR, created=arr(STR), skipped=arr(STR), symbols=arr(STR), cells=arr(STR), padstacks=arr(STR)),
@@ -222,7 +227,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "schematic create", "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
-        effects=["change", "persist"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
+        effects=["change", "persist", "artifact"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
         flags=[{"name": "--design", "type": "path", "required": True,
                 "summary": "The design file (JSON): sheets, parts by central-library part number, and the pin of every connection."}],
         output=obj(sheets=arr(INT), parts=INT, nets=INT, operations=INT, symbols_written=arr(STR), warnings=arr(STR)),
@@ -231,9 +236,10 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['designer-power-symbols', 'designer-pin-on-wire-corner', 'designer-symbol-cache', 'designer-reopen-after-sheet-changes', 'designer-one-instance-only'],
     ),
     command(
-        "schematic check", "Run Designer's verification and this tool's netlist rules, and list the problems found.",
-        effects=["observe"], modes=["session"], kinds=["project"], target_kind="schematic",
-        output=obj(findings=arr(FINDING), errors=INT, warnings=INT, complete=BOOL, logs=OBJ),
+        "schematic check", "Run Designer's verification and this tool's netlist rules, and list the problems found; runs as a "
+        "long job.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
+        output=obj(findings=arr(FINDING), errors=INT, warnings=INT, complete=BOOL, logs=arr(STR)),
         untrusted=["findings"],
         examples=["xpedition-cli schematic check --session designer-4120 --doc D:/work/demo/Demo.prj"],
         knowledge=['designer-pin-types-and-erc', 'designer-reopen-after-sheet-changes'],
@@ -249,11 +255,12 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     # ------------------------------------------------------------------ board (Layout)
     command(
-        "pcb create", "Create the project's board from a layout template with Xpedition's JobWizard.",
-        effects=["change", "persist"], modes=["file"], kinds=["project"], target_kind="pcb",
+        "pcb create", "Create the project's board from a layout template with Xpedition's JobWizard; runs as a long job.",
+        effects=["change", "persist", "artifact"], modes=["file"], kinds=["project"], target_kind="pcb", long=True,
         flags=[{"name": "--template", "type": "string", "summary": "The layout template's name; 4 Layer Template by default."},
                {"name": "--name", "type": "string", "summary": "The board's name: letters, digits, - and _; the project's name by default."}],
         output=obj(path=STR, template=STR, files=INT, cells_registered=arr(STR)),
+        untrusted=["cells_registered"],
         examples=["xpedition-cli pcb create --doc D:/work/demo/Demo.prj"],
         knowledge=['prj-cell-library-list'],
     ),
@@ -268,22 +275,25 @@ COMMANDS: list[dict[str, Any]] = [
     command(
         "pcb update", "Replace the board outline by a rectangle from the origin; the route border and manufacturing outline follow.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="pcb",
-        flags=[{"name": "--width", "type": "quantity", "quantity": "length", "summary": "The board's width."},
-               {"name": "--height", "type": "quantity", "quantity": "length", "summary": "The board's height."},
-               {"name": "--radius", "type": "quantity", "quantity": "length", "summary": "The corner radius; 0 for square corners."}],
+        flags=[{"name": "--width", "type": "quantity", "quantity": "length", "required": True, "summary": "The board's width."},
+               {"name": "--height", "type": "quantity", "quantity": "length", "required": True, "summary": "The board's height."},
+               {"name": "--radius", "type": "quantity", "quantity": "length",
+                "summary": "The corner radius, 0 for square corners; the board's current radius by default."}],
         output=obj(width_mm=NUM, height_mm=NUM, radius_mm=NUM, route_border_inset_mm=NUM),
         tolerances={"width_mm": 0.001, "height_mm": 0.001, "radius_mm": 0.001},
         examples=["xpedition-cli pcb update --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --width 70mm --height 48mm --radius 3mm"],
     ),
     command(
-        "placement run", "Place every component of the board from its connections, grouped by schematic sheet.",
-        effects=["change"], modes=["session"], kinds=["board"], target_kind="component",
+        "placement run", "Place every component of the board from its connections, grouped by schematic sheet; runs as a long job.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="component", long=True,
         flags=[{"name": "--design", "type": "path", "summary": "The design file the schematic was drawn from; its sheets and zones group the parts."},
                {"name": "--all", "type": "boolean", "summary": "Place the parts already placed again too."}],
         output=obj(placed=INT, clusters=arr(obj(name=STR, parts=arr(STR))), outside=arr(STR), labels=arr(STR),
-                   routing_removed=OBJ),
-        untrusted=["clusters", "outside", "labels"],
+                   routing_removed=OBJ,
+                   components=arr(obj(id=STR, x_mm=NUM, y_mm=NUM, rotation_deg=NUM)), components_total=INT),
+        untrusted=["clusters", "outside", "labels", "components"],
         tolerances={"x_mm": 0.001, "y_mm": 0.001, "rotation_deg": 0.01},
+        coordinates=BOARD_COORDINATES + " A component's position is its cell origin.",
         examples=["xpedition-cli placement run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --design D:/work/demo/design.json"],
         knowledge=['layout-placement-drc', 'layout-unplaced-parts-invisible'],
     ),
@@ -298,8 +308,8 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-plane-draft-state', 'layout-pour-after-routing'],
     ),
     command(
-        "router run", "Route every open net with Layout's autorouter passes.",
-        effects=["change"], modes=["session"], kinds=["board"], target_kind="net",
+        "router run", "Route every open net with Layout's autorouter passes; runs as a long job.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="net", long=True,
         flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."}],
         output=obj(nets=INT, routed=INT, open=arr(STR), traces=INT, vias=INT, passes=arr(STR), skipped_passes=arr(STR),
                    planes_regenerated=INT),
@@ -312,21 +322,25 @@ COMMANDS: list[dict[str, Any]] = [
         effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
-        output=obj(path=STR, layers=INT, components=OBJ, nets=OBJ, traces=INT, vias=INT, outline=OBJ, stackup=arr(OBJ),
-                   net_classes=arr(OBJ), keepouts=INT, geometry=OBJ, metrics=OBJ, output=STR),
+        output=obj(path=STR, layers=INT, components=OBJ, nets=OBJ, traces=INT, vias=INT,
+                   outline=obj(width_mm=NUM, height_mm=NUM, radius_mm=NUM, extents_mm=arr(NUM)), stackup=arr(OBJ),
+                   net_classes=arr(obj(name=STR, nets=INT, widths=OBJ)), keepouts=INT,
+                   geometry=obj(available=BOOL, reason=STR, outline_mm=arr(arr(NUM)), counts=OBJ), metrics=OBJ, output=STR),
         untrusted=["stackup", "net_classes", "metrics"],
+        coordinates=BOARD_COORDINATES + " The net classes' widths are per conductor layer: minimum_mm, typical_mm and expansion_mm.",
         examples=["xpedition-cli pcb get --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --fields layers,nets,metrics"],
         knowledge=['layout-trace-widths-through-cm'],
     ),
     command(
-        "pcb check", "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard.",
-        effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb",
+        "pcb check", "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard; runs as a long job.",
+        effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
         output=obj(hazards=arr(obj(type=STR, severity=STR, description=STR, x_mm=NUM, y_mm=NUM, objects=arr(STR),
                                    actual_mm=NUM, required_mm=NUM)),
                    rules=arr(FINDING), errors=INT, warnings=INT, hazard_count=INT, rule_count=INT, drc=OBJ, output=STR),
         untrusted=["hazards", "rules"],
+        coordinates=BOARD_COORDINATES,
         examples=["xpedition-cli pcb check --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb"],
         knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad'],
     ),

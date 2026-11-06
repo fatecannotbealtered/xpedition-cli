@@ -6,7 +6,8 @@ schematic in a Designer it starts and quits, packages it and creates the board P
 after quits the Layout the Agent started if it still runs.
 """
 from _report import says_closed, says_count, says_number
-from _xpedition import board, build, ended, fake, fake_board, lifecycle, ok_calls, outline_of, result, same_path, stop_all, write
+from _xpedition import board, build, ended, fake, fake_board, lifecycle, ok_calls, outline_of, result, same_path, stop_all, \
+    write
 
 SCENARIO = "scoped_change"
 COMMANDS = ["session open", "session get", "pcb get", "session close"]

@@ -256,15 +256,20 @@ def describe_run(run: env.ToolRun, log_errors: list[str] | None = None) -> str:
     return ", ".join(reasons) or "it wrote no output"
 
 
+def cache_root() -> Path:
+    """Where the library exports are kept between calls: this user's cache folder, outside the
+    state directory, which only the runtime writes (DSEC-031). Losing it costs one export."""
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(base) / "xpedition-cli" / CACHE_FOLDER
+
+
 def cache_for(ctx: Context) -> Path:
-    return jobs.store_dir(ctx.store) / CACHE_FOLDER
+    return cache_root()
 
 
 def default_cache() -> Path:
-    """The cache ``load_library`` uses: the same folder as ``cache_for``, found from the state
-    directory the runtime uses (``XPEDITION_CLI_STATE_DIR`` or ``~/.xpedition-cli``)."""
-    state = os.environ.get("XPEDITION_CLI_STATE_DIR") or str(Path.home() / ".xpedition-cli")
-    return Path(state) / "adapter" / CACHE_FOLDER
+    """The cache ``load_library`` uses: the same folder as ``cache_for``."""
+    return cache_root()
 
 
 def _budget() -> float | None:
@@ -444,17 +449,41 @@ def _finding(index: int, found: dict[str, Any]) -> dict[str, Any]:
             "objects": objects}
 
 
+SHEET_UNIT_MM = 0.254  # a symbol's coordinates are in sheet units of 10 mil
+MM_KEYS = {"x": "x_mm", "y": "y_mm", "width": "width_mm", "height": "height_mm", "radius": "radius_mm",
+           "diameter": "diameter_mm", "points": "points_mm", "rotation": "rotation_deg"}
+
+
+def with_units(value: Any) -> Any:
+    """A cell or padstack in millimetres, with the unit in every key of a quantity (DCLI-081)."""
+    if isinstance(value, dict):
+        return {MM_KEYS.get(k, k): with_units(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [with_units(v) for v in value]
+    return value
+
+
+def _sheet_mm(value: float) -> float:
+    return round(float(value) * SHEET_UNIT_MM, 4)
+
+
 def _symbol_view(symbol: dict[str, Any]) -> dict[str, Any]:
-    """A symbol as part get shows it: its pins and box, without the drawing and the file path."""
-    out = {k: v for k, v in symbol.items() if k not in ("lines", "attributes", "path")}
+    """A symbol as part get shows it: its pins and box in mm from the symbol origin, without the
+    drawing and the file path."""
+    out = {k: v for k, v in symbol.items() if k not in ("lines", "attributes", "path", "pins", "bbox")}
     out["reference"] = f"{symbol['partition']}:{symbol['name']}"
+    out["pins"] = [{"number": p.get("number", ""), "name": p.get("name", ""), "type": p.get("type", ""),
+                    "x_mm": _sheet_mm(p["x"]), "y_mm": _sheet_mm(p["y"]),
+                    "body_x_mm": _sheet_mm(p["bx"]), "body_y_mm": _sheet_mm(p["by"]), "side": p.get("side", "")}
+                   for p in symbol.get("pins", [])]
+    out["bbox_mm"] = [_sheet_mm(v) for v in symbol.get("bbox", [])]
     return out
 
 
 def _cell_view(cell: dict[str, Any]) -> dict[str, Any]:
-    """A cell as part get shows it: its pins, holes and placement outline, without the silkscreen,
-    assembly drawing and texts."""
-    return {k: v for k, v in cell.items() if k not in ("silkscreen", "assembly", "texts")}
+    """A cell as part get shows it: its pins, holes and placement outline in mm from the cell
+    origin, without the silkscreen, assembly drawing and texts."""
+    return with_units({k: v for k, v in cell.items() if k not in ("silkscreen", "assembly", "texts")})
 
 
 class PartGet(Handler):
@@ -487,7 +516,7 @@ class PartGet(Handler):
             "pins": [{"symbol": p["symbol"], "name": p["name"], "number": p["number"]} for p in part["pins"]],
             "symbols": [_symbol_view(s) for s in symbols if s is not None],
             "cell": _cell_view(cell) if cell else {},
-            "padstacks": {name: R.padstack_geometry(library.padstacks, name) for name in stacks},
+            "padstacks": {name: with_units(R.padstack_geometry(library.padstacks, name)) for name in stacks},
             "also_in": [p["partition"] for p in found[1:]],
             "findings": [_finding(i, f) for i, f in enumerate(findings, start=1)],
         }
@@ -710,7 +739,13 @@ class _Import:
 
 
 class PartCreate(Handler):
+    """Runs as a long job (DCLI-065): the library converters may take minutes."""
+
     command = "part create"
+    long_job = True
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         work = _work_out(ctx)

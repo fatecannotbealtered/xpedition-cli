@@ -225,11 +225,18 @@ OUTLINE_SETTERS = (("board_outline", "PutBoardOutline", "board outline"), ("rout
                    ("manufacturing_outline", "PutManufacturingOutline", "manufacturing outline"))
 
 
-def _outline_inputs(ctx: Context) -> tuple[float, float, float]:
+def _outline_inputs(ctx: Context, current_radius: float | None) -> tuple[float, float, float]:
+    """The new outline: the given width and height, and the given radius or else the board's
+    current one, since pcb update changes only what it is given."""
     width, height = ctx.inputs.get("width_mm"), ctx.inputs.get("height_mm")
     if width is None or height is None:
         raise AdapterError("E_VALIDATION", "pcb update needs both --width and --height.", dispatch_state="not_started")
-    radius = ctx.inputs.get("radius_mm") or 0.0
+    radius = ctx.inputs.get("radius_mm")
+    if radius is None:
+        if current_radius is None:
+            raise AdapterError("E_VALIDATION", "The board's current corner radius cannot be read, so it cannot be kept; give "
+                               "--radius (0 for square corners).", dispatch_state="not_started")
+        radius = current_radius
     try:
         plan_outline.targets(width, height, radius)
     except PlanError as exc:
@@ -249,9 +256,9 @@ class OutlineUpdate(L.ReadsBack):
     command = "pcb update"
 
     def preview(self, ctx: Context) -> dict[str, Any]:
-        width, height, radius = _outline_inputs(ctx)
         path = ctx.document_path()
         current = L.in_layout(ctx, lambda app, doc: L.outline_values(doc), budget_s=L.READ_BUDGET_S, what="reading the board outline")
+        width, height, radius = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
         key = base.key(path, L.OUTLINE_KEY)
         changes = [base.change(key, field, current.get(field), value)
                    for field, value in (("width_mm", width), ("height_mm", height), ("radius_mm", radius))]
@@ -261,10 +268,10 @@ class OutlineUpdate(L.ReadsBack):
                             [base.target(path, "outline", L.OUTLINE_KEY, label="board outline")], changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
-        width, height, radius = _outline_inputs(ctx)
-        contours = plan_outline.targets(width, height, radius)
-
         def work(app: Any, doc: Any) -> dict[str, Any]:
+            current = L.outline_values(doc)
+            width, height, radius = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
+            contours = plan_outline.targets(width, height, radius)
             done: list[str] = []
             for key, setter, label in OUTLINE_SETTERS:
                 rows = _rows(contours[key]["points_mm"])
@@ -276,7 +283,9 @@ class OutlineUpdate(L.ReadsBack):
                 except Exception as exc:  # noqa: BLE001 - classified
                     return L.failed_step(exc, f"writing the {label}", done)
                 done.append(f"the {label}")
-            return base.facts("applied", "unchanged", result={"width_mm": width, "height_mm": height, "radius_mm": radius,
+            stored = L.outline_values(doc)  # the outline as Layout now holds it (DCLI-068)
+            return base.facts("applied", "unchanged", result={"width_mm": stored["width_mm"], "height_mm": stored["height_mm"],
+                                                              "radius_mm": stored["radius_mm"],
                                                               "route_border_inset_mm": plan_outline.INSET_MM})
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="writing the board outline")
@@ -289,7 +298,7 @@ LABEL_LAYER_SILKSCREEN = 2  # epcbFabSilkscreen
 SIDE_TOP = 1  # epcbSideTop
 LABEL_PEN_MM = 0.15
 LABEL_FONT = "VeriBest Gerber 0"
-PLACE_BUDGET_S = 34.0  # no part is placed past this, so that apply ends before 45 s
+PLACE_BUDGET_S = 34.0  # outside the long-job worker no part is placed past this, so that a call ends before 45 s
 
 
 def design_zones(design: Any) -> dict[str, str]:
@@ -610,7 +619,7 @@ def _place(doc: Any, include_placed: bool, zones: dict[str, str]) -> dict[str, A
                         steps.append("lifting the parts")
                     component.UnPlace()
             for item in plan.placements:
-                if time.monotonic() - started > PLACE_BUDGET_S:
+                if time.monotonic() - started > L.job_budget(PLACE_BUDGET_S):
                     return base.facts("partial", "unchanged", result=_placement_result(plan, placed_count, []),
                                       native_message=f"Stopped after {placed_count} of {len(plan.placements)} parts to stay within the "
                                       "call's time limit; run placement run --all to place every part again.")
@@ -625,7 +634,21 @@ def _place(doc: Any, include_placed: bool, zones: dict[str, str]) -> dict[str, A
     labels = _write_labels(doc, plan.labels)
     result = _placement_result(plan, placed_count, labels)
     result["routing_removed"] = removed
+    result["components"] = _placed_components(doc, plan)
+    result["components_total"] = len(plan.placements)
     return base.facts("applied", "unchanged", result=result)
+
+
+COMPONENTS_LISTED = 60  # positions in the result; pcb get and the read-back cover a larger board
+
+
+def _placed_components(doc: Any, plan: board_layout.Plan) -> list[dict[str, Any]]:
+    """Where Layout now holds each placed part: its cell origin in board coordinates and its rotation (DCLI-068)."""
+    rows: list[dict[str, Any]] = []
+    for item in plan.placements[:COMPONENTS_LISTED]:
+        values = L.component_values(L.find_component(doc, item.refdes))
+        rows.append({"id": item.refdes, "x_mm": values["x_mm"], "y_mm": values["y_mm"], "rotation_deg": values["rotation_deg"]})
+    return rows
 
 
 def _placement_result(plan: board_layout.Plan, placed: int, labels: list[dict[str, Any]]) -> dict[str, Any]:
@@ -638,6 +661,7 @@ class PlacementRun(L.ReadsBack):
     connectors on the edges, test points along the bottom, a zone label per sheet."""
 
     command = "placement run"
+    long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
@@ -647,11 +671,12 @@ class PlacementRun(L.ReadsBack):
                            what="reading the components")
         return _placement_preview(path, look)
 
-    def apply(self, ctx: Context) -> dict[str, Any]:
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        """In the long-job worker: placing many parts takes Layout minutes on a large board."""
         zones = design_zones(ctx.inputs.get("design"))
         include_placed = bool(ctx.inputs.get("all"))
-        return L.in_layout(ctx, lambda app, doc: _place(doc, include_placed, zones), budget_s=L.WRITE_BUDGET_S, write=True,
-                           what="placing the components")
+        return L.in_layout(ctx, lambda app, doc: _place(doc, include_placed, zones), budget_s=L.job_budget(L.WRITE_BUDGET_S),
+                           write=True, what="placing the components")
 
 
 # ------------------------------------------------------------------ plane shapes
@@ -758,7 +783,7 @@ class PlaneCreate(L.ReadsBack):
 
 # ------------------------------------------------------------------ the autorouter
 
-ROUTE_BUDGET_S = 30.0  # no pass starts past this; a running pass cannot be interrupted
+ROUTE_BUDGET_S = 30.0  # outside the long-job worker no pass starts past this; a running pass cannot be interrupted
 SECOND_ROUND_S = 12.0  # a second round after the plane regeneration starts only this early
 OPEN_LISTED = 50
 
@@ -856,6 +881,7 @@ class RouterRun(L.ReadsBack):
     there is time."""
 
     command = "router run"
+    long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         layers = _layers(ctx)
@@ -876,11 +902,12 @@ class RouterRun(L.ReadsBack):
         return base.preview(f"Route {len(look['open'])} open nets with the autorouter passes {plan_routing.DEFAULT_ROUTE_PASSES}{on}, then "
                             "regenerate the planes so that the new vias tie in. The board is not saved.", targets, changes)
 
-    def apply(self, ctx: Context) -> dict[str, Any]:
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        """In the long-job worker: the autorouter passes take Layout minutes on a large board."""
         layers = _layers(ctx)
         passes = plan_routing.parse_route_passes("")
-        return L.in_layout(ctx, lambda app, doc: self._route(doc, layers, passes), budget_s=L.WRITE_BUDGET_S, write=True,
-                           what="routing the board")
+        return L.in_layout(ctx, lambda app, doc: self._route(doc, layers, passes), budget_s=L.job_budget(L.WRITE_BUDGET_S),
+                           write=True, what="routing the board")
 
     @staticmethod
     def _route(doc: Any, layers: list[int], passes: list[dict[str, Any]]) -> dict[str, Any]:
@@ -895,7 +922,7 @@ class RouterRun(L.ReadsBack):
         regenerated = 0
         for round_number in (1, 2):
             for item in passes:
-                if time.monotonic() - started > ROUTE_BUDGET_S:
+                if time.monotonic() - started > L.job_budget(ROUTE_BUDGET_S):
                     if round_number == 1:
                         skipped.append(item["pass"])
                     continue
@@ -909,7 +936,7 @@ class RouterRun(L.ReadsBack):
             except Exception as exc:  # noqa: BLE001 - classified
                 return L.failed_step(exc, "regenerating the planes", done)
             still_open = any(not row["routed"] for row in L.route_status(doc).values())
-            if not still_open or time.monotonic() - started > SECOND_ROUND_S:
+            if not still_open or time.monotonic() - started > L.job_budget(SECOND_ROUND_S):
                 break
         message = (f"Passes {', '.join(skipped)} did not run: the call's time limit was near. Run router run again to route what is "
                    "left.") if skipped else None
