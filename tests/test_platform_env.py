@@ -86,7 +86,7 @@ def environment_keys(user: dict | None = None, machine: dict | None = None) -> d
 
 class EnvCase(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp()).resolve()  # long folder names, as the tool reports them
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.registry({})  # never the real registry
         self.environ()
@@ -432,7 +432,7 @@ class FakePopen:
 
 class RunTool(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp()).resolve()  # long folder names, as the tool reports them
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.program = self.tmp / "bin" / "PartsDB2HKP.exe"
         self.program.parent.mkdir()

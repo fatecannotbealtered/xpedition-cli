@@ -90,6 +90,15 @@ class Context:
         return self.session
 
 
+def same_path(left: Any, right: Any) -> bool:
+    """Whether two paths name the same file, also when one is written with short (8.3) folder
+    names, as a temporary folder can be, and the other with long ones."""
+    a, b = str(left), str(right)
+    if os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b)):
+        return True
+    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+
+
 def key(path: str, domain_path: str | None = None) -> str:
     """The target key of a file, or of an object in it (DCLI-028): ``file:///D:/p/x.prj#/parts/R1``."""
     return file_key(os.path.abspath(path), domain_path)

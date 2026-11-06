@@ -33,6 +33,7 @@ from urllib.parse import quote, unquote
 from .._driver import AdapterError
 from .._driver.targets import normalize
 from . import base, jobs
+from .base import same_path
 from .plan import PlanError
 from .platform import com, dialogs, env, processes
 
@@ -104,10 +105,6 @@ def __getattr__(name: str) -> Any:
 
 
 # ------------------------------------------------------------------ small helpers
-
-
-def same_path(left: Any, right: Any) -> bool:
-    return os.path.normcase(os.path.abspath(str(left))) == os.path.normcase(os.path.abspath(str(right)))
 
 
 def items(collection: Any) -> list[Any]:
