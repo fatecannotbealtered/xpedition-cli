@@ -650,14 +650,22 @@ class BoardExport(base.Handler):
         return {"change": "not_applicable", "persistence": "saved", "result": result, "files": [{"path": item} for item in files]}
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
-        """The package is verified by its files; this reports which of the previewed files exist."""
+        """Which of the previewed files exist, and whether each output setup the run patched now
+        holds the package's changes."""
         fields = list(ctx.request.get("fields") or [])
         observed: dict[str, dict[str, Any]] = {}
         for target in ctx.request.get("targets") or []:
             path = path_of(target)
-            if path and "exists" in fields:
-                observed[target] = {"exists": os.path.isfile(path)}
-        return {"observed": observed, "unreadable": sorted(field for field in fields if field != "exists")}
+            if not path:
+                continue
+            row: dict[str, Any] = {}
+            if "exists" in fields:
+                row["exists"] = os.path.isfile(path)
+            if "patched" in fields and Path(path).name in dict(SETUPS):
+                row["patched"] = os.path.isfile(path) and Path(path).name not in pending_setups(Path(path).parent)
+            if row:
+                observed[target] = row
+        return {"observed": observed, "unreadable": sorted(field for field in fields if field not in ("exists", "patched"))}
 
 
 HANDLERS: list[base.Handler] = [BoardGet(), BoardCheck(), BoardExport()]

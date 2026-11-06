@@ -69,13 +69,15 @@ OPEN_PROMPTS = tuple(rule for rule in dialogs.DESIGNER_PROMPTS if rule[0] == "Ca
 # discards is not recorded, so the person is told what was asked for.
 _DISCARD = " (the unsaved changes are to be discarded: answer No to a question about saving them)"
 POLL_S = 0.5
-OPEN_TIMEOUT_S = 36.0  # opening after library changes took over 25 s live; plus the settle, within the 45 s of a call
+# Opening, closing, saving and quitting run in the runtime's long-job worker (DCLI-065): they
+# may take minutes, and these limits only tell a Designer that hangs from a slow one.
+OPEN_TIMEOUT_S = 150.0  # opening a project took 54 to 80 s live, and longer after library changes
 OPEN_SETTLE_S = 6.0  # the old open waited this long before reading the project
-REOPEN_OPEN_TIMEOUT_S = 15.0
-CLOSE_TIMEOUT_S = 20.0
-SAVE_TIMEOUT_S = 40.0
-QUIT_TIMEOUT_S = 15.0
-QUIT_WAIT_S = 20.0
+REOPEN_OPEN_TIMEOUT_S = 150.0
+CLOSE_TIMEOUT_S = 120.0  # closing a project took 30 to 57 s live
+SAVE_TIMEOUT_S = 120.0
+QUIT_TIMEOUT_S = 60.0
+QUIT_WAIT_S = 60.0
 START_PROCESS_SHARE = 0.55  # of the start wait spent waiting for COM; the rest opens the project
 VERIFY_WAIT_S = 15.0
 READ_BUDGET_S = 25.0

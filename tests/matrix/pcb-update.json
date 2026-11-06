@@ -19,7 +19,11 @@
       "expected": {
         "exit": 0,
         "summary": "On a board in mils (the stock templates): a 70 x 48 mm outline with 3 mm corners, route border and manufacturing outline with it; width, height and radius read back within 0.001 mm; the board is not saved."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051606-pcb-update.json#normal"
     },
     {
       "row": "empty",
@@ -39,7 +43,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board has this outline already: every change's before equals its after; the outline is written again and reads back the same."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051609-pcb-update.json#empty"
     },
     {
       "row": "invalid_input",
@@ -58,7 +66,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "A bare number for --width: the problem lists the accepted units."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051150-pcb-update.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -77,7 +90,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051150-pcb-update.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -92,7 +110,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053158-pcb-update.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -112,8 +135,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "A doc save of this board was interrupted: its CLI process was ended (Task Manager) while it reopened the board for its read-back, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked."
-      }
+        "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-052559-pcb-update.json#conflict"
     },
     {
       "row": "no_scope",
@@ -153,7 +181,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051524-pcb-update.json#busy"
     },
     {
       "row": "dialog",
@@ -171,8 +204,13 @@
       "expected": {
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
-        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout stops answering COM, the session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Layout does not say which board it has open."
-      }
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054156-pcb-update.json#dialog"
     },
     {
       "row": "disconnect",
@@ -214,7 +252,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (forward annotation not yet saved): the outline is changed as usual; the receipt reports persistence unchanged and the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051611-pcb-update.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -234,8 +276,13 @@
       "expected": {
         "exit": 1,
         "code": "E_VERIFY_FAILED",
-        "summary": "The person switches the board's units to millimetres in Layout (Setup > Setup Parameters) first: the corner radius is then read back as null (the adapter reads the arc radius only on a board in mils), so radius_mm is mismatched while width and height match."
-      }
+        "summary": "The call waits before its read-back, and meanwhile the outline is redrawn 72 mm wide in Layout (--tamper), so width_mm reads back 72, not the previewed 70."
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-052257-pcb-update.json#read_back_mismatch"
     }
   ]
 }

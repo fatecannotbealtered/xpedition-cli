@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board is saved and clean: Layout closes it without saving; it is no longer open."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051438-doc-close.json#normal"
     },
     {
       "row": "empty",
@@ -34,7 +38,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--discard is a switch and takes no value."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051223-doc-close.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -49,7 +58,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such document open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051223-doc-close.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -59,7 +73,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053143-doc-close.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -74,8 +93,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "A forward-annotation job on this board has ended, and no job get or job list has read its end yet, so its operation still locks part of the board: E_CONFLICT target_locked, before any confirmation of --discard."
-      }
+        "summary": "A forward-annotation job on this board was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps part of the board locked until operation resolve: E_CONFLICT target_locked, before any confirmation of --discard."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051326-doc-close.json#conflict"
     },
     {
       "row": "no_scope",
@@ -103,7 +127,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051524-doc-close.json#busy"
     },
     {
       "row": "dialog",
@@ -115,8 +144,13 @@
       "expected": {
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
-        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout stops answering COM, the session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Layout does not say which board it has open."
-      }
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054210-doc-close.json#dialog"
     },
     {
       "row": "disconnect",
@@ -147,7 +181,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "The board holds unsaved changes of this tool and --discard is not given: refused with E_CONFLICT unsaved_changes; nothing closes."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051627-doc-close.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

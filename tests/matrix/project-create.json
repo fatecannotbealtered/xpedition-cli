@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "Copies the practice project {doc}, as the template, into {dir}/Demo as Demo.prj; verified by the new project file."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-044927-project-create.json#normal"
     },
     {
       "row": "empty",
@@ -33,7 +37,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "The new project's file must end in .prj; refused at the preview, nothing copied."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-044927-project-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -48,7 +57,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No template project at that path."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-044927-project-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -68,7 +82,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A Designer session has the template project {doc} open; the runtime refuses any file-mode write that names a project a session holds: E_CONFLICT file_open_in_session."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-044618-project-create.json#conflict"
     },
     {
       "row": "no_scope",

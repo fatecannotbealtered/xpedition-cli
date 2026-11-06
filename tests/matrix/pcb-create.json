@@ -11,7 +11,11 @@
       "expected": {
         "exit": 0,
         "summary": "Confirmed with its token (two-step), on the practice project before it has a board: JobWizard creates PCB/<project>.pcb from 4 Layer Template; verified by the board file."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051032-pcb-create.json#normal"
     },
     {
       "row": "empty",
@@ -24,7 +28,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "Run again once the project has its board: this release never replaces a board, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051033-pcb-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -39,7 +48,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "A board name holds only letters, digits, - and _; refused at the preview."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051032-pcb-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -54,7 +68,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "On a project without a board: the layout template is neither in the central library nor in the installation."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051044-pcb-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -72,7 +91,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A Designer session has the project {doc} open, so the file-mode write is refused before anything runs: E_CONFLICT file_open_in_session, naming the session."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-044612-pcb-create.json#conflict"
     },
     {
       "row": "no_scope",

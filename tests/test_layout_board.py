@@ -520,7 +520,10 @@ class RouterTest(unittest.TestCase):
 
     def test_preview_lists_the_open_nets_and_the_draft_planes(self):
         doc = self._doc()
-        doc.assignments = [FakeAssignment("GND", 2, L.PLANE_DRAFT), FakeAssignment("VCC", 3, L.PLANE_DYNAMIC)]
+        # GND on layer 1 is a Draft assignment whose shape was deleted: nothing to regenerate
+        doc.assignments = [FakeAssignment("GND", 2, L.PLANE_DRAFT), FakeAssignment("VCC", 3, L.PLANE_DYNAMIC),
+                           FakeAssignment("GND", 1, L.PLANE_DRAFT)]
+        doc.shapes = [SimpleNamespace(Layer=layer, Net=SimpleNamespace(Name=net)) for net, layer in (("GND", 2), ("VCC", 3))]
         with world(FakeApp(doc)):
             out = self.handler.preview(context("router run"))
         self.assertEqual([(c["target"], c["field"], c["after"]) for c in out["changes"]],

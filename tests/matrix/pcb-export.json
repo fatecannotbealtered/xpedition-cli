@@ -14,8 +14,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); confirmed with its token (two-step), the job runs NC drill, ODB++ and Gerber and writes the package with centroid, BOM, README and manifest into {dir}/fab, every file recorded with its size and SHA-256. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "Confirmed with its token (two-step), the job runs NC drill, ODB++ and Gerber and writes the package with centroid, BOM, README and manifest into {dir}/fab, every file recorded with its size and SHA-256."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053019-pcb-export.json#normal"
     },
     {
       "row": "empty",
@@ -37,7 +41,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--output needs a path."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051157-pcb-export.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -54,7 +63,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051157-pcb-export.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -67,7 +81,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053209-pcb-export.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -83,8 +102,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "An earlier pcb export of this board has ended, and no job get or job list has read its end yet, so its operation still locks the board's Output folder: this second export gets E_CONFLICT target_locked."
-      }
+        "summary": "An earlier pcb export of this board was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps the board's Output folder locked until operation resolve: this second export gets E_CONFLICT target_locked."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053043-pcb-export.json#conflict"
     },
     {
       "row": "no_scope",
@@ -116,7 +140,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-051524-pcb-export.json#busy"
     },
     {
       "row": "dialog",
@@ -130,8 +159,13 @@
       "expected": {
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
-        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout stops answering COM, the session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Layout does not say which board it has open."
-      }
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054208-pcb-export.json#dialog"
     },
     {
       "row": "disconnect",
@@ -159,12 +193,16 @@
         "--doc",
         "{doc}",
         "--output",
-        "{dir}/fab"
+        "{dir}/fab-unsaved"
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); the board holds unsaved changes; confirmed, the job runs as usual and the board stays unsaved. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "The board holds unsaved changes; confirmed, the job writes the package into the empty folder {dir}/fab-unsaved as usual, and the board stays unsaved."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-052803-pcb-export.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -175,12 +213,18 @@
         "--doc",
         "{doc}",
         "--output",
-        "{dir}/fab"
+        "{dir}/fab-mismatch"
       ],
       "expected": {
-        "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); after the job has ended and before job get, the person deletes {dir}/fab/bom.csv: the check job get makes of the job's files finds it missing, and job get reports ok false with E_VERIFY_FAILED. The live record checks the job's final receipt with job get separately."
-      }
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "Confirmed: the job's worker waits before its read-back, and meanwhile {dir}/fab-mismatch/bom.csv is deleted (--tamper). The check of the job's files finds it missing, and the job ends with E_VERIFY_FAILED."
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-052836-pcb-export.json#read_back_mismatch"
     }
   ]
 }

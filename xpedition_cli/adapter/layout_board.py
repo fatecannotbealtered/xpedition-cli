@@ -785,11 +785,21 @@ def _check_layers(layers: list[int], layer_count: int) -> None:
 
 
 def _draft_planes(doc: Any) -> list[tuple[str, int]]:
+    """The plane assignments in Draft that have a plane shape: a Draft assignment whose shape was
+    deleted has nothing to regenerate, and Layout drops it when the planes are processed."""
+    shapes: set[tuple[str, int]] = set()
+    for shape in L.collection(doc, "PlaneShapes"):
+        try:
+            shapes.add((L.net_name(shape), int(shape.Layer)))
+        except Exception:  # noqa: BLE001 - a shape that cannot be read is left alone
+            continue
     rows: list[tuple[str, int]] = []
     for assignment in L.collection(doc, "PlaneAssignments"):
         try:
             if int(assignment.PlaneDataState) == L.PLANE_DRAFT:
-                rows.append((L.net_name(assignment), int(assignment.LayerObject.ConductorLayer)))
+                row = (L.net_name(assignment), int(assignment.LayerObject.ConductorLayer))
+                if row in shapes:
+                    rows.append(row)
         except Exception:  # noqa: BLE001 - an assignment that cannot be read is left alone
             continue
     return sorted(rows)

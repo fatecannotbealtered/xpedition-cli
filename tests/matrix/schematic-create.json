@@ -14,8 +14,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); confirmed with its token and --dangerous, the job draws sheet 1 of design.json from the Demo parts: J1, C1, R1 and D1 on nets 5V and GND, and reads the nets back. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "Confirmed with its token and --dangerous, the job draws sheet 1 of design.json from the Demo parts: J1, C1, R1 and D1 on nets 5V and GND, and reads the nets back."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045657-schematic-create.json#normal"
     },
     {
       "row": "empty",
@@ -37,7 +41,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "The file given as --design is a parts file: a design needs a non-empty sheets list; refused at the preview."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045252-schematic-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -54,7 +63,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such project open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045252-schematic-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -67,7 +81,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053152-schematic-create.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -83,8 +102,13 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "An earlier schematic create job on this project has ended, and no job get or job list has read its end yet, so its operation still locks the sheets: E_CONFLICT target_locked, before any confirmation."
-      }
+        "summary": "An earlier schematic create job on this project was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps the sheets locked until operation resolve: E_CONFLICT target_locked, before any confirmation."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045719-schematic-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -116,7 +140,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-053318-schematic-create.json#busy"
     },
     {
       "row": "dialog",
@@ -131,7 +160,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Designer before the call, such as Setup > Settings or Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-054818-schematic-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -163,8 +197,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); Designer holds unsaved changes from an earlier drawing; confirmed, the job draws over them as usual and saves nothing. The live record checks the job's final receipt with job get separately."
-      }
+        "summary": "Designer holds unsaved changes from an earlier drawing; confirmed, the job draws over them as usual and saves nothing."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045504-schematic-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -178,9 +216,15 @@
         "{inputs}/design.json"
       ],
       "expected": {
-        "exit": 0,
-        "summary": "The call returns at once with the long job (exit 0, data.result.job with its poll command); on the practice project's first drawing, after the job has ended and before job get, the person deletes the 5V power symbol file the job wrote into SymbolLibs/Demo/sym (or deletes C1 from the sheet in Designer): the read-back job get runs finds it missing, so the job's receipt fails verification and job get reports ok false with E_VERIFY_FAILED. The live record checks the job's final receipt with job get separately."
-      }
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "Confirmed, on the practice project's first drawing: the job's worker waits before its read-back, and meanwhile the 5V power symbol file the job wrote into the central library's SymbolLibs folder is deleted (--tamper). The read-back finds it missing, and the job ends with E_VERIFY_FAILED."
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-06-045341-schematic-create.json#read_back_mismatch"
     }
   ]
 }

@@ -11,8 +11,8 @@ Xpedition 版本、操作系统和模式的每种组合占一行，由 `python s
 <!-- driver:support-matrix:start -->
 | 软件版本 | 操作系统 | 模式 | 状态 |
 |---|---|---|---|
-| 2604 | Windows | file | ⏳ untested |
-| 2604 | Windows | session | ⏳ untested |
+| 2604 | Windows | file | ✅ verified |
+| 2604 | Windows | session | ✅ verified |
 | 2604 | macOS | file | ⛔ unsupported |
 | 2604 | macOS | session | ⛔ unsupported |
 | 2604 | Linux | file | ⛔ unsupported |
@@ -27,4 +27,4 @@ Xpedition 版本、操作系统和模式的每种组合占一行，由 `python s
 - Xpedition 不经 COM 报告未保存的修改或修改计数，所以 `dirty` 和 `revision` 来自工具自己的写操作，工具没有打开或保存过的文档，`dirty` 为 `null`；人在软件里的修改看不到（知识条目 `xpedition-external-edits-not-tracked`）。
 - 增删页以后，Designer 要存盘、关闭再打开工程才能读对设计（知识条目 `designer-reopen-after-sheet-changes`）；`schematic create` 不重开就读回，这在 Xpedition Enterprise 2604 的真机运行中可行。
 - 不提供底面放置、窗口截图和刷新板上的封装。
-- `doc save` 从实例读回存盘的修改，而不是从重新打开的文件读回（Designer 重开要30到80秒）；只有看到文档所在文件夹里的文件变了，才报告 `saved`。
+- `doc save` 要一到两分钟：存盘后它会关闭再打开文档，因为 Designer 的数据库服务只在工程关闭时才把工程写进文件；存盘的修改从重新打开的文档读回。只有看到文档所在文件夹里的文件变了，才报告 `saved`。
