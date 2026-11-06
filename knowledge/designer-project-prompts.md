@@ -4,9 +4,6 @@ title: The questions Designer asks when the project changes or a call times out
 kind: troubleshooting
 applies_to: [doc open, doc close, doc save, session open, session close, session get, session list, schematic create, schematic get, schematic check]
 tags: [dialog, designer, timeout]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Opening a board and attaching to Layout) and docs/E2E.md (Recorded run: resume, read time and multi-land pads, 2026-09-26) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), native_com_adapter.py (DESIGNER_PROMPTS, _quit_and_confirm) and CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 ## Changing the project

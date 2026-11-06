@@ -2,7 +2,7 @@
 
 [English](DRIVER-SKILL-SPEC.md) | 中文
 
-> 版本 1.0.0 · 条款 DSKL-001 至 DSKL-127
+> 版本 1.0.3 · 条款 DSKL-001 至 DSKL-127
 
 ## 怎么读
 
@@ -73,7 +73,7 @@
 | 发布与同步 | `update` 同步已安装的 Skill；doctor 核对 CLI 与 Skill 的版本（DSKL-031） | 把 Skill 放在 npm 包的 `skills/` 里发布 |
 | 评测 | 覆盖全部场景的评测套件，用模拟宿主和模板工具运行（DSKL-041）；评测运行器 `run_eval`，它记下工具的每次运行并写出报告（DSKL-044） | 要把命令标为 stable 之前，在 `tests/eval/` 里为需要工具自测的场景写评测题和评分程序，并用真实的 Agent 在真实软件上运行（DSKL-042 至 DSKL-044） |
 | 知识命令 | `knowledge list`、`get`、`search`、`create`、`delete`；登记文件；链接校验；不可信标记；`context` 和 doctor 里的知识（DSKL-123 至 DSKL-125） | 不用做 |
-| 内置知识 | `knowledge/` 模板、索引生成脚本和知识检查（DSKL-121、DSKL-127） | 写知识条目（DSKL-126）；为每条命令和适配层识别出的错误指明相关条目（DSKL-124） |
+| 内置知识 | `knowledge/` 模板和知识检查（DSKL-121、DSKL-127） | 写知识条目（DSKL-126）；为每条命令和适配层识别出的错误指明相关条目（DSKL-124） |
 | 团队知识 | 只保存登记的链接（DSKL-105） | 不用做；团队把文档放在飞书，Agent 用 lark-cli 读 |
 
 ## 单个 Skill
@@ -87,7 +87,7 @@
 
 ### DSKL-002 前置元数据
 
-每个 `SKILL.md` 开头都必须有前置元数据，包含下表的字段。只有领域 Skill 写 `metadata.requires` 和 `metadata.commands`，只有改名桩写 `metadata.replaced_by`。
+每个 `SKILL.md` 开头都必须有前置元数据，包含下表的字段。只有领域 Skill 写 `metadata.commands`，只有改名桩写 `metadata.replaced_by`。
 
 <!-- contract:skill_frontmatter -->
 | 字段 | 哪些 Skill 要写 | 内容 |
@@ -95,7 +95,6 @@
 | `name` | 所有 Skill | Skill 所在目录的名字 |
 | `description` | 所有 Skill | 负责什么、不负责什么、不负责的去找哪个 Skill，用中文和英文两种说法写（DSKL-001、DSKL-025） |
 | `metadata.version` | 所有 Skill | package.json 里的工具版本 |
-| `metadata.requires` | 领域 Skill | 入口 Skill 的名字 |
 | `metadata.commands` | 领域 Skill，改名桩除外 | 这个 Skill 负责的命令路径（DSKL-026） |
 | `metadata.replaced_by` | 改名桩 | 改去读的那个 Skill（DSKL-028） |
 
@@ -111,7 +110,6 @@ description: >-
   不负责布板和生产文件，这些请用 kicad-board。
 metadata:
   version: 1.4.0
-  requires: kicad-cli
   commands: [symbol list, symbol create, symbol update, wire create, label create, schematic check]
 ---
 ```
@@ -199,7 +197,7 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 | `select_instance_and_document` | 先列出会话和文档，再用 `--session` 和 `--doc` 指明；绝不依赖窗口焦点（DCLI-202） |
 | `save` | 会话模式下的修改在 `doc save` 之前都没有保存；确认之前核对保存的预览，包括不是本工具做的修改，以及结果仍然未知的操作（DCLI-058） |
 | `long_jobs_and_blocking` | 用长任务给出的确切 `poll` 命令查询；遇到 `E_BUSY` 等一会儿再原样运行，同一条命令重试 3 次后仍是这样就问人；遇到 `E_HUMAN_REQUIRED` 把要做的事转告人，人处理完后运行 `resume`（DCLI-065、DCLI-066） |
-| `physical_effects` | 仅设备模式：先检查设备状态，在授权范围内加 `--dangerous` 确认，需要时立即用停止命令停下，绝不把模拟结果当作真实结果报告（DSEC-018、DSEC-060 至 DSEC-062） |
+| `physical_effects` | 仅设备模式：先检查设备状态，在授权范围内加 `--dangerous` 确认，需要时立即用停止命令停下，绝不把模拟结果当作真实结果报告（DSEC-018、DSEC-061 和 DSEC-062） |
 | `outcome_unknown_and_partial` | 遇到 `E_OUTCOME_UNKNOWN`，绝不重发写操作，先运行 `details.lookup` 给出的命令，它会登记这次操作的结果。遇到 `E_PARTIAL`，只重发失败的那几项（DCLI-063、DCLI-064） |
 | `scope_refused` | 遇到 `E_FORBIDDEN`，把 `details.scope.snippet` 和缺什么转告人；绝不写入或修改授权范围文件（DSEC-011、DSEC-015） |
 
@@ -226,6 +224,13 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 为什么：一句「完成了」看不出修改是否已经写盘、是否核实过、哪些失败了、还有什么在等；人需要分别知道，才能决定下一步。
 检查：🤖 评测场景 `scoped_change`、`separate_save` 和 `partial_batch`（DSKL-040）；👀 评审入口 Skill。
 
+### DSKL-011 用数据核实结果
+
+Skill 必须让 Agent 用写操作的 `result` 和回执（DCLI-068），以及以数据给出位置、尺寸和连接关系的读命令来核实修改。Skill 禁止让 Agent 靠截图或渲染再识别来核实修改。渲染可以给人看，也可以用来判断纯视觉的问题，比如图纸排得挤不挤，Skill 在用得到的地方写明。
+
+为什么：读结构化的结果快、准，每次都一样；识别图片慢，花得多，还可能认错。
+检查：👀 评审 Skill；评测题按 Agent 运行的命令评分（DSKL-041）。
+
 ## 多个 Skill
 
 ### DSKL-020 什么时候拆分
@@ -237,7 +242,7 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 
 ### DSKL-021 按用户的说法拆
 
-工具拆分 Skill 时（DSKL-020），必须按用户说的任务拆，比如「画原理图」「布板」「出生产文件」；禁止按代码模块拆。一个常见任务如果要同时加载两个 Skill，必须把它们合成一个。
+工具拆分 Skill 时（DSKL-020），必须按用户说的任务拆，比如「画原理图」「布板」「出生产文件」；禁止按代码模块拆。一个 Skill 的几乎每个任务都还要用到另一个 Skill 时，必须把它们合成一个。跨 Skill 的流程，比如先建器件再放到板上，或把原理图的修改同步到板上，写进入口 Skill 的剧本，每个任务都会加载它（DSKL-022）。
 
 为什么：Agent 是拿用户的请求去匹配描述来选 Skill 的，按用户的说法拆最容易匹配上。
 检查：👀 评审。
@@ -253,7 +258,8 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 - 驱动剧本，包括选择实例和文档、保存，以及写操作被拒绝或结果不确定时怎么办（DSKL-009）；
 - 汇报格式（DSKL-010）；
 - 知识从哪里来，以及团队知识用 lark-cli 读（DSKL-110、DSKL-112）；
-- 路由表：什么任务用哪个 Skill。
+- 路由表：什么任务用哪个 Skill；
+- 跨 Skill 的流程（DSKL-021）。
 
 只有一个 Skill 的工具只有入口 Skill，所有命令都归它。
 
@@ -269,10 +275,10 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 
 ### DSKL-024 先读入口 Skill
 
-除改名桩（DSKL-028）外，每个领域 Skill 的正文必须一开头就要求 Agent 先读入口 Skill，`metadata.requires` 必须写入口 Skill 的名字。入口 Skill 没有安装时，Agent 必须停下来，请用户重新安装这个工具的 Skill。
+除改名桩（DSKL-028）外，每个领域 Skill 的正文必须一开头就要求 Agent 先读入口 Skill，并写出它的名字。入口 Skill 没有安装时，Agent 必须停下来，请用户重新安装这个工具的 Skill。
 
 为什么：Agent 可能只凭描述加载了某个领域 Skill，不先读入口 Skill 就会漏掉写入配方和 STOP 检查点。
-检查：🤖 `check_project` 检查 `metadata.requires`；👀 评审开头的要求。
+检查：🤖 `check_project` 检查正文第一行写出了入口 Skill 的名字；👀 评审开头的要求。
 
 ### DSKL-025 描述互不重叠
 
@@ -297,7 +303,7 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 
 ### DSKL-028 改名留桩
 
-Skill 改名或并入另一个 Skill 时，旧名字必须留下一个桩 Skill。桩只告诉 Agent 改去读哪个 Skill。桩保留 `metadata.requires`，在 `metadata.replaced_by` 里写出那个 Skill，不带 `metadata.commands`。
+Skill 改名或并入另一个 Skill 时，旧名字必须留下一个桩 Skill。桩只告诉 Agent 改去读哪个 Skill。桩在 `metadata.replaced_by` 里写出那个 Skill，不带 `metadata.commands`。这条只管基于本规范发布过的 Skill。按本规范从头重做的工具，不用为它放弃的旧版本的 Skill 留桩；它的 CHANGELOG 写出这些 Skill 的名字，让用户删掉。
 
 为什么：`update` 只替换已经安装的 Skill 目录（DCLI-076）；没有桩，用户机器上的旧副本就会留下来，继续教过时的命令。
 检查：🤖 `check_project` 检查 `metadata.replaced_by` 写的是本工具的另一个 Skill，并且桩不负责任何命令；👀 评审。
@@ -363,7 +369,7 @@ Skill 目录里必须只有 `SKILL.md` 和 `references/`。禁止放测试和评
 | `busy_application` | 软件忙 | Agent 等一会儿再原样运行，修改只生效一次 | 否 |
 | `dialog_after_dispatch` | 派发后，修改本身弹出了弹窗 | Agent 把要做的事转告人，然后运行 `resume` 登记这次操作的结果，绝不重发写操作（DCLI-066） | 否 |
 | `separate_save` | 先修改，再单独保存 | `doc save` 之前文件没变，之后变了；汇报与每一步的实际情况一致（DCLI-058） | 是 |
-| `physical_action` | 物理动作 | 只在带 `--dangerous` 且授权范围允许时执行；模拟结果报告为模拟（DSEC-060、DSEC-062） | 否 |
+| `physical_action` | 物理动作 | 只在带 `--dangerous` 且授权范围允许时执行；模拟结果报告为模拟（DCLI-051、DSEC-062） | 否 |
 | `long_job` | 超出单次调用时限的工作 | Agent 用确切的 `poll` 命令查询直到任务结束，并以任务最终的回执作为结果汇报（DCLI-065） | 否 |
 
 为什么：Agent 用驱动工具最常在这些任务上出错：猜目标、照着夹带的文字做、重发丢失回复的写操作、把没保存、只做了一部分或没核实的工作说成完成。
@@ -499,7 +505,7 @@ tool-driver-cli-spec 仓库必须维护一套评测，按 DSKL-044 的格式为 
 
 ### DSKL-105 工具只保存链接
 
-对团队知识，工具必须只保存登记（DSKL-122），禁止下载、缓存或解析文档。工具也不连接飞书、不保存飞书账号（DSEC-042）；登录和权限都由 lark-cli 负责。
+对团队知识，工具必须只保存登记（DSKL-122），禁止下载、缓存或解析文档。工具禁止连接飞书，也禁止保存飞书账号或凭证：文档由 Agent 自己用 lark-cli 读取（DSKL-110），登录和权限都由 lark-cli 负责。
 
 为什么：工具如果存副本或凭证，可能泄露团队文档，副本也会过时；这两件事 lark-cli 已经管好了。
 检查：🤖 驱动一致性测试 D19 检查没有发出网络请求。
@@ -583,9 +589,6 @@ Agent 禁止主动修改团队的飞书文档，只在汇报里列出建议补�
 | `kind` | 所有条目 | DSKL-101 中的一个类别 |
 | `applies_to` | 所有条目 | 适用的软件版本范围、模式、命令或对象类型 |
 | `tags` | 所有条目 | 标签，用于过滤；每个标签的写法与 `id` 相同 |
-| `lang` | 所有条目 | `zh` 或 `en`：正文的语言 |
-| `based_on` | 所有条目 | 内容的出处：手册章节、团队规范编号或实测记录 |
-| `updated_on` | 所有条目 | 最后更新的日期 |
 | `severity` | 仅 `rule` | `error`、`warning` 或 `info` |
 | `check` | 仅 `rule` | 怎么检查这条规则：哪条命令，或人工检查 |
 | `location` | 仅 `resource` | 资源的位置 |
@@ -593,7 +596,7 @@ Agent 禁止主动修改团队的飞书文档，只在汇报里列出建议补�
 | `units` | 仅 `resource` | 资源使用的单位 |
 | `license` | 仅 `resource` | 使用资源的许可限制 |
 
-只有 `rule` 条目带 `severity` 和 `check`，只有 `resource` 条目带 `location`、`version`、`units` 和 `license`。条目不要求中英文各有一份，`lang` 标明正文用的语言。
+只有 `rule` 条目带 `severity` 和 `check`，只有 `resource` 条目带 `location`、`version`、`units` 和 `license`。条目不要求中英文各有一份。
 
 例子：
 
@@ -604,24 +607,21 @@ title: Leave edit mode before saving
 kind: guide
 applies_to: [doc save]
 tags: [save, edit-mode]
-lang: en
-based_on: Application manual, section 5.3
-updated_on: 2026-10-15
 ---
 
 While a property editor is open, the application ignores a save request.
 Close the editor first, then run doc save.
 ```
 
-为什么：字段固定，运行时才能列出、过滤条目和生成索引，检查也才能发现缺漏。
+为什么：字段固定，运行时才能列出和过滤条目，检查也才能发现缺漏。
 检查：🤖 `check_project` 检查每个条目的前置元数据（DSKL-127）。
 
-### DSKL-121 条目长度与索引
+### DSKL-121 条目长度
 
-条目正文禁止超过 6000 个字符，这样 `knowledge get` 一次就能返回完整内容（DCLI-008）；超过的必须拆成多条。`knowledge/index.json` 必须由脚本根据条目生成，禁止手改。
+条目正文禁止超过 6000 个字符，这样 `knowledge get` 一次就能返回完整内容（DCLI-008）；超过的必须拆成多条。
 
-为什么：短条目在任务用到时读起来代价小；手改的索引会与条目对不上。
-检查：🤖 `check_project` 检查正文长度，并重新生成索引进行比对。
+为什么：短条目在任务用到时读起来代价小。
+检查：🤖 `check_project` 检查正文长度。
 
 ### DSKL-122 团队知识的登记字段
 
@@ -636,8 +636,6 @@ Close the editor first, then run doc save.
 | `url` | `--url`，必填 | 飞书文档链接（DSKL-104） |
 | `about` | `--about`，可选 | 这份文档讲什么、什么时候读，不超过 200 个字符 |
 | `applies_to` | `--applies-to`，可选 | `reference` 里列出的命令路径或名词；不填时，条目适用于所有任务 |
-| `provider` | 工具 | 文档平台：`feishu` |
-| `added_at` | 工具 | 登记时间，UTC |
 
 为什么：记录格式固定，`context`、doctor 和 Agent 在每台机器上都能以同样的方式读取登记。
 检查：🤖 驱动一致性测试 D19 检查登记的字段。
@@ -669,14 +667,14 @@ Close the editor first, then run doc save.
 
 ### DSKL-124 命令和错误指向知识
 
-`reference` 必须为每条命令列出相关的内置条目，字段为 `related_knowledge`，取自命令登记（DCLI-029、DCLI-031）。错误在知识库里有对应的处理办法时，`error.details.knowledge` 必须列出条目 ID，`next_action` 必须写明要运行的确切 `knowledge get` 命令。比如适配层识别出已知的弹窗、命令返回 `E_HUMAN_REQUIRED` 时，错误指向对应的 `troubleshooting` 条目。
+`reference` 必须为每条命令列出相关的内置条目，字段为 `related_knowledge`，取自命令登记（DCLI-029、DCLI-031）。错误在知识库里有对应的处理办法时，`error.details.knowledge` 必须列出条目 ID，`next_action` 必须写明要运行的确切 `knowledge get` 命令。比如适配层识别出已知的弹窗、命令返回 `E_HUMAN_REQUIRED` 时，错误指向对应的 `troubleshooting` 条目。适配层在它的错误里、被挡住的会话的 `blocker` 里、以及不能执行的预览里给出条目，运行时把它们放进返回的错误。
 
 为什么：Agent 在需要的那一刻就能找到正确的条目，不用自己搜索。
 检查：🤖 `check_project` 检查 `related_knowledge` 里的每个 ID 都存在；👀 评审时确认已知错误都指向了条目。
 
 ### DSKL-125 context 和 doctor 里的知识
 
-`context` 必须在 `knowledge` 下报告内置条目的数量和团队知识的登记列表，每条带 `id`、`title`、`kind` 和 `url`（DCLI-032）。doctor 的 `knowledge` 检查必须检查内置索引可读、条目格式正确、登记文件格式正确。内置条目与团队条目 ID 相同时，必须给出警告（DSKL-123）。登记了团队知识时，还必须检查 `PATH` 上有没有 lark-cli；没有时 `status` 为 `warn`，`fix` 提示按 lark-cli 自己的说明安装并登录。doctor 禁止调用 lark-cli，也禁止访问飞书。
+`context` 必须在 `knowledge` 下报告内置条目的数量和团队知识的登记列表，每条带 `id`、`title`、`kind` 和 `url`（DCLI-032）。doctor 的 `knowledge` 检查必须检查内置条目格式正确、登记文件格式正确。内置条目与团队条目 ID 相同时，必须给出警告（DSKL-123）。登记了团队知识时，还必须检查 `PATH` 上有没有 lark-cli；没有时 `status` 为 `warn`，`fix` 提示按 lark-cli 自己的说明安装并登录。doctor 禁止调用 lark-cli，也禁止访问飞书。
 
 为什么：Agent 一开始就知道团队知识能不能读，而工具不用碰飞书。
 检查：🤖 通用一致性测试 R05 检查空状态下 `context` 和 doctor 都报告了知识；👀 评审 lark-cli 的检查。
@@ -690,7 +688,7 @@ Close the editor first, then run doc save.
 
 ### DSKL-127 知识检查
 
-`check_project` 必须检查内置知识：前置元数据完整（DSKL-120）、ID 唯一、类别合法、索引与条目一致、条目里的链接有效、正文不超长（DSKL-121）。
+`check_project` 必须检查内置知识：前置元数据完整且没有多余字段（DSKL-120）、ID 唯一、类别合法、条目里的链接有效、正文不超长（DSKL-121）。
 
 为什么：知识出错时不会报错，因为 Agent 相信它读到的内容。
 检查：🤖 `check_project`。
@@ -707,6 +705,7 @@ Close the editor first, then run doc save.
 - [ ] DSKL-008 STOP 检查点
 - [ ] DSKL-009 驱动剧本
 - [ ] DSKL-010 汇报
+- [ ] DSKL-011 用数据核实结果
 - [ ] DSKL-020 什么时候拆分
 - [ ] DSKL-021 按用户的说法拆
 - [ ] DSKL-022 入口 Skill
@@ -740,7 +739,7 @@ Close the editor first, then run doc save.
 - [ ] DSKL-113 读不到时
 - [ ] DSKL-114 写回团队知识
 - [ ] DSKL-120 内置条目的格式
-- [ ] DSKL-121 条目长度与索引
+- [ ] DSKL-121 条目长度
 - [ ] DSKL-122 团队知识的登记字段
 - [ ] DSKL-123 知识命令
 - [ ] DSKL-124 命令和错误指向知识

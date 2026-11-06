@@ -4,9 +4,6 @@ title: Power and ground symbols are type 4
 kind: rule
 applies_to: [part create, schematic create, schematic check]
 tags: [designer, symbols, power, ground]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Sheet units and symbol file versions; Designer drawing facts verified on XPED2604) and docs/NATIVE_ADAPTER.md (Placement is not transactional) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md
-updated_on: 2026-11-05
 severity: error
 check: manual; the symbol file under SymbolLibs/<partition>/sym/ holds the line Y 4
 ---

@@ -7,26 +7,21 @@ registration that breaks a rule, so a mistake shows up at once. A command needs:
 - ``summary``: one line
 - ``effects``: what it changes (DCLI-051); the runtime derives the confirmation and risk tiers
 - ``modes``, ``target_kind``, ``flags`` (with a unit for every physical quantity), ``untrusted_fields``
-- ``adapter_capabilities``: the adapter methods it calls (DCLI-260)
-- ``survey_ids``: the capability IDs of docs/APPLICATION.md it provides (DREPO-061)
+- ``doc_kinds``: the kind of document it works on, ``project`` or ``board`` (DCLI-210)
+- ``long``: the runtime runs it as a long job in its own worker (DCLI-065)
 - ``irreversible``, ``halt``, ``tolerances``, ``default_fields``, ``related_knowledge``
 - ``output_schema``, ``examples``, ``maturity`` and ``evidence``
 
 Every command also gets a behavior matrix in tests/matrix/; its ``normal`` row is the write
 sample (DVER-002, DVER-030). Run ``python scripts/spec.py generate`` after a change.
 
-The document of a file-mode command is the project file (``.prj``). In session mode the document
-is the project Designer has open, or the board (``.pcb``) Layout has open.
+The document of a file-mode command is the project file (``.prj``, kind ``project``). In session
+mode the document is the project Designer has open, or the board (``.pcb``, kind ``board``)
+Layout has open.
 """
 from __future__ import annotations
 
 from typing import Any
-
-READ = ["read"]
-WRITE = ["preview", "apply", "read_back"]
-
-LIMIT = {"name": "--limit", "type": "integer", "summary": "Items per page; 50 by default, at most 500."}
-OFFSET = {"name": "--offset", "type": "integer", "summary": "Start position of the page."}
 
 OBJ: dict[str, Any] = {"type": "object"}
 STR: dict[str, Any] = {"type": "string"}
@@ -47,21 +42,19 @@ FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
 
 
 def command(path: str, summary: str, *, effects: list[str], modes: list[str], target_kind: str,
-            flags: list[dict[str, Any]] | None = None, survey_ids: list[str], output: dict[str, Any],
+            flags: list[dict[str, Any]] | None = None, output: dict[str, Any],
             examples: list[str], untrusted: list[str] | None = None, irreversible: bool = False,
-            tolerances: dict[str, float] | None = None, default_fields: list[str] | None = None,
-            knowledge: list[str] | None = None) -> dict[str, Any]:
-    writes = effects != ["observe"]
-    return {
+            kinds: list[str], long: bool = False, tolerances: dict[str, float] | None = None,
+            default_fields: list[str] | None = None, knowledge: list[str] | None = None) -> dict[str, Any]:
+    reg: dict[str, Any] = {
         "path": path,
         "summary": summary,
         "effects": effects,
         "modes": modes,
+        "doc_kinds": kinds,
         "target_kind": target_kind,
         "flags": flags or [],
         "untrusted_fields": untrusted or [],
-        "adapter_capabilities": WRITE if writes else READ,
-        "survey_ids": survey_ids,
         "irreversible": irreversible,
         "halt": False,
         "tolerances": tolerances or {},
@@ -72,13 +65,16 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
         "maturity": "draft",
         "evidence": [],
     }
+    if long:
+        reg["long"] = True
+    return reg
 
 
 COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ project
     command(
         "project get", "Read a project file: its designs, board, central library and library lists.",
-        effects=["observe"], modes=["file"], target_kind="project", survey_ids=["CAP-001"],
+        effects=["observe"], modes=["file"], kinds=["project"], target_kind="project",
         output=obj(path=STR, xpedition_version=STR, central_library=obj(path=STR, exists=BOOL),
                    designs=arr(obj(name=STR, kind=STR, board=STR, board_exists=BOOL, layout_template=STR)),
                    board=STR, symbol_libraries=arr(STR), parts_databases=arr(STR), cell_libraries=arr(STR),
@@ -89,7 +85,7 @@ COMMANDS: list[dict[str, Any]] = [
     command(
         "project create", "Create a project: in a Designer session from a setup template, with its own copy of the central "
         "library and a board design (a long job); in file mode by copying the project given with --doc.",
-        effects=["artifact"], modes=["file", "session"], target_kind="project", survey_ids=["CAP-002", "CAP-003"],
+        effects=["artifact"], modes=["file", "session"], kinds=["project"], target_kind="project", long=True,
         flags=[{"name": "--output", "type": "path", "required": True, "output": True,
                 "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII."},
                {"name": "--template", "type": "path",
@@ -103,7 +99,7 @@ COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ central library
     command(
         "part list", "List the parts of the project's central library.",
-        effects=["observe"], modes=["file"], target_kind="part", survey_ids=["CAP-010"], flags=[LIMIT, OFFSET],
+        effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         output=obj(items=arr(obj(id=STR, partition=STR, description=STR, prefix=STR, type=STR, cell=STR,
                                  symbols=arr(STR), pins=INT, value=STR)), total=INT),
         untrusted=["description", "value"], default_fields=["id", "partition", "description", "cell", "pins"],
@@ -112,7 +108,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "part get", "Read one part: its pin map, symbols, footprint cell, padstacks and the problems found.",
-        effects=["observe"], modes=["file"], target_kind="part", survey_ids=["CAP-011"],
+        effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         flags=[{"name": "--id", "type": "string", "required": True, "summary": "The part number."}],
         output=obj(id=STR, partition=STR, description=STR, prefix=STR, value=STR, properties=OBJ,
                    pins=arr(obj(symbol=STR, name=STR, number=STR)), symbols=arr(OBJ), cell=OBJ, padstacks=OBJ,
@@ -123,7 +119,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "part create", "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
-        effects=["change"], modes=["file"], target_kind="part", survey_ids=["CAP-015"],
+        effects=["change"], modes=["file"], kinds=["project"], target_kind="part",
         flags=[{"name": "--file", "type": "path", "required": True,
                 "summary": "The parts file (JSON). A part identical to the library's is skipped; a part number the library holds with other content is refused."}],
         output=obj(partition=STR, created=arr(STR), skipped=arr(STR), symbols=arr(STR), cells=arr(STR), padstacks=arr(STR)),
@@ -132,7 +128,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "packager run", "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
-        effects=["change"], modes=["file"], target_kind="project", survey_ids=["CAP-043"],
+        effects=["change"], modes=["file"], kinds=["project"], target_kind="project", long=True,
         output=obj(packaged=BOOL, design=STR, errors=arr(STR), warnings=INT, verdict=STR, log=STR),
         untrusted=["errors", "verdict"],
         examples=["xpedition-cli packager run --doc D:/work/demo/Demo.prj"],
@@ -141,7 +137,7 @@ COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ schematic (Designer)
     command(
         "schematic get", "Read the open schematic: its sheets and the numbers of components and nets.",
-        effects=["observe"], modes=["session"], target_kind="schematic", survey_ids=["CAP-030"],
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="schematic",
         output=obj(design=STR, sheets=arr(obj(number=INT, name=STR, size=STR)), components=INT, nets=INT),
         untrusted=["design", "sheets"],
         examples=["xpedition-cli schematic get --session designer-4120 --doc D:/work/demo/Demo.prj"],
@@ -149,7 +145,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "schematic create", "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
-        effects=["change", "persist"], modes=["session"], target_kind="schematic", survey_ids=["CAP-034"],
+        effects=["change", "persist"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
         flags=[{"name": "--design", "type": "path", "required": True,
                 "summary": "The design file (JSON): sheets, parts by central-library part number, and the pin of every connection."}],
         output=obj(sheets=arr(INT), parts=INT, nets=INT, operations=INT, symbols_written=arr(STR), warnings=arr(STR)),
@@ -159,7 +155,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "schematic check", "Run Designer's verification and this tool's netlist rules, and list the problems found.",
-        effects=["observe"], modes=["session"], target_kind="schematic", survey_ids=["CAP-041"],
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="schematic",
         output=obj(findings=arr(FINDING), errors=INT, warnings=INT, complete=BOOL, logs=OBJ),
         untrusted=["findings"],
         examples=["xpedition-cli schematic check --session designer-4120 --doc D:/work/demo/Demo.prj"],
@@ -167,7 +163,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "schematic export", "Export the schematic to a PDF with Xpedition's sch2pdf.",
-        effects=["artifact"], modes=["file", "session"], target_kind="schematic", survey_ids=["CAP-042"],
+        effects=["artifact"], modes=["file", "session"], kinds=["project"], target_kind="schematic",
         flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The PDF file to write."}],
         output=obj(path=STR, pages=arr(obj(sheet=STR, width_mm=NUM, height_mm=NUM)), warnings=arr(STR)),
         untrusted=["pages", "warnings"],
@@ -177,7 +173,7 @@ COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ board (Layout)
     command(
         "pcb create", "Create the project's board from a layout template with Xpedition's JobWizard.",
-        effects=["change", "persist"], modes=["file"], target_kind="pcb", survey_ids=["CAP-060"],
+        effects=["change", "persist"], modes=["file"], kinds=["project"], target_kind="pcb",
         flags=[{"name": "--template", "type": "string", "summary": "The layout template's name; 4 Layer Template by default."},
                {"name": "--name", "type": "string", "summary": "The board's name: letters, digits, - and _; the project's name by default."}],
         output=obj(path=STR, template=STR, files=INT, cells_registered=arr(STR)),
@@ -186,7 +182,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "forward-annotation run", "Bring the packaged schematic into the open board; runs as a long job.",
-        effects=["change"], modes=["session"], target_kind="pcb", survey_ids=["CAP-062"],
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         output=obj(outcome=STR, components=INT, nets=INT, pins=INT, errors=arr(STR), warnings=arr(STR)),
         untrusted=["errors", "warnings"],
         examples=["xpedition-cli forward-annotation run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb"],
@@ -194,7 +190,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "pcb update", "Replace the board outline by a rectangle from the origin; the route border and manufacturing outline follow.",
-        effects=["change"], modes=["session"], target_kind="pcb", survey_ids=["CAP-065"],
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--width", "type": "quantity", "quantity": "length", "summary": "The board's width."},
                {"name": "--height", "type": "quantity", "quantity": "length", "summary": "The board's height."},
                {"name": "--radius", "type": "quantity", "quantity": "length", "summary": "The corner radius; 0 for square corners."}],
@@ -204,7 +200,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "placement run", "Place every component of the board from its connections, grouped by schematic sheet.",
-        effects=["change"], modes=["session"], target_kind="component", survey_ids=["CAP-068"],
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="component",
         flags=[{"name": "--design", "type": "path", "summary": "The design file the schematic was drawn from; its sheets and zones group the parts."},
                {"name": "--all", "type": "boolean", "summary": "Place the parts already placed again too."}],
         output=obj(placed=INT, clusters=arr(obj(name=STR, parts=arr(STR))), outside=arr(STR), labels=arr(STR),
@@ -216,7 +212,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "plane create", "Pour a plane shape for one net on one layer, inside the board outline.",
-        effects=["change"], modes=["session"], target_kind="plane", survey_ids=["CAP-072"],
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="plane",
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."},
                {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from the board outline; 1 mm by default."}],
@@ -226,7 +222,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "router run", "Route every open net with Layout's autorouter passes.",
-        effects=["change"], modes=["session"], target_kind="net", survey_ids=["CAP-073"],
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="net",
         flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."}],
         output=obj(nets=INT, routed=INT, open=arr(STR), traces=INT, vias=INT, passes=arr(STR), skipped_passes=arr(STR),
                    planes_regenerated=INT),
@@ -236,7 +232,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "pcb get", "Read the open board: counts, layer stack, net classes and widths, geometry and layout metrics.",
-        effects=["observe"], modes=["session"], target_kind="pcb", survey_ids=["CAP-063", "CAP-064", "CAP-078"],
+        effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
         output=obj(path=STR, layers=INT, components=OBJ, nets=OBJ, traces=INT, vias=INT, outline=OBJ, stackup=arr(OBJ),
@@ -247,7 +243,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "pcb check", "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard.",
-        effects=["observe"], modes=["session"], target_kind="pcb", survey_ids=["CAP-077", "CAP-078"],
+        effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
         output=obj(hazards=arr(obj(type=STR, severity=STR, description=STR, x_mm=NUM, y_mm=NUM, objects=arr(STR),
@@ -259,7 +255,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "pcb export", "Write the fabrication package: ODB++, Gerber, NC drill, a centroid file, a BOM and a manifest; runs as a long job.",
-        effects=["artifact", "persist"], modes=["session"], target_kind="pcb", survey_ids=["CAP-081"],
+        effects=["artifact", "persist"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         flags=[{"name": "--output", "type": "path", "required": True, "output": True,
                 "summary": "The folder for the package; it must not exist or must be empty."}],
         output=obj(path=STR, file_count=INT, manifest=STR, board=obj(width_mm=NUM, height_mm=NUM, layers=INT), problems=arr(STR),

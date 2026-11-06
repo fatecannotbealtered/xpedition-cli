@@ -15,9 +15,9 @@ TURNS = ["Create a new project at {documents}/Demo/Demo.prj from the template pr
          "then add the parts in {documents}/parts.json to the new project's central library."]
 FILES = "new-project"
 FAKE_HOST = {"instances": [], "files": [
-    {"id": "template", "name": "Template/Template.prj", "objects": {
+    {"id": "template", "name": "Template/Template.prj", "kind": "project", "objects": {
         "": {"designs": [{"name": "Board1", "kind": "board", "board": "", "board_exists": False, "layout_template": ""}]}}},
-    {"id": "demo", "name": "Demo/Demo.prj", "objects": {
+    {"id": "demo", "name": "Demo/Demo.prj", "kind": "project", "objects": {
         "DEMO-CONN-2": {"partition": "PartQuest", "description": "Demo connector, 1x2 header, 2.54 mm pitch", "findings": []},
         "DEMO-RES-1K-0603": {"partition": "PartQuest", "description": "Demo resistor, 1 kOhm, 0603", "value": "1K", "findings": []},
         "DEMO-LED-0603": {"partition": "PartQuest", "description": "Demo LED, green, 0603", "findings": []},

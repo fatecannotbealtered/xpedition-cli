@@ -1,7 +1,7 @@
 {
   "$schema": "schemas/contract.schema.json",
   "name": "tool-driver-cli-spec",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "schema_version": "1.0",
   "spec_documents": [
     {
@@ -78,9 +78,9 @@
     }
   ],
   "envelope": {
-    "success_keys": ["ok", "schema_version", "data", "meta"],
-    "error_keys": ["ok", "schema_version", "error", "meta"],
-    "meta_keys": ["duration_ms", "notices", "untrusted"],
+    "success_keys": ["ok", "data"],
+    "error_keys": ["ok", "error"],
+    "meta_keys": ["notices", "untrusted"],
     "notice_keys": ["type", "severity", "message"],
     "notice_severities": ["info", "warning"],
     "error_keys_inner": ["code", "message", "retryable", "details"],
@@ -157,7 +157,7 @@
     {"flag": "--dangerous", "value": null}
   ],
   "shared_flags": [
-    {"flag": "--limit", "value": "<n>"},
+    {"flag": "--limit", "value": "<n>", "default": 20, "maximum": 100},
     {"flag": "--offset", "value": "<n>"},
     {"flag": "--query", "value": "<text>"},
     {"flag": "--sort", "value": "<field>"},
@@ -240,7 +240,6 @@
       "changes_truncated",
       "session",
       "document",
-      "inputs",
       "can_apply",
       "blocked_by"
     ],
@@ -248,7 +247,6 @@
     "change_keys": ["target", "field", "before", "after", "origin"],
     "change_origins": ["tool", "external"],
     "masked_value": "***",
-    "file_input_keys": ["sha256", "bytes"],
     "max_changes": 50
   },
   "confirm_token": {
@@ -306,7 +304,8 @@
     "file_changed_on_disk",
     "file_missing",
     "unsaved_changes",
-    "file_open_in_session"
+    "file_open_in_session",
+    "application_state"
   ],
   "operation": {
     "id_prefix": "op_",
@@ -328,7 +327,6 @@
       "mismatched",
       "session",
       "document",
-      "failed_stage",
       "notes"
     ],
     "dimensions": {
@@ -336,10 +334,10 @@
       "change": ["not_applicable", "not_applied", "applied", "partial", "rolled_back", "unknown"],
       "delivery": ["not_applicable", "not_attempted", "delivered", "partial", "rejected", "unknown"],
       "persistence": ["not_applicable", "unchanged", "saved", "partial", "unknown"],
-      "verification": ["not_applicable", "not_run", "passed", "failed", "incomplete"]
+      "verification": ["not_applicable", "not_run", "passed", "failed", "incomplete", "deferred"]
     },
-    "failed_stages": ["apply", "deliver", "persist", "verify"],
-    "optional_keys": ["simulated"]
+    "optional_keys": ["simulated", "more_files"],
+    "listed_files": 10
   },
   "derivation": [
     {
@@ -405,6 +403,9 @@
   "jobs": {
     "max_call_seconds": 60,
     "max_wait_seconds": 600,
+    "worker_max_seconds": 21600,
+    "worker_env": "<PREFIX>_JOB_WORKER",
+    "standard_long": ["session open", "session close", "doc create", "doc open", "doc save", "doc save-as", "doc close"],
     "states": ["planned", "running", "blocked", "completed", "failed", "partial", "unknown", "cancelled"],
     "result_job_keys": ["id", "state", "poll"]
   },
@@ -419,7 +420,7 @@
   ],
   "objects": {
     "session": ["id", "application", "pid", "owned", "generation", "state", "documents", "plugin_loaded"],
-    "document": ["id", "path", "key", "session", "revision", "dirty", "readonly", "disk"],
+    "document": ["id", "path", "key", "session", "kind", "revision", "dirty", "readonly", "disk"],
     "job": ["id", "operation_id", "state", "cancel_requested", "progress", "started_at", "finished_at"],
     "device": ["id", "model", "firmware", "state", "simulated"],
     "plugin": ["name", "version_on_disk", "protocol_version", "install_path", "loaded"]
@@ -431,6 +432,7 @@
     {"state": "unresponsive", "error": "E_BUSY"},
     {"state": "blocked", "error": "E_HUMAN_REQUIRED"},
     {"state": "lost", "error": "E_BACKEND_UNAVAILABLE"},
+    {"state": "unreachable", "error": "E_BACKEND_UNAVAILABLE"},
     {"state": "closed", "error": "E_NOT_FOUND"}
   ],
   "session_read_deadline": {
@@ -451,7 +453,7 @@
     {"path": "context", "flags": []},
     {"path": "doctor", "flags": []},
     {"path": "changelog", "flags": ["--since"]},
-    {"path": "operation get", "flags": ["--id"]},
+    {"path": "operation get", "flags": ["--id", "--output"]},
     {"path": "operation list", "flags": ["--state", "--batch", "--limit", "--offset"]},
     {"path": "operation resolve", "flags": ["--id", "--outcome", "--evidence"]},
     {"path": "update", "flags": ["--check", "--target-version", "--allow-downgrade"]}
@@ -487,7 +489,7 @@
     },
     {"path": "doc list", "effect": "observe", "modes": ["file", "session"], "tier": "none"},
     {"path": "doc get", "effect": "observe", "modes": ["file", "session"], "tier": "none"},
-    {"path": "doc create", "effect": "lifecycle", "modes": ["session"], "tier": "direct", "optional": true},
+    {"path": "doc create", "effect": "lifecycle", "modes": ["file", "session"], "tier": "direct", "two_step_when": "target_exists", "optional": true},
     {"path": "doc open", "effect": "lifecycle", "modes": ["session"], "tier": "direct", "optional": true},
     {"path": "doc save", "effect": "persist", "modes": ["session"], "tier": "two_step"},
     {
@@ -592,7 +594,7 @@
     {"name": "open_session", "file": "none", "session": "optional", "device": "none", "side": "cli"},
     {"name": "close_session", "file": "none", "session": "optional", "device": "none", "side": "instance"},
     {"name": "documents", "file": "required", "session": "required", "device": "none", "side": "instance"},
-    {"name": "create_doc", "file": "none", "session": "optional", "device": "none", "side": "instance"},
+    {"name": "create_doc", "file": "optional", "session": "optional", "device": "none", "side": "instance"},
     {"name": "open_doc", "file": "none", "session": "optional", "device": "none", "side": "instance"},
     {"name": "save_doc", "file": "none", "session": "required", "device": "none", "side": "instance"},
     {"name": "save_doc_as", "file": "none", "session": "optional", "device": "none", "side": "instance"},
@@ -657,7 +659,7 @@
     {"quantity": "volume", "unit": "mm3", "suffix": "_mm3", "accepts": ["mm3", "cm3", "l", "m3"]},
     {"quantity": "ratio", "unit": "%", "suffix": "_pct", "accepts": ["%"]}
   ],
-  "timing_fields": ["duration_ms", "retry_after_ms", "deadline_ms"],
+  "timing_fields": ["retry_after_ms", "deadline_ms"],
   "scope_file": {
     "env": "<PREFIX>_SCOPE_FILE",
     "default": "<state_dir>/scope.json",
@@ -699,7 +701,7 @@
     ]
   },
   "host_protocol": {
-    "version": "1.0.0",
+    "version": "1.2.0",
     "transport": {"windows": "named_pipe", "macos": "unix_socket", "linux": "unix_socket"},
     "discovery_dir": "hosts/",
     "discovery_keys": ["address", "pid", "application", "protocol_version", "plugin_version", "started_at"],
@@ -730,22 +732,20 @@
     "request_keys": ["deadline_ms"],
     "write_methods": ["close_session", "create_doc", "open_doc", "save_doc", "save_doc_as", "close_doc", "undo", "apply", "cancel"],
     "rpc_error_code": -32000,
-    "allowed_error_codes": ["E_BUSY", "E_NATIVE_FAILURE", "E_HUMAN_REQUIRED", "E_NOT_FOUND", "E_VALIDATION", "E_UNSUPPORTED"],
+    "allowed_error_codes": ["E_BUSY", "E_NATIVE_FAILURE", "E_HUMAN_REQUIRED", "E_NOT_FOUND", "E_AMBIGUOUS", "E_VALIDATION", "E_CONFLICT", "E_UNSUPPORTED", "E_BACKEND_UNAVAILABLE", "E_TIMEOUT"],
     "no_reply": {"write": "outcome_unknown", "read": "unresponsive"}
   },
   "knowledge": {
     "kinds": ["guide", "rule", "resource", "troubleshooting", "concept"],
     "sources": ["builtin", "team"],
     "id_pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-    "builtin_fields": ["id", "title", "kind", "applies_to", "tags", "lang", "based_on", "updated_on"],
+    "builtin_fields": ["id", "title", "kind", "applies_to", "tags"],
     "rule_fields": ["severity", "check"],
     "resource_fields": ["location", "version", "units", "license"],
     "severities": ["error", "warning", "info"],
-    "langs": ["zh", "en"],
     "max_body_chars": 6000,
-    "index_file": "index.json",
     "required_builtin_kinds": ["guide", "troubleshooting"],
-    "team_fields": ["id", "title", "kind", "url", "about", "applies_to", "provider", "added_at"],
+    "team_fields": ["id", "title", "kind", "url", "about", "applies_to"],
     "registration_file": "knowledge-links.json",
     "max_url_chars": 2048,
     "max_about_chars": 200,
@@ -754,7 +754,7 @@
   },
   "skill": {
     "max_lines": 150,
-    "frontmatter": ["name", "description", "metadata.version", "metadata.requires", "metadata.commands", "metadata.replaced_by"],
+    "frontmatter": ["name", "description", "metadata.version", "metadata.commands", "metadata.replaced_by"],
     "command_map_markers": ["<!-- driver:command-map:start -->", "<!-- driver:command-map:end -->"],
     "dangerous_marker": "(dangerous)",
     "stop_checkpoints": [
@@ -822,7 +822,8 @@
       "device",
       "host_component",
       "physical",
-      "halt"
+      "halt",
+      "long_jobs"
     ],
     "general": [
       {"id": "G00", "title": "every write command has a sample (the normal row of its behavior matrix)"},
@@ -867,10 +868,12 @@
       {"id": "D22", "title": "one instance does not respond", "applies_when": ["session"]},
       {"id": "D23", "title": "device in emergency stop or fault", "applies_when": ["device"]},
       {"id": "D24", "title": "batch with one failing object", "applies_when": ["writes"]},
-      {"id": "D25", "title": "halt command while the device is busy", "applies_when": ["halt"]}
+      {"id": "D25", "title": "halt command while the device is busy", "applies_when": ["halt"]},
+      {"id": "D26", "title": "long job in the tool's own worker", "applies_when": ["long_jobs"]}
     ]
   },
-  "sample_placeholders": ["{session}", "{doc}", "{device}", "{dir}"],
+  "sample_placeholders": ["{session}", "{doc}", "{device}", "{dir}", "{job}", "{inputs}"],
+  "matrix": {"pause_env": "<PREFIX>_TEST_PAUSE_BEFORE_READ_BACK", "pause_file": "pause.json", "max_pause_seconds": 600},
   "fake_host": {"env": "<PREFIX>_FAKE_HOST", "receipt_key": "simulated"},
   "behavior_matrix_rows": [
     {"row": "normal", "group": "general", "applies_when": ["always"]},
@@ -1000,7 +1003,7 @@
         "Capabilities",
         "Risks"
       ],
-      "docs/COMPATIBILITY.md": ["Support Matrix", "Client and Host", "Host Component Versions", "Known Limitations"],
+      "docs/COMPATIBILITY.md": ["Support Matrix", "Known Limitations"],
       "docs/E2E.md": ["Authorized Targets", "Procedure", "Evidence Records"]
     },
     "sections_zh": {
@@ -1009,7 +1012,7 @@
       "SECURITY.md": ["支持的版本", "报告漏洞", "风险等级", "授权", "写入确认", "宿主组件", "物理动作", "状态目录", "凭据", "不可信内容", "供应链", "自更新"],
       "CONTRIBUTING.md": ["开发环境", "常用命令", "分支与提交约定", "CI 检查", "测试与证据", "新增或修改命令", "合并请求", "安全"],
       "docs/APPLICATION.md": ["软件", "自动化接口", "对象模型", "单位与坐标", "线程与阻塞", "读回", "保存与撤销", "实例与并发", "许可", "能力", "风险"],
-      "docs/COMPATIBILITY.md": ["支持矩阵", "客户端与宿主", "宿主组件版本", "已知限制"],
+      "docs/COMPATIBILITY.md": ["支持矩阵", "已知限制"],
       "docs/E2E.md": ["授权目标", "步骤", "证据记录"]
     },
     "optional_sections": {"SECURITY.md": {"Host Component": "host_component", "Physical Effects": "device_mode"}},
@@ -1055,12 +1058,11 @@
     "target_kind",
     "flags",
     "untrusted_fields",
-    "adapter_capabilities",
-    "survey_ids",
     "irreversible",
     "halt",
     "tolerances",
     "default_fields",
     "related_knowledge"
-  ]
+  ],
+  "registration_optional_fields": ["tier_when", "doc_kinds", "verify_after_save", "long", "jobs"]
 }

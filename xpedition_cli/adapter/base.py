@@ -14,6 +14,10 @@ Rules every handler follows (DCLI-260, adapter.schema.json):
 - ``after`` in a preview is the value Xpedition will actually store, in the same form the
   read-back returns, so that the runtime can compare them.
 - A session-mode write never saves. Only ``doc save`` saves (DCLI-201).
+- What the application's state stands in the way of (a part already in the library with other
+  content, a board with no outline) is not bad input: a preview reports it in ``blocked_by``,
+  and an ``apply`` that finds it raises ``blocked(...)``, E_CONFLICT ``application_state``. The
+  capabilities without a preview (open a session or a document) raise ``blocked(...)`` too.
 """
 from __future__ import annotations
 
@@ -103,11 +107,21 @@ def change(target_key: str, field: str, before: Any, after: Any) -> dict[str, An
 
 
 def preview(action: str, targets: list[dict[str, Any]], changes: list[dict[str, Any]],
-            blocked_by: list[str] | None = None) -> dict[str, Any]:
+            blocked_by: list[str] | None = None, knowledge: list[str] | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"action": action, "targets": targets, "changes": changes, "can_apply": not blocked_by}
     if blocked_by:
         out["blocked_by"] = blocked_by
+        if knowledge:
+            out["knowledge"] = knowledge
     return out
+
+
+def blocked(reason: str, knowledge: list[str] | None = None, **extra: Any) -> AdapterError:
+    """The application's state stands in the way, and nothing was sent: E_CONFLICT ``application_state``.
+    The adapter's ``preview`` turns it into a blocked preview."""
+    if knowledge:
+        extra["knowledge"] = knowledge
+    return AdapterError("E_CONFLICT", reason, dispatch_state="not_started", conflict="application_state", **extra)
 
 
 def facts(change_state: str = "applied", persistence: str = "unchanged", *, result: Any = None,
@@ -127,18 +141,18 @@ def facts(change_state: str = "applied", persistence: str = "unchanged", *, resu
 class Handler:
     """One domain command. Subclasses implement ``read`` (observe) or the three write methods.
 
-    A handler whose work can take longer than a call may (DCLI-065) sets ``long_job = True`` and
-    implements ``run`` instead of ``apply``; the adapter starts ``run`` in a worker process and
-    ``job_status`` reports it. ``run`` reports progress through ``progress(done, total, unit)``
-    and returns what a final ``job_status`` carries: ``change``, ``persistence``, ``result`` and,
-    for files it wrote, ``files``.
+    A handler of a command registered ``long: true`` (DCLI-065) sets ``long_job = True`` and
+    implements ``run`` instead of ``apply``; the runtime calls ``apply`` in its long job's worker,
+    and the adapter runs ``run`` there. ``run`` reports its steps through
+    ``progress(done, total, unit)`` and returns the facts: ``change``, ``persistence``,
+    ``result`` and, for files it wrote, ``files``.
     """
 
     command = ""
     long_job = False
 
     def long(self, ctx: Context) -> bool:
-        """Whether this call runs as a long job; ``long_job`` unless a handler decides per call."""
+        """Whether this call runs ``run``; ``long_job`` unless a handler decides per call."""
         return self.long_job
 
     def read(self, ctx: Context) -> dict[str, Any]:

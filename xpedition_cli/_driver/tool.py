@@ -23,7 +23,7 @@ from typing import Any, Mapping, TextIO
 from . import builtin, knowledge, standard
 from .args import Call, Meta, Parser
 from .contract import Contract
-from .errors import DriverError
+from .errors import DriverError, usage
 from .output import Envelopes, Result, dumps, render_text
 from .registry import Command, RegistrationError, Tiers, domain_command
 from .runtime import Run
@@ -44,6 +44,7 @@ class Tool:
         contract: str | os.PathLike[str] | None = None,
         maturity: dict[str, dict[str, Any]] | None = None,
         plugin_manifest: str | os.PathLike[str] | None = None,
+        long_commands: list[str] | None = None,
     ) -> None:
         self.root = Path(root)
         package = json.loads((self.root / "package.json").read_text(encoding="utf-8"))
@@ -64,6 +65,8 @@ class Tool:
         self.modes = list(modes)
         self.host_component = host_component
         self.plugin_manifest = Path(plugin_manifest) if plugin_manifest else None
+        # How a long job's worker starts this tool again; None finds it from the running program (DCLI-065).
+        self.worker_command: list[str] | None = None
         self.tiers = Tiers(self.contract)
         self.commands: dict[str, Command] = {}
         for command in builtin.commands(self) + standard.commands(self) + knowledge.commands(self):
@@ -75,6 +78,12 @@ class Tool:
             command.handler = _domain_handler(command)
             self._add(command)
             self.domain.append(command)
+        for path in long_commands or []:
+            # A standard write that takes the application over a minute, such as opening a large
+            # project, runs as a long job in the tool's own worker (DCLI-065).
+            if path not in self.contract["jobs"]["standard_long"] or path not in self.commands:
+                raise RegistrationError(f"long_commands names {path!r}; it takes the offered commands of jobs.standard_long")
+            self.commands[path].long = True
         for path, level in (maturity or {}).items():
             if path not in self.commands or self.commands[path].kind != "standard":
                 raise RegistrationError(f"maturity is declared only for standard commands, not {path!r}")
@@ -91,7 +100,7 @@ class Tool:
         """The watchdog of an in-process adapter call: report what is known, then end the
         process, because the call on the main thread cannot be interrupted (DCLI-278)."""
         error = _hang_error(run, cap, deadline_ms)
-        env_out = self.envelopes.failure(error, run.notices, int((time.monotonic() - started) * 1000))
+        env_out = self.envelopes.failure(error, run.notices)
         text = (render_text(env_out) if fmt == "text" else dumps(env_out, pretty)) + "\n"
         try:
             if hasattr(out, "buffer"):
@@ -141,6 +150,7 @@ class Tool:
                 fmt, pretty = call.format, call.pretty
                 run = Run(self, call, env)
                 run.on_hang = lambda cap, ms, r=run: self._hang(r, cap, ms, out, fmt, pretty, started)
+                _required(call)
                 result = call.command.handler(run)
                 if not call.command.writes:
                     result = _fields(result, call)
@@ -160,18 +170,17 @@ class Tool:
                 if call is not None and call.command.path not in ("update", "doctor"):
                     builtin.update_notice(run)
                 run.close()
-        duration = int((time.monotonic() - started) * 1000)
         if error is None:
             assert result is not None
             if fmt == "raw" and result.raw is not None:
                 out.buffer.write(result.raw) if hasattr(out, "buffer") else out.write(result.raw.decode("utf-8", "replace"))
                 return 0
             try:
-                env_out = self.envelopes.success(result, notices, duration)
+                env_out = self.envelopes.success(result, notices)
             except DriverError as exc:
-                env_out = self.envelopes.failure(exc, notices, duration)
+                env_out = self.envelopes.failure(exc, notices)
         else:
-            env_out = self.envelopes.failure(error, notices, duration)
+            env_out = self.envelopes.failure(error, notices)
         text = (render_text(env_out) if fmt == "text" else dumps(env_out, pretty)) + "\n"
         if hasattr(out, "buffer"):
             out.flush()
@@ -211,6 +220,16 @@ def _after_dispatch(run: Run, cause: DriverError) -> DriverError:
     return DriverError("E_OUTCOME_UNKNOWN", f"The call stopped after the change was sent ({cause.message}); whether it took effect is not known.",
                        dispatch_state="unknown", lookup=lookup,
                        next_action=f"Run `{lookup}` before anything else; never send the write again.")
+
+
+def _required(call: Any) -> None:
+    """A required flag left out is a usage error (DCLI-013). A domain command checks its own,
+    because --ids or an --input item may carry the value instead."""
+    command = call.command
+    for flag in command.flags:
+        own = command.kind == "domain" and flag.name not in ("--session", "--doc", "--device")
+        if flag.required and flag.name not in call.given and not own:
+            raise usage(f"{command.path} needs {flag.name}.", flag.name)
 
 
 def _domain_handler(command: Command) -> Any:

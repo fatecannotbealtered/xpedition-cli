@@ -197,7 +197,7 @@ def board_rect(doc: Any) -> tuple[float, float, float, float]:
     except Exception as exc:  # noqa: BLE001 - classified
         raise com_error(exc, "reading the board outline", "not_started") from None
     if rect is None or rect[2] <= rect[0] or rect[3] <= rect[1]:
-        raise AdapterError("E_VALIDATION", "The board has no outline; set one with pcb update first.", dispatch_state="not_started")
+        raise base.blocked("The board has no outline; set one with pcb update first.")
     return rect
 
 
@@ -340,11 +340,10 @@ def board(app: Any, path: str) -> Any:
     """The licensed active board, which must be ``path``."""
     doc = licensed(app)
     if doc is None:
-        raise AdapterError("E_VALIDATION", f"Layout has no board open; open {path} with doc open first.", dispatch_state="not_started")
+        raise base.blocked(f"Layout has no board open; open {path} with doc open first.")
     current = str(doc.FullName or "")
     if not same_path(current, path):
-        raise AdapterError("E_VALIDATION", f"Layout has {current} open, not {path}; name the open board with --doc.",
-                           dispatch_state="not_started")
+        raise base.blocked(f"Layout has {current} open, not {path}; name the open board with --doc.")
     return doc
 
 
@@ -372,6 +371,13 @@ def action_for(dialog: dict[str, Any]) -> str:
         return "dismiss_dialog"
     title = str(dialog.get("title") or "").lower()
     return "sign_in" if any(marker in title for marker in SIGN_IN_MARKERS) else "activate_license"
+
+
+def blocker(dialog: dict[str, Any]) -> dict[str, Any]:
+    """A session blocker for a window that waits for a person, with the entry that tells how to handle it."""
+    action = action_for(dialog)
+    return {"action": action, "title": str(dialog.get("title") or ""),
+            "knowledge": ["layout-open-prompts"] if action == "dismiss_dialog" else ["xpedition-license-sign-in"]}
 
 
 def human(dialog: dict[str, Any], what: str, dispatch_state: str | None) -> AdapterError:
@@ -527,7 +533,7 @@ def _held(pid: int, fallback: str) -> dict[str, Any]:
     window, busy with a progress window, else ``fallback``."""
     dialog = holding_dialog(pid)
     if dialog is not None:
-        return {"state": "blocked", "blocker": {"action": action_for(dialog), "title": str(dialog.get("title") or "")}}
+        return {"state": "blocked", "blocker": blocker(dialog)}
     try:
         if dialogs.processing_windows(pid):
             return {"state": "busy"}
@@ -537,8 +543,8 @@ def _held(pid: int, fallback: str) -> dict[str, Any]:
 
 
 def instances(timeout_s: float) -> list[dict[str, Any]]:
-    """Every running Layout: the one COM reaches is ready with its board; any other is blocked,
-    since COM cannot reach it (DCLI-205: each probe within ``timeout_s``)."""
+    """Every running Layout: the one COM reaches is ready with its board; any other is
+    unreachable (DCLI-204), since COM cannot reach it (DCLI-205: each probe within ``timeout_s``)."""
     running = layout_processes()
     if not running:
         return []
@@ -564,11 +570,11 @@ def instances(timeout_s: float) -> list[dict[str, Any]]:
                 # looked at only when Layout stops answering, since its floating panels look like dialogs.
                 licence = _quietly_list(lambda pid=proc.pid: dialogs.licence_windows(pid))
                 if licence:
-                    row.update(state="blocked", blocker={"action": action_for({"title": licence[0], "buttons": []}), "title": licence[0]})
+                    row.update(state="blocked", blocker=blocker({"title": licence[0], "buttons": []}))
                 rows.append(row)
             else:
-                title = OTHER_INSTANCE if reached is not None else UNIDENTIFIED
-                rows.append({"pid": proc.pid, "state": "blocked", "documents": [], "blocker": {"action": "other", "title": title}})
+                reason = OTHER_INSTANCE if reached is not None else UNIDENTIFIED
+                rows.append({"pid": proc.pid, "state": "unreachable", "documents": [], "reason": reason})
         return rows
     for proc in running:
         # nothing registered yet means starting; a probe that failed means it does not answer
@@ -599,8 +605,8 @@ def start(path: str | None, wait_s: float) -> dict[str, Any]:
     ``path``. Layout takes about a minute to register: when ``wait_s`` runs out first, the
     session is returned ``starting`` and the board is opened later with doc open."""
     if layout_processes():
-        raise AdapterError("E_VALIDATION", "Layout is already running, and COM can drive only one Layout; open the board in that "
-                           "session with doc open, or close it with session close first.", dispatch_state="not_started")
+        raise base.blocked("Layout is already running, and COM can drive only one Layout; open the board in that session "
+                           "with doc open, or close it with session close first.")
     env.configure_environment()
     program = env.launcher("ExpeditionPCB")
     flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
@@ -678,9 +684,8 @@ def open_document(pid: int, path: str, budget_s: float = WRITE_BUDGET_S) -> None
             if same_path(current, path):
                 licensed(app)
                 return
-            raise AdapterError("E_VALIDATION", f"Layout has another board open ({current}); close it with doc close first, since "
-                               "opening a second board raises Layout's Save All prompt.", dispatch_state="not_started",
-                               knowledge=["layout-open-prompts"])
+            raise base.blocked(f"Layout has another board open ({current}); close it with doc close first, since opening a "
+                               "second board raises Layout's Save All prompt.", knowledge=["layout-open-prompts"])
         try:
             app.OpenDocument(path)
         except Exception as exc:  # noqa: BLE001 - classified

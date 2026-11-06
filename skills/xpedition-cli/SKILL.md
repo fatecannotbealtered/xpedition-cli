@@ -79,15 +79,21 @@ Run `xpedition-cli session list` and `xpedition-cli doc list`, then name the ins
 
 In file mode, name the file with `--doc <path>`, using the path the user gave.
 
+### Checking results
+
+Check a change with its `result` and receipt, and with the read commands, which give positions, sizes and connections as data. Never verify a change by recognizing a screenshot or a render; those are for the person or for purely visual questions.
+
 ### Save
 
-A change in session mode is not saved until `xpedition-cli doc save`; its receipt says `persistence: unchanged`. Before confirming a save, check its preview: it lists every change since the last save, including changes made outside xpedition-cli (`origin: external`), and in `blocked_by` the operations whose outcome is still unknown. Settle those first.
+A change in session mode is not saved until `xpedition-cli doc save`; its receipt says `persistence: unchanged`. A receipt with verification `deferred` is verified by the next `doc save` of that document; it is not verified before. Before confirming a save, check its preview: it lists every change since the last save, including changes made outside xpedition-cli (`origin: external`), and in `blocked_by` the operations whose outcome is still unknown. Settle those first.
 
 In file mode every write saves the file; its receipt says `persistence: saved`.
 
 ### Long jobs and blocking
 
-Work that takes longer than one call returns `result.job` with a `poll` command. Run that exact command until the job ends, then report the job's final receipt as the result. On `E_BUSY`, wait `retry_after_ms` and run the same command again; after 3 retries of the same command, ask the person. On `E_HUMAN_REQUIRED`, pass `action` and the dialog text to the person, and once they are done, run `resume` exactly as given.
+Work that takes longer than one call returns a job with a `poll` command: a write in `result.job`, a read in `job`. `reference` marks such commands `long`, standard ones such as `doc open` included. Run that exact command until the job ends, then report a write job's final receipt and `result`, or a read job's `result`. A job in state `blocked` waits for the person: pass its `action` on, read the entry in `knowledge` if there is one, and run the poll command again once they are done. A write job that ended with `E_BUSY` changed nothing: run the write again from its first call, without the old token. A session in state `unreachable` runs but cannot be driven: tell the person and ask which instance to use. On `E_BUSY`, wait `retry_after_ms` and run the same command again; after 3 retries of the same command, ask the person. On `E_HUMAN_REQUIRED`, pass `action` and the dialog text to the person, and once they are done, run `resume` exactly as given. When an error lists `details.knowledge`, read that entry first.
+
+In xpedition-cli, `session open`, `session close`, `doc open` and `doc close` are long jobs, because Designer and Layout take about a minute to open or close a project or board; so are `project create`, `schematic create`, `packager run`, `forward-annotation run` and `pcb export`. While a job drives an instance, that session is `busy`. A document xpedition-cli did not open or save itself has `dirty: null`: it may hold a person's unsaved edits, so save it before closing it.
 
 ### Outcome unknown and partial
 
@@ -114,12 +120,13 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 Before `part create`, read [references/parts-file.md](references/parts-file.md) for the parts file; before `schematic create` or `placement run`, read [references/design-file.md](references/design-file.md) for the design file.
 
-1. `project create --doc <template.prj> --output <new.prj>`, then `part create --doc <new.prj> --file <parts.json>` for every part the design uses.
-2. `session open --doc <new.prj>`, `schematic create --design <design.json>` (a long job), `schematic check`, then `doc save`. Close and open the project (`doc close`, `doc open`) before reading the schematic again.
-3. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`; file-mode writes are refused while Designer has the project open.
-4. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
-5. When `session open` reports `starting`, run `session get --session <id>` until it is `ready`, then `doc open --doc <file>` if the file is not open yet.
-6. Report each step's receipt; stop at the first failure and say which step failed.
+1. `session open --kind project` starts Designer with no project. Then `project create --session <id> --output <new.prj>` makes the project from Xpedition's stock setup template, with its own copy of the central library and a board design, and leaves it open. When the user gives a template project instead, `project create --doc <template.prj> --output <new.prj>` copies it in file mode.
+2. `doc close`, then `part create --doc <new.prj> --file <parts.json>` for every part the design uses; file-mode writes are refused while Designer has the project open.
+3. `doc open --doc <new.prj>`, `schematic create --design <design.json>`, then `doc save`. Close and open the project (`doc close`, `doc open`) before `schematic check` or reading the schematic again.
+4. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`.
+5. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
+6. When `session open` ends with the session `starting`, run `session get --session <id>` until it is `ready`, then `doc open --doc <file>` if the file is not open yet.
+7. Report each step's receipt; stop at the first failure and say which step failed.
 
 ## Report
 
@@ -127,7 +134,7 @@ End every task with a report that answers each point separately:
 
 - Changed: what changed, object by object.
 - Saved: whether it was saved, and which changes made outside xpedition-cli the save wrote.
-- Verified: whether read-back verified it.
+- Verified: whether read-back verified it, or that it waits for a save (`deferred`).
 - Failed and skipped: in a batch, the items that failed and the items that were skipped.
 - Simulated: which results are simulated.
 - Unknown: the operation IDs whose outcome is unknown, and for each resolved outcome whether read-back or you settled it.

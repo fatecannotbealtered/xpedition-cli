@@ -4,9 +4,6 @@ title: After forward annotation the parts are unplaced and not drawn
 kind: guide
 applies_to: [forward-annotation run, placement run, router run, pcb get]
 tags: [layout, placement, display]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it; Forward annotation after a library change; Autorouting; Layout facts from the placement and routing round) and docs/E2E.md (from the schematic to a board, and checked, 2026-09-14) of npm @fateforge/xpedition-cli@1.0.3
-updated_on: 2026-11-05
 ---
 
 Forward annotation brings the parts in unplaced: not placed, at position 0, 0. Layout does not draw an unplaced part at all. So the board looks empty after forward annotation, although Layout's component navigator counts the parts. Tell the person this if they look at the board before placement run.

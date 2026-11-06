@@ -4,9 +4,6 @@ title: A pin on a wire corner does not connect
 kind: guide
 applies_to: [schematic create, schematic check]
 tags: [designer, wires, connectivity]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Designer drawing facts verified on XPED2604) and docs/E2E.md (Recorded run, a demo project end to end, 2026-09-12) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 When two wire segments meet end to end, Designer merges them into one polyline. A symbol pin placed where they meet sits on a vertex of that polyline, and it does not connect.

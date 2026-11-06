@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-REPO-SPEC_zh.md)
 
-> Version 1.0.0 · Clauses DREPO-001 to DREPO-062
+> Version 1.0.3 · Clauses DREPO-001 to DREPO-062
 
 ## How to Read
 
@@ -102,7 +102,7 @@ The tree below shows a typical tool project. It illustrates the layout and is no
 │   ├── _driver/                    driver runtime, copied unchanged
 │   ├── commands/                   domain commands (written by the tool author)
 │   └── adapter/                    adapter layer (written by the tool author)
-├── plugin/                         host component source, in a language the application supports (only when needed)
+├── plugin/                         host component, in a language the application supports (only when needed); source/ holds code that is built and not installed
 ├── skills/
 │   ├── <tool>/                     entry Skill
 │   └── <product>-<area>/           domain Skills
@@ -115,11 +115,12 @@ The tree below shows a typical tool project. It illustrates the layout and is no
 ├── scripts/                        build, npm platform packages, smoke test, checks
 ├── tests/                          the tool's tests and conformance runs
 │   ├── matrix/                     behavior matrices, one JSON file per command
+│   ├── inputs/                     files that samples only read, as {inputs} (DVER-002)
 │   └── eval/                       evaluation questions (required before a command is marked stable)
 └── .github/                        workflows ci.yml and release.yml, issue and pull request templates
 ```
 
-Domain commands MUST live in `<pkg>/commands/` and adapter code in `<pkg>/adapter/`. Host component source MUST live in `plugin/`, and `plugin/` exists only when the tool has a host component (DCLI-262).
+Domain commands MUST live in `<pkg>/commands/` and adapter code in `<pkg>/adapter/`. The host component MUST live in `plugin/`, with code that is built into its installed files in `plugin/source/` (DCLI-240), and `plugin/` exists only when the tool has a host component (DCLI-262).
 
 Why: When every tool puts the same thing in the same place, people and Agents who know one tool find their way in the next.
 Check: 🤖 `check_project` checks the paths of DREPO-002 and DREPO-004; 👀 review checks where the code sits.
@@ -273,9 +274,9 @@ Check: 🤖 `check_project` checks the sections and compares Bare minimum to obe
 | `Risk Tier` | The tool's risk tier and the commands that set it (DSEC-002) |
 | `Authorization` | The scope file: where it is, who writes it and what it grants (DSEC-010 to DSEC-018) |
 | `Write Confirmation` | Fixed text: confirmation tiers, confirm tokens and the confirm-time review (DCLI-052 to DCLI-056) |
-| `Host Component` | What runs inside the application, how it is installed and how it connects (DSEC-050 to DSEC-054) |
-| `Physical Effects` | How physical effects are guarded (DSEC-060 to DSEC-062) |
-| `State Directory` | Fixed text: location, contents and access protection of the state directory (DSEC-030 to DSEC-033) |
+| `Host Component` | What runs inside the application, how it is installed and how it connects (DSEC-050 to DSEC-053) |
+| `Physical Effects` | How physical effects are guarded (DSEC-061 and DSEC-062) |
+| `State Directory` | Fixed text: location, contents and access protection of the state directory (DSEC-030 to DSEC-032) |
 | `Credentials` | The secrets the tool handles, how they are masked, and the addresses the tool connects to (DSEC-040 to DSEC-043) |
 | `Untrusted Content` | Fixed text: what content is untrusted and how it is marked (DSEC-020 to DSEC-022) |
 | `Supply Chain` | Fixed text: locked dependencies, releases with provenance, no install scripts, Skills from the installed package (DSEC-070 to DSEC-073) |
@@ -305,7 +306,7 @@ Check: 🤖 `check_project` checks the sections, compares the five fixed section
 | `Branch and Commit Convention` | How branches are named and commit messages are written |
 | `CI Checks` | The merge gate (DREPO-041) and how to run it locally |
 | `Tests and Evidence` | Conformance tests, behavior matrices, live records, eval reports, and how evidence sets maturity (DVER-001, DVER-030, DVER-040) |
-| `Adding or Changing a Command` | Registration with effects, units, target type and capability IDs (DCLI-029, DREPO-061), the behavior matrix, whose `normal` row is the write sample (DVER-002, DVER-030), the Skill and the CHANGELOG entry |
+| `Adding or Changing a Command` | Registration with effects, units and target type (DCLI-029), the capability's disposition in the survey (DREPO-060), the behavior matrix, whose `normal` row is the write sample (DVER-002, DVER-030), the Skill and the CHANGELOG entry |
 | `Pull Requests` | What a pull request contains and how it is reviewed |
 | `Security` | Where to report vulnerabilities instead of opening a public issue (`SECURITY.md`) |
 
@@ -342,11 +343,9 @@ Check: 🤖 `check_project`.
 | Section | Content |
 |---|---|
 | `Support Matrix` | One row per combination of application version (major and minor, or the supported range while no live record names a version), operating system and mode, with its compatibility label (DREPO-022); generated, never typed by hand |
-| `Client and Host` | Which tool versions work with which host protocol and host component versions; the tool and the application always run on the same machine |
-| `Host Component Versions` | Each host component version, with its protocol version and the application versions it loads into |
 | `Known Limitations` | Known gaps and failures, with the versions they affect |
 
-A tool without a host component MUST keep Client and Host and Host Component Versions, and say there that it has none. The Support Matrix section MUST be generated by the template's script from the live records in `docs/evidence/` and the platform packages in `package.json`, and MUST NOT be edited by hand. A support matrix looks like this:
+The Support Matrix section MUST be generated by the template's script from the live records in `docs/evidence/` and the platform packages in `package.json`, and MUST NOT be edited by hand. A support matrix looks like this:
 
 | Application version | Operating system | Mode | Status |
 |---|---|---|---|
@@ -421,7 +420,7 @@ The README MUST show these badges, in this order, in one row under the pitch:
 | `platform` | The shipped platforms: Windows, macOS, Linux | The platform packages in `package.json` (DREPO-043) |
 | `risk` | The tool's risk tier, T0 to T2 (DSEC-002) | `reference` |
 | `maturity` | The lowest maturity among the tool's domain commands (DVER-040) | `reference` |
-| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.0.0 | `.agent/SPEC_VERSION` |
+| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.0.3 | `.agent/SPEC_VERSION` |
 | `license` | The tool's license | `package.json` |
 
 A badge row for a tool that drives KiCad 10.0 in file and session mode looks like this; the template defines the exact style:
@@ -435,7 +434,7 @@ A badge row for a tool that drives KiCad 10.0 in file and session mode looks lik
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.0-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.3-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 
@@ -510,7 +509,7 @@ Check: 🤖 `check_project` compares the contract's hash, regenerates `commands.
 
 ### DREPO-032 Runtime copy
 
-The driver runtime MUST sit in `<pkg>/_driver/`, unchanged. `<pkg>/_driver/MANIFEST.json` MUST record the specification release the runtime came from and the SHA-256 hash of every runtime file. A tool MUST NOT change runtime files or reimplement what the runtime does (DCLI-261).
+The driver runtime MUST sit in `<pkg>/_driver/`, unchanged. `<pkg>/_driver/MANIFEST.json` MUST record the specification release the runtime came from and the SHA-256 hash of every runtime file. A tool MUST NOT change runtime files or reimplement anything the runtime provides, that is, anything listed for the runtime in the Runtime and Tool Responsibilities table of a specification.
 
 Why: Every tool then runs the same tested code for envelopes, writes and update, and a change to it shows up as a hash mismatch.
 Check: 🤖 `check_project` checks every file against `MANIFEST.json`.
@@ -643,7 +642,7 @@ Before commands are designed, the author MUST fill in `docs/APPLICATION.md` with
 <!-- contract:capability_dispositions -->
 | Disposition | Meaning |
 |---|---|
-| `provided` | The tool offers it through one or more domain commands |
+| `provided` | The tool offers it through one or more domain commands, or through standard commands such as `doc open`, `doc save` and `doc close` |
 | `deferred` | Worth offering, but left for a later version |
 | `excluded` | The tool will not offer it, for example because it is unsafe or cannot be automated reliably |
 | `unknown` | Not yet known whether the application allows it |
@@ -655,11 +654,7 @@ Check: 🤖 `check_project` checks the IDs and the dispositions.
 
 ### DREPO-061 Commands trace to capabilities
 
-- Every domain command MUST name, in the `survey_ids` of its registration (DCLI-029), one or more capability IDs that exist in the survey. The registration also states the command's effects (DCLI-051), units (DCLI-080) and target type (DCLI-028).
-- Every capability in the survey MUST have a disposition.
-
-Why: Each command can then be traced back to a surveyed fact about the application, and nothing in the survey is silently forgotten.
-Check: 🤖 `check_project` checks both, using `contract/commands.json` and `docs/APPLICATION.md`.
+Removed: its rule is part of DREPO-060.
 
 ### DREPO-062 Onboarding steps
 
@@ -670,7 +665,7 @@ A new tool is usually built by an AI Agent. It SHOULD follow these eight steps, 
 | 1 Survey | Fill in `docs/APPLICATION.md`; give every capability an ID and a disposition (DREPO-060) |
 | 2 Choose modes | Choose file, session or device mode from the survey; modes MAY be combined (DCLI-201) |
 | 3 Generate the project | Generate the project from the template with `instantiate`; `check_project` then lists only what the next steps fill in: the placeholders (DREPO-019) and the domain commands still to register |
-| 4 Register commands | Register domain commands by the naming rules (DCLI-020 to DCLI-024) and the registration fields (DCLI-029), each with effects, units, target type and capability IDs (DREPO-061) |
+| 4 Register commands | Register domain commands by the naming rules (DCLI-020 to DCLI-024) and the registration fields (DCLI-029), each with effects, units and target type, and mark the capabilities they offer `provided` (DREPO-060) |
 | 5 Implement the adapter | Implement only the adapter capabilities the chosen modes need (DCLI-260); put each in the adapter layer or the host component (DCLI-262) |
 | 6 Test | Run both conformance suites on the fake host (DVER-001); write a behavior matrix for each domain command (DVER-030) and run it on the real application, on authorized targets (DVER-031, DVER-050) |
 | 7 Write Skills and knowledge | Decide whether to split the Skills (DSKL-020, DSKL-021); add playbooks to the template's fixed sections (DSKL-009); turn the survey's operating notes, limits and troubleshooting into knowledge entries (DSKL-126); run the evaluation before marking a command stable (DSKL-043) |

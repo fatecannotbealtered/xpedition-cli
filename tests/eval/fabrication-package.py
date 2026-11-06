@@ -7,7 +7,7 @@ annotation, outline, placement, GND plane, routing), saves it and leaves Layout 
 after quits that Layout.
 """
 from _report import says_count, says_number, says_verified
-from _xpedition import board, build, confirm, fake, fake_board, fake_job, inside, job_of, ok_calls, outline_of, path_of, poll, \
+from _xpedition import board, build, confirm, fake, fake_board, inside, job_of, ok_calls, outline_of, path_of, poll, \
     read, result, same_path, session_with, start, stop_all, wait_job
 
 SCENARIO = "scoped_change"
@@ -29,7 +29,6 @@ def before(run, turn):
         layout = build(run, "laid_out", keep_open=True)
         if fake(run):
             fake_board(run, FAKE_BOARD)
-            fake_job(run, "pcb export")
             layout = start(run, board(run))
         run.notes["layout"] = layout
 

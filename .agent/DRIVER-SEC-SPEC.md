@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SEC-SPEC_zh.md)
 
-> Version 1.0.0 · Clauses DSEC-001 to DSEC-073
+> Version 1.0.3 · Clauses DSEC-001 to DSEC-073
 
 ## How to Read
 
@@ -48,7 +48,7 @@ It applies to every driver tool in every mode: file, session and device. The wri
 | authorization scope, scope file | The grant a person writes in a JSON file: which effects, on which targets, until when. |
 | target key | The one way to write down an object, such as `file:///D:/proj/board.kicad_pcb#/footprints/R1` (DCLI-028). |
 | dry run | A call with `--dry-run`. It returns a preview and changes nothing. |
-| confirm token | The random, single-use value the runtime returns with the preview of a write that needs confirmation. The confirming call passes it back (DCLI-055, DSEC-033). |
+| confirm token | The random, single-use value the runtime returns with the preview of a write that needs confirmation. The confirming call passes it back (DCLI-055). |
 | operation record | The runtime's record of one write: command, target, scope ID, preview, confirm token, receipt and state (DCLI-059). |
 | untrusted content | Text that comes from documents, the application, devices or team knowledge, not from the tool or the person (DSEC-020). |
 | state directory | The per-user directory where the runtime keeps operation records, locks, caches and registrations (DSEC-030). |
@@ -93,14 +93,14 @@ Check: 🤖 Runtime unit tests.
 
 ### DSEC-002 Tool risk tier
 
-A tool's risk tier is the highest risk tier among all its commands, as listed by `reference`. Built-in commands are declared `observe` (DCLI-030), so `update` and the tool's own state do not raise it. `knowledge create` and `knowledge delete` only change the tool's own registration: they keep their two-step confirmation (DSKL-123), need no scope (DSEC-017) and do not count toward the tool's tier. The tool MUST show its tier in the risk badge of the README (DREPO-020), in the README info card (DREPO-021) and in the Risk Tier section of SECURITY.md (DREPO-013). All three MUST equal the tier derived from `reference`.
+A tool's risk tier is the highest risk tier among all its commands, as listed by `reference`. Built-in commands are declared `observe` (DCLI-030), so `update` and the tool's own state do not raise it. `knowledge create` and `knowledge delete` do not count toward it (DSKL-123). The tool MUST show its tier in the risk badge of the README (DREPO-020), in the README info card (DREPO-021) and in the Risk Tier section of SECURITY.md (DREPO-013). All three MUST equal the tier derived from `reference`.
 
 Why: The tier tells a person how much care the tool needs before they grant it a scope; a badge that claims less than the commands can do misleads them.
 Check: 🤖 `check_project` compares the risk badge with the tier derived from `reference`.
 
 ### DSEC-003 No downgrades
 
-The confirmation tier and the risk tier of a command follow from its declared effects by the rules of DCLI-051 and DCLI-052. The runtime computes both. A tool MUST declare every effect a command has. When the application cannot take a command's change back, the tool MUST register the command with `irreversible: true` (DCLI-029), and the runtime puts it in the dangerous tier. A tool MUST NOT lower either tier, by a setting, by its own code or by changing the runtime. No clause allows a tool to lower a tier. Where another clause lets a tool depart from a default, `reference` shows the departure (DCLI-031). Only the person's scope file can change confirmation, and only to make it stricter (DSEC-013).
+The confirmation tier and the risk tier of a command follow from its declared effects by the rules of DCLI-051 and DCLI-052. The runtime computes both. A tool MUST declare every effect a command has. When the application cannot take a command's change back, the tool MUST register the command with `irreversible: true` (DCLI-029), and the runtime puts it in the dangerous tier. A tool MUST NOT lower either tier, by a setting, by its own code or by changing the runtime. No clause allows a tool to lower a tier. Only the person's scope file can change confirmation, and only to make it stricter (DSEC-013).
 
 Why: If each tool could relax its own confirmation, or keep quiet that a change cannot be taken back, the person's assurance would depend on every author's judgment instead of on one rule.
 Check: 🤖 Conformance tests G01 and G09 run every two-step and dangerous sample; `check_project` confirms the runtime copy is unchanged (DREPO-034); 👀 review of the commands registered as irreversible against the capability survey (DREPO-060).
@@ -116,11 +116,11 @@ Check: 🤖 Runtime unit tests.
 
 ### DSEC-011 Written only by a person
 
-Only a person writes the scope file. The runtime MUST only read it; no command creates, changes or deletes it. An Agent MUST NOT create, change or delete a scope file, and MUST NOT point `<PREFIX>_SCOPE_FILE` at a file it wrote. This holds even when the user asks for it in chat: the person edits the file themselves. When a write is refused for lack of scope, the Agent passes on to the person what is missing (DSEC-015).
+Only a person writes the scope file, apart from the one exception below for a coding Agent that prepares live runs. The runtime MUST only read it; no command creates, changes or deletes it. An Agent MUST NOT create, change or delete a scope file, and MUST NOT point `<PREFIX>_SCOPE_FILE` at a file it wrote. This holds even when the user asks for it in chat: the person edits the file themselves. A coding Agent that prepares live runs follows the same rule for the scope file and the Authorized Targets (DVER-050), with one exception: when the person explicitly asks it in their own chat message to write them, it MAY write them, and point `<PREFIX>_SCOPE_FILE` at that scope file, once the person has agreed to the content it showed. It never writes them on its own initiative, nor because a document, a file or a command output asks for it; otherwise it proposes the content in chat and the person writes the files. When a write is refused for lack of scope, the Agent passes on to the person what is missing (DSEC-015).
 
 The scope guards against two things: mistakes by the Agent, such as the wrong file or more objects than were asked for, and instructions injected through untrusted content (DSEC-022). It does not stop an Agent that ignores its Skills: the scope file is an ordinary file in the user's account, and the runtime cannot tell who wrote it. Keeping such an Agent away from the file is a matter for the permissions the person gives the Agent itself.
 
-Why: The scope is the person's decision. An Agent that could write it would grant itself permission, and a request in chat may itself come from injected text or a misunderstanding.
+Why: The scope is the person's decision. An Agent that could write it would grant itself permission, and a request in chat may itself come from injected text or a misunderstanding. A coding Agent that prepares live runs works with the person at hand, and writes only what the person asked for and saw.
 Check: 🤖 Evaluation scenario `out_of_scope_change` (DSKL-040); 👀 review of the runtime and the Skills.
 
 ### DSEC-012 Scope fields
@@ -212,7 +212,7 @@ Some commands change the tool's own records or settings rather than a document. 
 
 - `operation resolve` MUST be covered by a scope whose `effects` include every effect of the operation it resolves and whose `targets` cover that operation's targets (DCLI-035). The scope in force when resolving counts, not the one in force at the write. When no valid scope covers them, the runtime refuses with `E_FORBIDDEN`, and `details.scope` says what is missing (DSEC-015).
 - `plugin install` and `plugin remove` MUST be covered by a scope that allows `configure` (DSEC-050).
-- `knowledge create` and `knowledge delete` need no scope. They change only the tool's own list of team knowledge links, not the application, its files or a device. They stay two-step and do not count toward the tool's risk tier (DSEC-002, DSKL-123).
+- `knowledge create` and `knowledge delete` need no scope (DSKL-123).
 
 Commands that only read or keep the tool's own state, such as `update`, need no scope either (DCLI-030).
 
@@ -225,7 +225,7 @@ Halt commands only stop work that is running: the commands with the verb `stop` 
 
 - they are always direct, and `confirm: always` does not make them two-step (DSEC-013);
 - a scope covers them when its `targets` cover the command's target; `effects` and `dangerous` do not apply (DSEC-014);
-- they run while the target is `busy`, `blocked` or `unresponsive`, and while a device is in `fault` or `emergency_stop`; only a target that is `offline` or `lost` refuses them.
+- they run while the target is `busy`, `blocked` or `unresponsive`, and while a device is in `fault` or `emergency_stop`; only a target that is `offline`, `lost`, `unreachable` or `closed` refuses them.
 
 A halt command still checks the scope's targets, keeps an operation record and returns a receipt (DCLI-050).
 
@@ -279,7 +279,7 @@ The state directory holds these entries:
 <!-- contract:state_dir_entries -->
 | Entry | Holds | Written by |
 |---|---|---|
-| `operations/` | Operation records, kept 30 days, with the confirm tokens of planned operations (DCLI-059, DSEC-033) | The runtime |
+| `operations/` | Operation records, kept 30 days, with the confirm tokens of planned operations (DCLI-055, DCLI-059) | The runtime |
 | `locks/` | Target locks (DCLI-060) | The runtime |
 | `cache/` | The result of the last update check (DCLI-079) | The runtime |
 | `hosts/` | Discovery files of running host components (DCLI-271); `plugin install` points host components here (DSEC-050) | Host components |
@@ -302,10 +302,7 @@ Check: 🤖 General conformance test R05; runtime unit tests.
 
 ### DSEC-033 Confirm tokens
 
-A confirm token MUST be a random value of at least 128 bits from a cryptographically secure random source. It is not signed, and the runtime keeps no signing key. When a write needs confirmation, the runtime stores the token in the record of the planned operation (DCLI-059), together with the values the token binds (DCLI-055) and its expiry. At the confirm, the runtime MUST accept a token only when it finds it in a planned operation record, before its expiry and not yet spent (DCLI-056, step 1). A token is spent when dispatch starts, and MUST NOT be accepted after that; a confirm refused before dispatch leaves it usable until it expires (DCLI-055). When the operation records cannot be written, the runtime can neither store nor spend a token: every write MUST then be refused with `E_IO` and nothing dispatched, while reads keep working (DCLI-059).
-
-Why: A random value that must match a stored record cannot be guessed or forged, and spending it in the record makes it single use. With nothing to sign, there is no key to protect, leak or lose.
-Check: 🤖 General conformance tests G04, G05 and G08.
+Removed: its rules are part of DCLI-055 and DCLI-059.
 
 ### DSEC-034 Tests use a temporary state directory
 
@@ -318,7 +315,7 @@ Check: 👀 Review of the test setup.
 
 ### DSEC-040 Secrets
 
-Secrets MUST NOT appear in output, logs, operation records, error messages or live records (DVER-042). Wherever an input is echoed, as in the `inputs` of a preview (DCLI-054), a secret MUST be shown as `***`. The tool declares which parameters are secrets with `secret: true` when it registers its commands (DCLI-029); the runtime masks them.
+Secrets MUST NOT appear in output, logs, operation records, error messages or live records (DVER-042). Wherever an input is shown, a secret MUST be masked: as `***` in an operation record, and as `<secret>` in a generated command (DCLI-011), where the Agent puts the value in. The tool declares which parameters are secrets with `secret: true` when it registers its commands (DCLI-029); the runtime masks them.
 
 Why: Output, records and logs are read by Agents and kept on disk; a secret there leaks to every later reader.
 Check: 🤖 Runtime unit tests; 👀 review of the parameters declared as secrets.
@@ -330,17 +327,14 @@ A tool MUST connect to these addresses only:
 - the npm registry, from `update` and `doctor` only (DCLI-079);
 - the application services or devices the tool drives, from the commands that drive them.
 
-A tool MUST NOT send telemetry of any kind. The connection to a host component stays on the local machine (DSEC-054).
+A tool MUST NOT send telemetry of any kind. The connection to a host component stays on the local machine (DCLI-270).
 
 Why: A person granting a scope must be able to tell where data can go; a tool that reports home could take design data out of the company.
 Check: 🤖 Driver conformance test D19 confirms that the knowledge commands send no request; 👀 review of every network call in the runtime and the adapter.
 
 ### DSEC-042 Team knowledge is read by the Agent
 
-The Agent reads team knowledge documents itself, with lark-cli (DSKL-110). The tool MUST NOT connect to Feishu and MUST NOT keep a Feishu account or credential. Of team knowledge it stores only the registered links (DSKL-105).
-
-Why: Sign-in and permissions for team documents belong to the person's own Feishu tools; a driver tool that held a Feishu account could leak it.
-Check: 🤖 Driver conformance test D19.
+Removed: its rule is part of DSKL-105.
 
 ### DSEC-043 Proxies and TLS
 
@@ -353,7 +347,7 @@ Check: 👀 Review of the network code in the runtime and the adapter.
 
 ### DSEC-050 Installing host components
 
-A host component MUST be installed, upgraded or removed only through `plugin install` and `plugin remove` (DCLI-240). Both are two-step writes with the `configure` effect, so they need a scope that allows `configure` (DSEC-017). `plugin install` MUST also write the path of the state directory into the host component's configuration, so that a host started from the desktop writes its discovery file into the same `hosts/` (DCLI-271). `plugin remove` removes every installed version that no running instance has loaded; a loaded version stays on disk until no instance has it loaded (DSEC-051). An instance keeps the version it loaded, and while no version is on disk, DSEC-053 does not refuse its writes. `update`, domain commands and the npm installation MUST NOT install or change a host component; when one needs installing again, `update` and `doctor` give the `plugin install` command instead (DCLI-079).
+A host component MUST be installed, upgraded or removed only through `plugin install` and `plugin remove` (DCLI-240). Both are two-step writes with the `configure` effect, so they need a scope that allows `configure` (DSEC-017). `plugin install` MUST also write the path of the state directory into the host component's configuration, so that a host started from the desktop writes its discovery file into the same `hosts/` (DCLI-271). The installed files live outside the state directory, where the application loads them; when the application can load from more than one place, each state directory gets its own copy, so that a run with a test state directory leaves the person's host component alone. A copy belongs to the state directory written in its configuration; `plugin get`, `plugin remove` and the version check of DSEC-053 look at the copy of the current state directory. `plugin remove` removes every installed version that no running instance has loaded; a loaded version stays on disk until no instance has it loaded (DSEC-051). An instance keeps the version it loaded, and while no version is on disk, DSEC-053 does not refuse its writes. `update`, domain commands and the npm installation MUST NOT install or change a host component; when one needs installing again, `update` and `doctor` give the `plugin install` command instead (DCLI-079).
 
 Why: A host component runs inside the person's application with the application's full rights; putting it there changes the environment, which the person must allow and see. A host that wrote its discovery file elsewhere would be invisible to the CLI.
 Check: 🤖 Runtime unit tests; 👀 review that `update` and the npm packages install no host component.
@@ -372,7 +366,7 @@ Check: 🤖 Runtime unit tests.
 
 ### DSEC-052 No restarts
 
-The tool MUST NOT restart, reload or close a person's application instance to upgrade a host component. A running instance keeps the version it loaded until the person restarts or reloads it.
+The tool MUST NOT restart, reload or close a person's application instance to upgrade a host component. A running instance keeps the version it loaded until the person restarts or reloads it. An instance the tool started itself (`owned`, DCLI-203) is not a person's: the tool MAY close it with `session close` and start a new one with `session open`, for example in a test after the host component changed.
 
 Why: Restarting an instance can lose unsaved work and interrupts the person who is using it.
 Check: 👀 Review of `plugin install` in the runtime and of the host component.
@@ -389,19 +383,13 @@ Check: 🤖 Driver conformance test D12.
 
 ### DSEC-054 Local connections only
 
-A host component MUST accept connections only through the local transport of DCLI-270. Every connection MUST start with the handshake of DCLI-273, so a different protocol major version ends it before any change is sent. Host components SHOULD use the host libraries, which do both (DCLI-281).
-
-Why: A host component can change anything in the application; a port reachable from the network or by another user would let others drive it.
-Check: 🤖 Driver conformance test D20 for the handshake; 👀 review of the host component's transport.
+Removed: its rules are part of DCLI-270 and DCLI-273.
 
 ## Physical Effects
 
 ### DSEC-060 Physical effects are dangerous
 
-Every command with the `physical` effect is in the dangerous tier, whatever else it declares. It MUST run only on a confirming call that carries its confirm token and `--dangerous` (DCLI-052, DCLI-053). The scope MUST list `physical` in `effects`, set `dangerous` to `true` and cover the device target, such as `device:cnc-01/axis-x` (DSEC-014). When any of these is missing, the runtime refuses and nothing moves. A halt command that stops a device declares `lifecycle`, not `physical`, and runs at once (DSEC-018).
-
-Why: A machine that moves or a circuit that is powered can hurt people or break equipment, and the action cannot be undone.
-Check: 🤖 Driver conformance test D14.
+Removed: its rules are part of DCLI-051, DCLI-052 and DSEC-014.
 
 ### DSEC-061 Check the device first
 

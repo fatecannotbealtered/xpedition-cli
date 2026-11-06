@@ -4,9 +4,6 @@ title: Layout holds DrillPrefs.txt after NC drill
 kind: troubleshooting
 applies_to: [pcb export, doc close, session close, session list, pcb create]
 tags: [layout, files, drill, lock]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Manufacturing outputs, ODB++, Gerber, NC drill) and docs/E2E.md (run of 2026-09-15) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md and native_com_adapter.py (_remove_board)
-updated_on: 2026-11-05
 ---
 
 ## Symptom

@@ -4,9 +4,6 @@ title: Layout's own automation cannot change trace widths or clearances
 kind: guide
 applies_to: [pcb get, router run, pcb check]
 tags: [layout, rules, trace-width, constraint-manager]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it; Hand routing through the automation; Constraint Manager automation) and docs/E2E.md (runs of 2026-09-14 and 2026-09-15) of npm @fateforge/xpedition-cli@1.0.3; capability survey docs/APPLICATION.md (Automation Interfaces; CAP-067, CAP-083)
-updated_on: 2026-11-05
 ---
 
 Layout's automation reads routing rules but cannot set them. The net class widths (minimum, typical and expansion) and the clearance rules are read-only there. pcb get reads the net classes and their widths.

@@ -2,7 +2,7 @@
 
 [English](APPLICATION.md) | 中文
 
-本调查记录 Xpedition 能做什么、能怎样自动化。它在设计命令之前填写：xpedition-cli 的每个领域命令都写明它实现的能力编号，每项能力都有处置。
+本调查记录 Xpedition 能做什么、能怎样自动化。它在设计命令之前填写，每项能力都有处置：xpedition-cli 有命令提供的，处置为 `provided`。
 
 出处缩写：
 - 〔实测〕xpedition-cli 1.0.3 在 Xpedition Standard XPED2604（Windows 11）上的实测记录，2026年9月12日至30日，见 npm 包 `@fateforge/xpedition-cli@1.0.3` 里的 `docs/E2E.md`、`docs/COMPATIBILITY.md` 和 `docs/NATIVE_ADAPTER.md`。

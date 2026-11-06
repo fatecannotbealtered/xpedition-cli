@@ -4,9 +4,6 @@ title: A new plane shape is in Draft and connects nothing
 kind: troubleshooting
 applies_to: [plane create, router run, pcb check, doc save]
 tags: [layout, plane, drc]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Batch DRC and hazards) and docs/E2E.md (Recorded run, checked; the board on KiCad footprints, 2026-09-14; selected placement, 2026-09-19) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 ## Symptom

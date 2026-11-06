@@ -4,9 +4,6 @@ title: Chinese text comes out garbled in the schematic PDF
 kind: troubleshooting
 applies_to: [schematic export, schematic create, part create, part get]
 tags: [pdf, encoding, chinese, sch2pdf]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Designer drawing facts verified on XPED2604; Rendering a schematic to PDF) and docs/E2E.md (run of 2026-09-29 and 30) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 ## Symptom

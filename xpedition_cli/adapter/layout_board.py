@@ -84,12 +84,13 @@ def _designer_name(row: dict[str, Any]) -> str:
         return "Designer"
 
 
-def refuse_if_designer_holds(board: str) -> None:
-    """Forward annotation fails in its packaging phase while Designer has the project open, and
-    closing Designer's project is the person's or the Designer session's business: refuse first."""
+def designer_holds(board: str) -> tuple[str, list[str]] | None:
+    """Why forward annotation cannot run now that Designer may hold the project, or None. It
+    fails in its packaging phase while Designer has the project open, and closing Designer's
+    project is the person's or the Designer session's business, so it is refused first."""
     project = project_of(board)
     if project is None:
-        return
+        return None
     try:
         rows = designer_projects()
     except AdapterError:
@@ -97,24 +98,24 @@ def refuse_if_designer_holds(board: str) -> None:
     for row in rows:
         documents = [str(item) for item in row.get("documents") or []]
         if any(L.same_path(item, project) for item in documents):
-            raise AdapterError(
-                "E_VALIDATION", f"Designer has the project open ({_designer_name(row)}); forward annotation fails in its packaging "
-                "phase while it does. In that Designer session, save the project with doc save and close it with doc close, then "
-                "run forward-annotation run again.", dispatch_state="not_started")
+            return (f"Designer has the project open ({_designer_name(row)}); forward annotation fails in its packaging phase "
+                    "while it does. In that Designer session, save the project with doc save and close it with doc close, then "
+                    "run forward-annotation run again.", [])
         if not documents and row.get("state") in BUSY_STATES:
-            raise AdapterError(
-                "E_VALIDATION", f"A running Designer ({_designer_name(row)}) does not say which project it has open, and forward "
-                "annotation fails while Designer has this project open. Make sure the project is saved and closed there (doc save, "
-                "doc close), or close Designer, then run forward-annotation run again.", dispatch_state="not_started")
+            return (f"A running Designer ({_designer_name(row)}) does not say which project it has open, and forward annotation "
+                    "fails while Designer has this project open. Make sure the project is saved and closed there (doc save, doc "
+                    "close), or close Designer, then run forward-annotation run again.", [])
+    return None
 
 
-def refuse_unless_annotatable(state: dict[str, Any]) -> None:
+def not_annotatable(state: dict[str, Any]) -> tuple[str, list[str]] | None:
+    """Why Layout cannot forward-annotate the board in this state, or None."""
     if state["status"] == "no_data":
-        raise AdapterError("E_VALIDATION", "Layout finds no packaged schematic for this board (status 3, no CES data); run packager "
-                           "run on the project first.", dispatch_state="not_started", knowledge=["forward-annotation-in-synch"])
+        return ("Layout finds no packaged schematic for this board (status 3, no CES data); run packager run on the project "
+                "first.", ["forward-annotation-in-synch"])
     if state["allowed"] is False:
-        raise AdapterError("E_VALIDATION", "Layout does not allow forward annotation now (IsForwardAnnotationAllowed is false).",
-                           dispatch_state="not_started")
+        return "Layout does not allow forward annotation now (IsForwardAnnotationAllowed is false).", []
+    return None
 
 
 def annotation_summary(log: Path, started: float) -> dict[str, Any]:
@@ -153,18 +154,20 @@ class ForwardAnnotation(L.ReadsBack):
         if state["status"] == "in_synch":
             return base.preview("The board is already in sync with the packaged schematic; forward annotation has nothing to bring in.",
                                 targets, [])
-        refuse_unless_annotatable(state)
-        refuse_if_designer_holds(path)
+        stop = not_annotatable(state) or designer_holds(path)
         change = base.change(base.key(path, L.ANNOTATION_KEY), "status", state["status"], "in_synch")
         return base.preview(f"Forward-annotate the packaged schematic into {Path(path).name}: Layout adds and updates its components "
-                            "and nets (unplaced), and the board is not saved.", targets, [change])
+                            "and nets (unplaced), and the board is not saved.", targets, [change],
+                            blocked_by=[stop[0]] if stop else None, knowledge=stop[1] if stop else None)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         ref = ctx.need_session(base.LAYOUT)
         path = ctx.document_path()
         log = Path(path).parent / "LogFiles" / "ForwardAnnotation.txt"
         progress(0, ANNOTATION_STEPS, "steps")
-        refuse_if_designer_holds(path)
+        stop = designer_holds(path)
+        if stop:
+            raise base.blocked(*stop)
         return L.run_com(lambda: self._annotate(ref.pid, path, log, progress))
 
     def _annotate(self, pid: int, path: str, log: Path, progress: Any) -> dict[str, Any]:
@@ -172,7 +175,9 @@ class ForwardAnnotation(L.ReadsBack):
         state = L.annotation_state(doc)
         if state["status"] == "in_synch":
             return {"change": "not_applied", "persistence": "unchanged", "result": _annotation_result("in_synch", None)}
-        refuse_unless_annotatable(state)
+        stop = not_annotatable(state)
+        if stop:
+            raise base.blocked(*stop)
         integration = com.member(doc, "ProjectIntegration")
         progress(1, ANNOTATION_STEPS, "steps")
         started = time.time()
@@ -695,8 +700,7 @@ def _plane_target(doc: Any, net: str, layer: int, margin: float) -> tuple[Any, t
                            dispatch_state="not_started")
     now = L.plane_values(doc, net, layer)
     if now["exists"]:
-        raise AdapterError("E_VALIDATION", f"{net} has a plane shape on layer {layer} already; plane create adds none beside it.",
-                           dispatch_state="not_started")
+        raise base.blocked(f"{net} has a plane shape on layer {layer} already; plane create adds none beside it.")
     return found, _plane_points(doc, margin), {**now, "layers": layers}
 
 
@@ -849,7 +853,7 @@ class RouterRun(L.ReadsBack):
         look = L.in_layout(ctx, lambda app, doc: _route_look(doc, layers), budget_s=L.READ_BUDGET_S, what="reading the nets")
         if look["unplaced"]:
             return base.preview("Route the open nets.", [base.target(path, "net", L.NETS_KEY)], [],
-                                blocked_by=[_unplaced_reason(look["unplaced"])])
+                                blocked_by=[_unplaced_reason(look["unplaced"])], knowledge=["layout-unplaced-parts-invisible"])
         if not look["open"]:
             return base.preview("Every net is routed already; the autorouter has nothing to do.", [], [])
         targets = [base.target(path, "net", L.NETS_KEY, label=f"{len(look['open'])} open nets")]
@@ -860,8 +864,7 @@ class RouterRun(L.ReadsBack):
             changes.append(base.change(base.key(path, domain), "state", "draft", "dynamic"))
         on = f" on layers {', '.join(map(str, layers))}" if layers else ""
         return base.preview(f"Route {len(look['open'])} open nets with the autorouter passes {plan_routing.DEFAULT_ROUTE_PASSES}{on}, then "
-                            "regenerate the planes so that the new vias tie in. The board is not saved.", targets, changes,
-                            blocked_by=[_unplaced_reason(look["unplaced"])] if look["unplaced"] else None)
+                            "regenerate the planes so that the new vias tie in. The board is not saved.", targets, changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         layers = _layers(ctx)
@@ -873,8 +876,7 @@ class RouterRun(L.ReadsBack):
     def _route(doc: Any, layers: list[int], passes: list[dict[str, Any]]) -> dict[str, Any]:
         look = _route_look(doc, layers)
         if look["unplaced"]:
-            raise AdapterError("E_VALIDATION", _unplaced_reason(look["unplaced"]) + ".", dispatch_state="not_started",
-                               knowledge=["layout-unplaced-parts-invisible"])
+            raise base.blocked(_unplaced_reason(look["unplaced"]) + ".", knowledge=["layout-unplaced-parts-invisible"])
         if not look["open"]:
             return base.facts("not_applied", "unchanged", result=_route_result(doc, [], [], 0))
         started = time.monotonic()

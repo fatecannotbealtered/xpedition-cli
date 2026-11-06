@@ -4,9 +4,6 @@ title: Fabrication output setups and the dialogs that rewrite them
 kind: guide
 applies_to: [pcb export, doc close, doc save]
 tags: [layout, fabrication, odb, gerber, drill]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Manufacturing outputs, ODB++, Gerber, NC drill) and docs/E2E.md (the fabrication package, 2026-09-14, and the run of 2026-09-15) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 Layout has no automation call for ODB++, Gerber or NC drill. They run through Layout's Output menu commands and their dialogs (`ODB++ 设计输出`, `Gerber 输出`, `NC 钻孔生成`). pcb export drives them.

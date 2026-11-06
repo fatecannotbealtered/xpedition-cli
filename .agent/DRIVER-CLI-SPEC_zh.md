@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.0 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.0.3 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 
@@ -14,7 +14,7 @@
 - 应该、不应该：默认做法。只有说得出理由时才偏离。
 - 可以：允许，但不要求。
 
-每条条款有固定编号（如 DCLI-202）、标题、规则正文，以及「为什么：」和「检查：」两行。🤖 表示由测试或脚本检查，👀 表示由人在评审时检查。G00 至 G10、R01 至 R05 是通用一致性测试，D01 至 D25 是驱动一致性测试。引用其他规则时只写条款编号，如 DSEC-015。
+每条条款有固定编号（如 DCLI-202）、标题、规则正文，以及「为什么：」和「检查：」两行。🤖 表示由测试或脚本检查，👀 表示由人在评审时检查。G00 至 G10、R01 至 R05 是通用一致性测试，D01 至 D26 是驱动一致性测试。引用其他规则时只写条款编号，如 DSEC-015。
 
 标有 `<!-- contract:NAME -->` 的表格重复机器契约 `contract/driver-contract.json` 里的值。这类表格与契约不一致时，以契约为准。
 
@@ -69,7 +69,7 @@
 | 状态目录 | 工具按用户存放操作记录、锁、缓存和适配层状态的目录（DSEC-030） |
 | 不可信内容 | 来自文档、软件或工具之外的文字，一律不当成指令（DSEC-020） |
 | 内置命令、标准命令、领域命令 | 运行时为每个工具实现的命令（DCLI-030）；运行时依据适配能力实现的命令（DCLI-200）；工具作者自己写的命令 |
-| 一致性测试 | 运行时提供的测试套件：通用测试 G00 至 G10、R01 至 R05，驱动测试 D01 至 D25 |
+| 一致性测试 | 运行时提供的测试套件：通用测试 G00 至 G10、R01 至 R05，驱动测试 D01 至 D26 |
 | 成熟度、证据 | 命令被证明到什么程度，以及证明它的记录（DVER-040） |
 | 平台包、启动器、命令入口 | 装着某个平台原生程序的 npm 包；npm 主包里的启动脚本；npm 放到 PATH 上用来启动工具的文件 |
 | 来源证明 | 证明 npm 包由本工具发布工作流构建的签名声明 |
@@ -113,18 +113,18 @@
 
 ### DCLI-003 信封的键
 
-成功信封必须恰好有 `ok`、`schema_version`、`data`、`meta` 四个键；失败信封必须恰好有 `ok`、`schema_version`、`error`、`meta` 四个键。失败时禁止返回 `data`。`schema_version` 必须是由本规范的主版本号和次版本号组成的字符串：所有 1.0.x 版本都是 `"1.0"`。
+成功信封必须有 `ok` 和 `data` 两个键，失败信封必须有 `ok` 和 `error` 两个键；`meta` 只在有内容时出现（DCLI-004），此外没有别的键。失败时禁止返回 `data`。
 
 成功：
 
 ```json
-{"ok":true,"schema_version":"1.0","data":{"id":"doc_1","path":"D:/proj/board.kicad_pcb","session":"kicad-1234","revision":"r7","dirty":true,"readonly":false,"disk":"in_sync"},"meta":{"duration_ms":38}}
+{"ok":true,"data":{"id":"doc_1","path":"D:/proj/board.kicad_pcb","session":"kicad-1234","revision":"r7","dirty":true,"readonly":false,"disk":"in_sync"}}
 ```
 
 失败：
 
 ```json
-{"ok":false,"schema_version":"1.0","error":{"code":"E_BUSY","message":"KiCad is running a design rule check; nothing was sent.","retryable":true,"details":{"dispatch_state":"not_started","next_action":"Wait 5 s, then run the same command again.","retry_after_ms":5000}},"meta":{"duration_ms":120}}
+{"ok":false,"error":{"code":"E_BUSY","message":"KiCad is running a design rule check; nothing was sent.","retryable":true,"details":{"dispatch_state":"not_started","next_action":"Wait 5 s, then run the same command again.","retry_after_ms":5000}}}
 ```
 
 为什么：键固定后，Agent 先看 `ok`，再到一个确定的位置读结果或错误。
@@ -132,15 +132,14 @@
 
 ### DCLI-004 meta
 
-`meta` 必须只有以下三个键：
+`meta` 必须只有以下两个键，两个都没有时整个省略：
 
-- `duration_ms`：每个信封都有；运行耗时，整数毫秒。
 - `notices`：提示列表，每条为 `{type, severity, message}`，`severity` 取 `info` 或 `warning`。更新提示（DCLI-079）就是一例。为空时省略。
 - `untrusted`：信封中存放不可信内容的 JSON 路径列表（DSEC-021）。为空时省略。
 
-运行时自己写的文字里嵌有不可信的值时，`untrusted` 也必须列出它，比如 `message`、预览的 `action` 或 `label`，或者含有取自文档的名字的生成命令（DCLI-011）。
+运行时自己写的文字里嵌有不可信的值时，`untrusted` 也必须列出它，比如 `message`、预览的 `action` 或 `label`，或者含有取自文档的名字的生成命令（DCLI-011）。适配层加的提示（DCLI-260）类型为 `application`，它的 `message` 列入 `untrusted`。
 
-为什么：在每个工具里，Agent 都在同一个位置找到耗时、提示和不可信标记；文档里的文字也没法借工具写的句子混进来。
+为什么：在每个工具里，Agent 都在同一个位置找到提示和不可信标记；文档里的文字也没法借工具写的句子混进来。
 检查：🤖 通用一致性测试 R04。
 
 ### DCLI-005 命名与取值
@@ -156,7 +155,7 @@
 
 ### DCLI-006 列表
 
-返回列表的命令必须返回 `items`、`count`（本页条数）和 `has_more`。知道总数时必须另给 `total`；`has_more` 为 `true` 时必须另给 `next_offset`。没有匹配时必须返回空的 `items`，`ok` 为 `true`，禁止返回 `E_NOT_FOUND`。
+返回列表的命令必须返回 `items`、`count`（本页条数）和 `has_more`。知道总数时必须另给 `total`；`has_more` 为 `true` 时必须另给 `next_offset`。没有匹配时必须返回空的 `items`，`ok` 为 `true`，禁止返回 `E_NOT_FOUND`。`--limit` 和 `--offset` 给 `items` 分页（DCLI-026），所以 `list` 命令的适配层结果里没有 `items` 列表时，运行时必须以 `E_PROTOCOL` 拒绝。
 
 为什么：Agent 用同一种方式翻页，并能分清「没有匹配」和「目标不对」。
 检查：🤖 通用一致性测试 R04 检查列表的键；行为矩阵（DVER-030）的「空结果」一行覆盖空列表的情况。
@@ -207,7 +206,7 @@
 |---|---|---|
 | `E_USAGE` | `problem`、`parameter` | 哪里有误，是哪个参数；数值没带单位时，`problem` 列出可接受的单位（DCLI-082） |
 | `E_AMBIGUOUS` | `candidates` | 匹配到的对象或实例；实例带 DCLI-202 规定的会话摘要。只有用户点名了某一个，Agent 才能选它 |
-| `E_CONFLICT` | `conflict` | 哪个前置条件不满足，取值见契约的 `conflict_values`（DCLI-056、DCLI-201、DCLI-206、DCLI-211、DCLI-212） |
+| `E_CONFLICT` | `conflict` | 哪个前置条件不满足，取值见契约的 `conflict_values`（DCLI-056、DCLI-201、DCLI-206、DCLI-211、DCLI-212）。软件内部的冲突，比如已经打开了另一个同名模型、模型正被别的模型使用，取 `application_state`，由 `message` 说明是什么挡住了它；它用于没有自己预览的能力，比如 `open_doc`、`close_doc`，或者派发时状态已经变了。领域命令的预览把这类冲突报告为 `can_apply: false` 加 `blocked_by`（DCLI-054） |
 | `E_FORBIDDEN` | `scope` | `{missing, snippet}`：`missing` 为 `{effects, targets, dangerous}`，即授权范围缺什么；`snippet` 是人可以直接粘进授权范围文件的片段（DSEC-015） |
 | `E_OUTCOME_UNKNOWN` | `lookup` | 查清结果的确切命令（DCLI-063） |
 | `E_BUSY` | `retry_after_ms` | 等多久再试 |
@@ -323,7 +322,7 @@
 
 ### DCLI-023 名词
 
-名词必须是完整的英文单词。唯一的例外是行业或软件里通用的缩写，如 `pcb`、`bom`，可以使用；禁止使用 `sch`、`fab`、`kb` 这类自造缩写。名词应该用软件自己的叫法，即界面和手册里的词，因为用户和 Agent 说的就是这些词。
+名词必须是完整的英文单词，或用连字符连起来的几个完整单词，如 `forward-annotation`、`cross-section`。唯一的例外是行业或软件里通用的缩写，如 `pcb`、`bom`，可以使用；禁止使用 `sch`、`fab`、`kb` 这类自造缩写。名词应该用软件自己的叫法，即界面和手册里的词，因为用户和 Agent 说的就是这些词。
 
 为什么：Agent 要把用户的话对应到命令上，自造缩写会让这种对应失效。
 检查：👀 评审命令树。
@@ -361,7 +360,7 @@
 <!-- contract:shared_flags -->
 | 参数 | 取值 | 含义 |
 |---|---|---|
-| `--limit` | `<n>` | 每页条数。帮助里写明默认值和最大值；超过最大值时返回 `E_USAGE`，不悄悄调低 |
+| `--limit` | `<n>` | 每页条数：默认 20，最多 100，所有列表都一样，领域命令的列表也是；运行时给每个 `list` 命令加上 `--limit` 和 `--offset`，并掌握这两个值。超过最大值时返回 `E_USAGE`，不悄悄调低 |
 | `--offset` | `<n>` | 本页的起始位置 |
 | `--query` | `<text>` | `search` 要找的内容 |
 | `--sort` | `<field>` | 列表按哪个字段排序 |
@@ -386,7 +385,7 @@
 | 参数 | 对象 | 含义 |
 |---|---|---|
 | `--session` `<id>` | 会话 | 选择实例（DCLI-202） |
-| `--doc` `<path-or-id>` | 文档 | 选择文档；文件模式下就是文件路径（DCLI-213） |
+| `--doc` `<path-or-id>` | 文档 | 选择文档；文件模式下就是文件路径（DCLI-201） |
 | `--device` `<id>` | 设备 | 选择设备 |
 | `--job` `<id>` | 长任务 | 选择长任务 |
 
@@ -415,7 +414,7 @@
 
 ### DCLI-029 命令登记
 
-每个命令都必须先登记才能运行。内置命令和标准命令由运行时登记；每个领域命令由工具作者登记。登记包括以下字段：
+每个命令都必须先登记才能运行。内置命令和标准命令由运行时登记；每个领域命令由工具作者登记，软件要花一分钟以上的标准写命令由工具作者列进 `long_commands`（DCLI-065）。登记包括以下字段：
 
 <!-- contract:registration_fields -->
 | 字段 | 内容 |
@@ -425,17 +424,29 @@
 | `effects` | 命令的效果（DCLI-051） |
 | `modes` | 命令支持的模式（DCLI-201） |
 | `target_kind` | 命令作用的对象类型，也就是目标键里的类型（DCLI-028） |
-| `flags` | 每个参数，各带类型（`string`、`integer`、`number`、`boolean`、`quantity` 或 `path`；DCLI-026 的共享参数还有 `list`、`input` 和 `duration`），`quantity` 类型参数所属的物理量（DCLI-080），携带机密时的 `secret: true`（DSEC-040），以及指明命令所创建文件时的 `output: true`，此时类型为 `path`（DCLI-051） |
+| `flags` | 每个参数，各带类型（`string`、`integer`、`number`、`boolean`、`quantity`、`path` 或 `json`；DCLI-026 的共享参数还有 `list`、`input` 和 `duration`），`json` 类型参数的 `schema`，`quantity` 类型参数所属的物理量（DCLI-080），携带机密时的 `secret: true`（DSEC-040），以及指明命令所创建文件时的 `output: true`，此时类型为 `path`（DCLI-051） |
 | `untrusted_fields` | 存放不可信文字的输出字段（DSEC-021） |
-| `adapter_capabilities` | 命令调用的适配能力（DCLI-260），`reference` 会列出 |
-| `survey_ids` | 命令实现的、能力调查中的能力编号（DREPO-061） |
 | `irreversible` | 软件无法撤回这项修改时为 `true`，命令因此成为危险级（DCLI-051） |
 | `halt` | 停止命令为 `true`（DSEC-018） |
 | `tolerances` | 按字段给出读回值与预览之差在多大范围内仍算一致（DCLI-057） |
 | `default_fields` | 列表默认返回的字段（DCLI-007） |
 | `related_knowledge` | 相关知识条目的 ID（DSKL-124） |
 
-运行时必须拒绝违反这些规则的登记，比如没有声明物理量的物理量参数（DCLI-085）；确认级别必须由运行时根据登记推导，禁止由作者指定（DCLI-052）。`reference` 由登记生成（DCLI-031）。工具项目里的 `contract/commands.json` 必须由登记生成，并由 `contract/schemas/commands.schema.json` 校验。
+登记还可以包括以下字段：
+
+| 字段 | 内容 |
+|---|---|
+| `tier_when` | 让一次调用的确认更严的、这个命令自己的条件，每项为 `{when, tier, description}`；适配层在预览里写明哪些条件对这次调用成立（DCLI-052） |
+| `doc_kinds` | 软件有几种文档时，命令适用的文档种类，如 `part`、`assembly`、`drawing`（DCLI-210） |
+| `verify_after_save` | 会话模式下，软件要等文档保存之后才能正确显示这项修改时为 `true`，由 `doc save` 核实（DCLI-057） |
+| `long` | 工作可能超出单次调用允许的时长时为 `true`，运行时把它作为长任务运行（DCLI-065） |
+| `jobs` | 软件可能把这个写操作作为长任务运行时为 `true`：`apply` 报告任务，运行时用 `job_status` 跟进（DCLI-065）。一条命令要么是 `jobs`，要么是 `long`，不能两者都是 |
+
+领域命令要调用哪些适配能力，由登记推出：读命令是 `read`；写命令是 `preview`、`apply` 和 `read_back`，带 `jobs` 的再加 `job_status` 和 `cancel`（DCLI-260）。
+
+`json` 类型的参数接收结构化的值，比如焊盘表：在命令行上写成内联 JSON，或写成存放它的文件路径；在 `--input` 的条目里直接写值本身。它的 `schema` 是类型为 `object` 或 `array` 的 JSON Schema，`reference` 会显示出来。值里的物理量数字必须在键名里带上单位，用标准单位的后缀，如 `width_mm`（DCLI-081）。运行时检查最外层的类型，其余由适配层检查，不对时返回 `E_VALIDATION`。
+
+运行时必须拒绝违反这些规则的登记，比如没有声明所属物理量的物理量参数（DCLI-080）；确认级别必须由运行时根据登记推导，禁止由作者指定（DCLI-052）。`reference` 由登记生成（DCLI-031）。工具项目里的 `contract/commands.json` 必须由登记生成，并由 `contract/schemas/commands.schema.json` 校验。
 
 为什么：每个命令只有一份声明，`reference`、确认级别、授权范围检查、机密遮盖和读回都从它来，彼此就不会对不上。
 检查：🤖 `check_project` 用 `commands.schema.json` 校验 `contract/commands.json`；运行时单元测试检查运行时会拒绝违反规则的登记。
@@ -453,7 +464,7 @@
 | `context` | — | 本地状态，不联网（DCLI-032） |
 | `doctor` | — | 健康检查（DCLI-033） |
 | `changelog` | `--since <version>` | 来自内置 CHANGELOG 的发布说明（DCLI-034） |
-| `operation get` | `--id` | 一条操作记录（DCLI-035） |
+| `operation get` | `--id`、`--output` | 一条操作记录（DCLI-035） |
 | `operation list` | `--state`、`--batch`、`--limit`、`--offset` | 操作记录，按时间倒序（DCLI-035） |
 | `operation resolve` | `--id`、`--outcome`、`--evidence` | 读回目标，查清结果未知的写操作；或登记 Agent 查到的结果（DCLI-035） |
 | `update` | `--check`、`--target-version <v>`、`--allow-downgrade` | 自更新（DCLI-070） |
@@ -463,16 +474,17 @@
 
 ### DCLI-031 reference
 
-`reference` 必须根据登记（DCLI-029）说明每条命令：路径、摘要、参数、输出 Schema、示例、效果、确认级别、成熟度和证据、适用模式、所需的适配能力、可能的错误码，以及相关的知识条目（DSKL-124）。它还必须返回 `driver` 块：支持的模式、所驱动的软件及其支持的版本范围。条款允许工具偏离某个默认做法时，`reference` 必须在受影响的命令上写明每一项偏离，并注明允许它的条款编号，放在该命令的 `departures` 列表里。
+`reference` 必须根据登记（DCLI-029）说明每条命令：路径、摘要、参数、输出 Schema、示例、效果、确认级别、成熟度、适用模式，以及相关的知识条目（DSKL-124）。它还必须返回 `driver` 块：支持的模式、所驱动的软件及其支持的版本范围。命令所需的适配能力和成熟度背后的证据，只写在 `reference --all` 生成的文件里，供项目脚本检查（DVER-041）。
 
-- `tier` 必须按命令支持的每种模式分别给出确认级别。取决于具体调用的级别，必须在 `tier_when` 里说明，比如 `doc close --discard`、关闭不是本工具启动的实例、另存为或导出时覆盖已有文件。
+- `tier` 必须按命令支持的每种模式分别给出确认级别。取决于具体调用的级别，必须在 `tier_when` 里说明，比如 `doc close --discard`、关闭不是本工具启动的实例、另存为或导出时覆盖已有文件，以及命令自己登记的条件及其 `description`（DCLI-029）。
+- 命令登记了 `doc_kinds`、`long` 或 `verify_after_save` 时（登记了 `jobs` 的命令也显示 `long`，因为它同样返回任务），`reference` 必须显示出来，让 Agent 在调用之前就知道它接受哪些文档、会返回长任务、核实要等到保存。
 - 表示坐标的每个参数和输出字段，都必须写明它的 `coordinate_system`（DCLI-084）。
-- 不带参数的 `reference` 必须只返回索引，不超过 8000 个字符。
+- 不带参数的 `reference` 必须只返回索引，不超过 8000 个字符：每条命令只有路径和一句话摘要。限制和条件写在这条命令自己的说明里。
 - `reference --command <path>` 必须只返回一条命令，不超过 6000 个字符。
 - `reference --all --output <path>` 必须把全部命令的说明写进这个文件，响应里只给摘要（DCLI-008）。
 
-为什么：Agent 用一次简短的调用就能了解整个工具，包括每个写命令在每种模式下的确认级别，不用猜。
-检查：🤖 通用一致性测试 R01 和 R02；👀 评审每一项偏离都注明了条款。
+为什么：Agent 用一次简短的调用就知道工具能做什么，再用一次调用就知道一条命令的完整用法，包括它在每种模式下的确认级别，不用猜。
+检查：🤖 通用一致性测试 R01 和 R02。
 
 ### DCLI-032 context
 
@@ -509,7 +521,7 @@
 | `license` | 软件的许可状态 |
 | `plugin` | 磁盘上的宿主组件版本与各实例已加载的版本一致（DSEC-053） |
 | `sessions` | 运行中的实例及其状态 |
-| `knowledge` | 知识索引、条目格式和登记文件；登记了团队知识时，PATH 上有没有 lark-cli（DSKL-125） |
+| `knowledge` | 条目格式和登记文件；登记了团队知识时，PATH 上有没有 lark-cli（DSKL-125） |
 
 为什么：一条命令就能找出常见的环境问题，并说明每个问题怎么修。
 检查：🤖 通用一致性测试 R05 检查固定检查项是否齐全。
@@ -523,7 +535,7 @@
 
 ### DCLI-035 操作记录命令
 
-- `operation get --id <id>` 必须返回一条操作记录。
+- `operation get --id <id> [--output <path>]` 必须返回一条操作记录。带 `--output` 时，把整条记录连同写操作生成的每个文件写进那个文件（DCLI-061）。
 - `operation list [--state <state>] [--batch <id>] [--limit <n>] [--offset <n>]` 必须按时间倒序列出操作记录。`--batch` 取一个批量操作的操作 ID，只列出它的各项（DCLI-064）。
 - `operation resolve --id <id>` 查清结果未知的写操作（DCLI-063）。不带 `--outcome` 时，运行时必须经适配层读回目标，与预览比较，把查到的结果连同 `resolved_by: read_back` 和读回的值一起登记并返回。
 - `operation resolve --id <id> --outcome applied|not_applied|partial --evidence <text>` 登记 Agent 用其他办法查到的结果，记为 `resolved_by: agent`。只有目标无法读回时才允许这样做；否则必须以 `E_VALIDATION` 拒绝。
@@ -576,7 +588,9 @@
 | `physical` | 物理动作，如移动机床的轴、通电 | 危险 | `T2` |
 
 - 声明了多个效果的命令，必须取其中最严的确认级别。
-- 不论效果是什么，以下操作都必须是危险级：不可撤回的修改、放弃未保存的修改、关闭不是本工具启动的实例。软件无法撤回其修改的命令（如没有撤销功能的删除），必须在登记里声明 `irreversible: true`（DCLI-029）；运行时据此把它定为危险级，从不靠猜。
+- 既修改文档、又新建文件的命令，比如往工程里加一块板，在其他效果之外再声明 `artifact`。
+- 文件名由软件自己定的 `artifact` 命令没有 `output` 参数；它的预览必须把这个文件或文件所在的文档列为目标，授权范围才能覆盖它，执行时在 `files` 里报告这个文件（DCLI-260）。
+- 不论效果是什么，以下操作都必须是危险级：不可撤回的修改、放弃未保存的修改、关闭不是本工具启动的实例。软件和本工具都没有命令能恢复原状的修改，就是不可撤回的：没有撤销功能的删除不可撤回，文件模式下也一样；移动和改字段可以用另一次调用改回去，不算不可撤回。这样的命令必须在登记里声明 `irreversible: true`（DCLI-029）；运行时据此把它定为危险级，从不靠猜。
 - 停止命令声明 `lifecycle`，并且总是直接执行（DSEC-018）。
 
 为什么：确认的严格程度跟着风险走：只改内存的直接执行，写盘和影响外部世界的才要确认。
@@ -592,6 +606,7 @@
 
 - 级别按 DCLI-051 的规则得出，由运行时判定。工具禁止降低级别（DSEC-003）。
 - 直接执行级的写操作，如果预览涉及输入里没有点名的目标键（比如移动器件时连带拖动了相连的走线），必须按两步确认处理。
+- 命令可以在 `tier_when` 里登记自己的条件（DCLI-029），比如删除整张图页。某个条件对这次调用成立时，适配层在预览的 `tier_raises` 里写明，运行时必须把这次调用提到该条件的级别。命令没有登记的条件，必须以 `E_PROTOCOL` 拒绝。
 - `reference` 必须标出每个写命令在每种模式下的级别（DCLI-031），让 Agent 不用猜。
 - 授权范围文件设了 `confirm: always` 时，除停止命令外的所有写操作都必须两步确认，直接执行级的也一样（DSEC-013、DSEC-018）。
 
@@ -632,12 +647,12 @@
 | `changes_truncated` | 改动多于 `changes` 所列时为 `true` |
 | `session` | `{id, generation}` |
 | `document` | `{id, revision, dirty}` |
-| `inputs` | 回显全部输入；机密显示为 `***`，文件显示为 `{sha256, bytes}` |
 | `can_apply` | 能不能执行 |
 | `blocked_by` | 不能执行时的原因 |
 
 - 每项改动都写明所改对象的目标键。不是本工具做的改动按对象归并，每个对象一条。
 - `after` 必须是软件实际会存下的值，比如对齐到栅格后的位置，而不是 Agent 请求的值；读回时与它比较（DCLI-057）。
+- 改动必须包括适配层能预见到的直接影响，而不只是输入设定的字段：一条把两个网络连在一起的走线，要列出它改动的网络，让人在确认之前就看到（DCLI-068）。
 - 带 `--output <path>` 时，完整的预览（含全部改动）写进这个文件，响应里只给预览的其余部分（DCLI-008）。
 - `action` 和每个 `label` 含有不可信文字时，列入 `meta.untrusted`（DCLI-004）。
 
@@ -663,7 +678,7 @@
 | `scope_id` | 授权范围文件的 ID |
 | `scope_hash` | 授权范围文件内容的哈希 |
 
-- 运行时必须把令牌生成为至少 128 位的随机值，连同绑定的各项和到期时间存进计划中的操作记录（DCLI-059）。核对令牌就是与这条记录比对，不做任何签名（DSEC-033）。
+- 运行时必须用密码学安全随机源把令牌生成为至少 128 位的随机值，连同绑定的各项和到期时间存进计划中的操作记录（DCLI-059）。核对令牌就是与这条记录比对，不做任何签名，运行时也不保存签名密钥。确认时，运行时必须在计划中的操作记录里找到这个令牌，且令牌没有过期、没有用过，才接受它（DCLI-056 第 1 项）。
 - 令牌必须在 10 分钟后过期。
 - 令牌必须只能用一次，开始派发时即用掉。确认的那次调用如果在派发前被拒绝，比如返回 `E_BUSY`、`E_HUMAN_REQUIRED`、`E_FORBIDDEN` 或冲突 `target_locked`，令牌在过期前仍然可用。
 - 全局参数（DCLI-025），如 `--dangerous`、`--format`、`--quiet`，不属于输入，不绑定。
@@ -707,8 +722,11 @@
 | `delete` | 对象已不存在 |
 | `import` | 导入的对象都在，按数量核对 |
 | `artifact` 类写操作，如 `export`、`render`、`doc save-as` | 生成的每个文件都存在，并记下路径、大小和 SHA-256；可以有多个文件。回执不对软件自己写出的字节内容作任何声明 |
-| 会话模式下的 `doc save` | 重新读取保存后的文件，在其中找到被改的字段；无法这样读取时，验证为 `incomplete` |
+| 会话模式下的 `doc save` | 重新读取保存后的文件，在其中找到被改的字段，且文档的 `saved` 字段为 `true`。软件要把文档关掉再打开才能读这个文件时，适配层改为从实例读这些字段，只有看到磁盘上的文件确实变了才报 `saved: true`。适配层判断不了时，验证为 `incomplete` |
 | 长任务 | 任务结束时核实它的产出（DCLI-065） |
+
+- 既新建文件、又修改文档的写操作，必须两边都核实：文件存在，被改的字段也读回一致。两边都通过，验证才是 `passed`。
+- 登记了 `verify_after_save` 的命令（DCLI-029），在会话模式下报告验证为 `deferred`，并注明由 `doc save` 核实，因为软件要等保存之后才能正确显示这项修改。这份文档下一次 `doc save` 时，必须同时从保存后的文档读回这些推迟核实的修改，有不一致的就报告 `E_VERIFY_FAILED`，并把结果写回每一条推迟核实的操作记录。保存后的读回禁止改动文档，也禁止丢弃任何内容。推迟核实的修改按会话和文档对应。文档或它的会话没有保存就关闭时，这些记录必须以验证 `not_run` 结束。
 
 只要有内容已改动、已保存或已送达，`verification` 就禁止为 `not_applicable`。
 
@@ -717,7 +735,7 @@
 
 ### DCLI-058 保存才是提交点
 
-会话模式下，修改不等于保存。会话模式下修改之后，回执的 `persistence` 必须为 `unchanged`，文档的 `dirty` 必须为 `true`。只有 `doc save`、文件模式下的写操作（DCLI-213）和新建文件的写操作才报告 `saved`。
+会话模式下，修改不等于保存。会话模式下修改之后，回执的 `persistence` 必须为 `unchanged`，文档的 `dirty` 必须为 `true`。只有 `doc save`、文件模式下的写操作（DCLI-201）和新建文件的写操作才报告 `saved`。
 
 效果为 `artifact` 的写操作，如 `doc save-as`、`export`、`render`，会新建文件。它的回执必须报告 `change: not_applicable` 和 `persistence: saved`，并按 DCLI-057 核实。
 
@@ -760,9 +778,9 @@
 - `observed`：读回的值，每个键一项：适配层 `read_back` 报告的每个目标键（DCLI-260）；生成的每个文件，键为 `file:///<path>`，带 `path`、`bytes` 和 `sha256`；没有目标对象的命令，键为对象名，如 `session`、`document` 或 `plugin`；
 - `mismatched`：每个不一致的字段，写成 `<field>@<key>`，`<key>` 是它在 `observed` 里的键；
 - `session` `{id, generation}` 和 `document` `{id, revision, dirty}`；
-- `failed_stage`：失败或中断时所在的阶段：`apply`、`deliver`、`persist` 或 `verify`；
 - `notes`：补充说明；
-- `simulated: true`：结果来自模拟设备时带上（DSEC-062）。
+- `simulated: true`：结果来自模拟设备时带上（DSEC-062）；
+- `more_files` `{count, command}`：写入生成的文件多于契约的 `receipt.listed_files`（10 个）时带上。`observed` 只保留这么多个，缺失的文件排在前面，`count` 是略去的个数；`command` 是把整条记录写进文件的 `operation get --output` 命令（DCLI-008）。
 
 <!-- contract:receipt_dimensions -->
 | 维度 | 取值 |
@@ -771,12 +789,12 @@
 | `change` 变化 | `not_applicable`、`not_applied`、`applied`、`partial`、`rolled_back`、`unknown` |
 | `delivery` 送达 | `not_applicable`、`not_attempted`、`delivered`、`partial`、`rejected`、`unknown` |
 | `persistence` 保存 | `not_applicable`、`unchanged`、`saved`、`partial`、`unknown` |
-| `verification` 验证 | `not_applicable`、`not_run`、`passed`、`failed`、`incomplete` |
+| `verification` 验证 | `not_applicable`、`not_run`、`passed`、`failed`、`incomplete`、`deferred` |
 
 五个维度必须分开报告，禁止合并成一个成功标记。
 
 ```json
-{"ok":true,"schema_version":"1.0","data":{"operation_id":"op_7mq2xk4v","receipt":{"operation_id":"op_7mq2xk4v","command":"footprint move","target":{"key":"file:///D:/proj/board.kicad_pcb#/footprints/R1","kind":"footprint"},"effects":["change"],"tier":"direct","outcome":{"execution":"completed","change":"applied","delivery":"not_applicable","persistence":"unchanged","verification":"passed"},"observed":{"file:///D:/proj/board.kicad_pcb#/footprints/R1":{"x_mm":12.5,"y_mm":30.0}},"mismatched":[],"session":{"id":"kicad-1234","generation":3},"document":{"id":"doc_1","revision":"r8","dirty":true}},"result":{"id":"R1","x_mm":12.5,"y_mm":30.0}},"meta":{"duration_ms":640}}
+{"ok":true,"data":{"operation_id":"op_7mq2xk4v","receipt":{"operation_id":"op_7mq2xk4v","command":"footprint move","target":{"key":"file:///D:/proj/board.kicad_pcb#/footprints/R1","kind":"footprint"},"effects":["change"],"tier":"direct","outcome":{"execution":"completed","change":"applied","delivery":"not_applicable","persistence":"unchanged","verification":"passed"},"observed":{"file:///D:/proj/board.kicad_pcb#/footprints/R1":{"x_mm":12.5,"y_mm":30.0}},"mismatched":[],"session":{"id":"kicad-1234","generation":3},"document":{"id":"doc_1","revision":"r8","dirty":true}},"result":{"id":"R1","x_mm":12.5,"y_mm":30.0}}}
 ```
 
 为什么：执行了、改了、送达了、存了、核实了是不同的事实，Agent 必须逐一如实报告。
@@ -818,7 +836,7 @@
 
 - 作用于多个对象的命令必须用以下两种形式之一接收这些对象。两种形式都只给整批一份预览、一个令牌。
   - `--ids a,b,c` 对每个对象用同样的值。运行时必须去重并保持输入顺序。
-  - `--input <file|->` 读入 `{"items": [{...}, ...]}`，每个对象有自己的值，比如把 20 个器件移到 20 个不同的位置。每一项用 `id` 指明对象；同一个对象出现在两项里时，必须返回 `E_USAGE`。
+  - `--input <file|->` 读入 `{"items": [{...}, ...]}`，每个对象有自己的值，比如把 20 个器件移到 20 个不同的位置。每一项用 `id` 指明对象；同一个对象出现在两项里时，必须返回 `E_USAGE`。`create` 命令的条目可以不带 `id`：每一项新建一个对象，由适配层在预览里给它目标键。
 - 列表为空时必须返回 `E_USAGE`。预览显示任何一个对象不能执行（`can_apply: false`）时，整批都禁止执行。批量操作先锁住全部目标（DCLI-060）。
 - 批量操作有自己的操作 ID，其中每个对象是一个子操作，有自己的记录和回执（DCLI-059）。
 - 批量操作成功时必须返回 `data` = `{operation_id, items, summary}`。每项是精简的 `{target, operation_id, ok, code}`，被跳过的对象为 `{target, ok: false, skipped: true}`；某一项的完整回执用 `operation get --id <operation_id>` 获取。`summary` 为 `{total, succeeded, failed, unknown, skipped}`。批量没有全部成功时，`error.details.batch` 里放同样的对象。
@@ -833,15 +851,26 @@
 
 ### DCLI-065 长任务
 
-做实际工作的调用必须在 60 秒内返回。可能更久的工作必须做成长任务。等待不算工作：`job get --wait` 可以等更久（DCLI-220）。
+做实际工作的调用必须在 60 秒内返回。可能更久的工作必须做成长任务。等待不算工作：`job get --wait` 可以等更久（DCLI-220），真实软件行为矩阵要求的读回前等待也一样（DVER-030）。
 
-- 提交长任务是一次普通的写操作（DCLI-050），通常是动词为 `run` 的命令（DCLI-022）。它的回执报告 `execution: completed` 和 `change: not_applicable`，因为它做的只是启动任务。`data.result.job` 必须为 `{id, state, poll}`，`poll` 是查询这个任务的确切命令，如 `job get --job 7 --wait 60s`。
-- 任务结束之前，目标一直锁着（DCLI-060）。
+长任务在以下两处之一运行：
+
+- 由软件运行：命令登记了 `jobs: true`（DCLI-029），适配层的 `apply` 在软件里启动工作并报告任务，`job_status` 报告它的状态（DCLI-260）。
+- 由运行时运行：命令登记了 `long: true`（DCLI-029）。调用做完全部检查，记下任务，启动一个后台进程，然后立即返回。后台进程就是工具自己的程序，以 `job get --job <id>` 和环境变量 `<PREFIX>_JOB_WORKER=<id>` 再启动一次，脱离这次调用，不弹窗口。它调用适配层时不受 60 秒限制，最长为契约里的 `jobs.worker_max_seconds`，并把结果记在状态目录里。工具作者不用写任何长任务代码。
+
+可能超过一分钟的标准写命令，比如打开大工程的 `doc open`、关闭退出很慢的软件的 `session close`，工具把它列进 `long_commands`（DCLI-029）后，也按同样的方式运行；能列的标准写命令见契约的 `jobs.standard_long`。命令自己的检查在后台进程里、派发前再做一遍，工作结束后做命令自己的读回；它的结果，比如 `session open` 新开的会话，随 `job get` 返回。
+
+写操作与读操作：
+
+- 提交写操作的长任务是一次普通的写操作（DCLI-050），通常是动词为 `run` 的命令（DCLI-022）。它的回执报告 `execution: completed` 和 `change: not_applicable`，因为它做的只是启动任务。`data.result.job` 必须为 `{id, state, poll}`，`poll` 是查询这个任务的确切命令，如 `job get --job 7 --wait 60s`。长写操作每次调用只处理一个对象；长命令不带机密参数，因为后台进程从不接触机密。
+- 长读操作，比如对大板子做设计规则检查，什么都不改：不需要授权范围和确认，也没有操作记录。调用返回 `data.job` = `{id, state, poll}`；任务结束后，`job get` 返回读操作的结果。
+- 写操作长任务结束之前，目标一直锁着（DCLI-060）。
+- 后台进程没有记下结果就结束时，写操作的长任务以 `unknown` 结束，读操作的长任务以 `failed` 结束。
 - 任务进入终态时，运行时必须为这个任务的操作记录补上完整的回执：读回产出，任务生成的每个文件都记下大小和 SHA-256（DCLI-057）。之后 `job get` 按 DCLI-220 返回这个任务。
 - 以 `unknown` 结束的任务，与其他结果未知的写操作一样，用 `operation resolve` 查清（DCLI-063）。
 
 为什么：一次调用挂上几分钟，在 Agent 看来就和工具死掉一样；长任务的真实结果，也要和其他写操作一样认真报告。
-检查：🤖 驱动一致性测试 D11；👀 评审行为矩阵里的命令耗时（DVER-030）。
+检查：🤖 驱动一致性测试 D11 和 D26；👀 评审行为矩阵里的命令耗时（DVER-030）。
 
 ### DCLI-066 需要人处理
 
@@ -878,6 +907,22 @@
 
 为什么：软件做不到的承诺，比不承诺更糟。
 检查：👀 对照能力调查评审（DREPO-060）。
+
+### DCLI-068 结果写明改后的样子
+
+写操作的 `result` 必须按软件现在存着的样子，写明这次新建或修改的每个对象，以及这次修改的直接影响，让 Agent 只看这一次返回就知道改得对不对。禁止只给一个成功标志。
+
+- 一条走线或导线：存下的端点和线宽（对齐栅格之后的值）、所在的层、所属的网络、两端各连到了哪些引脚或走线、有没有一端悬空。
+- 一个建模特征：有没有再生成功、实际尺寸、引用了哪些参考。
+- 结果必须只包括这次修改涉及的对象和直接影响，禁止把整个设计倒出来：走线连进了 `GND`，就写网络名，不列 `GND` 上的全部成员。
+- 结果只放软件不用长时间计算就能给出的内容。要花很长时间的检查，比如设计规则检查，必须做成单独的 `check` 命令，由 Agent 在需要时调用。
+- 适配层能预见的影响，作为改动放进预览（DCLI-054）；改完才知道的影响，放进 `result`。
+- 软件给不出某项影响时，比如对象的连接关系，能力调查必须写明（DREPO-060），结果也禁止假装知道。
+
+读命令同样以结构化的数据给出设计的样子：位置、尺寸和连接关系。Agent 用结果、回执和读命令核实修改，从不靠识别截图；渲染和截图是给人看的，或者用来判断纯视觉的问题，比如图纸排得挤不挤。
+
+为什么：每画一条线都要截图的 Agent，做得慢，每张图都要花钱，还会认错。结构化的结果快、准，每次都一样。
+检查：👀 对照能力调查评审每个写命令的输出 Schema；行为矩阵的 `normal` 行能看到结果（DVER-030）。
 
 ## 自更新
 
@@ -1018,7 +1063,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-081 输出里的单位后缀
 
-物理量的输出键名必须带 DCLI-080 规定的单位后缀，值必须是标准单位下的数，如 `x_mm: 12.5`。信封和宿主协议里的计时字段（`duration_ms`、`retry_after_ms`、`deadline_ms`）以毫秒为单位，不属于领域里的物理量。
+物理量的输出键名必须带 DCLI-080 规定的单位后缀，值必须是标准单位下的数，如 `x_mm: 12.5`。错误详情和宿主协议里的计时字段（`retry_after_ms`、`deadline_ms`）以毫秒为单位，不属于领域里的物理量。
 
 为什么：单位写在键名里，Agent 不会读错数值。
 检查：👀 评审 `reference` 里的输出 Schema。
@@ -1046,10 +1091,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-085 未声明单位
 
-没有声明所属物理量的物理量参数，必须在命令登记时就被拒绝（DCLI-029）。
-
-为什么：未声明的单位在工具发布前就被发现，而不是等写错了数值才发现。
-检查：🤖 运行时单元测试；`check_project` 用 `commands.schema.json` 校验 `contract/commands.json`，它要求每个 `quantity` 类型的参数都写明物理量。
+已移除：这条规则已并入 DCLI-029。
 
 ## 模式与会话
 
@@ -1066,7 +1108,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `session close` | `lifecycle` | 会话 | 直接执行；关闭不是本工具启动的实例为危险（DCLI-051） | 关闭实例；有未保存修改时拒绝；需要 `close_session` |
 | `doc list` | `observe` | 文件、会话 | — | 列出所有实例里的文档：路径、版本、是否有未保存修改、是否只读、磁盘状态 |
 | `doc get` | `observe` | 文件、会话 | — | 一份文档的状态 |
-| `doc create` | `lifecycle` | 会话 | 直接执行 | 可选：新建一份未命名文档（DCLI-212） |
+| `doc create` | `lifecycle` | 文件、会话 | 直接执行；`--path` 指定的文件已存在时两步确认 | 可选：新建文档，未命名或在 `--path`，给了 `--template` 时从模板开始（DCLI-212） |
 | `doc open` | `lifecycle` | 会话 | 直接执行 | 可选：在实例里打开文件 |
 | `doc save` | `persist` | 会话 | 两步确认 | 保存到原路径；预览列出上次保存以来的全部修改 |
 | `doc save-as` | `artifact` | 会话 | 直接执行；目标文件已存在时两步确认 | 可选：另存为新文件 |
@@ -1087,7 +1129,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `plugin remove` | `configure` | 有宿主组件时 | 两步确认 | 卸载宿主组件 |
 
 - 适配层缺少命令所需的能力时，命令必须返回 `E_UNSUPPORTED`（DCLI-260）；标为可选的命令，以及 `session open` 和 `session close`，依赖的都是可选能力。
-- `knowledge create` 和 `knowledge delete` 只改工具自己的登记，不改软件。它们不需要授权范围，也不计入工具的风险等级（DSEC-002），但仍然两步确认。
+- `knowledge create` 和 `knowledge delete` 的确认和授权范围见 DSKL-123。
 
 为什么：同样的功能在每个工具里叫同样的名字，Agent 不用重新学会话、文档和长任务的用法。
 检查：👀 对照本表评审命令树。
@@ -1103,12 +1145,14 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `session` 会话 | 驱动一个正在运行的软件实例 | `session list`、`session get`、`doc list`、`doc get`、`doc save`；其他 `session` 和 `doc` 命令在适配层有对应能力时提供 | 运行中的实例 | 只有 `doc save` 才保存 |
 | `device` 设备 | 驱动硬件或它的控制器 | `device list`、`device get` | 设备或它的传感器 | 不适用 |
 
+文件模式下，`--doc` 必须是文件路径，`revision` 是文件内容的哈希（DCLI-210）。
+
 一个命令同时支持文件模式和会话模式时，运行时必须为每次调用选定模式：
 
 - 给了 `--session`，或者恰好有一个运行中的实例打开了这份文档时，用会话模式，并选中这个实例（DCLI-202）；
 - 没有任何运行中的实例打开这个文件时，用文件模式。
 
-运行中的实例已经打开了某个文件时，对它的文件模式写入必须被拒绝，返回 `E_CONFLICT`，`conflict` 为 `file_open_in_session`。`reference` 分模式给出确认级别（DCLI-031）。
+运行中的实例已经打开了某个文件时，文件模式下修改或保存这个文件的写操作必须被拒绝，返回 `E_CONFLICT`，`conflict` 为 `file_open_in_session`。只在文件模式下工作的工具看不到实例，由适配层报告这个冲突（DCLI-279）。只是用这份文档生成别的文件的写操作，比如导出，可以照常执行；实例可能有未保存的修改时，响应必须带一条提示，说明用的是磁盘上的文件。只在文件模式下工作的工具，由适配层加这条提示（DCLI-260）。`reference` 分模式给出确认级别（DCLI-031）。
 
 为什么：模式决定了以哪里的数据为准、保存意味着什么，每次写入因此知道该从哪里读回；同一个文件一边在内存里改、一边在磁盘上改，两边会互相抹掉对方的修改。
 检查：🤖 通用一致性测试 R01 检查 `reference` 里的模式声明；驱动一致性测试 D03 检查 `file_open_in_session`。
@@ -1117,7 +1161,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 有多个运行中的实例、而作用于单个实例的命令没有指定 `--session` 时，命令必须返回 `E_AMBIGUOUS` 并列出候选，禁止按窗口焦点或最近使用顺序选择。只有一个实例时可以自动选中，并必须在输出中写明所选的会话。`--doc` 指定的文档恰好只在一个实例里打开时，选中这个实例（DCLI-201）。
 
-列表读取命令 `session list`、`doc list` 和 `job list` 覆盖所有会话，禁止返回 `E_AMBIGUOUS`。`session list` 里的每个会话，以及 `E_AMBIGUOUS` 候选中的每个实例，都必须带一份摘要：`documents` = `[{id, path, dirty}]`；会话被挡住时，还有 `blocker` = `{action, title}`，其中 `title` 是不可信内容（DSEC-021）。适配层看不到全部实例时，`session list` 必须返回 `complete: false`。
+列表读取命令 `session list`、`doc list` 和 `job list` 覆盖所有会话，禁止返回 `E_AMBIGUOUS`。`session list` 里的每个会话，以及 `E_AMBIGUOUS` 候选中的每个实例，都必须带一份摘要：`documents` = `[{id, path, dirty}]`；会话被挡住时，还有 `blocker` = `{action, title}`（适配层知道对应的知识条目时另带 `knowledge`，DSKL-124），其中 `title` 是不可信内容（DSEC-021）。适配层看不到全部实例时，`session list` 必须返回 `complete: false`。
 
 为什么：同时开着两个工程时，按焦点选择会改错工程；看得到每个实例里的文档，Agent 才能点名正确的那个。
 检查：🤖 驱动一致性测试 D01。
@@ -1154,9 +1198,10 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `unresponsive` | 连接还在，但实例 2 秒内没有回复；`since_at` 说明从何时起 | `E_BUSY`，可重试；保证没有派发 |
 | `blocked` | 有弹窗、许可窗口等需要人处理 | `E_HUMAN_REQUIRED`，附弹窗标题（不可信内容）和恢复命令 |
 | `lost` | 发现文件和存活的进程都在，但连不上（DCLI-278） | `E_BACKEND_UNAVAILABLE`；已派发的写操作记为结果未知 |
+| `unreachable` | 进程在运行，但工具驱动不了它，比如软件只让工具连上一个实例时的第二个实例 | `E_BACKEND_UNAVAILABLE`；什么都没有派发 |
 | `closed` | 进程已结束 | 会话 ID 失效，`E_NOT_FOUND` |
 
-标准的只读命令 `session list`、`session get`、`doc list`、`doc get`、`device list`、`device get`、`job list` 和 `job get` 必须把状态作为数据返回，禁止因为状态而失败。停止命令在 `lost` 和 `closed` 之外的所有状态下都执行（DSEC-018）。
+标准的只读命令 `session list`、`session get`、`doc list`、`doc get`、`device list`、`device get`、`job list` 和 `job get` 必须把状态作为数据返回，禁止因为状态而失败。停止命令在 `lost`、`unreachable` 和 `closed` 之外的所有状态下都执行（DSEC-018）。
 
 为什么：每种状态的反应都固定，软件忙或被弹窗挡住时，调用不会一直挂着；Agent 也总能看到状态。
 检查：🤖 驱动一致性测试 D04、D05、D21 和 D22。
@@ -1170,7 +1215,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-206 打开和关闭会话
 
-`session open` 必须启动新实例并返回它的会话 ID。`session close` 必须拒绝关闭有未保存修改的实例，返回 `E_CONFLICT`，`conflict` 为 `unsaved_changes`。关闭不是本工具启动的实例（`owned: false`）属于危险级（DCLI-051）。适配层没有 `open_session` 或 `close_session` 能力时，对应的命令返回 `E_UNSUPPORTED`（DCLI-260）。
+`session open` 必须启动新实例并返回它的会话 ID。软件对某些种类的文档用单独的程序时，`--kind` 指明种类，由适配层启动那个程序。`session close` 必须拒绝关闭有未保存修改的实例，返回 `E_CONFLICT`，`conflict` 为 `unsaved_changes`。关闭不是本工具启动的实例（`owned: false`）属于危险级（DCLI-051）。适配层没有 `open_session` 或 `close_session` 能力时，对应的命令返回 `E_UNSUPPORTED`（DCLI-260）。
 
 为什么：关闭会丢掉未保存的工作，而不是本工具启动的实例里可能有人正在做的工作。
 检查：👀 评审行为矩阵（DVER-030）。
@@ -1185,8 +1230,9 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 - `path`：文件路径；从未保存过的新文档为 `null`；
 - `key`：只用于没有路径的文档，即它的目标键 `untitled:<session-id>/<n>`（DCLI-028）。适配层必须给出，因为 `<n>` 只有适配层知道。有路径的文档没有 `key`，目标键就是 `file:///<path>`；
 - `session`：文档所在的会话；文件模式下为 `null`；
+- `kind`：软件有几种文档时，这份文档的种类，如 `part`、`assembly`、`drawing`；登记了 `doc_kinds` 的命令，遇到其他种类的文档时以 `E_VALIDATION` 拒绝（DCLI-029）；
 - `revision`：由适配层给出的不透明字符串，每次修改和每次保存都会变；文件模式下是文件内容的哈希；
-- `dirty`：有没有未保存的修改；
+- `dirty`：有没有未保存的修改；软件无法判断时为 `null`，按可能有未保存的修改处理，关闭时需要 `--discard`（DCLI-212）；
 - `readonly`：能不能写；
 - `disk`：磁盘上的文件与文档的关系（DCLI-211）；
 - `extra`：软件特有的字段（DCLI-203）。
@@ -1214,9 +1260,11 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 文档命令的效果和确认级别见 DCLI-200。此外：
 
-- `doc create` 新建一份未命名文档。这个命令本身没有目标（DCLI-054）；之后对新文档的写操作使用目标键 `untitled:<session-id>/<n>`（DCLI-028），授权范围用前缀 `untitled:` 覆盖它。
+- `doc create` 新建一份 `--kind` 指定种类的文档；给了 `--template` 时，从这个模板开始。不带 `--path` 时，在实例里新建一份未命名文档；这个命令本身没有目标（DCLI-054），之后对新文档的写操作使用目标键 `untitled:<session-id>/<n>`（DCLI-028），授权范围用前缀 `untitled:` 覆盖它。
+- 带 `--path` 时，目标为 `file:///<path>`，这次调用在返回之前就新建这个文件：文件模式下由工具写出，会话模式下由软件写出。只给新文档命名、要到保存时才写出文件的软件，不接受 `--path`：它新建未命名文档，之后用 `doc save-as` 写出。它直接执行，文件已存在时两步确认（DCLI-051）。文件写出后，回执报告 `persistence: saved`，读回核实文件存在（DCLI-057）。文件模式下必须带 `--path`。命令同时支持两种模式时，用 `--session` 选择会话模式。
+- `doc create` 新建一份独立的文档，包括软件随之一起生成的配套文件，比如工程的原理图和电路板；回执列出每一个文件。领域命令禁止用别的名字做同样的事，比如 `model create`（DCLI-200）。往软件管理的容器里添加组成部分，比如往工程里加一块板，是领域命令，同时声明 `artifact`（DCLI-051）。
 - `doc create`、`doc open`、`doc save-as` 和 `doc close` 是可选的。适配层没有命令所需的能力时，运行时必须返回 `E_UNSUPPORTED`（DCLI-260）。
-- `doc close` 必须拒绝关闭有未保存修改的文档，返回 `E_CONFLICT`，`conflict` 为 `unsaved_changes`。`doc close --discard` 放弃这些修改，属于危险级（DCLI-051）。
+- `doc close` 必须拒绝关闭有未保存修改、或 `dirty` 为 `null` 的文档，返回 `E_CONFLICT`，`conflict` 为 `unsaved_changes`。`doc close --discard` 放弃这些修改，属于危险级（DCLI-051）。
 - `doc save` 写回原路径，它的预览列出上次保存以来的全部修改（DCLI-058）。
 - `doc undo` 是可选的（DCLI-067）。
 
@@ -1225,27 +1273,24 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-213 文件模式下的文档
 
-文件模式下，`--doc` 必须是文件路径。写文件就是保存：回执报告 `persistence: saved`，读回必须重新读取文件。`revision` 是文件内容的哈希（DCLI-210）。文件模式只需要 `doc get`，`doc list` 可选（DCLI-201）。
-
-为什么：中间没有软件，磁盘上的文件就是唯一的依据。
-检查：👀 评审适配层。
+已移除：这些规则已并入 DCLI-201 和 DCLI-210。
 
 ## 长任务
 
 ### DCLI-220 长任务对象与命令
 
-长任务至少必须有以下字段：`id`、`operation_id`、`state`、`cancel_requested`、`started_at` 和 `finished_at`（任务结束前为 `null`）。软件报告进度时，还必须有 `progress` `{done, total, unit}`；总量未知时 `total` 为 `null`。
+长任务至少必须有以下字段：`id`、`operation_id`（读操作的长任务为 `null`，DCLI-065）、`state`、`cancel_requested`、`started_at`，以及任务结束后的 `finished_at`。软件报告进度时，还必须有 `progress` `{done, total, unit}`；总量未知时 `total` 为 `null`。
 
-`state` 取 `planned`、`running`、`blocked`、`completed`、`failed`、`partial`、`unknown`、`cancelled` 之一。`blocked` 的任务还带 `action`：人要先做什么，任务才能继续（DCLI-066）。任务处于终态（`completed`、`failed`、`partial`、`unknown` 或 `cancelled`）时，`job get` 必须同时返回它的 `receipt`、`result`，以及按 DCLI-062 由回执推导出的 `ok`；`ok` 为 `false` 时，错误码放在 `code` 里（DCLI-065）。这些都是 `data` 里的字段：`job get` 本身是成功的，DCLI-062 所说的 `error.details.receipt` 属于写操作，不属于 `job get`。
+`state` 取 `planned`、`running`、`blocked`、`completed`、`failed`、`partial`、`unknown`、`cancelled` 之一。`blocked` 的任务还带 `action`：人要先做什么，任务才能继续（DCLI-066）。由运行时运行的长任务（DCLI-065），所在会话被弹窗挡住时必须报为 `blocked`，`action` 和 `knowledge`（适配层给出条目时）取自会话的 `blocker`（DCLI-202）；人处理完弹窗后，它又报为 `running`。任务处于终态（`completed`、`failed`、`partial`、`unknown` 或 `cancelled`）时，`job get` 必须同时返回它的 `receipt`、`result`，以及按 DCLI-062 由回执推导出的 `ok`；`ok` 为 `false` 时，错误码放在 `code` 里（DCLI-065）。读操作的长任务没有回执：返回 `ok`；`ok` 为 `true` 时返回读操作的 `result`，为 `false` 时返回 `code` 和 `message`。这些都是 `data` 里的字段：`job get` 本身是成功的，DCLI-062 所说的 `error.details.receipt` 属于写操作，不属于 `job get`。
 
-`job list` 列出所有会话的长任务。`job get --job <id> --wait <duration>` 必须在任务结束或时长用完时返回，以先到者为准。`--wait` 可以长达 600 秒，因为等待不算工作（DCLI-065）；超过时返回 `E_USAGE`。`job get` 必须返回 `poll_after_ms`，即过多久再查才有意义。
+`job list` 列出所有会话的长任务，被挡住的报为 `blocked`。`job get --job <id> --wait <duration>` 必须在任务结束、被挡住或时长用完时返回，以先到者为准。`--wait` 可以长达 600 秒，因为等待不算工作（DCLI-065）；超过时返回 `E_USAGE`。`job get` 必须返回 `poll_after_ms`，即过多久再查才有意义。
 
-为什么：Agent 用一次次有时限的调用等待长时间的工作，而不是让一次调用一直挂着；任务的真实结果也以与其他写操作相同的形式读到。
-检查：🤖 驱动一致性测试 D11。
+为什么：Agent 用一次次有时限的调用等待长时间的工作，而不是让一次调用一直挂着；任务的真实结果也以与其他写操作相同的形式读到。被弹窗卡住的任务会如实说出来，Agent 就去找人，而不是干等。
+检查：🤖 驱动一致性测试 D11 和 D26；运行时单元测试检查被挡住的任务。
 
 ### DCLI-221 取消长任务
 
-`job cancel` 只作用于本工具启动的长任务。它属于停止命令（DSEC-018），目标就是该任务所属操作的目标。它必须先报告 `cancel_requested: true`；状态必须等软件确认任务已停止后才变为 `cancelled`。按请求取消的任务，执行维度记为 `interrupted`，原因码为 `E_INTERRUPTED`（DCLI-062）。软件不支持取消时，`job cancel` 必须返回 `E_UNSUPPORTED`。
+`job cancel` 只作用于本工具启动的长任务。它属于停止命令（DSEC-018），目标就是该任务所属操作的目标。它必须先报告 `cancel_requested: true`；状态必须等软件确认任务已停止后才变为 `cancelled`。按请求取消的任务，执行维度记为 `interrupted`，原因码为 `E_INTERRUPTED`（DCLI-062）。软件不支持取消时，`job cancel` 必须返回 `E_UNSUPPORTED`。读操作的长任务什么都不改：`job cancel` 结束它的后台进程，不需要授权范围，返回这个任务；后台进程停下后，状态为 `cancelled`；软件可能还在忙着做完这次读，之后的调用会看到它忙。由运行时运行的写操作长任务无法在中途安全停下：`job cancel` 必须返回 `E_UNSUPPORTED`，任务会一直运行到结束。
 
 为什么：软件还没停就报告「已取消」，旧任务还在跑，Agent 就可能开始新的工作。
 检查：🤖 驱动一致性测试 D11。
@@ -1278,6 +1323,8 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 宿主组件的源码和清单放在 `plugin/`。清单 `plugin/manifest.json` 必须写明 `version`，即工具版本；`protocol_version`（DCLI-280）；`files`，即 `plugin install` 复制的每个文件的 SHA-256，以 `plugin/` 里的路径为键；以及 `methods`，即宿主组件实现的实例端能力（DCLI-260）。前三项由 `check_project` 根据文件写出，`methods` 由作者填写。工具把清单交给运行时，原生程序也随身带着 `plugin/`。
 
+`plugin install` 复制 `plugin/` 里除清单、`README.md` 和 `plugin/source/` 文件夹以外的每个文件；`plugin/source/` 放的是要编译进安装文件的代码，从不安装。只有厂商的授权工具才能编译或解锁的文件，比如编译好的工具包库，可以提交在 `plugin/` 里；这时 `plugin/README.md` 必须写明是用哪个工具、哪个版本编译的，以及怎样重新编译。清单和对其他文件一样记下它的 SHA-256。
+
 为什么：只有一条带检查的安装途径，在软件里运行的代码才可控。清单根据文件写出，就不会和文件对不上。
 检查：🤖 驱动一致性测试 D12；`check_project` 重新生成清单并比对。
 
@@ -1285,7 +1332,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-260 适配能力
 
-除了领域命令，工具作者只写本表中的适配能力，其余全部由运行时处理（DCLI-261）。缺少某项能力时，运行时必须对需要它的命令返回 `E_UNSUPPORTED`，工具不用写任何代码。
+除了领域命令，工具作者只写本表中的适配能力，其余全部由运行时处理（DREPO-032）。缺少某项能力时，运行时必须对需要它的命令返回 `E_UNSUPPORTED`，工具不用写任何代码。
 
 <!-- contract:adapter_capabilities -->
 | 能力 | 运行在哪一端 | 文件 | 会话 | 设备 | 说明 |
@@ -1295,7 +1342,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `open_session` | CLI 端 | — | 可选 | — | 启动实例 |
 | `close_session` | 实例端 | — | 可选 | — | 关闭实例 |
 | `documents` | 实例端 | 必需 | 必需 | — | 列出文档及其状态 |
-| `create_doc` | 实例端 | — | 可选 | — | 新建未命名文档 |
+| `create_doc` | 实例端 | 可选 | 可选 | — | 新建文档：未命名，或在给定路径，给了模板时从模板开始 |
 | `open_doc` | 实例端 | — | 可选 | — | 打开文档 |
 | `save_doc` | 实例端 | — | 必需 | — | 把文档保存到原路径 |
 | `save_doc_as` | 实例端 | — | 可选 | — | 把文档另存为新文件 |
@@ -1305,17 +1352,18 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | `preview` | 实例端 | 有写命令时 | 有写命令时 | 有写命令时 | 生成预览，带软件将会存下的值 |
 | `apply` | 实例端 | 有写命令时 | 有写命令时 | 有写命令时 | 执行修改，并报告发生了什么 |
 | `read_back` | 实例端 | 有写命令时 | 有写命令时 | 有写命令时 | 按目标键读回被改的字段 |
-| `job_status` | 实例端 | 有长任务时 | 有长任务时 | 有长任务时 | 查询长任务的状态 |
-| `cancel` | 实例端 | 有长任务时 | 有长任务时 | 有长任务时 | 取消长任务 |
+| `job_status` | 实例端 | 有 `jobs` 命令时 | 有 `jobs` 命令时 | 有 `jobs` 命令时 | 查询长任务的状态 |
+| `cancel` | 实例端 | 有 `jobs` 命令时 | 有 `jobs` 命令时 | 有 `jobs` 命令时 | 取消长任务 |
 | `devices` | CLI 端 | — | — | 必需 | 列出设备及其状态 |
 | `plugin_status` | CLI 端 | 有宿主组件时 | 有宿主组件时 | 有宿主组件时 | 报告宿主组件的版本 |
 | `plugin_install` | CLI 端 | 有宿主组件时 | 有宿主组件时 | 有宿主组件时 | 安装宿主组件 |
 | `plugin_remove` | CLI 端 | 有宿主组件时 | 有宿主组件时 | 有宿主组件时 | 卸载宿主组件 |
 
-- 标为「必需」的能力，支持该模式的每个工具都必须实现。「有写命令时」表示工具有写命令时必需；「有长任务时」「有宿主组件时」同理。「可选」的能力可以不实现。「—」表示该模式用不到这项能力。
+- 标为「必需」的能力，支持该模式的每个工具都必须实现。「有写命令时」表示工具有写命令时必需；「有 `jobs` 命令时」「有宿主组件时」同理。「可选」的能力可以不实现。「—」表示该模式用不到这项能力。
 - CLI 端的能力在 CLI 进程里运行。实例端的能力在适配层里运行，或作为宿主方法在宿主组件里运行（DCLI-262、DCLI-274）。
 - `contract/schemas/adapter.schema.json` 定义每项能力的请求和结果。进程内的适配接口和宿主方法必须使用同一套定义。
 - 能力只报告事实：派发状态、变化、送达、保存情况和观察到的值。由运行时把读回与预览比较，并推导回执（DCLI-057、DCLI-062）。
+- 读操作的结果和写操作报告的事实可以带 `notices`，每条为 `{severity, message}`，写 Agent 应该知道的事，比如 DCLI-201 的那条提示。运行时把它们放进 `meta.notices`（DCLI-004）。
 - 每次 CLI 调用都是一个独立的进程。适配层需要在两次调用之间记住的东西，比如本工具启动了哪些实例，或者没有宿主组件时上次保存以来的修改（DCLI-277），必须存放在运行时提供的适配层状态存储里，即状态目录下的 `adapter/`（DSEC-031）。
 
 为什么：作者只写这个软件特有的部分；共用的部分，包括判定成功与否，全部来自运行时。
@@ -1323,10 +1371,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-261 运行时负责的事
 
-驱动运行时提供「运行时与工具的分工」表中列在它名下的全部内容。工具禁止重新实现其中任何一项，并必须按 DREPO-032 带上运行时。
-
-为什么：共用的规则只实现一次，在每个工具里的表现才完全一样。
-检查：🤖 `check_project` 按哈希核对运行时副本（DREPO-034）。
+已移除：这条规则已并入 DREPO-032。
 
 ### DCLI-262 适配代码在哪里运行
 
@@ -1337,7 +1382,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 | CLI 能直接调用的接口：Python API、COM、软件自带的命令行、文件格式 | 适配层，在 CLI 进程里 | 运行时的语言 |
 | 只能在软件进程里调用的接口：插件 SDK（.NET、Java、C++）、软件自带的脚本语言；或者调用必须在软件主线程上执行 | 宿主组件，在软件进程里，经宿主协议与 CLI 通信 | 软件支持的语言 |
 
-- 两种方式可以混用，比如读文件走适配层，改模型走宿主组件。
+- 两种方式可以按能力逐项混用：CLI 进程里的适配层实现了的能力就在那里运行，其余实例端能力交给宿主组件。比如读文件走适配层，改模型走宿主组件。
 - 本规范提供 Python 版的驱动运行时。Python 能直接调用 COM、多数软件的 Python 接口和常见文件格式；其他接口都经宿主协议接入，所以一种运行时就能覆盖各种软件。
 
 为什么：软件提供什么接口，决定了代码能在哪里运行；规则定好，每个作者就不用再做一遍选择。
@@ -1345,10 +1390,7 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 ### DCLI-263 黑盒一致性测试
 
-用其他语言编写的驱动运行时，必须通过同一套一致性测试；这些测试把 CLI 当作黑盒（DVER-011）。
-
-为什么：测试不依赖语言，才能证明每种运行时的行为都一样。
-检查：👀 评审一致性测试套件（DVER-011）。
+已移除：这条规则已并入 DVER-011。
 
 ## 宿主协议
 
@@ -1375,7 +1417,7 @@ CLI 与宿主组件之间必须只在本机连接：Windows 用命名管道，ma
 
 ### DCLI-273 握手
 
-连上之后，CLI 必须先发 `hello`，带 `protocol_version` 和 `cli_version`。宿主必须回复 `protocol_version`、`plugin_version`、`application`（软件名称和版本）、`session` `{id, generation}` 和 `methods`（它支持的方法）。协议主版本不同时，CLI 必须返回 `E_PROTOCOL`，禁止发出任何修改。
+连上之后，CLI 必须先发 `hello`，带 `protocol_version` 和 `cli_version`。宿主必须回复 `protocol_version`、`plugin_version`、`application`（软件名称和版本）、`session` `{id, generation}` 和 `methods`（它支持的方法）。协议主版本不同时，CLI 必须返回 `E_PROTOCOL`，禁止发出任何修改。每个连接都必须先这样握手，协议主版本不同时，在发出任何修改之前就结束连接。宿主组件应该用宿主端小库，DCLI-270 的连接方式和这次握手它都会做（DCLI-281）。
 
 为什么：对协议理解不一致的 CLI 和宿主，必须在误解一次写入之前就停下。
 检查：🤖 驱动一致性测试 D20。
@@ -1390,7 +1432,7 @@ CLI 与宿主组件之间必须只在本机连接：Windows 用命名管道，ma
 | `hello` | 否 | 握手（DCLI-273） |
 | `close_session` | 是 | 关闭实例 |
 | `documents` | 否 | 列出文档及其状态 |
-| `create_doc` | 是 | 新建未命名文档 |
+| `create_doc` | 是 | 新建文档 |
 | `open_doc` | 是 | 打开文档 |
 | `save_doc` | 是 | 保存文档 |
 | `save_doc_as` | 是 | 把文档另存为新文件 |
@@ -1449,17 +1491,21 @@ CLI 与宿主组件之间必须只在本机连接：Windows 用命名管道，ma
 | `E_NATIVE_FAILURE` | 软件拒绝了这次操作，没有留下持久改动 |
 | `E_HUMAN_REQUIRED` | 有弹窗等需要人处理 |
 | `E_NOT_FOUND` | 对象或文档不存在 |
+| `E_AMBIGUOUS` | 一个名字匹配到多个对象，比如两个器件位号相同；带 `candidates` |
 | `E_VALIDATION` | 软件拒绝了内容 |
+| `E_CONFLICT` | 前置条件不满足，比如文件正被别的程序打开；带 `conflict`，取 DCLI-012 中的值，软件内部的冲突取 `application_state` |
 | `E_UNSUPPORTED` | 软件做不到 |
+| `E_BACKEND_UNAVAILABLE` | 软件没装、没有许可或连不上；什么都没派发 |
+| `E_TIMEOUT` | 读操作超时；什么都没改 |
 
-错误必须以 JSON-RPC 错误发送，错误码为 `-32000`。`data` 里必须有 `code` 和 `dispatch_state`，软件给出了报错原文时还必须有 `native_message`。`E_BUSY` 错误必须带 `retry_after_ms`；`E_HUMAN_REQUIRED` 错误应该带 `action`。有内置知识条目讲解这个错误时，比如一个已知的弹窗，`data` 应该带 `knowledge`，即这些条目的 ID；CLI 会在 `next_action` 里写出对应的 `knowledge get` 命令（DSKL-124）。在 CLI 进程内运行的适配层报告同样的字段。DCLI-012 要求的其他 `details` 字段，如 `next_action` 和 `resume`，由 CLI 补上。`native_message` 是软件自己的报错原文，必须当作不可信内容处理（DSEC-020）。
+错误必须以 JSON-RPC 错误发送，错误码为 `-32000`。`data` 里必须有 `code` 和 `dispatch_state`，软件给出了报错原文时还必须有 `native_message`。`E_BUSY` 错误必须带 `retry_after_ms`；`E_HUMAN_REQUIRED` 错误应该带 `action`。`E_AMBIGUOUS` 错误必须带至少两个 `candidates`，`E_CONFLICT` 错误必须带 `conflict`；这两种错误和 `E_BACKEND_UNAVAILABLE`、`E_TIMEOUT` 一样，`dispatch_state` 为 `not_started`。其他错误码或缺少字段时，运行时必须以 `E_PROTOCOL` 回应。有内置知识条目讲解这个错误时，比如一个已知的弹窗，`data` 应该带 `knowledge`，即这些条目的 ID；CLI 会在 `next_action` 里写出对应的 `knowledge get` 命令（DSKL-124）。在 CLI 进程内运行的适配层报告同样的字段。DCLI-012 要求的其他 `details` 字段，如 `next_action` 和 `resume`，由 CLI 补上。`native_message` 是软件自己的报错原文，必须当作不可信内容处理（DSEC-020）。
 
 为什么：宿主错误少而固定，就能直接对应到 Agent 已经熟悉的错误码。
 检查：🤖 运行时单元测试。
 
 ### DCLI-280 协议版本
 
-协议版本必须遵循 SemVer，并必须同时写在契约和宿主组件的清单里。本规范定义的协议版本是 1.0.0。
+协议版本必须遵循 SemVer，并必须同时写在契约和宿主组件的清单里。本规范定义的协议版本是 1.2.0。
 
 为什么：双方在交换任何写入之前就能比较版本。
 检查：🤖 驱动一致性测试 D20。
@@ -1521,6 +1567,7 @@ CLI 与宿主组件之间必须只在本机连接：Windows 用命名管道，ma
 - [ ] DCLI-065 长任务
 - [ ] DCLI-066 需要人处理
 - [ ] DCLI-067 撤销与保证
+- [ ] DCLI-068 结果写明改后的样子
 - [ ] DCLI-070 必须提供 update
 - [ ] DCLI-071 选择版本
 - [ ] DCLI-072 移开正在运行的程序

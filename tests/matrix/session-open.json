@@ -51,8 +51,16 @@
     },
     {
       "row": "conflict",
-      "applies": false,
-      "reason": "session open has no target to lock and names no open document, so no runtime conflict applies; a Designer or Layout already running is refused by the adapter as E_VALIDATION (one instance only, knowledge designer-one-instance-only)."
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "A Designer already runs, and COM can drive only one: the job ends with E_CONFLICT application_state (knowledge designer-one-instance-only); nothing starts."
+      }
     },
     {
       "row": "no_scope",
@@ -70,7 +78,7 @@
     {
       "row": "busy",
       "applies": false,
-      "reason": "session open calls no running instance: an instance of the same program already running is refused before anything starts (E_VALIDATION), so the call is never held by a busy one."
+      "reason": "session open calls no running instance: an instance of the same program already running is refused before anything starts (the conflict row), so the call is never held by a busy one."
     },
     {
       "row": "dialog",

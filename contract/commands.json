@@ -23,17 +23,14 @@
         "designs",
         "xpedition_version"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-001"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [],
+      "doc_kinds": [
+        "project"
+      ]
     },
     {
       "path": "project create",
@@ -71,15 +68,6 @@
         }
       ],
       "untrusted_fields": [],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-002",
-        "CAP-003"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -87,7 +75,11 @@
       "related_knowledge": [
         "xpedition-ascii-paths-only",
         "xpedition-template-library-is-empty"
-      ]
+      ],
+      "doc_kinds": [
+        "project"
+      ],
+      "long": true
     },
     {
       "path": "part list",
@@ -108,23 +100,17 @@
         {
           "name": "--limit",
           "type": "integer",
-          "summary": "Items per page; 50 by default, at most 500."
+          "summary": "Items per page; default 20, at most 100."
         },
         {
           "name": "--offset",
           "type": "integer",
-          "summary": "Start position of the page."
+          "summary": "Start position of the page; default 0."
         }
       ],
       "untrusted_fields": [
         "description",
         "value"
-      ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-010"
       ],
       "irreversible": false,
       "halt": false,
@@ -138,6 +124,9 @@
       ],
       "related_knowledge": [
         "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -168,12 +157,6 @@
         "value",
         "properties"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-011"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -181,6 +164,9 @@
       "related_knowledge": [
         "library-converter-rules",
         "cell-pin-count-must-match"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -212,14 +198,6 @@
         }
       ],
       "untrusted_fields": [],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-015"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -229,6 +207,9 @@
         "library-part-value-is-numeric",
         "cell-pin-count-must-match",
         "xpedition-ascii-paths-only"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -257,14 +238,6 @@
         "errors",
         "verdict"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-043"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -272,7 +245,11 @@
       "related_knowledge": [
         "prj-cell-library-list",
         "cell-pin-count-must-match"
-      ]
+      ],
+      "doc_kinds": [
+        "project"
+      ],
+      "long": true
     },
     {
       "path": "schematic get",
@@ -300,18 +277,15 @@
         "design",
         "sheets"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-030"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
       "default_fields": [],
       "related_knowledge": [
         "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -351,14 +325,6 @@
       "untrusted_fields": [
         "warnings"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-034"
-      ],
       "irreversible": true,
       "halt": false,
       "tolerances": {},
@@ -369,7 +335,11 @@
         "designer-symbol-cache",
         "designer-reopen-after-sheet-changes",
         "designer-one-instance-only"
-      ]
+      ],
+      "doc_kinds": [
+        "project"
+      ],
+      "long": true
     },
     {
       "path": "schematic check",
@@ -396,12 +366,6 @@
       "untrusted_fields": [
         "findings"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-041"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -409,6 +373,9 @@
       "related_knowledge": [
         "designer-pin-types-and-erc",
         "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -445,20 +412,15 @@
         "pages",
         "warnings"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-042"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
       "default_fields": [],
       "related_knowledge": [
         "designer-chinese-text-in-pdf"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -495,20 +457,15 @@
         }
       ],
       "untrusted_fields": [],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-060"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
       "default_fields": [],
       "related_knowledge": [
         "prj-cell-library-list"
+      ],
+      "doc_kinds": [
+        "project"
       ]
     },
     {
@@ -542,14 +499,6 @@
         "errors",
         "warnings"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-062"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -558,7 +507,11 @@
         "forward-annotation-in-synch",
         "forward-annotation-keeps-old-cells",
         "layout-open-prompts"
-      ]
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
     },
     {
       "path": "pcb update",
@@ -606,14 +559,6 @@
         }
       ],
       "untrusted_fields": [],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-065"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {
@@ -622,7 +567,10 @@
         "radius_mm": 0.001
       },
       "default_fields": [],
-      "related_knowledge": []
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
     },
     {
       "path": "placement run",
@@ -666,14 +614,6 @@
         "outside",
         "labels"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-068"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {
@@ -685,6 +625,9 @@
       "related_knowledge": [
         "layout-placement-drc",
         "layout-unplaced-parts-invisible"
+      ],
+      "doc_kinds": [
+        "board"
       ]
     },
     {
@@ -733,14 +676,6 @@
         }
       ],
       "untrusted_fields": [],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-072"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -748,6 +683,9 @@
       "related_knowledge": [
         "layout-plane-draft-state",
         "layout-pour-after-routing"
+      ],
+      "doc_kinds": [
+        "board"
       ]
     },
     {
@@ -785,14 +723,6 @@
       "untrusted_fields": [
         "open"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-073"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -801,6 +731,9 @@
         "layout-fine-pitch-clearance",
         "layout-via-near-pad",
         "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
       ]
     },
     {
@@ -836,20 +769,15 @@
         "net_classes",
         "metrics"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-063",
-        "CAP-064",
-        "CAP-078"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
       "default_fields": [],
       "related_knowledge": [
         "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
       ]
     },
     {
@@ -884,13 +812,6 @@
         "hazards",
         "rules"
       ],
-      "adapter_capabilities": [
-        "read"
-      ],
-      "survey_ids": [
-        "CAP-077",
-        "CAP-078"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -898,6 +819,9 @@
       "related_knowledge": [
         "layout-fine-pitch-clearance",
         "layout-via-near-pad"
+      ],
+      "doc_kinds": [
+        "board"
       ]
     },
     {
@@ -933,14 +857,6 @@
       "untrusted_fields": [
         "problems"
       ],
-      "adapter_capabilities": [
-        "preview",
-        "apply",
-        "read_back"
-      ],
-      "survey_ids": [
-        "CAP-081"
-      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -948,7 +864,11 @@
       "related_knowledge": [
         "layout-output-setups",
         "layout-drillprefs-held"
-      ]
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
     }
   ]
 }

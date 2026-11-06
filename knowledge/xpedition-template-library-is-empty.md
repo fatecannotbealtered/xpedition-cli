@@ -4,9 +4,6 @@ title: The installation ships no parts; create them with part create
 kind: guide
 applies_to: [part list, part get, part create, schematic create, project create]
 tags: [library, parts, template]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (A stock installation ships no component library) and docs/NATIVE_ADAPTER.md of npm @fateforge/xpedition-cli@1.0.3, measured on XPED2604, 2026-09-12; docs/E2E.md of the same package (What the recorded runs do not cover)
-updated_on: 2026-11-05
 ---
 
 Xpedition 2604 comes without a component library. The template library under `SDD_HOME/standard/templates/dxdesigner/TemplateLibrary` is an empty skeleton. Every category folder exists (`Resistors`, `Capacitors` and so on). But every parts database (`*.pdb`) and every cell database (`*.cel`) is an empty stub, and the device symbol folders hold no files. Only the borders, the built-in symbols, `Globals` (power and ground) and `Drawing.cel` have content.

@@ -23,7 +23,7 @@ from unittest import mock
 from xpedition_cli._driver import AdapterError
 from xpedition_cli._driver.state import AdapterStore, StateDir
 from xpedition_cli._driver.targets import normalize
-from xpedition_cli.adapter import base, designer, jobs, sessions
+from xpedition_cli.adapter import base, designer, sessions
 from xpedition_cli.adapter import library as library_module
 from xpedition_cli.adapter.plan import library_read, verification
 from xpedition_cli.adapter.plan import schematic_layout as L
@@ -321,15 +321,12 @@ class App:
 
 
 class FakeProgress:
-    def __init__(self, cancel_at: int | None = None) -> None:
+    def __init__(self) -> None:
         self.calls: list[tuple] = []
         self.states: list[tuple] = []
-        self.cancel_at = cancel_at
 
     def __call__(self, done: float, total: float | None, unit: str) -> None:
         self.calls.append((done, total, unit))
-        if self.cancel_at is not None and len(self.calls) >= self.cancel_at:
-            raise jobs.Cancelled()
 
     def blocked(self, action: str, message: str) -> None:
         self.states.append(("blocked", action, message))
@@ -513,7 +510,8 @@ class InstancesTest(DesignerCase):
         self.dialogs = [{"title": "Xpedition Designer", "text": "Close all open documents?", "buttons": ["Yes", "No"]}]
         [found] = designer.instances(2.0)
         self.assertEqual(found["state"], "blocked")
-        self.assertEqual(found["blocker"], {"action": "dismiss_dialog", "title": "Xpedition Designer"})
+        self.assertEqual(found["blocker"], {"action": "dismiss_dialog", "title": "Xpedition Designer",
+                                            "knowledge": [designer.PROMPTS]})
 
     def test_licence_and_sign_in_windows_say_what_the_person_must_do(self):
         self.licence = ["Sign in to continue"]
@@ -521,12 +519,12 @@ class InstancesTest(DesignerCase):
         self.licence = ["License Error"]
         self.assertEqual(designer.instances(2.0)[0]["blocker"]["action"], "activate_license")
 
-    def test_several_designers_are_each_blocked_and_none_is_attached(self):
+    def test_several_designers_are_each_unreachable_and_none_is_attached(self):
         self.procs.append(processes.ProcessInfo(5000, "C:/xpedition/wv/viewdraw.exe", 2))
         with mock.patch.object(designer, "_attach_or_none", side_effect=AssertionError("attached")):
             found = designer.instances(2.0)
-        self.assertEqual([f["state"] for f in found], ["blocked", "blocked"])
-        self.assertEqual(found[0]["blocker"], {"action": "other", "title": designer.SEVERAL})
+        self.assertEqual([f["state"] for f in found], ["unreachable", "unreachable"])
+        self.assertEqual(found[0]["reason"], designer.SEVERAL)
 
 
 class DocumentsTest(DesignerCase):
@@ -538,7 +536,7 @@ class DocumentsTest(DesignerCase):
         self.app.project = str(self.root / "Other.prj")
         with self.assertRaises(AdapterError) as caught:
             designer.open_document(PID, self.prj)
-        self.assertEqual((self.code(caught), caught.exception.data["dispatch_state"]), ("E_VALIDATION", "not_started"))
+        self.assertEqual((caught.exception.data["conflict"], caught.exception.data["dispatch_state"]), ("application_state", "not_started"))
         self.assertIn("doc close", str(caught.exception))
         self.assertEqual((self.app.closed, self.app.opened_paths), (0, []))
 
@@ -611,7 +609,7 @@ class StartTest(DesignerCase):
     def test_a_running_designer_is_used_instead_of_a_second(self):
         with self.assertRaises(AdapterError) as caught:
             designer.start(self.prj, 40.0)
-        self.assertEqual((self.code(caught), caught.exception.data["knowledge"]), ("E_VALIDATION", [designer.ONE_INSTANCE]))
+        self.assertEqual((caught.exception.data["conflict"], caught.exception.data["knowledge"]), ("application_state", [designer.ONE_INSTANCE]))
 
     def test_the_launcher_starts_designer_and_the_project_opens(self):
         launcher = self.root / "SDD_HOME" / "common" / "win64" / "bin" / "viewdraw.exe"
@@ -672,7 +670,7 @@ class SchematicGetTest(DesignerCase):
         self.app.active_design = "Schematic1"
         with self.assertRaises(AdapterError) as caught:
             designer.HANDLERS[0].read(self.ctx("schematic get"))
-        self.assertEqual((self.code(caught), caught.exception.data["knowledge"]), ("E_VALIDATION", [designer.REOPEN]))
+        self.assertEqual((caught.exception.data["conflict"], caught.exception.data["knowledge"]), ("application_state", [designer.REOPEN]))
         self.assertIn("doc close", str(caught.exception))
 
     def test_a_type_mismatch_alone_names_both_causes(self):
@@ -851,12 +849,6 @@ class CreateRunTest(DesignerCase):
         self.assertEqual((data["dispatch_state"], data["change"], data["persistence"]), ("dispatched", "partial", "unchanged"))
         self.assertIn("on sheet 1", str(caught.exception))
         self.assertIn("nothing is saved", str(caught.exception))
-
-    def test_a_cancel_stops_between_two_operations(self):
-        progress = FakeProgress(cancel_at=3)
-        with self.assertRaises(jobs.Cancelled):
-            self.run_job(two_sheet_design(), progress)
-        self.assertEqual(len(progress.calls), 3)
 
     def test_another_open_project_stops_the_job_before_anything_is_written(self):
         self.app.project = str(self.root / "Other.prj")

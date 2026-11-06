@@ -4,9 +4,6 @@ title: Forward annotation never replaces the cell of a part already on the board
 kind: guide
 applies_to: [forward-annotation run, part create, part get, pcb create]
 tags: [forward-annotation, cell, library, rebuild]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Forward annotation after a library change) and docs/E2E.md (Recorded run, routed, 2026-09-14) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), native_com_adapter.py (_remove_board) and CHANGELOG.md; capability survey docs/APPLICATION.md (CAP-061, CAP-076, CAP-082)
-updated_on: 2026-11-05
 ---
 
 Forward annotation never changes the cell (footprint) of a component that already exists on the board. This held whether the part was placed or not, after `ResetCell` and `ResetCellEx`, with the `.prj` flag `FwdAnnoRebuildFlag`, and after deleting the component: Layout refused that delete without a word for a schematic part. The central library and the board's local parts cache both held the new cell, but the board kept the old one. `ReplaceCell` takes only cells from the board's local library, which holds only cells a part has used.

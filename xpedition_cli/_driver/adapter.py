@@ -8,8 +8,9 @@ reports facts only. A capability the adapter lacks gives ``E_UNSUPPORTED`` with 
 Calls are routed like this:
 
 - CLI-side capabilities run in the adapter, in the CLI process.
-- Instance-side capabilities run in the adapter, or, for a tool with a host component and a
-  call on a session, as host methods in that instance (DCLI-274).
+- Instance-side capabilities the adapter implements run in the adapter. For a tool with a
+  host component, a call on a session of any other instance-side capability runs as a host
+  method in that instance (DCLI-262, DCLI-274).
 - With ``<PREFIX>_FAKE_HOST`` set, every call goes to the fake host instead: CLI-side calls and
   in-process instance-side calls to its address, host methods to the instances it lists under
   ``hosts/`` (DVER-023).
@@ -108,7 +109,10 @@ class Backend:
         return callable(method) and getattr(Adapter, cap, None) is None
 
     def on_host(self, cap: str, session: str | None) -> bool:
-        return self.host_component and session is not None and self.caps[cap]["side"] == "instance"
+        """An instance-side capability goes to the host component unless the adapter in the CLI
+        process implements it itself; the two can be mixed capability by capability (DCLI-262)."""
+        return (self.host_component and session is not None and self.caps[cap]["side"] == "instance"
+                and (self.fake is not None or not self.adapter_has(cap)))
 
     def has(self, cap: str, session: str | None = None) -> bool:
         if self.on_host(cap, session):

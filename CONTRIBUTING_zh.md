@@ -36,7 +36,7 @@ python scripts/spec.py check
 | 命令 | 作用 |
 |---|---|
 | `python scripts/spec.py check` | 运行项目检查：布局、文档及其固定原文、生成的内容、固定副本、版本、Skill、知识、行为矩阵、证据和成熟度 |
-| `python scripts/spec.py generate` | 重新生成 `contract/commands.json`、命令地图、徽章行、信息卡、风险块、支持矩阵、证据索引和 `knowledge/index.json` |
+| `python scripts/spec.py generate` | 重新生成 `contract/commands.json`、命令地图、徽章行、信息卡、风险块、支持矩阵和证据索引 |
 | `python scripts/spec.py suites` | 用模拟宿主代替 Xpedition，对 xpedition-cli 运行两套一致性测试 |
 | `python scripts/spec.py sync <version>` | 用 tool-driver-cli-spec 另一个发布里的副本替换固定副本 |
 | `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` | 在真实的 Xpedition 上、在授权目标上运行一个命令的行为矩阵，并写下真实软件记录 |
@@ -77,9 +77,9 @@ python scripts/spec.py check
 
 **单元测试。** 工具自己的测试放在 `tests/`。每个测试都把 `XPEDITION_CLI_STATE_DIR` 设为新建的临时目录，并且要么把 `XPEDITION_CLI_SCOPE_FILE` 指向这个目录里的授权范围文件，要么去掉这个变量。
 
-**行为矩阵。** 每个领域命令，以及每个调用适配层能力的标准命令，都在 `tests/matrix/` 里有一个矩阵文件，以命令路径命名，如 `tests/matrix/part-move.json`。文件把每一行各列一次：`normal`、`empty`、`invalid_input`、`not_found`、`ambiguous`、`conflict`、`no_scope`、`busy`、`dialog`、`disconnect`、`unsaved` 和 `read_back_mismatch`。适用的行写明参数和预期的退出码与错误码；不适用的行写 `applies: false` 和原因。写命令 `normal` 行的参数就是它的样例，通用一致性测试会拿它在模拟宿主上运行。参数只通过占位符 `{session}`、`{doc}`、`{device}` 和 `{dir}` 指定会话、文档、设备和输出文件夹。
+**行为矩阵。** 每个领域命令，以及每个调用适配层能力的标准命令，都在 `tests/matrix/` 里有一个矩阵文件，以命令路径命名，如 `tests/matrix/part-move.json`。文件把每一行各列一次：`normal`、`empty`、`invalid_input`、`not_found`、`ambiguous`、`conflict`、`no_scope`、`busy`、`dialog`、`disconnect`、`unsaved` 和 `read_back_mismatch`。适用的行写明参数和预期的退出码与错误码；不适用的行写 `applies: false` 和原因。写命令 `normal` 行的参数就是它的样例，通用一致性测试会拿它在模拟宿主上运行。参数只通过占位符 `{session}`、`{doc}`、`{device}` 和 `{dir}` 指定会话、文档、设备和输出文件夹，通过 `{job}` 指定作业，通过 `{inputs}`（即 `tests/inputs/` 文件夹）指定命令只读取的文件。
 
-**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。
+**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行。
 
 **评测。** 命令标为 stable 之前，`tests/eval/` 里要为每个适用于 xpedition-cli、需要工具自测的场景各出一题，`docs/evidence/` 里还要有一份在真实 Xpedition 上得到的最新评测报告：它覆盖了现在的每道题，每道题都通过了，并且有一道题在 `COMMANDS` 里列出了这条命令、实际运行了它。每道题是一个以题目 ID 命名的 Python 文件；名为 `_*.py` 的文件放各题共用的辅助代码。
 
@@ -125,7 +125,7 @@ def grade(run):
 
 1. **调查。** 在 `docs/APPLICATION_zh.md` 的能力表里找到这项能力。没有时，加一行并给它新的 `CAP-nnn`。有命令提供它之后，把处置改为 `provided`。
 2. **命名。** 用 `noun verb` 的形式。动词从固定列表里选：`list`、`get`、`search`、`check`、`create`、`update`、`delete`、`move`、`import`、`render`、`export`、`run`、`stop`。名词用 Xpedition 自己的术语，写成完整的英文单词。名词不能用内置命令或标准命令的名称，如 `session`、`doc` 或 `job`。
-3. **登记。** 在 `xpedition_cli/commands/` 里登记命令，写明说明、效果、模式、目标类型、参数及其类型、每个物理量的单位量、机密参数、输出中的不可信字段、调用的适配层能力，以及 `survey_ids` 里的能力编号。每个效果都要声明。Xpedition 无法撤回的修改标 `irreversible: true`，只用来停止工作的命令标 `halt: true`。Xpedition 会取整或吸附数值的地方，给出读回容差；相关的知识条目写在 `related_knowledge` 里。
+3. **登记。** 在 `xpedition_cli/commands/` 里登记命令，写明说明、效果、模式、目标类型、参数及其类型、每个物理量的单位量、机密参数和输出中的不可信字段。每个效果都要声明。Xpedition 无法撤回的修改标 `irreversible: true`，只用来停止工作的命令标 `halt: true`。Xpedition 会取整或吸附数值的地方，给出读回容差；相关的知识条目写在 `related_knowledge` 里。
 4. **实现。** 在 `xpedition_cli/adapter/` 里实现命令需要的适配层能力；Xpedition 的接口只能在它的进程里或主线程上调用时，写在 `plugin/` 的宿主组件里。禁止重新实现驱动运行时已经做的事。
 5. **矩阵。** 在 `tests/matrix/` 里写行为矩阵，每一行都要有。写命令的 `normal` 行就是它的样例。
 6. **生成与检查。** 运行 `python scripts/spec.py generate`，再运行 `python scripts/spec.py check`、`python -m unittest discover -s tests` 和 `python scripts/spec.py suites`。

@@ -13,7 +13,7 @@ Layout of the package:
 
 - ``base``: the handler interface, the call context and the preview helpers
 - ``sessions``: sessions, documents, and the ``doc save`` preview and read-back
-- ``jobs`` and ``worker``: long jobs (DCLI-065)
+- ``jobs``: help for the commands the runtime runs as long jobs (DCLI-065)
 - ``platform``: finding Xpedition, its environment, COM, processes and dialogs
 - ``project``, ``library``: file-mode commands on the project and its central library
 - ``designer``: Designer sessions and the schematic commands
@@ -26,7 +26,7 @@ from typing import Any
 
 from .._driver import Adapter as BaseAdapter
 from .._driver import AdapterError
-from . import jobs, sessions
+from . import base, jobs, sessions
 from .base import Context, Handler
 
 
@@ -109,7 +109,15 @@ class Adapter(BaseAdapter):
     def preview(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("command") == "doc save":
             return sessions.save_preview(self.store, request)
-        out = self._handler(request).preview(Context(self.store, request))
+        handler = self._handler(request)
+        try:
+            out = handler.preview(Context(self.store, request))
+        except AdapterError as exc:
+            if exc.data.get("conflict") != "application_state":
+                raise
+            # What the application's state stands in the way of is a blocked preview (DCLI-054).
+            return base.preview(f"{handler.command} cannot change anything now.", [], [], blocked_by=[str(exc)],
+                                knowledge=exc.data.get("knowledge"))
         if request.get("session"):
             self.store.set(sessions.preview_key(request), {"changes": out.get("changes", [])})
         return out
@@ -118,8 +126,13 @@ class Adapter(BaseAdapter):
         handler = self._handler(request)
         ctx = Context(self.store, request)
         if handler.long(ctx):
-            return jobs.start(self.store, request)  # the worker notes the change when the job ends
-        facts = handler.apply(ctx)
+            # The runtime calls this in its long job's worker (DCLI-065); meanwhile the
+            # instance shows as busy to other calls.
+            with jobs.running(self.store, request.get("session"), handler.command):
+                out = handler.run(ctx, jobs.Progress())
+            facts = {"dispatch_state": "dispatched", "delivery": "not_applicable", **out}
+        else:
+            facts = handler.apply(ctx)
         if request.get("session") and request.get("document") and sessions.changed(facts):
             kept = self.store.get(sessions.preview_key(request), {}) or {}
             sessions.note_change(self.store, request["session"], request["document"], kept.get("changes", []))
@@ -131,11 +144,3 @@ class Adapter(BaseAdapter):
         if request.get("command") == "doc save":
             return sessions.save_read_back(self.store, request)
         return self._handler(request).read_back(Context(self.store, request))
-
-    # ------------------------------------------------------------------ long jobs
-
-    def job_status(self, request: dict[str, Any]) -> dict[str, Any]:
-        return jobs.status(self.store, request["job"])
-
-    def cancel(self, request: dict[str, Any]) -> dict[str, Any]:
-        return jobs.cancel(self.store, request["job"])

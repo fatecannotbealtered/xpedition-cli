@@ -83,7 +83,7 @@
       "expected": {
         "exit": 6,
         "code": "E_CONFLICT",
-        "summary": "After placement, the person unplaces D1 in Layout: the nets of the placed parts are open and one component is unplaced, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked, naming D1. (With every part unplaced Layout may report no open net; the preview then has nothing to do and the apply refuses with E_VALIDATION.)"
+        "summary": "After placement, the person unplaces D1 in Layout: the nets of the placed parts are open and one component is unplaced, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked, naming D1. (With every part unplaced Layout may report no open net; the preview then has nothing to do and the apply refuses with E_CONFLICT application_state.)"
       }
     },
     {

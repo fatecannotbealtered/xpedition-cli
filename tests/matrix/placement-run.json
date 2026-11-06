@@ -10,7 +10,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 0,
@@ -26,7 +26,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 0,
@@ -58,7 +58,7 @@
         "--doc",
         "{dir}/Missing.pcb",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 3,
@@ -71,7 +71,7 @@
       "applies": true,
       "arguments": [
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 2,
@@ -88,7 +88,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json",
+        "{inputs}/design.json",
         "--all"
       ],
       "expected": {
@@ -106,7 +106,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 4,
@@ -121,7 +121,7 @@
         "--session",
         "{session}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 7,
@@ -136,7 +136,7 @@
         "--session",
         "{session}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 9,
@@ -153,7 +153,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 8,
@@ -171,7 +171,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json"
+        "{inputs}/design.json"
       ],
       "expected": {
         "exit": 0,
@@ -187,7 +187,7 @@
         "--doc",
         "{doc}",
         "--design",
-        "tests/fixtures/live/design.json",
+        "{inputs}/design.json",
         "--all"
       ],
       "expected": {

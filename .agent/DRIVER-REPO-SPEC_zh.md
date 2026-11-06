@@ -2,7 +2,7 @@
 
 [English](DRIVER-REPO-SPEC.md) | 中文
 
-> 版本 1.0.0 · 条款 DREPO-001 至 DREPO-062
+> 版本 1.0.3 · 条款 DREPO-001 至 DREPO-062
 
 ## 怎么读
 
@@ -102,7 +102,7 @@
 │   ├── _driver/                    驱动运行时，原样复制
 │   ├── commands/                   领域命令（工具作者写）
 │   └── adapter/                    适配层（工具作者写）
-├── plugin/                         宿主组件源码，用软件支持的语言（需要时才建）
+├── plugin/                         宿主组件，用软件支持的语言（需要时才建）；source/ 放要编译、不安装的代码
 ├── skills/
 │   ├── <tool>/                     入口 Skill
 │   └── <product>-<area>/           领域 Skill
@@ -115,11 +115,12 @@
 ├── scripts/                        构建、打 npm 平台包、冒烟测试、检查脚本
 ├── tests/                          工具的测试和一致性测试的运行
 │   ├── matrix/                     行为矩阵，每条命令一个 JSON 文件
+│   ├── inputs/                     样例只读取的文件，即 {inputs}（DVER-002）
 │   └── eval/                       评测题（命令要标 stable 时必需）
 └── .github/                        工作流 ci.yml 和 release.yml、Issue 与 PR 模板
 ```
 
-领域命令必须放在 `<pkg>/commands/`，适配层代码放在 `<pkg>/adapter/`。宿主组件源码必须放在 `plugin/`；只有工具有宿主组件时才建 `plugin/`（DCLI-262）。
+领域命令必须放在 `<pkg>/commands/`，适配层代码放在 `<pkg>/adapter/`。宿主组件必须放在 `plugin/`，要编译进安装文件的代码放在 `plugin/source/`（DCLI-240）；只有工具有宿主组件时才建 `plugin/`（DCLI-262）。
 
 为什么：每个工具把同样的东西放在同样的地方，熟悉一个工具的人和 Agent，到了下一个工具也能马上找到。
 检查：🤖 `check_project` 检查 DREPO-002 和 DREPO-004 列出的路径；👀 评审时检查代码放的位置。
@@ -273,9 +274,9 @@ README 必须以标题区开头，依次是：写着工具名称的 `#` 标题�
 | `Risk Tier` 风险等级 | 工具的风险等级，以及决定它的命令（DSEC-002） |
 | `Authorization` 授权 | 授权范围文件：放在哪里、谁来写、授予什么（DSEC-010 至 DSEC-018） |
 | `Write Confirmation` 写入确认 | 固定原文：确认级别、确认令牌和确认时的复查（DCLI-052 至 DCLI-056） |
-| `Host Component` 宿主组件 | 什么代码在软件里运行、怎样安装、怎样连接（DSEC-050 至 DSEC-054） |
-| `Physical Effects` 物理动作 | 怎样防护物理动作（DSEC-060 至 DSEC-062） |
-| `State Directory` 状态目录 | 固定原文：状态目录的位置、内容和访问保护（DSEC-030 至 DSEC-033） |
+| `Host Component` 宿主组件 | 什么代码在软件里运行、怎样安装、怎样连接（DSEC-050 至 DSEC-053） |
+| `Physical Effects` 物理动作 | 怎样防护物理动作（DSEC-061 和 DSEC-062） |
+| `State Directory` 状态目录 | 固定原文：状态目录的位置、内容和访问保护（DSEC-030 至 DSEC-032） |
 | `Credentials` 凭据 | 工具经手哪些机密、怎样遮盖，以及工具连接哪些地址（DSEC-040 至 DSEC-043） |
 | `Untrusted Content` 不可信内容 | 固定原文：哪些内容不可信、怎样标记（DSEC-020 至 DSEC-022） |
 | `Supply Chain` 供应链 | 固定原文：锁定的依赖、带来源证明的发布、没有安装脚本、Skill 来自已安装的包（DSEC-070 至 DSEC-073） |
@@ -305,7 +306,7 @@ README 必须以标题区开头，依次是：写着工具名称的 `#` 标题�
 | `Branch and Commit Convention` 分支与提交约定 | 分支怎样命名、提交信息怎样写 |
 | `CI Checks` CI 检查 | 合并门槛（DREPO-041），以及怎样在本地运行 |
 | `Tests and Evidence` 测试与证据 | 一致性测试、行为矩阵、真实软件记录、评测报告，以及证据怎样决定成熟度（DVER-001、DVER-030、DVER-040） |
-| `Adding or Changing a Command` 新增或修改命令 | 登记时写明效果、单位、目标类型和能力编号（DCLI-029、DREPO-061）；行为矩阵，矩阵的 `normal` 行就是写命令样例（DVER-002、DVER-030）；以及 Skill 和 CHANGELOG 条目 |
+| `Adding or Changing a Command` 新增或修改命令 | 登记时写明效果、单位和目标类型（DCLI-029）；调查表里对应能力的处置（DREPO-060）；行为矩阵，矩阵的 `normal` 行就是写命令样例（DVER-002、DVER-030）；以及 Skill 和 CHANGELOG 条目 |
 | `Pull Requests` 合并请求 | 合并请求包含什么、怎样评审 |
 | `Security` 安全 | 漏洞按 `SECURITY.md` 报告，不开公开的 Issue |
 
@@ -342,11 +343,9 @@ README 必须以标题区开头，依次是：写着工具名称的 `#` 标题�
 | 章节 | 内容 |
 |---|---|
 | `Support Matrix` 支持矩阵 | 软件版本（取主版本和次版本；还没有真实软件记录写明版本时，写支持的版本范围）、操作系统和模式的每种组合占一行，带兼容性标签（DREPO-022）；由脚本生成，不手写 |
-| `Client and Host` 客户端与宿主 | 哪些工具版本能配合哪些宿主协议版本和宿主组件版本；工具和软件始终在同一台电脑上运行 |
-| `Host Component Versions` 宿主组件版本 | 每个宿主组件版本、它的协议版本，以及它能加载进的软件版本 |
 | `Known Limitations` 已知限制 | 已知的缺口和故障，以及受影响的版本 |
 
-没有宿主组件的工具也必须保留「客户端与宿主」和「宿主组件版本」两节，并在其中写明没有宿主组件。「支持矩阵」一节必须由模板的脚本根据 `docs/evidence/` 里的真实软件记录和 `package.json` 里的平台包生成，禁止手工编辑。支持矩阵的样子如下：
+「支持矩阵」一节必须由模板的脚本根据 `docs/evidence/` 里的真实软件记录和 `package.json` 里的平台包生成，禁止手工编辑。支持矩阵的样子如下：
 
 | 软件版本 | 操作系统 | 模式 | 状态 |
 |---|---|---|---|
@@ -421,7 +420,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 | `platform` | 出包平台：Windows、macOS、Linux | `package.json` 里的平台包（DREPO-043） |
 | `risk` | 工具的风险等级，T0 至 T2（DSEC-002） | `reference` |
 | `maturity` | 工具各领域命令中最低的成熟度（DVER-040） | `reference` |
-| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.0 | `.agent/SPEC_VERSION` |
+| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.3 | `.agent/SPEC_VERSION` |
 | `license` | 工具的许可证 | `package.json` |
 
 驱动 KiCad 10.0、支持文件和会话模式的工具，徽章行大致如下；具体样式由模板定义：
@@ -435,7 +434,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.0-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.3-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 
@@ -510,7 +509,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 
 ### DREPO-032 运行时副本
 
-驱动运行时必须原样放在 `<pkg>/_driver/`。`<pkg>/_driver/MANIFEST.json` 必须记录运行时来自哪个规范发布，以及每个运行时文件的 SHA-256 哈希。工具禁止修改运行时文件，也禁止自己重新实现运行时负责的事（DCLI-261）。
+驱动运行时必须原样放在 `<pkg>/_driver/`。`<pkg>/_driver/MANIFEST.json` 必须记录运行时来自哪个规范发布，以及每个运行时文件的 SHA-256 哈希。工具禁止修改运行时文件，也禁止自己重新实现运行时提供的任何东西，即各份规范「运行时与工具的分工」表中列在运行时名下的内容。
 
 为什么：这样每个工具在信封、写操作和更新上都跑同一份经过测试的代码，谁改了都会出现哈希不符。
 检查：🤖 `check_project` 用 `MANIFEST.json` 核对每个文件。
@@ -643,7 +642,7 @@ README 的「安装」一节必须按顺序给出下面几步：
 <!-- contract:capability_dispositions -->
 | 处置 | 含义 |
 |---|---|
-| `provided` 提供 | 工具通过一条或多条领域命令提供 |
+| `provided` 提供 | 工具通过一条或多条领域命令提供，或通过 `doc open`、`doc save`、`doc close` 这类标准命令提供 |
 | `deferred` 延后 | 值得提供，但留到以后的版本 |
 | `excluded` 排除 | 工具不会提供，比如因为不安全，或无法可靠地自动化 |
 | `unknown` 未知 | 还不知道软件是否允许 |
@@ -655,11 +654,7 @@ README 的「安装」一节必须按顺序给出下面几步：
 
 ### DREPO-061 命令对应到能力
 
-- 每条领域命令都必须在登记（DCLI-029）的 `survey_ids` 里写明一个或多个能力编号，而且这些编号在调查表里存在。登记时还要写明命令的效果（DCLI-051）、单位（DCLI-080）和目标类型（DCLI-028）。
-- 调查表里的每项能力都必须有处置。
-
-为什么：这样每条命令都能追溯到关于软件的一项调查事实，调查表里也没有哪项被悄悄遗忘。
-检查：🤖 `check_project` 用 `contract/commands.json` 和 `docs/APPLICATION.md` 检查这两点。
+已移除：这条规则已并入 DREPO-060。
 
 ### DREPO-062 接入步骤
 
@@ -670,7 +665,7 @@ README 的「安装」一节必须按顺序给出下面几步：
 | 1 调查 | 填写 `docs/APPLICATION.md`；给每项能力编号并写明处置（DREPO-060） |
 | 2 选模式 | 根据调查结果选择文件、会话或设备模式，可以组合（DCLI-201） |
 | 3 生成项目 | 用模板脚本 `instantiate` 生成项目；之后 `check_project` 只列出后续步骤要补的内容：占位符（DREPO-019）和还没登记的领域命令 |
-| 4 登记命令 | 按命名规则（DCLI-020 至 DCLI-024）和登记字段（DCLI-029）登记领域命令，每条写明效果、单位、目标类型和能力编号（DREPO-061） |
+| 4 登记命令 | 按命名规则（DCLI-020 至 DCLI-024）和登记字段（DCLI-029）登记领域命令，每条写明效果、单位和目标类型，并把它们提供的能力标为 `provided`（DREPO-060） |
 | 5 实现适配层 | 只实现所选模式需要的适配能力（DCLI-260）；每项能力决定放在适配层还是宿主组件里（DCLI-262） |
 | 6 测试 | 在模拟宿主上运行两组一致性测试（DVER-001）；为每个领域命令写行为矩阵（DVER-030），并在授权目标上用真实软件运行（DVER-031、DVER-050） |
 | 7 写 Skill 和知识库 | 决定是否拆分 Skill（DSKL-020、DSKL-021）；在模板提供的固定段落上补充剧本（DSKL-009）；把调查里的操作要点、限制和故障处理写成知识条目（DSKL-126）；把命令标为 stable 之前先跑评测（DSKL-043） |

@@ -4,9 +4,6 @@ title: Rules of the central library converters
 kind: guide
 applies_to: [part create, part list, part get, packager run]
 tags: [library, converter, hkp, cell]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Library tooling present on a stock installation; The library converters: HKP out and in; The central library as text) and docs/E2E.md (runs of 2026-09-14 evening and 2026-09-29 to 30) of npm @fateforge/xpedition-cli@1.0.3; capability survey docs/APPLICATION.md (Automation Interfaces); this release's command registry (part create)
-updated_on: 2026-11-05
 ---
 
 part list, part get and part create read and write the central library through Xpedition's converter programs. `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP` export a database as HKP text. `HKP2PadstackDB`, `HKP2CellDB` and `HKP2PartsDB` import it. Library Manager's own automation is read-only.

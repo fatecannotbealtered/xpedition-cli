@@ -4,9 +4,6 @@ title: The project file lists its cell partitions
 kind: rule
 applies_to: [project get, pcb create, forward-annotation run, part create, part get]
 tags: [project, prj, cell, forward-annotation]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/COMPATIBILITY.md (Creating a board and forward-annotating it) and docs/E2E.md (Recorded run, checked, 2026-09-14) of npm @fateforge/xpedition-cli@1.0.3; old implementation (commit 4a054a3), project_file.py; this release's command registry (project get, pcb create)
-updated_on: 2026-11-05
 severity: error
 check: run project get; cell_libraries names the cell partition of every part the design uses
 ---

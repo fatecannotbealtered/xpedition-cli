@@ -3,7 +3,7 @@ board is, changed, saved and verified.
 
 File mode. No Designer or Layout may run when the evaluation starts: on the real Xpedition the
 hook makes Demo.prj with its parts, starts Designer, draws the schematic from
-tests/fixtures/live/design.json, saves it and quits Designer before the turn.
+tests/inputs/design.json, saves it and quits Designer before the turn.
 """
 from _report import says_saved, says_verified
 from _xpedition import build, confirm, ok_calls, project, read, result, same_path, verified
@@ -12,7 +12,7 @@ SCENARIO = "scoped_change"
 COMMANDS = ["packager run", "pcb create", "project get"]
 TURNS = ["The schematic of the project {documents}/Demo.prj is drawn and saved, and Designer is closed. Package it for Layout, "
          "then create its board from the 4 Layer Template, and tell me where the new board file is."]
-FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "objects": {"": {
+FAKE_HOST = {"instances": [], "files": [{"id": "demo", "name": "Demo.prj", "kind": "project", "objects": {"": {
     "path": "Demo.prj", "designs": [{"name": "Board1", "kind": "board", "board": "PCB/Demo.pcb", "board_exists": True,
                                      "layout_template": "4 Layer Template"},
                                     {"name": "Schematic1", "kind": "schematic", "board": "", "board_exists": False,

@@ -51,7 +51,7 @@
     {
       "row": "ambiguous",
       "applies": false,
-      "reason": "A part number held in several partitions is returned from the first one, with the others listed in also_in; the adapter cannot return E_AMBIGUOUS, and file mode needs no instance to be chosen."
+      "reason": "A part number held in several partitions is returned from the first one, with the others listed in also_in, so the read never fails on it; file mode needs no instance to be chosen."
     },
     {
       "row": "conflict",

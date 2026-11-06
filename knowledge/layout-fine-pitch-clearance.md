@@ -4,9 +4,6 @@ title: Pad gaps must be at least the clearance, or the router leaves nets open
 kind: rule
 applies_to: [part create, part get, router run, pcb check]
 tags: [layout, routing, clearance, footprint]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/E2E.md (Recorded run, routed, and Recorded run, checked, 2026-09-14) and docs/COMPATIBILITY.md (Creating a board and forward-annotating it; Autorouting; Batch DRC and hazards) of npm @fateforge/xpedition-cli@1.0.3
-updated_on: 2026-11-05
 severity: error
 check: run part get and compare the gap between neighbouring pads with the clearance (0.254 mm on the stock template); after router run, look for open nets gathered on one part
 ---

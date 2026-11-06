@@ -4,9 +4,6 @@ title: A broken win32com cache hides a running Designer
 kind: troubleshooting
 applies_to: [session list, session get, session open, doc open, doctor]
 tags: [com, win32com, cache, startup]
-lang: en
-based_on: xpedition-cli 1.0.3 live record, docs/E2E.md (Recorded run: resume, read time and multi-land pads) of npm @fateforge/xpedition-cli@1.0.3, 2026-09-26; old implementation (commit 4a054a3), native_com_adapter.py (_heal_gen_py_cache) and CHANGELOG.md
-updated_on: 2026-11-05
 ---
 
 ## Symptom
