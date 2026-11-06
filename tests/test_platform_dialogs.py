@@ -88,6 +88,15 @@ class FindAndDismiss(Win32Case):
                                                 text="Invalid argument -x", buttons=["OK"])])
         self.assertEqual(win.read, [100])
 
+    def test_checkboxes_and_group_boxes_are_no_buttons(self) -> None:
+        # they share the Button class with push buttons; BS_AUTOCHECKBOX 3, BS_GROUPBOX 7
+        windows = message_box("Exporting", "Writing files", ["Cancel"])
+        windows[100]["children"] += [150, 151]
+        windows[150] = {"title": "Progress", "class": "Button", "pid": LAYOUT_PID, "top": False, "style": 0x50000007}
+        windows[151] = {"title": "Close when done", "class": "Button", "pid": LAYOUT_PID, "top": False, "style": 0x50010003}
+        self.use(FakeWin(windows))
+        self.assertEqual(dialogs.find_dialogs(LAYOUT_PID)[0].buttons, ["Cancel"])
+
     def test_without_a_pid_only_xpedition_processes_count(self) -> None:
         self.use(FakeWin({**message_box("Notepad", "Save?", ["Yes"], pid=9, first=200), **message_box("Layout", "x", ["OK"])},
                          images={LAYOUT_PID: "expeditionpcb.exe", 9: "notepad.exe"}))

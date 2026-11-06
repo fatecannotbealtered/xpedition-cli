@@ -491,6 +491,10 @@ class InstancesTest(DesignerCase):
         [found] = designer.instances(2.0)
         self.assertEqual(found, {"pid": PID, "state": "ready", "documents": [self.prj], "version": "2604"})
 
+    def test_with_several_designers_no_open_project_is_read(self):
+        self.procs.append(processes.ProcessInfo(PID + 1, "C:/xpedition/wv/viewdraw.exe", 2))
+        self.assertIsNone(designer.open_documents(PID, 1.0))  # what each last showed stands
+
     def test_a_designer_without_a_project_lists_no_document(self):
         self.app.project, self.app.opened = "", False
         self.assertEqual(designer.instances(2.0)[0]["documents"], [])
@@ -595,7 +599,7 @@ class QuitTest(DesignerCase):
 
     def test_a_designer_held_by_a_dialog_names_it(self):
         with mock.patch.object(processes, "alive", lambda pid: True), mock.patch.object(designer, "QUIT_WAIT_S", 0.05), \
-                mock.patch.object(designer, "_dialog_blocker", lambda pid: {"action": "dismiss_dialog", "title": "Save?"}):
+                mock.patch.object(designer, "_dialog_blocker", lambda pid, look_s: {"action": "dismiss_dialog", "title": "Save?"}):
             with self.assertRaises(AdapterError) as caught:
                 designer.quit(PID, False)
         self.assertEqual((self.code(caught), caught.exception.data["title"]), ("E_HUMAN_REQUIRED", "Save?"))

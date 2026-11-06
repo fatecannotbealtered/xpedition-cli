@@ -217,10 +217,13 @@ def document_view(store: AdapterStore, session: str | None, path: str) -> dict[s
 
 
 def _answered(inst: dict[str, Any], answers: list[tuple[str, str, str | None]]) -> bool:
-    """Whether the instance's blocker is a dialog the running job answers itself."""
+    """Whether the instance's blocker is a dialog the running job answers itself: as the job's
+    answerer does (``dialogs.answer_prompts``), a rule's marker is in its title or text and the
+    rule's button is on it."""
     blocker = inst.get("blocker") or {}
     haystack = f"{blocker.get('title', '')} {inst.get('blocker_text', '')}".lower()
-    return any(marker.lower() in haystack for marker, _button, _option in answers)
+    buttons = {str(b).replace("&", "").strip() for b in inst.get("blocker_buttons") or []}
+    return any(marker.lower() in haystack and button in buttons for marker, button, _option in answers)
 
 
 def _session(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[str, Any]]:
@@ -308,18 +311,25 @@ def open_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]
             "persistence": "not_applicable", "session": session}
 
 
+def _ref(session_id: str) -> SessionRef:
+    ref = parse_session(session_id)
+    if ref is None:
+        raise AdapterError("E_NOT_FOUND", f"There is no session {session_id}.", dispatch_state="not_started")
+    return ref
+
+
 def _driving(store: AdapterStore, ref: SessionRef, command: str) -> Any:
     """While a long job's worker opens, saves or closes a document or quits an instance, that
-    instance is busy, and the prompts the adapter answers then do not block it."""
+    instance is busy from the job's first step, and the prompts the command answers itself do not
+    block it."""
     if jobs.in_worker():
-        answers = getattr(_app(ref.kind), "ANSWERS", ())
-        return jobs.running(store, ref.id, command, tuple(answers) if isinstance(answers, (tuple, list)) else ())
+        return jobs.running(store, ref.id, command, tuple(getattr(_app(ref.kind), "ANSWERS", {}).get(command, ())))
     return nullcontext()
 
 
 def close_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    ref, item = _session(store, request["session"])
-    with _driving(store, ref, "session close"):
+    with _driving(store, _ref(request["session"]), "session close"):
+        ref, item = _session(store, request["session"])
         _app(ref.kind).quit(ref.pid, bool(request.get("discard")))
     for doc in item["documents"]:
         forget(store, ref.id, doc["path"])
@@ -329,13 +339,13 @@ def close_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any
 
 
 def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    ref, _ = _session(store, request["session"])
+    ref = _ref(request["session"])
     path = os.path.abspath(request["path"])
     want = ".prj" if ref.kind == DESIGNER else ".pcb"
     if not path.lower().endswith(want):
         raise AdapterError("E_VALIDATION", f"This session opens {want} files.", dispatch_state="not_started")
-    already = any(os.path.normcase(d["path"]) == os.path.normcase(path) for d in _session(store, ref.id)[1]["documents"])
     with _driving(store, ref, "doc open"):
+        already = any(os.path.normcase(d["path"]) == os.path.normcase(path) for d in _session(store, ref.id)[1]["documents"])
         _app(ref.kind).open_document(ref.pid, path)
     if not already:
         note_saved(store, ref.id, path)  # freshly opened from the file: clean; an open document keeps its state
@@ -371,10 +381,11 @@ def disk_stamp(path: str) -> tuple[int, int]:
 
 
 def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    ref, _ = _session(store, request["session"])
+    ref = _ref(request["session"])
     path = os.path.abspath(request["document"])
-    before, started = disk_stamp(path), time.time_ns()
     with _driving(store, ref, "doc save"):
+        _session(store, ref.id)
+        before, started = disk_stamp(path), time.time_ns()
         app = _app(ref.kind)
         app.save_document(ref.pid, path)
         after = disk_stamp(path)  # Layout writes the board when it saves
@@ -397,9 +408,10 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
 
 
 def close_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
-    ref, _ = _session(store, request["session"])
+    ref = _ref(request["session"])
     path = os.path.abspath(request["document"])
     with _driving(store, ref, "doc close"):
+        _session(store, ref.id)
         _app(ref.kind).close_document(ref.pid, path, bool(request.get("discard")))
     forget(store, ref.id, path)
     return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",

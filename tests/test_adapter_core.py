@@ -78,7 +78,7 @@ class DocumentStateTest(unittest.TestCase):
         self.assertEqual(sessions.doc_kind("D:/w/PCB/Demo.pcb"), "board")
 
     def _fake_app(self) -> mock.Mock:
-        app = mock.Mock(APPLICATION="Xpedition", VERSION="2604")
+        app = mock.Mock(APPLICATION="Xpedition", VERSION="2604", ANSWERS={})
         app.start.return_value = {"pid": 42, "state": "starting"}
         app.instances.return_value = []
         return app
@@ -257,6 +257,39 @@ class LongJobTest(unittest.TestCase):
                 with mock.patch.object(jobs, "pid_alive", return_value=False):
                     self.assertIsNone(jobs.running_on(self.store, "layout-2-2"))
 
+    def test_a_session_another_worker_drives_is_busy_for_a_second_job(self):
+        with mock.patch.object(jobs, "pid_alive", return_value=True), mock.patch.object(jobs.processes, "start_time", return_value=0):
+            self.store.set(jobs._running_key("layout-2-2"), {"7": {"pid": 7, "command": "doc save"}})
+            with mock.patch.object(jobs.os, "getpid", return_value=8), self.assertRaises(AdapterError) as caught:
+                with jobs.running(self.store, "layout-2-2", "pcb check"):
+                    self.fail("the second job ran")
+        self.assertEqual((caught.exception.data["code"], caught.exception.data["dispatch_state"]), ("E_BUSY", "not_started"))
+
+    def test_one_workers_end_leaves_the_others_mark(self):
+        with mock.patch.object(jobs, "pid_alive", return_value=True), mock.patch.object(jobs.processes, "start_time", return_value=0):
+            self.store.set(jobs._running_key("layout-2-2"), {"7": {"pid": 7, "command": "pcb check"}})
+            with mock.patch.object(jobs.os, "getpid", return_value=8):
+                jobs._put(self.store, "layout-2-2", {"pid": 8, "command": "doc save"})
+                jobs._put(self.store, "layout-2-2", None)
+                self.assertEqual(jobs.running_on(self.store, "layout-2-2"), "pcb check")
+
+    def test_a_mark_whose_process_id_was_reused_is_dead(self):
+        self.store.set(jobs._running_key("layout-2-2"), {"7": {"pid": 7, "start_time": 1000, "command": "doc save"}})
+        with mock.patch.object(jobs, "pid_alive", return_value=True), mock.patch.object(jobs.os, "getpid", return_value=8):
+            with mock.patch.object(jobs.processes, "start_time", return_value=2000):
+                self.assertIsNone(jobs.running_on(self.store, "layout-2-2"))
+            with mock.patch.object(jobs.processes, "start_time", return_value=1000):
+                self.assertEqual(jobs.running_on(self.store, "layout-2-2"), "doc save")
+
+    def test_a_nested_mark_stays_until_the_outer_block_ends(self):
+        with mock.patch.object(jobs, "pid_alive", return_value=True), mock.patch.object(jobs.processes, "start_time", return_value=0):
+            with mock.patch.object(jobs.os, "getpid", return_value=7):
+                with jobs.running(self.store, "layout-2-2", "pcb create"):
+                    with jobs.running(self.store, "layout-2-2", "doc open"):
+                        pass
+                    self.assertIn("7", jobs._marks(self.store, "layout-2-2"))
+            self.assertEqual(jobs._marks(self.store, "layout-2-2"), {})
+
     def test_the_worker_is_known_by_the_runtime_variable(self):
         with mock.patch.dict(os.environ, {"XPEDITION_CLI_JOB_WORKER": "job-0123456789:ab"}):
             self.assertTrue(jobs.in_worker())
@@ -282,15 +315,23 @@ class JobDialogTest(unittest.TestCase):
         apps = {base.DESIGNER: idle, base.LAYOUT: app}
         sid = sessions.make_session_id(base.LAYOUT, 4242)
         rules = (("ODB++ Design Output", "OK", None),)
-        with mock.patch.object(sessions, "_app", side_effect=lambda kind: apps[kind]),                 mock.patch.object(jobs.os, "getpid", return_value=1), mock.patch.object(jobs, "pid_alive", return_value=True):
-            self.store.set(jobs._running_key(sid), {"pid": 7, "command": "pcb export", "answers": [list(r) for r in rules]})
+        with mock.patch.object(sessions, "_app", side_effect=lambda kind: apps[kind]), \
+                mock.patch.object(jobs.os, "getpid", return_value=1), mock.patch.object(jobs, "pid_alive", return_value=True), \
+                mock.patch.object(jobs.processes, "start_time", return_value=0):
+            self.store.set(jobs._running_key(sid), {"7": {"pid": 7, "command": "pcb export", "answers": [list(r) for r in rules]}})
             return sessions.list_sessions(self.store)["items"][0]
 
     def test_the_jobs_own_dialog_leaves_the_session_busy(self):
         row = self._listed({"pid": 4242, "state": "blocked", "documents": [], "blocker": {"action": "dismiss_dialog",
-                            "title": "ODB++ Design Output"}, "blocker_text": ""})
+                            "title": "ODB++ Design Output"}, "blocker_text": "", "blocker_buttons": ["OK", "Cancel"]})
         self.assertEqual(row["state"], "busy")
         self.assertNotIn("blocker", row)
+
+    def test_the_jobs_dialog_without_the_button_it_presses_blocks_the_session(self):
+        # the job's answerer presses a rule's button only; without it, nobody answers the dialog
+        row = self._listed({"pid": 4242, "state": "blocked", "documents": [], "blocker": {"action": "dismiss_dialog",
+                            "title": "ODB++ Design Output"}, "blocker_text": "The output failed.", "blocker_buttons": ["Close"]})
+        self.assertEqual(row["state"], "blocked")
 
     def test_another_dialog_blocks_the_session(self):
         row = self._listed({"pid": 4242, "state": "blocked", "documents": [], "blocker": {"action": "dismiss_dialog",

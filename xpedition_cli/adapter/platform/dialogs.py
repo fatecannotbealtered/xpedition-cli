@@ -41,6 +41,10 @@ BM_CLICK = 0x00F5
 IDOK = 1
 GW_OWNER = 4
 GWL_STYLE = -16
+BS_TYPEMASK = 0xF
+# Button-class controls that are pressed: push, default push, push box, owner-drawn, split and
+# command-link buttons. Checkboxes, radio buttons and group boxes share the class and are no buttons.
+PUSH_TYPES = frozenset({0x0, 0x1, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF})
 WS_MINIMIZEBOX = 0x00020000
 TEXT_LIMIT = 300
 LICENCE_MARKERS = ("license", "licence", "licensing", "login", "log in", "sign in", "sign-in", "许可证", "授权", "登录")
@@ -270,7 +274,7 @@ def find_dialogs(pid: int | None = None) -> list[Dialog]:
                     text = _win.text(child).strip()
                     if text:
                         texts.append(text)
-                elif kind == "Button":
+                elif kind == "Button" and _win.style(child) & BS_TYPEMASK in PUSH_TYPES:
                     caption = _win.text(child).replace("&", "").strip()
                     if caption:
                         buttons.append(caption)

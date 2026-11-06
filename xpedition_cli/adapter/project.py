@@ -24,7 +24,7 @@ from . import library as lib
 from . import sessions
 from .base import Context, Handler, change, facts, key, need_input, preview, target
 from .plan import logs, project_file
-from .platform import env
+from .platform import dialogs, env
 
 # What a template's folder holds that a new project must not: the library's layout templates and
 # work files, logs, backups, thumbnails and the template's packager report.
@@ -312,16 +312,17 @@ def create_doc(store: Any, request: dict[str, Any]) -> dict[str, Any]:
     if session:
         if template:
             inputs["template"] = template
-        ref, item = sessions.session_of(store, session)
-        ctx = Context(store, {"command": "doc create", "inputs": inputs, "session": session,
-                              "operation_id": request.get("operation_id")})
-        work.preview(ctx)  # checks the target and the template before Designer is asked
-        if ref.kind != base.DESIGNER:
-            raise AdapterError("E_VALIDATION", "doc create makes a project in a Designer session; name one with --session.",
-                               dispatch_state="not_started")
-        if item.get("documents"):
-            raise base.blocked("Designer has a project open; close it with doc close first, then run doc create in this session.")
-        with jobs.running(store, session, "doc create"):
+        with jobs.running(store, session, "doc create", dialogs.DESIGNER_PROMPTS):
+            ref, item = sessions.session_of(store, session)
+            ctx = Context(store, {"command": "doc create", "inputs": inputs, "session": session,
+                                  "operation_id": request.get("operation_id")})
+            work.preview(ctx)  # checks the target and the template before Designer is asked
+            if ref.kind != base.DESIGNER:
+                raise AdapterError("E_VALIDATION", "doc create makes a project in a Designer session; name one with --session.",
+                                   dispatch_state="not_started")
+            if item.get("documents"):
+                raise base.blocked("Designer has a project open; close it with doc close first, then run doc create in this "
+                                   "session.")
             out = work.run(ctx, jobs.Progress())
         out = {"dispatch_state": "dispatched", "delivery": "not_applicable", **out, "change": "applied"}
     else:
