@@ -573,10 +573,6 @@ class DocumentsTest(DesignerCase):
         designer.close_document(PID, self.prj, False)  # already closed: nothing sent
         self.assertEqual(self.app.closed, 1)
 
-    def test_reopen_closes_and_opens_the_saved_project(self):
-        designer.reopen_document(PID, self.prj)
-        self.assertEqual((self.app.closed, self.app.opened_paths, self.app.saved), (1, [self.prj], 0))
-
     def test_a_second_designer_refuses_document_work(self):
         self.procs.append(processes.ProcessInfo(5000, "C:/xpedition/wv/viewdraw.exe", 2))
         with self.assertRaises(AdapterError) as caught:

@@ -335,14 +335,6 @@ class DocumentTest(unittest.TestCase):
             L.close_document(PID, self.path, True)
         self.assertEqual(code(caught), "E_NATIVE_FAILURE")
 
-    def test_reopen_closes_then_opens(self):
-        doc = FakeDoc(self.path)
-        app = FakeApp(doc)
-        doc.Close = lambda save: setattr(app, "ActiveDocument", None)
-        with world(app):
-            L.reopen_document(PID, self.path)
-        self.assertEqual(app.calls, [("OpenDocument", self.path)])
-
 
 class QuitTest(unittest.TestCase):
     def test_quit_closes_the_board_unsaved_then_goes(self):

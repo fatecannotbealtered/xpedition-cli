@@ -146,14 +146,15 @@ class DocumentStateTest(unittest.TestCase):
     def test_a_save_in_the_long_job_worker_reopens_the_document(self):
         app = self._fake_app()
         app.save_document.side_effect = None
-        app.reopen_document.side_effect = lambda pid, path: Path(path).write_text("written on close", encoding="utf-8")
+        app.close_document.side_effect = lambda pid, path, discard: Path(path).write_text("written on close", encoding="utf-8")
         sid, doc = "designer-1-1", os.path.abspath(self.doc)
         os.utime(doc, ns=(1_000_000_000, 1_000_000_000))
         with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})),                 mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
             sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
             out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
                                                         "fields": ["saved"]})
-        app.reopen_document.assert_called_once_with(1, doc)
+        app.close_document.assert_called_once_with(1, doc, False)
+        app.open_document.assert_called_once_with(1, doc)
         self.assertEqual(out["observed"][base.key(doc)], {"saved": True})
 
     def test_a_save_is_seen_in_the_design_data_not_in_the_files_an_open_rewrites(self):
@@ -169,6 +170,24 @@ class DocumentStateTest(unittest.TestCase):
         self.assertEqual(sessions.disk_stamp(str(board)), before)
         data.write_text("design, saved", encoding="utf-8")
         self.assertNotEqual(sessions.disk_stamp(str(board)), before)
+
+    def test_what_opening_writes_does_not_count_as_a_board_save(self):
+        app = self._fake_app()
+        board_dir = Path(self.tmp.name) / "PCB"
+        (board_dir / "Layout").mkdir(parents=True)
+        board = board_dir / "Demo.pcb"
+        board.write_text("pointer", encoding="utf-8")
+        data = board_dir / "Layout" / "LayoutDB.lyt"
+        data.write_text("design", encoding="utf-8")
+        os.utime(data, ns=(1_000_000_000, 1_000_000_000))
+        app.save_document.side_effect = None  # Layout's Save wrote nothing
+        app.open_document.side_effect = lambda pid, path: data.write_text("rewritten on open", encoding="utf-8")
+        sid, doc = "layout-1-1", str(board)
+        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})),                 mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
+            sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
+            out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
+                                                        "fields": ["saved"]})
+        self.assertEqual(out["observed"][base.key(doc)], {"saved": False})
 
     def test_the_save_read_back_says_saved_only_when_the_files_changed(self):
         out = self._save(writes=True)

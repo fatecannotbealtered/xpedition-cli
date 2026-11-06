@@ -74,7 +74,6 @@ POLL_S = 0.5
 # may take minutes, and these limits only tell a Designer that hangs from a slow one.
 OPEN_TIMEOUT_S = 150.0  # opening a project took 54 to 80 s live, and longer after library changes
 OPEN_SETTLE_S = 6.0  # the old open waited this long before reading the project
-REOPEN_OPEN_TIMEOUT_S = 150.0
 CLOSE_TIMEOUT_S = 120.0  # closing a project took 30 to 57 s live
 SAVE_TIMEOUT_S = 120.0
 QUIT_TIMEOUT_S = 60.0
@@ -681,13 +680,6 @@ def close_document(pid: int, path: str, discard: bool) -> None:
             raise AdapterError("E_NATIVE_FAILURE", f"Designer still reports {path} open after closing it.", dispatch_state="dispatched")
         _settle(POLL_S)
 
-
-def reopen_document(pid: int, path: str) -> None:
-    """Close and open the saved project, so that what is read comes from the files (used by
-    ``doc save``'s read-back right after the save, so nothing is unsaved)."""
-    close_document(pid, path, False)
-    _require_single(pid)
-    _open_project(pid, path, OPEN_PROMPTS, REOPEN_OPEN_TIMEOUT_S)
 
 
 def quit(pid: int, discard: bool) -> None:  # noqa: A001 - the name sessions.Application gives

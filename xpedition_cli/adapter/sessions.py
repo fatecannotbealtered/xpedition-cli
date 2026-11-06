@@ -62,9 +62,6 @@ class Application(Protocol):
 
     def close_document(self, pid: int, path: str, discard: bool) -> None: ...
 
-    def reopen_document(self, pid: int, path: str) -> None:
-        """Close and open the saved document again, so that reads come from the file."""
-
     def read_targets(self, pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
         """Read the named fields of the named target keys: ``{observed, unreadable}``."""
 
@@ -378,13 +375,18 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     path = os.path.abspath(request["document"])
     before, started = disk_stamp(path), time.time_ns()
     with _driving(store, ref, "doc save"):
-        _app(ref.kind).save_document(ref.pid, path)
+        app = _app(ref.kind)
+        app.save_document(ref.pid, path)
+        after = disk_stamp(path)  # Layout writes the board when it saves
         if jobs.in_worker():
             # Closing and opening the document again makes Xpedition write it out (Designer's
             # database server writes the project files only when the project closes), and the
-            # read-back then reads what was saved (DCLI-057).
-            _app(ref.kind).reopen_document(ref.pid, path)
-    after = disk_stamp(path)
+            # read-back then reads what was saved (DCLI-057). Opening writes files too, so what
+            # the save wrote is measured before the document opens again.
+            app.close_document(ref.pid, path, False)
+            if ref.kind == DESIGNER:
+                after = disk_stamp(path)
+            app.open_document(ref.pid, path)
     pending = doc_state(store, ref.id, path).get("changes", [])
     note_saved(store, ref.id, path)
     # The read-back says `saved` only when the save was seen to write the files (DCLI-057).

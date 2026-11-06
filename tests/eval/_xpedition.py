@@ -97,18 +97,6 @@ def digest(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
-def board_data(path: Path) -> str | None:
-    """A digest of what a save of the board writes: the files of its ``Layout`` folder on the real
-    Xpedition, which rewrites the board's ``.pcb`` whenever it opens it; the board file on the
-    fake host."""
-    folder = path.parent / "Layout"
-    if not folder.is_dir():
-        return digest(path)
-    whole = hashlib.sha256()
-    for item in sorted(p for p in folder.rglob("*") if p.is_file()):
-        whole.update(item.name.encode("utf-8") + item.read_bytes())
-    return whole.hexdigest()
-
 
 # ------------------------------------------------------------------ reading results
 
