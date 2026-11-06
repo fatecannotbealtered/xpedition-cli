@@ -24,7 +24,7 @@ English | [中文](README_zh.md)
 | Modes | file, session |
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
-| Maturity | draft: 12 draft, 7 verified, 0 stable |
+| Maturity | draft: 11 draft, 7 verified, 0 stable |
 | Specification | tool-driver-cli-spec 1.0.3 |
 | Host component | no |
 <!-- driver:info-card:end -->
@@ -74,7 +74,7 @@ Every command of xpedition-cli, generated from its command registration; `(dange
 - `doc`: list, get, create, open, save, save-as, close, undo
 - `job`: list, get, cancel
 - `knowledge`: list, get, search, create, delete
-- `project`: get, create
+- `project`: get
 - `part`: list, get, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
@@ -138,7 +138,7 @@ Commands and the effects a scope must grant for them:
 
 | Effect | Commands |
 |---|---|
-| `artifact` | `project create`, `schematic export`, `pcb export` |
+| `artifact` | `schematic create` (writes symbol files), `schematic export`, `pcb create` (writes the board file), `pcb export` |
 | `change` | `part create`, `packager run`, `pcb create`, `schematic create`, `forward-annotation run`, `pcb update`, `placement run`, `plane create`, `router run` |
 | `persist` | `schematic create` (writes symbol files), `pcb create` (writes the project file), `pcb export` (rewrites the output setup files), `doc save` |
 | `lifecycle` | `session open`, `session close`, `doc open`, `doc close`, `job cancel` |
@@ -151,12 +151,12 @@ Xpedition is Siemens' printed-circuit-board design suite. Designer draws the sch
 
 The first release covers the path from an empty project to a fabrication package:
 
-1. `project create` copies a template project; `part create` adds parts to its central library from a parts file.
+1. `doc create --kind project` makes a project: in a Designer session from Xpedition's stock setup template, or in file mode as a copy of a template project; `part create` adds parts to its central library from a parts file.
 2. `session open --doc Demo.prj` starts Designer; `schematic create` draws the schematic from a design file; `schematic check` runs Designer's verification; `doc save` saves it; `schematic export` writes a PDF.
 3. After `doc close` in Designer, `packager run` packages the schematic and `pcb create` creates the board.
 4. `session open --doc PCB/Demo.pcb` starts Layout; `forward-annotation run` brings the schematic in; `pcb update` sets the outline; `placement run`, `plane create` and `router run` place, pour and route; `pcb check` runs the design rule check; `doc save` saves; `pcb export` writes ODB++, Gerber, NC drill, a centroid file and a BOM.
 
-Every change is previewed, confirmed when its tier asks for it, and read back from Xpedition. Work that takes Xpedition longer than one call runs as a long job that `job get` follows: starting and quitting Designer and Layout, opening, saving and closing documents, `project create`, `packager run`, `schematic create`, `forward-annotation run` and `pcb export`.
+Every change is previewed, confirmed when its tier asks for it, and read back from Xpedition. Work that takes Xpedition longer than one call runs as a long job that `job get` follows: starting and quitting Designer and Layout, creating, opening, saving and closing documents, `part create`, `packager run`, `pcb create`, `schematic create`, `schematic check`, `forward-annotation run`, `placement run`, `router run`, `pcb check` and `pcb export`.
 
 Upgrading from version 1.0.3 or earlier: those versions have no `update` command. Reinstall with `npm install -g @fateforge/xpedition-cli`, then delete their Skill folders `xpedition-schematic` and `xpedition-pcb` from your Agent's Skill folders; this version has a single Skill, `xpedition-cli`.
 
@@ -223,7 +223,7 @@ The tests and the conformance suites use the fake host and never need Xpedition.
 
 ## Links
 
-- Specification: [tool-driver-cli-spec 1.0.0](.agent/), pinned in `.agent/`
+- Specification: [tool-driver-cli-spec 1.0.3](.agent/), pinned in `.agent/`
 - [CHANGELOG.md](CHANGELOG.md): the changes in each version
 - [SECURITY.md](SECURITY.md): the security model and how to report a vulnerability
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute

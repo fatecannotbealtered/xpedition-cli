@@ -190,8 +190,18 @@
     },
     {
       "row": "read_back_mismatch",
-      "applies": false,
-      "reason": "The read-back is whether the board is still open; Layout's close itself checks that the board is gone and fails with E_NATIVE_FAILURE otherwise, so there is no stored value that can differ."
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "The board is saved and clean: the job closes it, its worker waits before the read-back, and meanwhile the board is opened again in Layout (--tamper): the read-back finds it open, and the job ends with E_VERIFY_FAILED."
+      }
     }
   ]
 }

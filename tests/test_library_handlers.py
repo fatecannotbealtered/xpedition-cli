@@ -52,6 +52,8 @@ PRJ = (
     "ENDSECTION\r\n"
 )
 
+CACHE_ROOT = L.cache_root  # the real location, before the tests point it at a temporary folder
+
 
 def lmc_bytes(*entries: str) -> bytes:
     """A central library file as Library Manager writes its partitions: each name NUL-terminated
@@ -128,6 +130,9 @@ class LibraryCase(unittest.TestCase):
         for name, text in plan.symbols.items():
             (sym / f"{name}.1").write_text(text, encoding="utf-8")
         self.store = AdapterStore(StateDir(self.tmp / "state"))
+        cache = mock.patch.object(L, "cache_root", lambda: self.tmp / "cache")  # never this user's cache folder
+        cache.start()
+        self.addCleanup(cache.stop)
         self.tools = FakeTools()
         for patch in (mock.patch.object(env, "run_tool", self.tools), mock.patch.object(env, "configure_environment"),
                       mock.patch.object(env, "launcher", side_effect=lambda name: Path(f"C:/bin/{name}.exe")),
@@ -205,13 +210,17 @@ class ExportTest(LibraryCase):
             library = self.library()  # a long job's worker has no call limit
         self.assertEqual(len(library.parts), 2)
 
-    def test_load_library_reads_the_parts_cells_padstacks_and_symbols_into_the_store_folder(self):
-        with mock.patch.dict(os.environ, {"XPEDITION_CLI_STATE_DIR": str(self.tmp / "state")}):
-            library = L.load_library(str(self.prj))
+    def test_load_library_reads_the_parts_cells_padstacks_and_symbols_into_the_cache_folder(self):
+        library = L.load_library(str(self.prj))
         self.assertEqual(len(library.parts), 2)
         self.assertTrue(library.cells and library.padstacks["padstacks"] and library.symbols)
         self.assertTrue(library.find_symbol(library.find_parts("MCU-8")[0]["symbols"][0]))
-        self.assertTrue(any((self.tmp / "state" / "adapter" / L.CACHE_FOLDER).rglob("*.hkp")))
+        self.assertTrue(any((self.tmp / "cache").rglob("*.hkp")))
+        self.assertFalse((self.tmp / "state" / "adapter" / L.CACHE_FOLDER).exists())  # the runtime's folder stays its own
+
+    def test_the_cache_is_this_users_cache_folder(self):
+        with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(self.tmp / "local")}):
+            self.assertEqual(CACHE_ROOT(), self.tmp / "local" / "xpedition-cli" / L.CACHE_FOLDER)
 
     def test_a_project_without_its_library_is_not_found(self):
         self.lmc.unlink()
@@ -245,8 +254,11 @@ class PartReadTest(LibraryCase):
         self.assertEqual(result["symbols"][0]["pins"][0]["name"], "VDD")
         self.assertNotIn("lines", result["symbols"][0])
         self.assertEqual(len(result["cell"]["pins"]), 8)
+        self.assertEqual(sorted(result["cell"]["pins"][0]), ["number", "padstack", "rotation_deg", "x_mm", "y_mm"])
+        pin = result["symbols"][0]["pins"][0]
+        self.assertEqual(sorted(k for k in pin if k.endswith("_mm")), ["body_x_mm", "body_y_mm", "x_mm", "y_mm"])
         stack = next(iter(result["padstacks"].values()))
-        self.assertTrue(stack["pad"]["width"] > 0)
+        self.assertTrue(stack["pad"]["width_mm"] > 0)
         self.assertEqual((result["findings"], result["also_in"]), ([], []))
 
     def test_part_get_reports_the_problems_of_a_part(self):

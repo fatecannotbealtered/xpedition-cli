@@ -2,7 +2,7 @@
 id: xpedition-ascii-paths-only
 title: Keep projects, libraries and partition names ASCII
 kind: rule
-applies_to: [project create, project get, part create, schematic create]
+applies_to: [doc create, project get, part create, schematic create]
 tags: [paths, ascii, library, partition]
 severity: error
 check: run project get and read ascii_path; check each partition name in the parts file by eye
@@ -16,6 +16,6 @@ A partition names a parts database, a cell database and a `SymbolLibs` folder. D
 
 How to keep the rule:
 
-- Give project create an ASCII `--output` path, such as `D:/work/demo/Demo.prj`. It refuses other paths.
+- Give doc create an ASCII `--path`, such as `D:/work/demo/Demo.prj`. It refuses other paths.
 - Before part create or schematic create on an existing project, run project get. If `ascii_path` is false, stop and tell the person. Copying the project to an ASCII path is the fix.
 - Keep partition names in a parts file within the characters above. Spaces are fine: the stock template partitions have them, such as `Crystals Resonators`.

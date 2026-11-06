@@ -171,7 +171,7 @@
 | CAP-077 | Batch DRC，读出 hazards | `Gui.ProcessCommand(32769)` + 对话框 + `GetHazards` | provided | - |
 | CAP-078 | 布局布线指标与板级规则（飞线长、交叉、去耦电容到电源脚距离） | 纯 Python | provided | - |
 | CAP-079 | 按几何画板图 PNG（顶面、底面） | 纯 Python | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-080 | 切显示方案、适配板、截 Layout 窗口图 | `DisplayControl.LoadScheme` + GDI | deferred | 只给人看；锁屏时截图全黑；`pcb render` 已能看图。以后再考虑 |
+| CAP-080 | 切显示方案、适配板、截 Layout 窗口图 | `DisplayControl.LoadScheme` + GDI | deferred | 只给人看；锁屏时截图全黑 |
 | CAP-081 | 生产文件：ODB++、Gerber、NC 钻孔，加坐标文件、BOM、说明和清单 | `Gui.ProcessCommand(33016–33018)` + 设置文件 + 对话框 | provided | - |
 | CAP-082 | 刷新板上的封装（Library Services 本地库更新） | `SETUP_LIBRARYSERVICES`、`ECO_UPDATELOCALLIBRARYDATA` | unknown | 只在旧码里写过；需要可交互桌面 |
 | CAP-083 | 设置间距规则 | `ConstraintsAuto` | unknown | 从未试过 |
@@ -221,7 +221,7 @@
 - 过孔离焊盘近于间距会被拒，同网也一样；测试点是表贴焊盘。→ `layout-via-near-pad`
 - 生产输出对话框会把内存里的设置写回文件，改设置要在板关闭时改；ODB++ 默认不含钻孔层和板框。→ `layout-output-setups`
 - NC 钻孔跑完后 Layout 一直占着 `DrillPrefs.txt`，板文件夹删不掉。→ `layout-drillprefs-held`
-- Enterprise 2604 打开板后会留着 PartsDB 临时占用，开关一次 Library Services 才释放。→ `layout-library-services-reservation`（待真机确认后再写）
+- Enterprise 2604 打开板后会留着 PartsDB 临时占用，开关一次 Library Services 才释放。还没在真机上确认，所以没有写知识条目。
 - 底面放置从未试过。→ 不做条目：能力表里写 unknown，不提供命令。
 - 中心库转换程序：封装名超过 64 字符时整个文件不保存；`HKP2PartsDB` 不加 `-r` 时同料号会被悄悄丢弃；日志里的"未找到文件格式错误"不是错误。→ `library-converter-rules`
 - 元件 Value 只收数值加 SI 倍率，其他文字存成 0。→ `library-part-value-is-numeric`

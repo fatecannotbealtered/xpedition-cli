@@ -5,10 +5,10 @@ The board model (``board_model``) is what ``plan.board_metrics`` measures and ch
 outline, the placed parts with their extents and pins, traces and vias, and for the checks the
 pads, holes and silkscreen too, all in mm. Positions read through a getter that takes a unit
 (``GetPositionX(4)``, ``Extrema``) come in mm whatever the board's unit; raw geometry
-(``PointsArray``, ``CircleX``, ``LineWidth``) comes in the board's unit, measured only in mils.
-So the model is read only on a board in mils (``CurrentUnit`` 2, the stock templates); on any
-other board the geometry and metrics say they are unavailable, and the unit is not changed,
-since that would change the document in a read.
+(``PointsArray``, ``CircleX``, ``LineWidth``) comes in the board's unit, which ``geometry_scale``
+measures on the board outline. Without an outline on a board that is not in mils, the geometry and
+metrics say they are unavailable; the unit is not changed, since that would change the document
+in a read.
 """
 from __future__ import annotations
 
@@ -39,8 +39,8 @@ FAB_SILKSCREEN = 2  # FabricationLayerGfx/Text.Type: 1 assembly, 2 silkscreen
 TEXT_KINDS = {1: "refdes", 4: "part_number"}  # FabricationLayerText.TextType
 SIDE_BOTTOM = 512  # EPcbSide: 1 top, 512 bottom
 LISTED = 25  # list entries a result carries; the counts stay whole
-UNIT_NOTE = ("The geometry is read only on a board in mils (CurrentUnit 2), the unit its scale was measured in; this board uses "
-             "another unit, which a read does not change.")
+UNIT_NOTE = ("The unit of the board's raw geometry could not be measured: the board has no outline and does not count in mils. "
+             "Draw the outline with pcb update, then read again.")
 
 
 # ------------------------------------------------------------------ the board model
@@ -229,7 +229,7 @@ def net_classes(doc: Any, layer_count: int) -> list[dict[str, Any]]:
     for net_class in L.items(com.propget(doc, NET_CLASSES_DISPID, "*")):
         widths: dict[str, dict[str, float]] = {}
         for layer in range(1, layer_count + 1):
-            row = {kind: _quietly(lambda d=dispid, n=layer: round(float(com.propget(net_class, d, n, MASTER_SCHEME, L.UNIT_MM)), 4))
+            row = {f"{kind}_mm": _quietly(lambda d=dispid, n=layer: round(float(com.propget(net_class, d, n, MASTER_SCHEME, L.UNIT_MM)), 4))
                    for kind, dispid in NET_CLASS_WIDTHS.items()}
             widths[str(layer)] = {kind: value for kind, value in row.items() if value is not None}
         classes.append({"name": L.name_of(net_class), "nets": L.count(net_class, "Nets"), "widths": widths})
@@ -247,7 +247,7 @@ def geometry_summary(model: dict[str, Any]) -> dict[str, Any]:
     counts = {name: len(model[name]) for name in ("components", "traces", "vias", "unrouted")}
     counts["placed"] = sum(1 for item in model["components"] if item.get("placed"))
     outline = model["outline"][0] if model["outline"] else {}
-    return {"available": True, "unit": "mm", "outline": outline.get("path") or outline.get("circle"), "counts": counts}
+    return {"available": True, "outline_mm": outline.get("path") or outline.get("circle"), "counts": counts}
 
 
 def metrics_summary(model: dict[str, Any]) -> dict[str, Any]:
@@ -347,8 +347,8 @@ def run_batch_drc(app: Any, pid: int | None) -> dict[str, Any]:
             seen = True
         elif seen or elapsed >= DRC_QUIET_S:
             break
-        if elapsed > DRC_WAIT_S:
-            raise AdapterError("E_TIMEOUT", f"Batch DRC was still running after {DRC_WAIT_S:g} s, and Layout goes on with it. Wait until "
+        if elapsed > L.job_budget(DRC_WAIT_S):
+            raise AdapterError("E_TIMEOUT", f"Batch DRC was still running after {L.job_budget(DRC_WAIT_S):g} s, and Layout goes on with it. Wait until "
                                "the session is ready again (session get), then run pcb check again.", dispatch_state="not_started")
         time.sleep(DRC_POLL_S)
     return {"seconds": round(time.monotonic() - started, 1), "processing_seen": seen}
@@ -452,8 +452,8 @@ class BoardCheck(base.Handler):
 
     def read(self, ctx: Context) -> dict[str, Any]:
         ref = ctx.need_session(base.LAYOUT)
-        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid, ctx.inputs.get("output")), budget_s=L.READ_BUDGET_S, rules=dialogs.DRC_PROMPTS,
-                           what="running Batch DRC")
+        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid, ctx.inputs.get("output")),
+                           budget_s=L.job_budget(L.READ_BUDGET_S), rules=dialogs.DRC_PROMPTS, what="running Batch DRC")
 
 
 # ------------------------------------------------------------------ pcb export

@@ -5,7 +5,8 @@ the hook makes Demo.prj with its parts, starts Designer with it, draws the schem
 tests/inputs/design.json, saves it and opens the project again; after quits that Designer.
 """
 from _report import says_count, says_verified
-from _xpedition import build, confirm, fake, ok_calls, project, read, result, same_path, session_with, start, stop_all, verified
+from _xpedition import build, confirm, fake, ok_calls, project, read, result, same_path, session_with, start, stop_all, \
+    verified
 
 SCENARIO = "scoped_change"
 COMMANDS = ["schematic get", "schematic export"]

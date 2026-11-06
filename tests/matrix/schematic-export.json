@@ -194,8 +194,20 @@
     },
     {
       "row": "read_back_mismatch",
-      "applies": false,
-      "reason": "schematic export is an artifact write verified only by the file it writes: the PDF exists, with its size and SHA-256 recorded, checked in the same call; there is no stored value to read back."
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Gone.pdf"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "The call waits before its read-back, and meanwhile the new PDF is deleted (--tamper): the check of the file finds it missing."
+      }
     }
   ]
 }

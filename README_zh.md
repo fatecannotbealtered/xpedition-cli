@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | draft：draft 12 个，verified 7 个，stable 0 个 |
+| 成熟度 | draft：draft 11 个，verified 7 个，stable 0 个 |
 | 规范 | tool-driver-cli-spec 1.0.3 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -74,7 +74,7 @@
 - `doc`: list, get, create, open, save, save-as, close, undo
 - `job`: list, get, cancel
 - `knowledge`: list, get, search, create, delete
-- `project`: get, create
+- `project`: get
 - `part`: list, get, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
@@ -138,7 +138,7 @@ xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允
 
 | 效果 | 命令 |
 |---|---|
-| `artifact` | `project create`、`schematic export`、`pcb export` |
+| `artifact` | `schematic create`（写符号文件）、`schematic export`、`pcb create`（写板文件）、`pcb export` |
 | `change` | `part create`、`packager run`、`pcb create`、`schematic create`、`forward-annotation run`、`pcb update`、`placement run`、`plane create`、`router run` |
 | `persist` | `schematic create`（写符号文件）、`pcb create`（写工程文件）、`pcb export`（改输出设置文件）、`doc save` |
 | `lifecycle` | `session open`、`session close`、`doc open`、`doc close`、`job cancel` |
@@ -151,12 +151,12 @@ Xpedition 是 Siemens 的印制电路板设计软件。Designer 画原理图，L
 
 第一版覆盖从空工程到生产文件的整条流程：
 
-1. `project create` 从模板复制工程；`part create` 按元件描述文件往中心库加元件。
+1. `doc create --kind project` 建工程：在 Designer 会话里用 Xpedition 自带的设置模板新建，或者在文件模式下复制一个模板工程；`part create` 按元件描述文件往中心库加元件。
 2. `session open --doc Demo.prj` 启动 Designer；`schematic create` 按设计描述文件画原理图；`schematic check` 运行 Designer 的校验；`doc save` 存盘；`schematic export` 导出 PDF。
 3. 在 Designer 里 `doc close` 以后，`packager run` 打包原理图，`pcb create` 建板。
 4. `session open --doc PCB/Demo.pcb` 启动 Layout；`forward-annotation run` 把原理图带进板；`pcb update` 设板框；`placement run`、`plane create`、`router run` 布局、铺铜、布线；`pcb check` 跑 DRC；`doc save` 存盘；`pcb export` 出 ODB++、Gerber、NC 钻孔、坐标文件和 BOM。
 
-每次修改都先预览，按确认档确认，执行后从 Xpedition 读回核对。一次调用做不完的工作是长作业，用 `job get` 跟进：启动和退出 Designer、Layout，打开、保存和关闭文档，以及 `project create`、`packager run`、`schematic create`、`forward-annotation run` 和 `pcb export`。
+每次修改都先预览，按确认档确认，执行后从 Xpedition 读回核对。一次调用做不完的工作是长作业，用 `job get` 跟进：启动和退出 Designer、Layout，新建、打开、保存和关闭文档，以及 `part create`、`packager run`、`pcb create`、`schematic create`、`schematic check`、`forward-annotation run`、`placement run`、`router run`、`pcb check` 和 `pcb export`。
 
 从 1.0.3 或更早的版本升级：这些版本没有 `update` 命令。请用 `npm install -g @fateforge/xpedition-cli` 重装，再从 Agent 的 Skill 文件夹里删掉旧的 `xpedition-schematic` 和 `xpedition-pcb` 两个文件夹；本版本只有一个 Skill：`xpedition-cli`。
 
@@ -223,7 +223,7 @@ python scripts/spec.py suites
 
 ## 链接
 
-- 规范：[tool-driver-cli-spec 1.0.0](.agent/)，固定副本在 `.agent/`
+- 规范：[tool-driver-cli-spec 1.0.3](.agent/)，固定副本在 `.agent/`
 - [CHANGELOG.md](CHANGELOG.md)：每个版本的改动（英文）
 - [SECURITY_zh.md](SECURITY_zh.md)：安全模型，以及怎样报告漏洞
 - [CONTRIBUTING_zh.md](CONTRIBUTING_zh.md)：怎样参与贡献

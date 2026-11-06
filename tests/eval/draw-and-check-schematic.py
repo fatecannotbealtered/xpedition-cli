@@ -7,7 +7,7 @@ evaluation starts: on the real Xpedition the hook makes Demo.prj with its parts 
 Designer with it (session open); after quits that Designer.
 """
 from _report import says_count, says_saved, says_verified
-from _xpedition import build, confirm, design, job_of, ok_calls, poll, project, read, result, same_path, \
+from _xpedition import ask, build, confirm, design, job_of, ok_calls, poll, project, read, read_result, same_path, \
     session_with, start, stop_all, wait_job
 
 SCENARIO = "scoped_change"
@@ -50,7 +50,7 @@ def grade(run):
     run.check(checks, "schematic check never succeeded after the drawing")
     message = run.messages[-1]
     if checks:
-        found = result({"data": checks[-1].data})
+        found = read_result(run, checks[-1])
         run.check(says_count(message, found.get("errors"), "error", "错误"), f"the answer does not give the {found.get('errors')} errors")
         run.check(says_count(message, found.get("warnings"), "warning", "警告"),
                   f"the answer does not give the {found.get('warnings')} warnings")
@@ -66,8 +66,8 @@ def draw(agent, save=True):
     job = poll(agent, confirm(agent, "schematic", "create", "--session", session, "--doc", str(prj),
                               "--design", str(agent.documents / "design.json")))
     if save:
-        confirm(agent, "doc", "save", "--session", session, "--doc", str(prj))
-    found = result({"data": agent.run("schematic", "check", "--session", session, "--doc", str(prj)).data})
+        poll(agent, confirm(agent, "doc", "save", "--session", session, "--doc", str(prj)))
+    found = ask(agent, "schematic", "check", "--session", session, "--doc", str(prj))
     passed = ((job.data or {}).get("receipt") or {}).get("outcome", {}).get("verification") == "passed"
     return found, passed
 

@@ -133,8 +133,18 @@
     },
     {
       "row": "read_back_mismatch",
-      "applies": false,
-      "reason": "pcb create reads back only whether the new board file exists, and apply already refuses when JobWizard did not create it, so the read-back cannot differ from the preview: nothing stores a value that could be rounded or changed between the call and its read-back."
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}",
+        "--name",
+        "Gone"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "On a project without a board: the job's worker waits before its read-back, and meanwhile the new board file PCB/Gone.pcb is deleted (--tamper): the check of the file finds it missing, and the job ends with E_VERIFY_FAILED."
+      }
     }
   ]
 }

@@ -165,7 +165,7 @@
     {
       "row": "read_back_mismatch",
       "applies": false,
-      "reason": "The read-back is the session's absence from the list; the adapter's quit waits until the process is gone and fails with E_NATIVE_FAILURE or E_HUMAN_REQUIRED otherwise, so there is no stored value that can differ."
+      "reason": "The read-back is whether the closed session is gone. A session ID names one process by its ID and start time, so nothing done in the wait can bring the closed instance back: a Designer started then is a new session."
     }
   ]
 }

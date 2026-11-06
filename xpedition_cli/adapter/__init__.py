@@ -85,6 +85,11 @@ class Adapter(BaseAdapter):
     def close_session(self, request: dict[str, Any]) -> dict[str, Any]:
         return sessions.close_session(self.store, request)
 
+    def create_doc(self, request: dict[str, Any]) -> dict[str, Any]:
+        from . import project
+
+        return project.create_doc(self.store, request)
+
     def open_doc(self, request: dict[str, Any]) -> dict[str, Any]:
         return sessions.open_doc(self.store, request)
 

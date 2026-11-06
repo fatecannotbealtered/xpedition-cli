@@ -289,6 +289,16 @@ class OutlineTest(unittest.TestCase):
         for change in preview["changes"]:
             self.assertAlmostEqual(observed[change["field"]], change["after"], places=3)
 
+    def test_without_radius_the_current_corners_stay(self):
+        doc = FakeDoc()
+        with world(FakeApp(doc)):
+            self.handler.apply(context("pcb update", {"width_mm": 70.0, "height_mm": 48.0, "radius_mm": 3.0}))
+            out = self.handler.preview(context("pcb update", {"width_mm": 80.0, "height_mm": 50.0}))
+            facts = self.handler.apply(context("pcb update", {"width_mm": 80.0, "height_mm": 50.0}))
+        radius = [c for c in out["changes"] if c["field"] == "radius_mm"][0]
+        self.assertAlmostEqual(radius["after"], 3.0, places=3)
+        self.assertAlmostEqual(facts["result"]["radius_mm"], 3.0, places=3)
+
     def test_a_setter_that_fails_after_the_first_leaves_a_partial_change(self):
         doc = FakeDoc()
         doc.PutRouteBorder = mock.Mock(side_effect=FakeComError(text="bad contour"))
@@ -346,7 +356,7 @@ class PlacementTest(unittest.TestCase):
     def test_apply_measures_parks_lifts_and_places_and_restores_the_drc_switch(self):
         doc = self._doc()
         with world(FakeApp(doc)):
-            facts = self.handler.apply(context("placement run"))
+            facts = self.handler.run(context("placement run"), Progress())
             refs = [p.RefDes for p in doc.components]
             back = self.handler.read_back(context("placement run", targets=[key(f"/components/{r}") for r in refs], fields=["placed"]))
         self.assertEqual((facts["change"], facts["result"]["placed"]), ("applied", 4))
@@ -363,12 +373,12 @@ class PlacementTest(unittest.TestCase):
     def test_a_placed_board_is_previewed_with_positions_that_apply_then_stores(self):
         doc = self._doc()
         with world(FakeApp(doc)):
-            self.handler.apply(context("placement run"))
+            self.handler.run(context("placement run"), Progress())
             for part in doc.components:
                 part.calls.clear()
             preview = self.handler.preview(context("placement run", {"all": True}))
             self.assertTrue(all(not part.calls for part in doc.components))  # measured where they stand
-            self.handler.apply(context("placement run", {"all": True}))
+            self.handler.run(context("placement run", {"all": True}), Progress())
             targets = sorted({c["target"] for c in preview["changes"]})
             back = self.handler.read_back(context("placement run", targets=targets, fields=["rotation_deg", "x_mm", "y_mm"]))
         self.assertEqual({c["field"] for c in preview["changes"]}, {"x_mm", "y_mm", "rotation_deg"})
@@ -378,7 +388,7 @@ class PlacementTest(unittest.TestCase):
     def test_parts_beyond_the_outline_are_refused_before_anything_moves(self):
         doc = self._doc(width=6.0, height=5.0)
         with world(FakeApp(doc)), self.assertRaises(AdapterError) as caught:
-            self.handler.apply(context("placement run"))
+            self.handler.run(context("placement run"), Progress())
         self.assertEqual((code(caught), caught.exception.data["knowledge"]), ("E_VALIDATION", ["layout-placement-drc"]))
         self.assertTrue(all(not part.Placed for part in doc.components))  # the parked parts went back
         self.assertNotIn("PutFabricationLayerText", [call[0] for call in doc.calls])
@@ -386,7 +396,7 @@ class PlacementTest(unittest.TestCase):
     def test_a_preview_of_placed_parts_beyond_the_outline_is_blocked(self):
         doc = self._doc()
         with world(FakeApp(doc)):
-            self.handler.apply(context("placement run"))
+            self.handler.run(context("placement run"), Progress())
             doc.BoardOutline = Outline([[0, 6, 6, 0, 0], [0, 0, 5, 5, 0], [0.0] * 5])
             out = self.handler.preview(context("placement run", {"all": True}))
         self.assertFalse(out["can_apply"])
@@ -396,7 +406,7 @@ class PlacementTest(unittest.TestCase):
         doc = self._doc()
         with world(FakeApp(doc)), mock.patch.object(B, "_plan", mock.Mock(side_effect=FakeComError(text="nets unreadable"))):
             with self.assertRaises(AdapterError) as caught:
-                self.handler.apply(context("placement run"))
+                self.handler.run(context("placement run"), Progress())
         self.assertEqual(code(caught), "E_NATIVE_FAILURE")
         self.assertTrue(all(not part.Placed for part in doc.components))
 
@@ -407,7 +417,7 @@ class PlacementTest(unittest.TestCase):
         doc.vias = [SimpleNamespace(Delete=lambda: deleted.append("via"))]
         with world(FakeApp(doc)):
             preview = self.handler.preview(context("placement run"))
-            facts = self.handler.apply(context("placement run"))
+            facts = self.handler.run(context("placement run"), Progress())
         routing = [c for c in preview["changes"] if c["target"] == key("/routing")]
         self.assertEqual([(c["field"], c["before"], c["after"]) for c in routing], [("traces", 1, 0), ("vias", 1, 0)])
         self.assertEqual(deleted, ["trace", "via"])
@@ -424,7 +434,7 @@ class PlacementTest(unittest.TestCase):
                 original(x, y, rotation, top, a, unit, b)
 
             doc.components[-1].Place = refuse_last
-            facts = self.handler.apply(context("placement run"))
+            facts = self.handler.run(context("placement run"), Progress())
         self.assertEqual(facts["change"], "partial")
         self.assertIn("--all", facts["native_message"])
 
@@ -432,7 +442,7 @@ class PlacementTest(unittest.TestCase):
         doc = self._doc([FakeComponent("R1", placed=True, x=5.0, y=5.0)])
         with world(FakeApp(doc)):
             preview = self.handler.preview(context("placement run"))
-            facts = self.handler.apply(context("placement run"))
+            facts = self.handler.run(context("placement run"), Progress())
         self.assertEqual(preview["changes"], [])
         self.assertEqual(facts["change"], "not_applied")
 
@@ -536,7 +546,7 @@ class RouterTest(unittest.TestCase):
         with world(FakeApp(doc)):
             out = self.handler.preview(context("router run"))
             with self.assertRaises(AdapterError) as caught:
-                self.handler.apply(context("router run"))
+                self.handler.run(context("router run"), Progress())
         self.assertFalse(out["can_apply"])
         self.assertEqual(caught.exception.data["knowledge"], ["layout-unplaced-parts-invisible"])
 
@@ -550,7 +560,7 @@ class RouterTest(unittest.TestCase):
 
         doc.on_go = route_everything
         with world(FakeApp(doc)):
-            facts = self.handler.apply(context("router run"))
+            facts = self.handler.run(context("router run"), Progress())
             back = self.handler.read_back(context("router run", targets=[key("/nets/A"), key("/planes/VCC/3")], fields=["routed", "state"]))
         self.assertEqual([p.calls[0][1] for p in doc.passes], [8, 14, 10])  # route, viamin, smooth
         self.assertEqual(doc.assignments[0].states, [L.PLANE_DYNAMIC, L.PLANE_DRAFT, L.PLANE_DYNAMIC])
@@ -561,21 +571,21 @@ class RouterTest(unittest.TestCase):
     def test_a_net_still_open_gets_a_second_round(self):
         doc = self._doc()
         with world(FakeApp(doc)):
-            facts = self.handler.apply(context("router run"))
+            facts = self.handler.run(context("router run"), Progress())
         self.assertEqual(len(doc.passes), 6)
         self.assertEqual(facts["result"]["open"], ["A", "B"])
 
     def test_passes_past_the_time_limit_are_skipped_and_reported(self):
         doc = self._doc()
         with world(FakeApp(doc)), mock.patch.object(B, "ROUTE_BUDGET_S", -1.0):
-            facts = self.handler.apply(context("router run"))
+            facts = self.handler.run(context("router run"), Progress())
         self.assertEqual((facts["change"], facts["result"]["skipped_passes"]), ("partial", ["route", "viamin", "smooth"]))
 
     def test_a_failing_first_pass_is_an_error(self):
         doc = self._doc()
         doc.on_go = mock.Mock(side_effect=FakeComError(text="router failed"))
         with world(FakeApp(doc)), self.assertRaises(AdapterError) as caught:
-            self.handler.apply(context("router run"))
+            self.handler.run(context("router run"), Progress())
         self.assertEqual(caught.exception.data["dispatch_state"], "dispatched")
 
     def test_nothing_open_nothing_to_do(self):
@@ -583,7 +593,7 @@ class RouterTest(unittest.TestCase):
         doc.net("GND").routed, doc.net("GND").NumberOfOpens = True, 0
         with world(FakeApp(doc)):
             self.assertEqual(self.handler.preview(context("router run"))["changes"], [])
-            self.assertEqual(self.handler.apply(context("router run"))["change"], "not_applied")
+            self.assertEqual(self.handler.run(context("router run"), Progress())["change"], "not_applied")
         self.assertEqual(doc.passes, [])
 
 

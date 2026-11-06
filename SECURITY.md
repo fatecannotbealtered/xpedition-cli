@@ -45,12 +45,11 @@ Risk tier: **T1**, set by these commands:
 - `doc close`: lifecycle
 - `doc undo`: change
 - `job cancel`: lifecycle
-- `project create`: artifact
 - `part create`: change
 - `packager run`: change
-- `schematic create`: change, persist
+- `schematic create`: change, persist, artifact
 - `schematic export`: artifact
-- `pcb create`: change, persist
+- `pcb create`: change, persist, artifact
 - `forward-annotation run`: change
 - `pcb update`: change
 - `placement run`: change

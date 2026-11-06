@@ -4,7 +4,7 @@ Every question works on the fake host and on the real Xpedition.
 
 On the real Xpedition an Xpedition project cannot come from the repository, so ``build`` makes
 the sample project in the question's documents folder with the tool itself, up to the stage the
-question needs: ``project create`` in a Designer session from Xpedition's stock setup template,
+question needs: ``doc create`` in a Designer session from Xpedition's stock setup template,
 ``part create`` with tests/inputs/parts.json, the schematic drawn from tests/inputs/design.json
 and saved, ``packager run`` and ``pcb create``, and the laid-out board. Designer and Layout are
 started by the hooks with ``session open`` and quit by ``after`` with ``session close``, so no
@@ -133,6 +133,23 @@ def verified(call: Any) -> bool:
     return (receipt(call).get("outcome") or {}).get("verification") == "passed"
 
 
+def finally_verified(run: Any, call: Any) -> bool:
+    """Whether a write's read-back passed: in the receipt of the long job it started, once that
+    job has ended, or in its own receipt."""
+    job = job_of(call)
+    final = (wait_job(run, job).get("receipt") or {}) if job else receipt(call)
+    return (final.get("outcome") or {}).get("verification") == "passed"
+
+
+def read_result(run: Any, call: Any) -> dict[str, Any]:
+    """The fields an Agent's read returned; for a long read, those its job ended with."""
+    data = (call.data or {}) if call is not None else {}
+    job = (data.get("job") or {}).get("id")
+    if job:
+        return result({"data": wait_job(run, job).get("result") or {}})
+    return result({"data": data})
+
+
 def observed(call: Any) -> dict[str, Any]:
     """The fields a write's read-back observed, from every target of its receipt in one dict."""
     merged: dict[str, Any] = {}
@@ -254,7 +271,7 @@ def fake_board(run: Any, fields: dict[str, Any]) -> None:
 
 def clear(run: Any) -> None:
     """Real Xpedition only: empty the documents folder; what FILES copied there stands in for
-    the fake host, and project create needs an empty folder."""
+    the fake host, and doc create needs an empty folder."""
     for item in run.documents.iterdir():
         if item.is_dir():
             shutil.rmtree(item)
@@ -263,11 +280,11 @@ def clear(run: Any) -> None:
 
 
 def create_project(run: Any, output: Path, *, keep_open: bool = False) -> str | None:
-    """Real Xpedition: make a project with project create in a Designer the hook starts, from
+    """Real Xpedition: make a project with doc create in a Designer the hook starts, from
     Xpedition's stock setup template. With ``keep_open`` that Designer stays open with the new
     project and its session is returned; otherwise it is quit."""
     designer = start(run, None)
-    need(write(run, "project", "create", "--session", designer, "--output", str(output)), "project create in Designer")
+    need(write(run, "doc", "create", "--session", designer, "--kind", "project", "--path", str(output)), "doc create in Designer")
     if keep_open:
         return designer
     stop_all(run)
@@ -340,9 +357,17 @@ def lifecycle(agent: Any, *args: str) -> Any:
     return poll(agent, confirm(agent, *args))
 
 
+def ask(agent: Any, *args: str) -> dict[str, Any]:
+    """A read, followed to the end of its job when it is a long one: the fields it returned."""
+    call = agent.run(*args)
+    if (call.data or {}).get("job"):
+        return result({"data": (poll(agent, call).data or {}).get("result") or {}})
+    return result({"data": call.data})
+
+
 def poll(agent: Any, call: Any) -> Any:
     """Run the job's poll command until the job ends; the last poll, or the call without a job."""
-    job = ((call.data or {}).get("result") or {}).get("job")
+    job = ((call.data or {}).get("result") or {}).get("job") or (call.data or {}).get("job")
     if not job:
         return call
     last = call

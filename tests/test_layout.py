@@ -483,7 +483,7 @@ class ReadKeysTest(unittest.TestCase):
             out = L.read_targets(PID, BOARD, [base.key(BOARD, "/outline")], ["height_mm"])
         self.assertEqual(out["observed"][base.key(BOARD, "/outline")], {"height_mm": 20.0})
 
-    def test_the_outline_radius_needs_mils_unless_the_corners_are_square(self):
+    def test_the_outline_radius_is_read_in_the_unit_the_outline_shows(self):
         doc = FakeDoc(unit=L.UNIT_MM)
         self.assertEqual(L.outline_values(doc)["radius_mm"], 0.0)
         from test_layout_fakes import Outline
@@ -491,7 +491,7 @@ class ReadKeysTest(unittest.TestCase):
         from xpedition_cli.adapter.plan import outline as plan_outline
 
         doc.BoardOutline = Outline(plan_outline.rounded(0, 0, 40, 30, 3.0))
-        self.assertIsNone(L.outline_values(doc)["radius_mm"])
+        self.assertEqual(L.outline_values(doc)["radius_mm"], 3.0)  # the fake's raw points are in mils, as its outline shows
         doc.CurrentUnit = L.UNIT_MILS
         self.assertEqual(L.outline_values(doc)["radius_mm"], 3.0)
 
@@ -500,7 +500,8 @@ class ModuleTest(unittest.TestCase):
     def test_the_handlers_of_the_board_commands(self):
         self.assertEqual(sorted(h.command for h in L.HANDLERS), sorted([
             "forward-annotation run", "pcb update", "placement run", "plane create", "router run", "pcb get", "pcb check", "pcb export"]))
-        self.assertEqual([h.command for h in L.HANDLERS if h.long_job], ["forward-annotation run", "pcb export"])
+        self.assertEqual([h.command for h in L.HANDLERS if h.long_job],
+                         ["forward-annotation run", "placement run", "router run", "pcb export"])
 
     def test_the_version_is_empty_without_an_install(self):
         with mock.patch.object(env, "version", mock.Mock(side_effect=AdapterError("E_BACKEND_UNAVAILABLE", "none"))):

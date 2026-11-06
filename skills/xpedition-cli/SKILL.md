@@ -40,7 +40,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `doc`: list, get, create, open, save, save-as, close, undo
 - `job`: list, get, cancel
 - `knowledge`: list, get, search, create, delete
-- `project`: get, create
+- `project`: get
 - `part`: list, get, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
@@ -93,8 +93,6 @@ In file mode every write saves the file; its receipt says `persistence: saved`.
 
 Work that takes longer than one call returns a job with a `poll` command: a write in `result.job`, a read in `job`. `reference` marks such commands `long`, standard ones such as `doc open` included. Run that exact command until the job ends, then report a write job's final receipt and `result`, or a read job's `result`. A job in state `blocked` waits for the person: pass its `action` on, read the entry in `knowledge` if there is one, and run the poll command again once they are done. A write job that ended with `E_BUSY` changed nothing: run the write again from its first call, without the old token. A session in state `unreachable` runs but cannot be driven: tell the person and ask which instance to use. On `E_BUSY`, wait `retry_after_ms` and run the same command again; after 3 retries of the same command, ask the person. On `E_HUMAN_REQUIRED`, pass `action` and the dialog text to the person, and once they are done, run `resume` exactly as given. When an error lists `details.knowledge`, read that entry first.
 
-In xpedition-cli, `session open`, `session close`, `doc open`, `doc save` and `doc close` are long jobs, because Designer and Layout take about a minute to open or close a project or board, and `doc save` closes and opens the document again so that the saved files are read back; so are `project create`, `schematic create`, `packager run`, `forward-annotation run` and `pcb export`. While a job drives an instance, that session is `busy`. A document xpedition-cli did not open or save itself has `dirty: null`: it may hold a person's unsaved edits, so save it before closing it.
-
 ### Outcome unknown and partial
 
 After `E_OUTCOME_UNKNOWN`, never send the write again. First run the `error.details.lookup` command. For a single write it resolves the operation; for a batch it lists the unknown items, and you resolve each with `xpedition-cli operation resolve --id <id>`. After `E_PARTIAL`, read `error.details.receipt` or `error.details.batch` and send again only the items that failed.
@@ -120,11 +118,11 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 Before `part create`, read [references/parts-file.md](references/parts-file.md) for the parts file; before `schematic create` or `placement run`, read [references/design-file.md](references/design-file.md) for the design file.
 
-1. `session open --kind project` starts Designer with no project. Then `project create --session <id> --output <new.prj>` makes the project from Xpedition's stock setup template, with its own copy of the central library and a board design, and leaves it open. When the user gives a template project instead, `project create --doc <template.prj> --output <new.prj>` copies it in file mode.
+1. `session open --kind project` starts Designer with no project. Then `doc create --session <id> --kind project --path <new.prj>` makes the project from Xpedition's stock setup template, with its own copy of the central library and a board design, and leaves it open. When the user gives a template project instead, `doc create --path <new.prj> --template <template.prj>` copies it in file mode.
 2. `doc close`, then `part create --doc <new.prj> --file <parts.json>` for every part the design uses; file-mode writes are refused while Designer has the project open.
 3. `doc open --doc <new.prj>`, `schematic create --design <design.json>`, then `doc save`, which also opens the project again, so `schematic check` and the reads see the new drawing.
 4. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`.
-5. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
+5. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height --radius`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
 6. When `session open` ends with the session `starting`, run `session get --session <id>` until it is `ready`, then `doc open --doc <file>` if the file is not open yet.
 7. Report each step's receipt; stop at the first failure and say which step failed.
 

@@ -7,8 +7,8 @@ annotation, outline, placement, GND plane, routing), saves it and leaves Layout 
 after quits that Layout.
 """
 from _report import says_count, says_number, says_verified
-from _xpedition import board, build, confirm, fake, fake_board, inside, job_of, ok_calls, outline_of, path_of, poll, \
-    read, result, same_path, session_with, start, stop_all, wait_job
+from _xpedition import board, build, confirm, fake, fake_board, inside, job_of, ok_calls, outline_of, path_of, poll, read, \
+    result, same_path, session_with, start, stop_all, wait_job
 
 SCENARIO = "scoped_change"
 COMMANDS = ["pcb export", "job get", "pcb get"]

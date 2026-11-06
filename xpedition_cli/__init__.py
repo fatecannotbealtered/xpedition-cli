@@ -25,9 +25,10 @@ TOOL = Tool(
     modes=["file", "session"],
     host_component=False,
     # Designer takes about a minute to open or close a project, and Layout as long to start or
-    # quit; the runtime runs these as long jobs in its own worker (DCLI-065). A save closes and
-    # opens the document again, so that Xpedition writes it out and the read-back reads the file.
-    long_commands=["session open", "session close", "doc open", "doc save", "doc close"],
+    # quit; the runtime runs these as long jobs in its own worker (DCLI-065). A new project's first
+    # open builds its database. A save closes and opens the document again, so that Xpedition
+    # writes it out and the read-back reads the file.
+    long_commands=["session open", "session close", "doc create", "doc open", "doc save", "doc close"],
     maturity=STANDARD_MATURITY,
 )
 

@@ -107,9 +107,10 @@ class BoardModelTest(unittest.TestCase):
         self.assertEqual(model["unrouted"], [{"net": "VCC", "opens": 1}])
         self.assertEqual(model["silk"][0]["refdes"], "U101")
 
-    def test_a_board_not_in_mils_has_no_model(self):
+    def test_a_board_whose_unit_cannot_be_measured_has_no_model(self):
         doc = board()
         doc.CurrentUnit = L.UNIT_MM
+        doc.BoardOutline = None
         self.assertIsNone(O.board_model(doc, full=False))
 
 
@@ -126,21 +127,31 @@ class BoardGetTest(unittest.TestCase):
         self.assertEqual(out["stackup"][2]["usage"], "plane")
         self.assertEqual(out["stackup"][1]["thickness_mm"], 1.5)
         self.assertEqual(out["net_classes"], [{"name": "(Default)", "nets": 2, "widths": {
-            "1": {"minimum": 0.2, "typical": 0.254, "expansion": 0.3}, "2": {"minimum": 0.2, "typical": 0.254, "expansion": 0.3}}}])
+            "1": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3},
+            "2": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3}}}])
         self.assertTrue(out["geometry"]["available"])
+        self.assertIn("outline_mm", out["geometry"])
         self.assertEqual(out["geometry"]["counts"]["placed"], 2)
         self.assertEqual(out["metrics"]["summary"]["unplaced"], 1)
         self.assertLess(len(json.dumps(out)), 8000)
 
-    def test_geometry_and_metrics_are_unavailable_on_a_board_not_in_mils(self):
+    def test_the_unit_of_the_geometry_is_measured_on_the_outline_whatever_the_board_shows(self):
+        doc = board()
+        doc.CurrentUnit = L.UNIT_MM  # the fake's raw geometry stays in mils: the outline tells
+        with world(FakeApp(doc)):
+            out = O.BoardGet().read(context("pcb get"))
+        self.assertTrue(out["geometry"]["available"])
+        self.assertTrue(out["metrics"]["available"])
+        self.assertEqual(out["components"]["total"], 3)
+
+    def test_geometry_and_metrics_are_unavailable_when_the_unit_cannot_be_measured(self):
         doc = board()
         doc.CurrentUnit = L.UNIT_MM
+        doc.BoardOutline = None
         with world(FakeApp(doc)):
             out = O.BoardGet().read(context("pcb get"))
         self.assertFalse(out["geometry"]["available"])
-        self.assertIn("mils", out["geometry"]["reason"])
         self.assertFalse(out["metrics"]["available"])
-        self.assertEqual(out["components"]["total"], 3)
 
     def test_a_part_of_the_report_that_cannot_be_read_is_none(self):
         doc = board()
@@ -235,9 +246,10 @@ class BoardCheckTest(unittest.TestCase):
         self.names.start()
         self.assertEqual((loads, out["hazards"], out["hazard_count"]), ([], [], 0))
 
-    def test_board_rules_need_a_board_in_mils(self):
+    def test_board_rules_need_a_board_whose_unit_can_be_measured(self):
         doc = board()
         doc.CurrentUnit = L.UNIT_MM
+        doc.BoardOutline = None
         _, out = self._run(doc)
         self.assertEqual([rule["rule"] for rule in out["rules"]], ["board_rules_unavailable"])
 

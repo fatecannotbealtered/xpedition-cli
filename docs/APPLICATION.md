@@ -175,7 +175,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |
 | CAP-078 | Placement and routing metrics, and board-level rules (ratsnest length, crossings, distance from decoupling capacitors to power pins) | Pure Python | provided | - |
 | CAP-079 | Draw a board image PNG from the geometry (top side, bottom side) | Pure Python | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-080 | Switch the display scheme, fit the board, capture an image of the Layout window | `DisplayControl.LoadScheme` + GDI | deferred | Only for people to look at; screenshots are all black while the screen is locked; `pcb render` already shows the board. To be reconsidered later |
+| CAP-080 | Switch the display scheme, fit the board, capture an image of the Layout window | `DisplayControl.LoadScheme` + GDI | deferred | Only for people to look at; screenshots are all black while the screen is locked |
 | CAP-081 | Fabrication files: ODB++, Gerber, NC drill, plus a coordinate file, BOM, notes and a manifest | `Gui.ProcessCommand(33016–33018)` + setup files + dialogs | provided | - |
 | CAP-082 | Refresh the cells on the board (Library Services local library update) | `SETUP_LIBRARYSERVICES`, `ECO_UPDATELOCALLIBRARYDATA` | unknown | Written only in the old code; needs an interactive desktop |
 | CAP-083 | Set clearance rules | `ConstraintsAuto` | unknown | Never tried |
@@ -225,7 +225,7 @@ Each risk or limit found in the survey becomes an entry in `knowledge/`, or give
 - A via closer to a pad than the clearance is refused, even on the same net; test points are surface-mount pads. → `layout-via-near-pad`
 - The fabrication output dialogs write the settings in memory back to the files, so settings must be changed while the board is closed. By default ODB++ has no drill layers and no board outline. → `layout-output-setups`
 - After NC drill has run, Layout keeps holding `DrillPrefs.txt`, so the board folder cannot be deleted. → `layout-drillprefs-held`
-- After opening a board, Enterprise 2604 keeps a temporary hold on PartsDB; opening and closing Library Services once releases it. → `layout-library-services-reservation` (to be written after it is confirmed on a real installation)
+- After opening a board, Enterprise 2604 keeps a temporary hold on PartsDB; opening and closing Library Services once releases it. Not confirmed on a real installation, so it has no knowledge entry.
 - Bottom-side placement has never been tried. → No entry: the capability table says unknown, and no command is offered.
 - Central library converters: when a cell name is longer than 64 characters, the whole file is not saved; without `-r`, `HKP2PartsDB` silently drops parts with the same part number; the log message "未找到文件格式错误" (no file format errors found) is not an error. → `library-converter-rules`
 - The Value of a part accepts only a number with an SI multiplier; any other text is stored as 0. → `library-part-value-is-numeric`

@@ -1,8 +1,8 @@
-"""Handlers of the file-mode project commands: ``project get``, ``project create``, ``packager run``
-and ``pcb create``.
+"""Handlers of the file-mode project commands: ``project get``, ``packager run`` and ``pcb create``,
+and the work of the standard ``doc create`` for a project (``create_doc``).
 
-They work on files and on Xpedition's command-line programs only, never through Designer or
-Layout: ``package.exe`` packages the schematic for Layout and ``JobWizard.exe -createnew`` creates
+The handlers work on files and on Xpedition's command-line programs only, never through Designer or
+Layout (``doc create`` in a Designer session uses Designer's ``NewProject``): ``package.exe`` packages the schematic for Layout and ``JobWizard.exe -createnew`` creates
 the board. Both are started through their launchers in ``SDD_HOME/common/win64/bin``
 (``env.run_tool``). The runtime refuses a file-mode write while a Designer session has the
 project open, so no handler here closes Designer: Designer locks ``database/icdb.dat`` and
@@ -19,7 +19,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from .._driver import AdapterError
-from . import base
+from . import base, jobs
 from . import library as lib
 from . import sessions
 from .base import Context, Handler, change, facts, key, need_input, preview, target
@@ -92,7 +92,7 @@ class ProjectGet(Handler):
         }
 
 
-# ------------------------------------------------------------------ project create
+# ------------------------------------------------------------------ doc create: a project
 
 
 def _refuse(message: str, *, code: str = "E_VALIDATION", knowledge: list[str] | None = None) -> AdapterError:
@@ -227,17 +227,14 @@ def _count(folder: Path) -> tuple[int, int]:
     return files, size
 
 
-class ProjectCreate(Handler):
-    """In file mode, a copy of the project ``--doc`` names. In a Designer session, a new project
-    from a setup template with Designer's ``NewProject``, its own copy of the template's central
-    library, and a board design with its schematic; that runs as a long job (DCLI-065): the
-    project's first open builds its database and took more than 30 s live. The command is
-    registered ``long``, so the runtime runs it in its worker in either mode."""
+class NewProject:
+    """The work of ``doc create --kind project`` (DCLI-212). In file mode, a copy of the template
+    project (the context's document). In a Designer session, a new project from a setup template
+    with Designer's ``NewProject``, its own copy of the template's central library, and a board
+    design with its schematic. ``doc create`` is a long command: the project's first open builds
+    its database and took more than 30 s live. The context's ``output`` is the new project file."""
 
-    command = "project create"
-
-    def long(self, ctx: Context) -> bool:
-        return ctx.session is not None
+    command = "doc create"
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         from . import designer
@@ -261,7 +258,7 @@ class ProjectCreate(Handler):
             template, library = _setup_template(ctx)
             blocked = None
             if ctx.request.get("document"):
-                blocked = ["Designer has a project open; close it with doc close first, then run project create in this session."]
+                blocked = ["Designer has a project open; close it with doc close first, then run doc create in this session."]
             return preview(f"Create project {new} with Designer from the setup template {template}, copy its central library "
                            f"{library.parent} into the project folder, create the board design with its schematic, and save the "
                            "project; it stays open in Designer.", [target(str(new), "project", label=str(new))],
@@ -287,7 +284,7 @@ class ProjectCreate(Handler):
         except (OSError, shutil.Error) as exc:
             if folder.is_dir() and any(folder.iterdir()):
                 return facts("partial", "partial", native_message=f"The copy stopped part way ({exc}); {folder} holds part of it. "
-                             "Remove that folder before running project create again.")
+                             "Remove that folder before running doc create again.")
             raise AdapterError("E_NATIVE_FAILURE", f"The template folder could not be copied: {exc}.", dispatch_state="dispatched") from None
         note = None
         if databases["missing"]:
@@ -295,11 +292,48 @@ class ProjectCreate(Handler):
                     "places a part from one of them.")
         result = {"path": str(new), "template": str(template), "files": files, "bytes": size, "rewritten": rewritten,
                   "parts_databases": {"created": databases["created"], "registered": databases["registered"]}}
-        return facts("not_applicable", "saved", result=result, files=[{"path": str(new)}], native_message=note)
+        return facts("applied", "saved", result=result, files=[{"path": str(new)}], native_message=note)
 
-    def read_back(self, ctx: Context) -> dict[str, Any]:
-        new = Path(os.path.abspath(str(need_input(ctx, "output"))))
-        return {"observed": {key(str(new)): {"exists": new.is_file()}}, "unreadable": []}
+
+def create_doc(store: Any, request: dict[str, Any]) -> dict[str, Any]:
+    """``doc create`` (DCLI-212): a project at ``path``. In a Designer session (``session``) from a
+    setup template (``template``, Xpedition's stock template by default); in file mode as a copy of
+    the template project ``template``. A board is added to a project with ``pcb create``."""
+    kind = request.get("kind") or "project"
+    if kind != "project":
+        raise AdapterError("E_UNSUPPORTED", f"doc create makes projects, not a {kind}; add a board to a project with pcb create.",
+                           dispatch_state="not_started")
+    path, template, session = request.get("path"), request.get("template"), request.get("session")
+    if not path:
+        raise AdapterError("E_VALIDATION", "doc create needs --path: the new project's .prj file, since Xpedition names a project "
+                           "when it creates it.", dispatch_state="not_started")
+    inputs: dict[str, Any] = {"output": path}
+    work = NewProject()
+    if session:
+        if template:
+            inputs["template"] = template
+        ref, item = sessions.session_of(store, session)
+        ctx = Context(store, {"command": "doc create", "inputs": inputs, "session": session,
+                              "operation_id": request.get("operation_id")})
+        work.preview(ctx)  # checks the target and the template before Designer is asked
+        if ref.kind != base.DESIGNER:
+            raise AdapterError("E_VALIDATION", "doc create makes a project in a Designer session; name one with --session.",
+                               dispatch_state="not_started")
+        if item.get("documents"):
+            raise base.blocked("Designer has a project open; close it with doc close first, then run doc create in this session.")
+        with jobs.running(store, session, "doc create"):
+            out = work.run(ctx, jobs.Progress())
+        out = {"dispatch_state": "dispatched", "delivery": "not_applicable", **out, "change": "applied"}
+    else:
+        if not template:
+            raise AdapterError("E_VALIDATION", "doc create in file mode copies a project Designer has made: name it with --template.",
+                               dispatch_state="not_started")
+        ctx = Context(store, {"command": "doc create", "inputs": inputs, "document": template,
+                              "operation_id": request.get("operation_id")})
+        work.preview(ctx)  # checks the template and the target before anything is copied
+        out = work.apply(ctx)
+    out["document"] = sessions.document_view(store, session, os.path.abspath(path))
+    return out
 
 
 # ------------------------------------------------------------------ packager run
@@ -470,7 +504,7 @@ class _Board:
             self.stock = self._stock_template()
 
     def _stock_template(self) -> Path:
-        """The installation's copy of the template, for a library that lacks it (project create skips
+        """The installation's copy of the template, for a library that lacks it (doc create skips
         the library's Templates folder)."""
         home = env.find_sdd_home()
         stock = home.joinpath(*LAYOUT_TEMPLATES) if home else None
@@ -482,7 +516,13 @@ class _Board:
 
 
 class PcbCreate(Handler):
+    """Runs as a long job (DCLI-065): JobWizard may take minutes."""
+
     command = "pcb create"
+    long_job = True
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         board = _Board(ctx)
@@ -548,4 +588,4 @@ class PcbCreate(Handler):
         return {"observed": {key(str(pcb)): {"exists": pcb.is_file()}}, "unreadable": []}
 
 
-HANDLERS: list[Handler] = [ProjectGet(), ProjectCreate(), PackagerRun(), PcbCreate()]
+HANDLERS: list[Handler] = [ProjectGet(), PackagerRun(), PcbCreate()]

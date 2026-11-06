@@ -13,7 +13,7 @@ When Designer starts, it may stop at the Siemens licence sign-in dialog. In the 
 - session get may show the session as blocked, with the window title in `blocker`. A command may return `E_HUMAN_REQUIRED`.
 - Tell the person to sign in. Do not click, type into or read the dialog. xpedition-cli 1.0.3 never inspected or answered a window whose title spoke of a licence, a sign-in or a login (including 许可证, 授权 and 登录).
 - After the person has signed in, run session get until the session is ready.
-- File-mode commands do not need Designer. In the live runs, project create and the library steps ran on Xpedition's converters while Designer waited at the sign-in.
+- File-mode commands do not need Designer. In the live runs, copying a project and the library steps ran on Xpedition's converters while Designer waited at the sign-in.
 
 ## The Layout licence token
 

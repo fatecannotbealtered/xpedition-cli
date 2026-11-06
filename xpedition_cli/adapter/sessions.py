@@ -190,6 +190,16 @@ def list_sessions(store: AdapterStore) -> dict[str, Any]:
     return {"items": items, "complete": complete}
 
 
+def session_of(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[str, Any]]:
+    """The session and its row in the session list; E_NOT_FOUND when it has gone."""
+    return _session(store, session_id)
+
+
+def document_view(store: AdapterStore, session: str | None, path: str) -> dict[str, Any]:
+    """A document as the documents capability reports it."""
+    return _document(store, session, path)
+
+
 def _session(store: AdapterStore, session_id: str) -> tuple[SessionRef, dict[str, Any]]:
     ref = parse_session(session_id)
     assert ref is not None
@@ -225,7 +235,7 @@ def _walk(top: str, depth: int) -> list[tuple[str, list[str], list[str]]]:
 
 def open_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     """Start Designer for a project or Layout for a board: by the file given, else by ``kind``
-    (``project`` or ``board``), else Designer with no project, where project create makes one."""
+    (``project`` or ``board``), else Designer with no project, where doc create makes one."""
     path, wanted = request.get("path"), request.get("kind")
     if wanted is not None and wanted not in KINDS:
         raise AdapterError("E_VALIDATION", f"The document kind {wanted!r} is not one of {', '.join(sorted(KINDS))}.",

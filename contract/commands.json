@@ -21,7 +21,12 @@
       ],
       "untrusted_fields": [
         "designs",
-        "xpedition_version"
+        "xpedition_version",
+        "central_library",
+        "board",
+        "symbol_libraries",
+        "parts_databases",
+        "cell_libraries"
       ],
       "irreversible": false,
       "halt": false,
@@ -31,55 +36,6 @@
       "doc_kinds": [
         "project"
       ]
-    },
-    {
-      "path": "project create",
-      "summary": "Create a project: in a Designer session from a setup template, with its own copy of the central library and a board design (a long job); in file mode by copying the project given with --doc.",
-      "effects": [
-        "artifact"
-      ],
-      "modes": [
-        "file",
-        "session"
-      ],
-      "target_kind": "project",
-      "flags": [
-        {
-          "name": "--session",
-          "type": "string",
-          "summary": "The session ID of the instance (DCLI-202)."
-        },
-        {
-          "name": "--doc",
-          "type": "string",
-          "summary": "The document: its ID or path; in file mode, the file path."
-        },
-        {
-          "name": "--output",
-          "type": "path",
-          "summary": "The new project's .prj file; its folder must not exist or must be empty, and its path must be ASCII.",
-          "required": true,
-          "output": true
-        },
-        {
-          "name": "--template",
-          "type": "path",
-          "summary": "In a Designer session: the setup template; Xpedition's stock template (expedition/Default.prj) by default."
-        }
-      ],
-      "untrusted_fields": [],
-      "irreversible": false,
-      "halt": false,
-      "tolerances": {},
-      "default_fields": [],
-      "related_knowledge": [
-        "xpedition-ascii-paths-only",
-        "xpedition-template-library-is-empty"
-      ],
-      "doc_kinds": [
-        "project"
-      ],
-      "long": true
     },
     {
       "path": "part list",
@@ -109,7 +65,13 @@
         }
       ],
       "untrusted_fields": [
+        "id",
+        "partition",
         "description",
+        "prefix",
+        "type",
+        "cell",
+        "symbols",
         "value"
       ],
       "irreversible": false,
@@ -153,9 +115,18 @@
         }
       ],
       "untrusted_fields": [
+        "id",
+        "partition",
         "description",
+        "prefix",
         "value",
-        "properties"
+        "properties",
+        "pins",
+        "symbols",
+        "cell",
+        "padstacks",
+        "also_in",
+        "findings"
       ],
       "irreversible": false,
       "halt": false,
@@ -171,7 +142,7 @@
     },
     {
       "path": "part create",
-      "summary": "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
+      "summary": "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map; runs as a long job.",
       "effects": [
         "change"
       ],
@@ -210,7 +181,8 @@
       ],
       "doc_kinds": [
         "project"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "packager run",
@@ -293,7 +265,8 @@
       "summary": "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
       "effects": [
         "change",
-        "persist"
+        "persist",
+        "artifact"
       ],
       "modes": [
         "session"
@@ -343,7 +316,7 @@
     },
     {
       "path": "schematic check",
-      "summary": "Run Designer's verification and this tool's netlist rules, and list the problems found.",
+      "summary": "Run Designer's verification and this tool's netlist rules, and list the problems found; runs as a long job.",
       "effects": [
         "observe"
       ],
@@ -376,7 +349,8 @@
       ],
       "doc_kinds": [
         "project"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "schematic export",
@@ -425,10 +399,11 @@
     },
     {
       "path": "pcb create",
-      "summary": "Create the project's board from a layout template with Xpedition's JobWizard.",
+      "summary": "Create the project's board from a layout template with Xpedition's JobWizard; runs as a long job.",
       "effects": [
         "change",
-        "persist"
+        "persist",
+        "artifact"
       ],
       "modes": [
         "file"
@@ -456,7 +431,9 @@
           "summary": "Write the full preview, with every change, to this file."
         }
       ],
-      "untrusted_fields": [],
+      "untrusted_fields": [
+        "cells_registered"
+      ],
       "irreversible": false,
       "halt": false,
       "tolerances": {},
@@ -466,7 +443,8 @@
       ],
       "doc_kinds": [
         "project"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "forward-annotation run",
@@ -538,18 +516,20 @@
           "name": "--width",
           "type": "quantity",
           "summary": "The board's width.",
+          "required": true,
           "quantity": "length"
         },
         {
           "name": "--height",
           "type": "quantity",
           "summary": "The board's height.",
+          "required": true,
           "quantity": "length"
         },
         {
           "name": "--radius",
           "type": "quantity",
-          "summary": "The corner radius; 0 for square corners.",
+          "summary": "The corner radius, 0 for square corners; the board's current radius by default.",
           "quantity": "length"
         },
         {
@@ -574,7 +554,7 @@
     },
     {
       "path": "placement run",
-      "summary": "Place every component of the board from its connections, grouped by schematic sheet.",
+      "summary": "Place every component of the board from its connections, grouped by schematic sheet; runs as a long job.",
       "effects": [
         "change"
       ],
@@ -612,7 +592,8 @@
       "untrusted_fields": [
         "clusters",
         "outside",
-        "labels"
+        "labels",
+        "components"
       ],
       "irreversible": false,
       "halt": false,
@@ -628,7 +609,8 @@
       ],
       "doc_kinds": [
         "board"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "plane create",
@@ -690,7 +672,7 @@
     },
     {
       "path": "router run",
-      "summary": "Route every open net with Layout's autorouter passes.",
+      "summary": "Route every open net with Layout's autorouter passes; runs as a long job.",
       "effects": [
         "change"
       ],
@@ -734,7 +716,8 @@
       ],
       "doc_kinds": [
         "board"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "pcb get",
@@ -782,7 +765,7 @@
     },
     {
       "path": "pcb check",
-      "summary": "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard.",
+      "summary": "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard; runs as a long job.",
       "effects": [
         "observe"
       ],
@@ -822,7 +805,8 @@
       ],
       "doc_kinds": [
         "board"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "pcb export",
