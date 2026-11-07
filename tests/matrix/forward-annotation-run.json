@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "With the project packaged and closed in Designer, the job brings the packaged schematic into the open board (J1, C1, R1, D1, unplaced) and reads back the forward-annotation status in_synch."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191959-forward-annotation-run.json#normal"
     },
     {
       "row": "empty",
@@ -27,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board is in sync already: the preview lists no change, and the job ends completed with outcome in_synch and change not_applied."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191722-forward-annotation-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -44,7 +52,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "forward-annotation run has no --design flag."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191722-forward-annotation-run.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -59,7 +72,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191722-forward-annotation-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -69,7 +87,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184513-forward-annotation-run.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -84,7 +107,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "An earlier forward-annotation job on this board was stopped by ending its worker process (Task Manager) while it ran, so its outcome is unknown and its operation keeps the board's forward annotation locked until operation resolve: E_CONFLICT target_locked."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-192225-forward-annotation-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -99,7 +127,12 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the board); nothing is previewed to the application's files or sent."
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184842-forward-annotation-run.json#no_scope"
     },
     {
       "row": "busy",
@@ -112,7 +145,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191558-forward-annotation-run.json#busy"
     },
     {
       "row": "dialog",
@@ -125,7 +163,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184740-forward-annotation-run.json#dialog"
     },
     {
       "row": "disconnect",
@@ -154,7 +197,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes of this tool (a pcb update not yet saved); the job runs as usual and saves nothing."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-192709-forward-annotation-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -169,7 +216,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The job's worker waits before its read-back, and meanwhile packager run packages the project once more (Designer closed; --tamper), so Layout reports forward annotation required again. The read-back finds status required, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191155-forward-annotation-run.json#read_back_mismatch"
     }
   ]
 }

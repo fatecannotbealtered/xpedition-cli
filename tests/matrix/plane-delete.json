@@ -17,7 +17,11 @@
       "expected": {
         "exit": 0,
         "summary": "After plane create --net GND --layer 2: the GND plane shape on layer 2 is deleted; exists reads back false."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193615-plane-delete.json#normal"
     },
     {
       "row": "empty",
@@ -36,7 +40,12 @@
         "exit": 3,
         "summary": "Run again: GND has no plane shape on layer 2 (any more).",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193619-plane-delete.json#empty"
     },
     {
       "row": "invalid_input",
@@ -55,7 +64,12 @@
         "exit": 2,
         "summary": "--layer 0 is no conductor layer.",
         "code": "E_VALIDATION"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193619-plane-delete.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -74,7 +88,12 @@
         "exit": 3,
         "summary": "GND has no plane shape on layer 2 (any more).",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193619-plane-delete.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -89,7 +108,12 @@
         "exit": 2,
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents.",
         "code": "E_AMBIGUOUS"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184527-plane-delete.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -144,7 +168,12 @@
         "exit": 7,
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND.",
         "code": "E_BUSY"
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191546-plane-delete.json#busy"
     },
     {
       "row": "dialog",
@@ -161,7 +190,12 @@
         "exit": 9,
         "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open.",
         "code": "E_HUMAN_REQUIRED"
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184801-plane-delete.json#dialog"
     },
     {
       "row": "disconnect",
@@ -199,7 +233,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (the plane itself): it is deleted as usual and the receipt reports the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193609-plane-delete.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -218,7 +256,12 @@
         "exit": 1,
         "summary": "The call waits before its read-back, and meanwhile plane create pours GND on layer 2 again (--tamper), so exists reads back true.",
         "code": "E_VERIFY_FAILED"
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193629-plane-delete.json#read_back_mismatch"
     }
   ]
 }

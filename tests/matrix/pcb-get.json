@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "The open board: counts, layer stack, net classes, outline, geometry and layout metrics."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193512-pcb-get.json#normal"
     },
     {
       "row": "empty",
@@ -44,7 +48,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--output needs a path."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193512-pcb-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -59,7 +68,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-193512-pcb-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -69,7 +83,12 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184453-pcb-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -92,7 +111,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-191543-pcb-get.json#busy"
     },
     {
       "row": "dialog",
@@ -105,7 +129,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-184748-pcb-get.json#dialog"
     },
     {
       "row": "disconnect",
