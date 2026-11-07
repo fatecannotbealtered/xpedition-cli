@@ -60,6 +60,7 @@ Risk tier: **T1**, set by these commands:
 - `trace delete`: change
 - `via delete`: change
 - `plane delete`: change
+- `via create`: change
 - `via update`: change
 - `constraint import`: change, persist
 <!-- driver:risk:end -->

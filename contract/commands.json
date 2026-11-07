@@ -732,7 +732,7 @@
     },
     {
       "path": "plane create",
-      "summary": "Pour a plane shape for one net on one layer, inside the board outline.",
+      "summary": "Pour a plane shape for one net on one layer, inside the board outline: solid, or hatched.",
       "effects": [
         "change"
       ],
@@ -770,6 +770,23 @@
           "quantity": "length"
         },
         {
+          "name": "--hatch",
+          "type": "string",
+          "summary": "solid (the default), orthogonal or diagonal: a hatched plane, common on flex, is a grid of lines."
+        },
+        {
+          "name": "--hatch-width",
+          "type": "quantity",
+          "summary": "A hatched plane's line width.",
+          "quantity": "length"
+        },
+        {
+          "name": "--hatch-distance",
+          "type": "quantity",
+          "summary": "A hatched plane's distance from line to line, larger than the width.",
+          "quantity": "length"
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."
@@ -782,7 +799,8 @@
       "default_fields": [],
       "related_knowledge": [
         "layout-plane-draft-state",
-        "layout-pour-after-routing"
+        "layout-pour-after-routing",
+        "layout-plane-hatch"
       ],
       "doc_kinds": [
         "board"
@@ -1127,6 +1145,84 @@
       "doc_kinds": [
         "board"
       ]
+    },
+    {
+      "path": "via create",
+      "summary": "Place vias of one net: one at --x, --y, or a stitching grid at --pitch inside the net's copper on two layers, clear of other copper by the default clearance rule; runs as a long job.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "via",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--net",
+          "type": "string",
+          "summary": "The net, such as GND.",
+          "required": true
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "One via's X position.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "One via's Y position.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--pitch",
+          "type": "quantity",
+          "summary": "The stitching grid's pitch, such as 2mm.",
+          "quantity": "length"
+        },
+        {
+          "name": "--margin",
+          "type": "quantity",
+          "summary": "The grid's distance from the board outline; 0.5 mm by default.",
+          "quantity": "length"
+        },
+        {
+          "name": "--padstack",
+          "type": "string",
+          "summary": "The via padstack; the via the net's class is assigned by default (pcb get lists it)."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-via-near-pad",
+        "layout-router-via-from-net-class"
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
     },
     {
       "path": "via update",

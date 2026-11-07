@@ -890,8 +890,17 @@ def plane_state(value: Any) -> str:
         return f"state {value}"
 
 
+HATCH_NAMES = {0: "solid", 5: "orthogonal", 6: "diagonal"}  # EPcbHatchType: default, crosshatch, crosshatch diagonal
+
+
 def plane_values(doc: Any, net: str, layer: int) -> dict[str, Any]:
-    exists = any(net_name(shape) == net and int(shape.Layer) == int(layer) for shape in collection(doc, "PlaneShapes"))
+    shapes = [shape for shape in collection(doc, "PlaneShapes") if net_name(shape) == net and int(shape.Layer) == int(layer)]
+    exists = bool(shapes)
+    hatch = None
+    fill: dict[str, Any] = {}
+    if shapes:
+        fill = plane_fill(doc, shapes[0])
+        hatch = fill.pop("hatch", None)
     state = None
     found = find_net(doc, net)
     if found is not None:
@@ -900,7 +909,29 @@ def plane_values(doc: Any, net: str, layer: int) -> dict[str, Any]:
             state = plane_state(assignment.PlaneDataState) if assignment is not None else None
         except Exception:  # noqa: BLE001 - no assignment for that net and layer
             state = None
-    return {"exists": exists, "state": state}
+    out: dict[str, Any] = {"exists": exists, "state": state}
+    if hatch is not None:
+        out["hatch"] = hatch
+        out.update(fill)
+    return out
+
+
+def plane_fill(doc: Any, shape: Any) -> dict[str, Any]:
+    """A plane shape's fill from its plane class: ``solid`` when the hatch lines are as wide as their
+    distance (the default class draws solid copper that way), else the pattern with its line width
+    and distance in mm."""
+    try:
+        plane_class = shape.PlaneClass
+        pattern, width, distance = int(plane_class.HatchPattern), float(plane_class.HatchWidth), float(plane_class.HatchDistance)
+    except Exception:  # noqa: BLE001 - the plane class cannot be read
+        return {}
+    if width >= distance:
+        return {"hatch": "solid"}
+    scale = geometry_scale(doc)
+    out: dict[str, Any] = {"hatch": HATCH_NAMES.get(pattern, f"pattern {pattern}")}
+    if scale is not None:
+        out.update(hatch_width_mm=round(width * scale, 4), hatch_distance_mm=round(distance * scale, 4))
+    return out
 
 
 def trace_count(doc: Any, net: str, layer: int | None = None) -> int:

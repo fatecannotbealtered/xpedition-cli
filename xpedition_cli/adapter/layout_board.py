@@ -727,6 +727,26 @@ class PlacementRun(L.ReadsBack):
 PLANE_OUTLINE_POINTS = 5  # a plain rectangle; a rounded one has 13
 
 
+HATCHES = {"solid": 0, "orthogonal": 5, "diagonal": 6}  # EPcbHatchType
+
+
+def _hatch_inputs(ctx: Context) -> tuple[str, float, float]:
+    """The plane's fill: solid, or a hatch of lines --hatch-width wide, --hatch-distance apart."""
+    hatch = str(ctx.inputs.get("hatch") or "solid").strip().lower()
+    if hatch not in HATCHES:
+        raise AdapterError("E_VALIDATION", f"--hatch is one of {', '.join(HATCHES)}.", dispatch_state="not_started")
+    width, distance = ctx.inputs.get("hatch_width_mm"), ctx.inputs.get("hatch_distance_mm")
+    if hatch == "solid":
+        if width is not None or distance is not None:
+            raise AdapterError("E_VALIDATION", "--hatch-width and --hatch-distance go with --hatch orthogonal or diagonal.",
+                               dispatch_state="not_started")
+        return hatch, 0.0, 0.0
+    if width is None or distance is None or not 0 < width < distance:
+        raise AdapterError("E_VALIDATION", "A hatched plane needs --hatch-width and a larger --hatch-distance, such as 0.15mm and 0.5mm.",
+                           dispatch_state="not_started")
+    return hatch, float(width), float(distance)
+
+
 def _plane_inputs(ctx: Context) -> tuple[str, int, float]:
     net = str(base.need_input(ctx, "net")).strip()
     layer = base.need_input(ctx, "layer")
@@ -788,6 +808,7 @@ class PlaneCreate(L.ReadsBack):
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         net, layer, margin = _plane_inputs(ctx)
+        hatch, width, distance = _hatch_inputs(ctx)
         path = ctx.document_path()
         now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin)[2], budget_s=L.READ_BUDGET_S,
                           what="reading the planes")
@@ -795,22 +816,39 @@ class PlaneCreate(L.ReadsBack):
         key = base.key(path, domain)
         outer = (" An outer-layer plane is best poured after routing (knowledge layout-pour-after-routing)."
                  if layer in (1, now["layers"]) else "")
-        return base.preview(f"Pour a plane shape for {net} on layer {layer}, {margin:g} mm inside the board outline, and switch it to "
-                            f"Dynamic so that Layout generates its copper. The board is not saved.{outer}",
-                            [base.target(path, "plane", domain, label=f"{net} on layer {layer}")],
-                            [base.change(key, "exists", False, True), base.change(key, "state", now["state"], "dynamic")])
+        fill = "solid" if hatch == "solid" else f"{hatch} hatch of {width:g} mm lines {distance:g} mm apart"
+        changes = [base.change(key, "exists", False, True), base.change(key, "state", now["state"], "dynamic"),
+                   base.change(key, "hatch", None, hatch)]
+        if hatch != "solid":
+            changes += [base.change(key, "hatch_width_mm", None, width), base.change(key, "hatch_distance_mm", None, distance)]
+        return base.preview(f"Pour a plane shape ({fill}) for {net} on layer {layer}, {margin:g} mm inside the board outline, and switch "
+                            f"it to Dynamic so that Layout generates its copper. The board is not saved.{outer}",
+                            [base.target(path, "plane", domain, label=f"{net} on layer {layer}")], changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         net, layer, margin = _plane_inputs(ctx)
+        hatch, width, distance = _hatch_inputs(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
             found, points, _now = _plane_target(doc, net, layer, margin)
             try:
                 # route obstruct false: an obstructing shape blocks the router on that layer, and laid
                 # over routed traces it is refused as a DRC violation; the copper flows around them
-                doc.PutPlaneShape(layer, len(points[0]), points, found, False, 0, 0.0, 0.0, None, L.UNIT_MM)
+                shape = doc.PutPlaneShape(layer, len(points[0]), points, found, False, 0, 0.0, 0.0, None, L.UNIT_MM)
             except Exception as exc:  # noqa: BLE001 - classified
                 raise L.com_error(exc, "creating the plane shape", com.call_state(exc)) from None
+            if hatch != "solid":
+                # PutPlaneShape's own hatch arguments are ignored: the fill comes from the plane class,
+                # and only a shape's own override of it can be changed
+                try:
+                    scale = L.geometry_scale(doc) or 0.0254
+                    plane_class = shape.PlaneClass
+                    plane_class.HatchPattern = HATCHES[hatch]
+                    plane_class.HatchWidth = width / scale
+                    plane_class.HatchDistance = distance / scale
+                    shape.PlaneClass = plane_class
+                except Exception as exc:  # noqa: BLE001 - classified
+                    return L.failed_step(exc, "setting the plane's hatch", ["the plane shape"])
             try:
                 assignment = doc.FindPlaneAssignment(layer, found)
                 if assignment is None:
@@ -818,7 +856,7 @@ class PlaneCreate(L.ReadsBack):
                 assignment.PlaneDataState = L.PLANE_DYNAMIC
             except Exception as exc:  # noqa: BLE001 - classified
                 return L.failed_step(exc, "switching the plane to Dynamic", ["the plane shape"])
-            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "margin_mm": margin,
+            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "margin_mm": margin, "hatch": hatch,
                                                               "generated": _generated(doc, net, layer)})
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="pouring the plane")

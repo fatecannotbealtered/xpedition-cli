@@ -60,6 +60,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `trace delete`: change
 - `via delete`: change
 - `plane delete`: change
+- `via create`: change
 - `via update`: change
 - `constraint import`: change, persist
 <!-- driver:risk:end -->

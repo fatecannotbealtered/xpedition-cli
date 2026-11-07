@@ -487,13 +487,13 @@ class PlaneTest(unittest.TestCase):
         with world(FakeApp(doc)):
             preview = self.handler.preview(context("plane create", inputs))
             facts = self.handler.apply(context("plane create", inputs))
-            back = self.handler.read_back(context("plane create", inputs, targets=[key("/planes/GND/2")], fields=["exists", "state"]))
+            back = self.handler.read_back(context("plane create", inputs, targets=[key("/planes/GND/2")], fields=["exists", "state", "hatch"]))
         call = doc.calls[0]
         self.assertEqual(call[:3], ("PutPlaneShape", 2, 5))
         self.assertEqual(call[3], ((1.0, 49.0, 49.0, 1.0, 1.0), (1.0, 1.0, 39.0, 39.0, 1.0), (0.0,) * 5))
         self.assertEqual(call[4:], ("GND", False, 0, 0.0, 0.0, None, L.UNIT_MM))
         self.assertEqual(doc.assignments[0].states, [L.PLANE_DRAFT, L.PLANE_DYNAMIC])
-        self.assertEqual(facts["result"], {"net": "GND", "layer": 2, "margin_mm": 1.0, "generated": False})
+        self.assertEqual(facts["result"], {"net": "GND", "layer": 2, "margin_mm": 1.0, "hatch": "solid", "generated": False})
         self.assertEqual(back["observed"][key("/planes/GND/2")], {c["field"]: c["after"] for c in preview["changes"]})
 
     def test_a_rounded_outline_gives_rounded_corners_less_the_margin(self):
@@ -514,6 +514,34 @@ class PlaneTest(unittest.TestCase):
 
 
 # ------------------------------------------------------------------ the autorouter
+
+
+class PlaneHatchTest(unittest.TestCase):
+    def test_a_hatched_plane_passes_its_pattern_and_reads_back(self):
+        doc = FakeDoc(nets=["GND"])
+        inputs = {"net": "GND", "layer": 2, "hatch": "orthogonal", "hatch_width_mm": 0.15, "hatch_distance_mm": 0.5}
+        with world(FakeApp(doc)):
+            preview = B.PlaneCreate().preview(context("plane create", inputs))
+            facts = B.PlaneCreate().apply(context("plane create", inputs))
+            back = B.PlaneCreate().read_back(context("plane create", targets=[key("/planes/GND/2")], fields=["exists", "state", "hatch"]))
+            widths = B.PlaneCreate().read_back(context("plane create", targets=[key("/planes/GND/2")],
+                                                       fields=["hatch_width_mm", "hatch_distance_mm"]))
+        self.assertEqual(widths["observed"][key("/planes/GND/2")], {"hatch_width_mm": 0.15, "hatch_distance_mm": 0.5})
+        plane_class = doc.shapes[0].PlaneClass  # the shape's own override of its plane class
+        self.assertEqual(plane_class.HatchPattern, 5)  # crosshatch
+        self.assertAlmostEqual(plane_class.HatchWidth * 0.0254, 0.15)  # the fake board counts in mils
+        self.assertAlmostEqual(plane_class.HatchDistance * 0.0254, 0.5)
+        self.assertIn("orthogonal hatch of 0.15 mm lines 0.5 mm apart", preview["action"])
+        self.assertEqual(facts["result"]["hatch"], "orthogonal")
+        self.assertEqual(back["observed"][key("/planes/GND/2")], {"exists": True, "state": "dynamic", "hatch": "orthogonal"})
+
+    def test_hatch_inputs_must_fit_together(self):
+        with world(FakeApp(FakeDoc(nets=["GND"]))):
+            for extra in ({"hatch": "zigzag"}, {"hatch": "orthogonal"}, {"hatch": "diagonal", "hatch_width_mm": 0.5, "hatch_distance_mm": 0.4},
+                          {"hatch_width_mm": 0.1}):
+                with self.subTest(extra=extra), self.assertRaises(AdapterError) as caught:
+                    B.PlaneCreate().preview(context("plane create", {"net": "GND", "layer": 2, **extra}))
+                self.assertEqual(code(caught), "E_VALIDATION")
 
 
 class RouterTest(unittest.TestCase):

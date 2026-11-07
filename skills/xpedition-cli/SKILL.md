@@ -48,7 +48,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `plane`: create, delete
 - `router`: run
 - `trace`: delete
-- `via`: delete, update
+- `via`: delete, create, update
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 

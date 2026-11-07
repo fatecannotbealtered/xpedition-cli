@@ -1,4 +1,4 @@
-"""Board edits on the open board: deleting traces, vias and plane shapes.
+"""Board edits on the open board: vias placed and changed, and traces, vias and plane shapes deleted.
 
 Each write names its objects by net (and layer), previews how many it removes, removes them with
 the objects' own ``Delete`` and reads the counts back (``read_keys``: ``/traces/<net>[/<layer>]``,
@@ -14,7 +14,9 @@ from .._driver import AdapterError
 from . import base
 from . import layout as L
 from .base import Context
+from .plan import PlanError
 from .plan import routing as plan_routing
+from .plan import stitching as ST
 
 
 def _nets(ctx: Context) -> list[str]:
@@ -308,4 +310,175 @@ class ViaUpdate(L.ReadsBack):
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="changing the vias")
 
 
-HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate()]
+def _via_row(path: str, name: str) -> dict[str, Any] | None:
+    """The central library's row of the padstack ``name`` (pad and drill in mm), or None."""
+    from .layout_rules import board_project
+    from .library import default_cache, read_library, refuse_failed
+    from .plan import padstacks as PS
+
+    prj, _design = board_project(path)
+    library = read_library(Path(prj), default_cache(), kinds=("padstacks",), symbols=False)
+    refuse_failed(library, "its padstacks cannot be read")
+    if name not in library.padstacks.get("padstacks", {}):
+        return None
+    return PS.row(library.padstacks, name)
+
+
+def _class_via(doc: Any, net: str) -> str | None:
+    """The via the net's class is assigned for the through span, as the autorouter places it."""
+    span = [(1, int(doc.LayerCount))]
+    for net_class in L.collection(doc, "NetClasses"):
+        if any(L.name_of(item) == net for item in L.collection(net_class, "Nets")):
+            return L.class_vias(net_class, span).get(f"1-{int(doc.LayerCount)}")
+    return None
+
+
+def _clearances(path: str) -> ST.Clearances:
+    """The via clearances of the board's default clearance rule on layer 1, from Constraint Manager."""
+    from .layout_rules import board_project, ces_design, read_current
+    from .plan.rules import DEFAULT_RULE
+
+    prj, design_name = board_project(path)
+    with ces_design(prj, design_name) as design:
+        current = read_current(design, 1)
+    rule = current.clearances.get(DEFAULT_RULE, {}).get("1", {})
+    return ST.Clearances(via_to_pad=rule.get("pad_to_via_mm", 0.254), via_to_trace=rule.get("trace_to_via_mm", 0.254),
+                         via_to_via=rule.get("via_to_via_mm", 0.254))
+
+
+def _stitch_board(doc: Any, net: str) -> ST.Board:
+    from .layout_output import board_model, geometry_record
+
+    model = board_model(doc, full=True)
+    scale = L.geometry_scale(doc)
+    if model is None or scale is None or not model["outline"]:
+        raise AdapterError("E_UNSUPPORTED", "The board's geometry can be read only on a board in mils with an outline; switch the "
+                           "board's unit to mils in Layout, or set the outline with pcb update.", dispatch_state="not_started")
+    board = ST.Board(outline=ST.polygon(model["outline"][0].get("path"), model["outline"][0].get("circle")))
+    board.pads = [ST.polygon(pad.get("path"), pad.get("circle")) for pad in model["pads"]]
+    board.traces = [([(p[0], p[1]) for p in trace["path"]], float(trace.get("width") or 0.0), str(trace.get("net") or ""))
+                    for trace in model["traces"] if trace.get("path")]
+    board.vias = [(via["circle"][0], via["circle"][1]) for via in model["vias"]]
+    board.holes = [(x, y, d) for x, y, d in model["holes"]]
+    for shape in L.collection(doc, "PlaneShapes"):
+        if L.net_name(shape) != net:
+            continue
+        record = geometry_record(shape.Geometry, scale)
+        if record:
+            board.planes.setdefault(int(shape.Layer), []).append(ST.polygon(record.get("path"), record.get("circle")))
+    return board
+
+
+def _via_create_inputs(ctx: Context) -> dict[str, Any]:
+    net = str(base.need_input(ctx, "net")).strip()
+    x, y, pitch = ctx.inputs.get("x_mm"), ctx.inputs.get("y_mm"), ctx.inputs.get("pitch_mm")
+    single = x is not None or y is not None
+    if single == (pitch is not None) or (single and (x is None or y is None)):
+        raise AdapterError("E_VALIDATION", "via create takes either --x and --y (one via) or --pitch (a stitching grid).",
+                           dispatch_state="not_started")
+    margin = ctx.inputs.get("margin_mm")
+    margin = 0.5 if margin is None else float(margin)
+    if margin < 0:
+        raise AdapterError("E_VALIDATION", "--margin is a distance of 0 or more.", dispatch_state="not_started")
+    return {"net": net, "x": x, "y": y, "pitch": pitch, "margin": margin, "padstack": str(ctx.inputs.get("padstack") or "").strip()}
+
+
+def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
+    inputs = _via_create_inputs(ctx)
+    path = ctx.document_path()
+    net = inputs["net"]
+    if L.find_net(doc, net) is None:
+        raise AdapterError("E_NOT_FOUND", f"The board has no net {net}.", dispatch_state="not_started")
+    padstack = inputs["padstack"] or _class_via(doc, net)
+    if not padstack:
+        raise AdapterError("E_VALIDATION", f"{net} has no via assigned for the through span; name one with --padstack.",
+                           dispatch_state="not_started")
+    row = _via_row(path, padstack)
+    if row is None or row.get("type") != "via" or not row.get("pad_mm"):
+        raise AdapterError("E_NOT_FOUND", f"The central library holds no via padstack {padstack}; padstack list --type via lists its "
+                           "vias, and padstack create adds one.", dispatch_state="not_started")
+    radius = float(row["pad_mm"]) / 2
+    board = _stitch_board(doc, net)
+    clear = _clearances(path)
+    blocked: list[str] = []
+    if inputs["pitch"] is None:
+        point = (round(float(inputs["x"]), 4), round(float(inputs["y"]), 4))
+        why = None if ST.inside(point, board.outline) else "outside the board outline"
+        why = why or ST.free(point, net, radius, board, clear)
+        points = [] if why else [point]
+        if why:
+            blocked.append(f"a via at ({point[0]:g}, {point[1]:g}) mm is {why}")
+        dropped: dict[str, int] = {}
+    else:
+        try:
+            result = ST.stitch(net, radius, board, clear, float(inputs["pitch"]), inputs["margin"])
+        except PlanError as exc:
+            if exc.code == "E_CONFLICT":
+                raise base.blocked(exc.message) from None
+            raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+        points, dropped = result.points, result.dropped
+        if not points:
+            reasons = ", ".join(f"{count} {why}" for why, count in sorted(dropped.items())) or "no grid point inside the outline"
+            blocked.append(f"no point of the {inputs['pitch']:g} mm grid is free ({reasons})")
+    return {**inputs, "padstack": padstack, "points": points, "dropped": dropped, "blocked": blocked,
+            "before": L.via_count(doc, net), "radius": radius, "clearances": clear}
+
+
+class ViaCreate(L.ReadsBack):
+    """Vias of one net: one at --x, --y, or a stitching grid at --pitch inside the net's copper on
+    two layers (``plan.stitching``). The positions are worked out against the rules' clearances, so
+    the vias go in with Layout's online DRC off (``TransactionStart(0)``) and pcb check judges them.
+    The via is the net class's own unless --padstack names another."""
+
+    command = "via create"
+    long_job = True
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        plan = L.in_layout(ctx, lambda app, doc: _via_plan(ctx, doc), budget_s=L.READ_BUDGET_S, what="planning the vias")
+        net, count = plan["net"], len(plan["points"])
+        target = [base.target(path, "via", via_key(net), label=net)]
+        if plan["blocked"]:
+            return base.preview(f"Place {plan['padstack']} vias of {net}.", target, [], blocked_by=plan["blocked"],
+                                knowledge=["layout-via-near-pad"])
+        dropped = "; ".join(f"{n} grid points {why}" for why, n in sorted(plan["dropped"].items()))
+        where = (f"at ({plan['points'][0][0]:g}, {plan['points'][0][1]:g}) mm" if plan["pitch"] is None
+                 else f"on a {plan['pitch']:g} mm grid inside its copper on two layers" + (f" ({dropped})" if dropped else ""))
+        return base.preview(f"Place {count} {plan['padstack']} via(s) of {net} {where}, clear of other copper by the board's default "
+                            "clearance rule. Run pcb check after. The board is not saved.", target,
+                            [base.change(base.key(path, via_key(net)), "count", plan["before"], plan["before"] + count)])
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            plan = _via_plan(ctx, doc)
+            if plan["blocked"]:
+                raise base.blocked("; ".join(plan["blocked"]), knowledge=["layout-via-near-pad"])
+            net_obj = L.find_net(doc, plan["net"])
+            placed = 0
+            doc.TransactionStart(0)
+            try:
+                stack = via_padstack(doc, plan["padstack"])
+                for x, y in plan["points"]:
+                    doc.PutVia(x, y, stack, net_obj, None, 0, L.UNIT_MM)
+                    placed += 1
+            except Exception as exc:  # noqa: BLE001 - classified
+                if not placed:
+                    raise L.com_error(exc, "placing a via", "not_started") from None
+                return base.facts("partial", "unchanged", result={"net": plan["net"], "padstack": plan["padstack"], "placed": placed},
+                                  native_message=f"placing a via failed after {placed}: {exc}")
+            finally:
+                doc.TransactionEnd(True)
+            return base.facts("applied", "unchanged", result={
+                "net": plan["net"], "padstack": plan["padstack"], "placed": placed,
+                "points_mm": [[x, y] for x, y in plan["points"][:VIA_POINTS_LISTED]], "dropped": plan["dropped"]})
+
+        return L.in_layout(ctx, work, budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="placing the vias")
+
+
+VIA_POINTS_LISTED = 200
+
+
+HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate(), ViaCreate()]

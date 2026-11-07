@@ -172,7 +172,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-072 | Copper pour (plane shapes) | `PutPlaneShape`, `PlaneAssignment` | provided | - |
 | CAP-073 | Autoroute: chosen nets, layers and route passes | `NewRoutePass` | provided | - |
 | CAP-074 | Draw traces from a plan | `PutTrace` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-075 | Place vias, including stitching vias for ground nets | `PutVia`, `PutPadstack` | deferred | Comes with via create later in 1.1 |
+| CAP-075 | Place one via, or a grid of stitching vias inside a net's copper on two layers, clear of other copper | `PutVia`, `PutPadstack` | provided | - |
 | CAP-089 | Change the padstack of the vias of chosen nets, pulling it from the central library | `Via.CurrentPadstack`, `PutPadstack` | provided | - |
 | CAP-076 | Delete the traces (on chosen layers) and the vias of chosen nets | `Delete()` | provided | - |
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |

@@ -538,14 +538,21 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-placement-drc', 'layout-unplaced-parts-invisible'],
     ),
     command(
-        "plane create", "Pour a plane shape for one net on one layer, inside the board outline.",
+        "plane create", "Pour a plane shape for one net on one layer, inside the board outline: solid, or hatched.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="plane",
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."},
-               {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from the board outline; 1 mm by default."}],
-        output=obj(net=STR, layer=INT, margin_mm=NUM, generated=BOOL),
-        examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2"],
-        knowledge=['layout-plane-draft-state', 'layout-pour-after-routing'],
+               {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from the board outline; 1 mm by default."},
+               {"name": "--hatch", "type": "string",
+                "summary": "solid (the default), orthogonal or diagonal: a hatched plane, common on flex, is a grid of lines."},
+               {"name": "--hatch-width", "type": "quantity", "quantity": "length", "summary": "A hatched plane's line width."},
+               {"name": "--hatch-distance", "type": "quantity", "quantity": "length",
+                "summary": "A hatched plane's distance from line to line, larger than the width."}],
+        output=obj(net=STR, layer=INT, margin_mm=NUM, hatch=STR, generated=BOOL),
+        examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2",
+                  "xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2 --hatch orthogonal "
+                  "--hatch-width 0.15mm --hatch-distance 0.5mm"],
+        knowledge=['layout-plane-draft-state', 'layout-pour-after-routing', 'layout-plane-hatch'],
     ),
     command(
         "router run", "Route the open nets with Layout's autorouter passes: every net, or only the nets and net classes named; "
@@ -625,6 +632,26 @@ COMMANDS: list[dict[str, Any]] = [
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."}],
         output=obj(net=STR, layer=INT, deleted=INT),
         examples=["xpedition-cli plane delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2"],
+    ),
+    command(
+        "via create", "Place vias of one net: one at --x, --y, or a stitching grid at --pitch inside the net's copper on two "
+        "layers, clear of other copper by the default clearance rule; runs as a long job.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="via", long=True,
+        flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
+               {"name": "--x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "One via's X position."},
+               {"name": "--y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "One via's Y position."},
+               {"name": "--pitch", "type": "quantity", "quantity": "length", "summary": "The stitching grid's pitch, such as 2mm."},
+               {"name": "--margin", "type": "quantity", "quantity": "length",
+                "summary": "The grid's distance from the board outline; 0.5 mm by default."},
+               {"name": "--padstack", "type": "string",
+                "summary": "The via padstack; the via the net's class is assigned by default (pcb get lists it)."}],
+        output=obj(net=STR, padstack=STR, placed=INT, points_mm=arr(arr(NUM)), dropped=OBJ),
+        coordinates=BOARD_COORDINATES,
+        examples=["xpedition-cli via create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --pitch 2mm",
+                  "xpedition-cli via create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --x 12.5mm --y 8mm"],
+        knowledge=['layout-via-near-pad', 'layout-router-via-from-net-class'],
     ),
     command(
         "via update", "Change the vias of the nets named, or of the nets of the net classes named, to another via padstack, "
