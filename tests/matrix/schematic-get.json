@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "The open project's design, its sheets with their sizes, and the numbers of components and nets."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182321-schematic-get.json#normal"
     },
     {
       "row": "empty",
@@ -27,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice project before schematic create: the schematic has an empty sheet, so components and nets are 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181616-schematic-get.json#empty"
     },
     {
       "row": "invalid_input",
@@ -44,7 +52,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "schematic get has no --sheet flag."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181548-schematic-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -59,7 +72,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such project open."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181548-schematic-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -92,7 +110,12 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181813-schematic-get.json#busy"
     },
     {
       "row": "dialog",
@@ -105,7 +128,12 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Designer before the call, such as Setup > Settings or Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open."
-      }
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182616-schematic-get.json#dialog"
     },
     {
       "row": "disconnect",
@@ -135,7 +163,11 @@
       "expected": {
         "exit": 0,
         "summary": "Right after schematic create, not yet saved: the drawing replaced sheet 1 and added or resized no sheet, so Designer reads the open design at once: 4 components and their nets. (After sheets are added, removed or resized, Designer reads the design only after a reopen, and the read refuses with E_CONFLICT application_state, knowledge designer-reopen-after-sheet-changes.)"
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181657-schematic-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

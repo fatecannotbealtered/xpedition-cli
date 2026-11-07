@@ -11,8 +11,8 @@ Xpedition 版本、操作系统和模式的每种组合占一行，由 `python s
 <!-- driver:support-matrix:start -->
 | 软件版本 | 操作系统 | 模式 | 状态 |
 |---|---|---|---|
-| 2604 | Windows | file | ⏳ untested |
-| 2604 | Windows | session | ⏳ untested |
+| 2604 | Windows | file | ✅ verified |
+| 2604 | Windows | session | ✅ verified |
 | 2604 | macOS | file | ⛔ unsupported |
 | 2604 | macOS | session | ⛔ unsupported |
 | 2604 | Linux | file | ⛔ unsupported |

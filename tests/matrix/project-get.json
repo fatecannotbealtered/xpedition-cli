@@ -11,7 +11,11 @@
       "expected": {
         "exit": 0,
         "summary": "The practice project's designs, board, central library and library lists, read from the .prj on disk."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181410-project-get.json#normal"
     },
     {
       "row": "empty",
@@ -31,7 +35,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "project get has no --id flag; the problem names it and the correct form."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181410-project-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -44,7 +53,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No project file at that path."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181410-project-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -86,7 +100,11 @@
       "expected": {
         "exit": 0,
         "summary": "Designer holds the project open with unsaved changes (a schematic create not yet saved): project get still reads the .prj on disk and returns what was last saved; Designer is not asked anything."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181708-project-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

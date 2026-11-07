@@ -11,7 +11,11 @@
       "expected": {
         "exit": 0,
         "summary": "No Designer runs: starts Designer through the Xpedition launcher with the practice project open; the new session (owned) is found in the session list."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182147-session-open.json#normal"
     },
     {
       "row": "empty",
@@ -29,7 +33,12 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "The file is neither a project (.prj) nor a board (.pcb); refused before anything starts."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181906-session-open.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -42,7 +51,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No file at that path; nothing starts."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181906-session-open.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -60,7 +74,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A Designer already runs, and COM can drive only one: the job ends with E_CONFLICT application_state (knowledge designer-one-instance-only); nothing starts."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182007-session-open.json#conflict"
     },
     {
       "row": "no_scope",
@@ -115,7 +134,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "No Designer runs: the job starts Designer with the project, its worker waits before the read-back, and meanwhile that Designer process is ended (--tamper): the read-back finds no such session, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182106-session-open.json#read_back_mismatch"
     }
   ]
 }

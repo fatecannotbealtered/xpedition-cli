@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "The first 20 parts of the project's central library, from the converters' exports."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181415-part-list.json#normal"
     },
     {
       "row": "empty",
@@ -27,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "An offset past the last part: an empty page, exit 0, never E_NOT_FOUND."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181415-part-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -42,7 +50,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--limit is at least 1."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181415-part-list.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -55,7 +68,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No project file at that path."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181415-part-list.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -99,7 +117,11 @@
       "expected": {
         "exit": 0,
         "summary": "Designer holds the project open with unsaved changes: the list is read from the library files on disk, exit 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181709-part-list.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

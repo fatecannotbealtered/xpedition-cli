@@ -11,7 +11,11 @@
       "expected": {
         "exit": 0,
         "summary": "Confirmed with its token (two-step), with the schematic drawn and saved and Designer closed: package.exe packages the board design; packaged reads back true from this run's Integration/PartPkg.log."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183219-packager-run.json#normal"
     },
     {
       "row": "empty",
@@ -30,7 +34,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "packager run has no --all flag."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183205-packager-run.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -43,7 +52,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No project file at that path."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183205-packager-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -61,7 +75,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A Designer session has the project {doc} open, so the file-mode write is refused before anything runs: E_CONFLICT file_open_in_session, naming the session."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183159-packager-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -74,7 +93,12 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the project's packaging); nothing is previewed to the application's files or sent."
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183229-packager-run.json#no_scope"
     },
     {
       "row": "busy",
@@ -107,7 +131,12 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "Confirmed with its token: the job's worker waits before its read-back, and meanwhile the run's report Integration/PartPkg.log is deleted (--tamper), so packaged reads back false, and the job ends with E_VERIFY_FAILED."
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-183216-packager-run.json#read_back_mismatch"
     }
   ]
 }

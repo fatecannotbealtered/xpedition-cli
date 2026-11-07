@@ -8,7 +8,11 @@
       "expected": {
         "exit": 0,
         "summary": "The documents of every running instance: the project Designer has open and the board Layout has open."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181246-doc-list.json#normal"
     },
     {
       "row": "empty",
@@ -20,7 +24,11 @@
       "expected": {
         "exit": 0,
         "summary": "An offset past the last document: an empty page, exit 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181246-doc-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -33,7 +41,12 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--limit is at most 100."
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181246-doc-list.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -46,7 +59,12 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The named session does not exist."
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181246-doc-list.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -70,7 +88,11 @@
       "expected": {
         "exit": 0,
         "summary": "A long job of this tool runs in one instance: its documents are listed as it last reported them, or it is left out with complete false and a notice; exit 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181821-doc-list.json#busy"
     },
     {
       "row": "dialog",
@@ -79,7 +101,11 @@
       "expected": {
         "exit": 0,
         "summary": "A person leaves a modal dialog open in Designer: the blocked instance is asked for its documents, and when the dialog keeps COM from answering none are listed for it; exit 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-182626-doc-list.json#dialog"
     },
     {
       "row": "disconnect",
@@ -101,7 +127,11 @@
       "expected": {
         "exit": 0,
         "summary": "After schematic create, not yet saved: the project is listed with dirty true."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-181723-doc-list.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

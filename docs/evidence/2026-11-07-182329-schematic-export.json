@@ -1,0 +1,34 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.0",
+  "commit": "0ac07c92f006",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-07T18:23:29Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "schematic export",
+      "arguments": [
+        "--session",
+        "designer-36504-320fffd19",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v11\\Demo\\Demo.prj",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v11/Demo.pdf"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "doc_kind": "project"
+    }
+  ]
+}

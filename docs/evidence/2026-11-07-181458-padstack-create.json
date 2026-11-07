@@ -1,0 +1,67 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.0",
+  "commit": "0ac07c92f006",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-07T18:14:58Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "padstack create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v11\\Demo\\Demo.prj",
+        "--drill",
+        "0.2mm",
+        "--pad",
+        "0.4mm"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "file",
+      "doc_kind": "project",
+      "notes": "job job-51e8ca9b09 ended completed"
+    },
+    {
+      "command": "padstack create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v11\\Demo\\Demo.prj",
+        "--drill",
+        "0.4mm",
+        "--pad",
+        "0.3mm"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "file",
+      "doc_kind": "project"
+    },
+    {
+      "command": "padstack create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v11/Missing.prj",
+        "--drill",
+        "0.2mm",
+        "--pad",
+        "0.4mm"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "file",
+      "doc_kind": "project"
+    }
+  ]
+}
