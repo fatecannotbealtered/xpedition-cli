@@ -17,7 +17,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice board after GND planes on layers 2 and 3: GND stitching vias of the class's via on a 2.5 mm grid inside the copper of both layers, clear of every pad, other nets' traces, vias and holes by the default clearance rule; count reads back the planned number above the vias GND had."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200105-via-create.json#normal"
     },
     {
       "row": "empty",
@@ -38,7 +42,12 @@
         "exit": 6,
         "summary": "Run again at the same spot after it was placed: the new via would stand too close to the one there, so the preview is blocked and the runtime refuses it as E_CONFLICT blocked.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200146-via-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -57,7 +66,12 @@
         "exit": 2,
         "summary": "--x without --y: one via needs both.",
         "code": "E_VALIDATION"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200128-via-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -76,7 +90,12 @@
         "exit": 3,
         "summary": "The board has no such net.",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200128-via-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -115,7 +134,12 @@
         "exit": 6,
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200938-via-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -134,7 +158,12 @@
         "exit": 4,
         "summary": "Run under a scope file that does not cover the target; nothing is sent to Layout.",
         "code": "E_FORBIDDEN"
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200815-via-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -216,7 +245,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (the planes themselves): the vias go in as usual and the receipt reports the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200042-via-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -235,7 +268,12 @@
         "exit": 1,
         "summary": "The call waits before its read-back, and meanwhile via delete --nets GND removes the vias again (--tamper), so count reads back fewer than planned.",
         "code": "E_VERIFY_FAILED"
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200025-via-create.json#read_back_mismatch"
     }
   ]
 }

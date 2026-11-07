@@ -76,15 +76,17 @@ class TraceDeleteTest(unittest.TestCase):
 
 
 class ViaDeleteTest(unittest.TestCase):
-    def test_the_vias_of_a_net_go(self):
+    def test_the_vias_of_a_net_go_with_their_padstack(self):
         doc = board()
+        for via in doc.vias:
+            via.Name = "026VIA"
         with world(FakeApp(doc)):
             out = E.ViaDelete().preview(context("via delete", {"nets": "GND"}))
             facts = E.ViaDelete().apply(context("via delete", {"nets": "GND"}))
-            back = E.ViaDelete().read_back(context("via delete", targets=[key("/vias/GND")], fields=["count"]))
-        self.assertEqual([(c["target"], c["before"], c["after"]) for c in out["changes"]], [(key("/vias/GND"), 2, 0)])
+            back = E.ViaDelete().read_back(context("via delete", targets=[key("/vias/GND")], fields=["count", "padstack"]))
+        self.assertEqual([(c["field"], c["before"], c["after"]) for c in out["changes"]], [("count", 2, 0), ("padstack", "026VIA", None)])
         self.assertEqual(facts["result"]["deleted"], 2)
-        self.assertEqual(back["observed"], {key("/vias/GND"): {"count": 0}})
+        self.assertEqual(back["observed"], {key("/vias/GND"): {"count": 0, "padstack": None}})
         self.assertEqual([v.Net.Name for v in doc.vias], ["A"])
 
 

@@ -15,7 +15,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice board after padstack create (0.2/0.4 mm) and constraint import of rules-usb2.json (class USB_HS, 0.1 mm width): USB_DP is drawn on layer 1 from J1 pin 8 to J2 pin 8, and USB_DN on layer 1, layer 4 and layer 1 again through two VIA_D0.2_P0.4 vias; count reads back one more trace per net and layer, and two more vias of USB_DN. The result lists both nets as routed with no open connection."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200715-trace-create.json#normal"
     },
     {
       "row": "empty",
@@ -32,7 +36,12 @@
         "exit": 6,
         "summary": "Run again: the plan's vias would stand on the vias of USB_DN placed by the first run, so the check blocks the preview and the runtime refuses it as E_CONFLICT blocked; nothing is drawn.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200723-trace-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -49,7 +58,12 @@
         "exit": 2,
         "summary": "A trace width of 0 mm: the routing plan is refused before Layout is asked anything, and the message names the field.",
         "code": "E_VALIDATION"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200723-trace-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -58,15 +72,20 @@
         "--session",
         "{session}",
         "--doc",
-        "{doc}",
+        "{dir}/Missing.pcb",
         "--file",
-        "{dir}/missing.json"
+        "{inputs}/route-usb2.json"
       ],
       "expected": {
         "exit": 3,
-        "summary": "The routing plan file does not exist.",
+        "summary": "The session has no such board open.",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195618-trace-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -101,7 +120,12 @@
         "exit": 6,
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200929-trace-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -197,7 +221,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (the traces and vias of an earlier run, taken back with trace delete and via delete --nets USB_DP,USB_DN): the plan is drawn as usual and the receipt reports the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200745-trace-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -214,7 +242,12 @@
         "exit": 1,
         "summary": "The call waits before its read-back, and meanwhile trace delete --nets USB_DP,USB_DN removes the traces again (--tamper), so count reads back fewer than planned.",
         "code": "E_VERIFY_FAILED"
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200658-trace-create.json#read_back_mismatch"
     }
   ]
 }

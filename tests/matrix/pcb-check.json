@@ -31,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the new board, before forward annotation: Batch DRC finds no hazard, so the lists are empty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201608-pcb-check.json#empty"
     },
     {
       "row": "invalid_input",

@@ -15,7 +15,11 @@
       "expected": {
         "exit": 0,
         "summary": "The practice board's constraints: its net classes with their nets and per-layer widths, differential pairs and clearance rules; the whole rule set is written to the file in the rules file format, and the response keeps the summary."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#normal"
     },
     {
       "row": "empty",
@@ -29,7 +33,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice board before any import: only the (Default) class holding every net, no differential pair, and only the (Default Rule) clearance rule."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#empty"
     },
     {
       "row": "invalid_input",
@@ -46,7 +54,12 @@
         "exit": 2,
         "summary": "--output needs a path.",
         "code": "E_USAGE"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -61,7 +74,12 @@
         "exit": 3,
         "summary": "The session has no such board open.",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -152,7 +170,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (placement not yet saved): the constraints come from the project database, which Layout's unsaved changes do not touch."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195634-constraint-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

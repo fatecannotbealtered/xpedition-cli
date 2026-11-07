@@ -21,7 +21,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-193615-plane-delete.json#normal"
+      "evidence": "live:docs/evidence/2026-11-07-201307-plane-delete.json#normal"
     },
     {
       "row": "empty",
@@ -45,7 +45,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-07-193619-plane-delete.json#empty"
+      "evidence": "live:docs/evidence/2026-11-07-201310-plane-delete.json#empty"
     },
     {
       "row": "invalid_input",
@@ -156,7 +156,12 @@
         "exit": 4,
         "summary": "Run under a scope file that does not cover the target; nothing is sent to Layout.",
         "code": "E_FORBIDDEN"
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200803-plane-delete.json#no_scope"
     },
     {
       "row": "busy",
@@ -242,7 +247,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-193609-plane-delete.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-07-201318-plane-delete.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -266,7 +271,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-193629-plane-delete.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-07-201304-plane-delete.json#read_back_mismatch"
     }
   ]
 }

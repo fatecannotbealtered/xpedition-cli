@@ -31,7 +31,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the new board, before forward annotation: no component, net, trace or via; the counts are 0."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201558-pcb-get.json#empty"
     },
     {
       "row": "invalid_input",

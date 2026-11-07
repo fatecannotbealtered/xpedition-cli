@@ -21,7 +21,11 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice board after a GND plane on layer 1: a soldermask opening over 40,5 to 50,9 mm on the top; the preview and the result name GND as the copper under it, and exists reads back true."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200240-solder-mask-create.json#normal"
     },
     {
       "row": "empty",
@@ -43,7 +47,11 @@
       "expected": {
         "exit": 0,
         "summary": "Run again: the opening is there already, so the preview lists no change and nothing is drawn."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -66,7 +74,12 @@
         "exit": 2,
         "summary": "Both corners at the same X: the opening has no area.",
         "code": "E_VALIDATION"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -89,7 +102,12 @@
         "exit": 3,
         "summary": "The session has no such board open.",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -136,7 +154,12 @@
         "exit": 6,
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200920-solder-mask-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -262,7 +285,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (the plane itself): a second opening is drawn as usual and the receipt reports the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -285,7 +312,12 @@
         "exit": 1,
         "summary": "The call waits before its read-back, and meanwhile solder-mask delete removes the opening again (--tamper), so exists reads back false.",
         "code": "E_VERIFY_FAILED"
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200320-solder-mask-create.json#read_back_mismatch"
     }
   ]
 }

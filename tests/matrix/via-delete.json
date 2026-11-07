@@ -15,7 +15,11 @@
       "expected": {
         "exit": 0,
         "summary": "After router run --net-classes USB_SS: the vias of the SS_TX1 pair are deleted; count reads back 0 for each net."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201230-via-delete.json#normal"
     },
     {
       "row": "empty",
@@ -31,7 +35,11 @@
       "expected": {
         "exit": 0,
         "summary": "Run again: the pair has no vias left, so the preview lists no change and nothing is sent."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201234-via-delete.json#empty"
     },
     {
       "row": "invalid_input",
@@ -48,7 +56,12 @@
         "exit": 2,
         "summary": "--nets gives no net name.",
         "code": "E_VALIDATION"
-      }
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195921-via-delete.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -65,7 +78,12 @@
         "exit": 3,
         "summary": "The board has no such net.",
         "code": "E_NOT_FOUND"
-      }
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-195921-via-delete.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -100,7 +118,12 @@
         "exit": 6,
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked.",
         "code": "E_CONFLICT"
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200941-via-delete.json#conflict"
     },
     {
       "row": "no_scope",
@@ -117,7 +140,12 @@
         "exit": 4,
         "summary": "Run under a scope file that does not cover the target; nothing is sent to Layout.",
         "code": "E_FORBIDDEN"
-      }
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-200817-via-delete.json#no_scope"
     },
     {
       "row": "busy",
@@ -191,7 +219,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (the routing itself): the vias go as usual and the receipt reports the document dirty."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201243-via-delete.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -206,9 +238,14 @@
       ],
       "expected": {
         "exit": 1,
-        "summary": "The call waits before its read-back, and meanwhile router run routes the pair again with vias (--tamper), so count reads back above 0.",
+        "summary": "The call waits before its read-back, and meanwhile a via of SS_TX1_P is placed again in Layout (--tamper), so count reads back above 0.",
         "code": "E_VERIFY_FAILED"
-      }
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-201226-via-delete.json#read_back_mismatch"
     }
   ]
 }

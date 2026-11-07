@@ -113,24 +113,29 @@ class ViaDelete(L.ReadsBack):
 
     command = "via delete"
 
-    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int]]:
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int], dict[str, str | None]]:
         nets = _nets(ctx)
         _known(doc, nets)
-        return nets, {net: L.via_count(doc, net) for net in nets}
+        return nets, {net: L.via_count(doc, net) for net in nets}, {net: L.via_padstack_name(doc, net) for net in nets}
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        nets, counts = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S, what="reading the vias")
+        nets, counts, stacks = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                           what="reading the vias")
         live = {k: v for k, v in counts.items() if v}
         if not live:
             return base.preview(f"The nets {', '.join(nets)} have no vias; nothing to delete.", [], [])
         targets = [base.target(path, "via", via_key(net), label=net) for net in live]
-        changes = [base.change(base.key(path, via_key(net)), "count", count, 0) for net, count in live.items()]
+        changes = []
+        for net, count in live.items():
+            key = base.key(path, via_key(net))
+            # the padstack goes with the vias, so a later read-back, such as a save's, expects none
+            changes += [base.change(key, "count", count, 0), base.change(key, "padstack", stacks[net], None)]
         return base.preview(f"Delete {sum(live.values())} vias of {len(live)} nets. The board is not saved.", targets, changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            nets, _counts = self._look(ctx, doc)
+            nets, _counts, _stacks = self._look(ctx, doc)
             wanted = set(nets)
             deleted = 0
             for via in L.collection(doc, "Vias"):
