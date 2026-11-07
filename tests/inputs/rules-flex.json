@@ -1,0 +1,83 @@
+{
+  "net_classes": [
+    {
+      "name": "USB_SS",
+      "nets": [
+        "SS_TX1_P",
+        "SS_TX1_N",
+        "SS_RX1_P",
+        "SS_RX1_N",
+        "SS_TX2_P",
+        "SS_TX2_N",
+        "SS_RX2_P",
+        "SS_RX2_N"
+      ],
+      "layers": {
+        "all": {
+          "width_mm": 0.1,
+          "min_width_mm": 0.08,
+          "max_width_mm": 0.12,
+          "differential_spacing_mm": 0.12
+        }
+      }
+    },
+    {
+      "name": "POWER",
+      "nets": [
+        "VBUS",
+        "VSYS"
+      ],
+      "layers": {
+        "all": {
+          "width_mm": 0.3,
+          "min_width_mm": 0.2,
+          "max_width_mm": 0.6
+        }
+      }
+    }
+  ],
+  "differential_pairs": [
+    {
+      "nets": [
+        "SS_TX1_P",
+        "SS_TX1_N"
+      ]
+    },
+    {
+      "nets": [
+        "SS_RX1_P",
+        "SS_RX1_N"
+      ]
+    },
+    {
+      "nets": [
+        "SS_TX2_P",
+        "SS_TX2_N"
+      ]
+    },
+    {
+      "nets": [
+        "SS_RX2_P",
+        "SS_RX2_N"
+      ]
+    }
+  ],
+  "clearances": [
+    {
+      "rule": "FINE",
+      "layers": {
+        "all": {
+          "trace_to_trace_mm": 0.1,
+          "trace_to_pad_mm": 0.1,
+          "trace_to_via_mm": 0.1
+        }
+      },
+      "classes": [
+        [
+          "USB_SS",
+          "USB_SS"
+        ]
+      ]
+    }
+  ]
+}

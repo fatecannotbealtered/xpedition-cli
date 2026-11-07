@@ -13,8 +13,8 @@ that made it, so the thread attaches itself, and nothing COM leaves it. A call t
 time reports the dialog that holds Layout, if one does, as ``E_HUMAN_REQUIRED``.
 
 The board commands live in ``layout_board`` (forward annotation, outline, placement, planes,
-routing) and ``layout_output`` (reading, checking and the fabrication package); ``HANDLERS``
-collects them. Their target keys are read back by ``read_keys``, which ``read_targets`` also
+routing), ``layout_output`` (reading, checking and the fabrication package) and ``layout_rules``
+(the constraints); ``HANDLERS`` collects them. Their target keys are read back by ``read_keys``, which ``read_targets`` also
 uses after ``doc save`` has reopened the board.
 """
 from __future__ import annotations
@@ -98,9 +98,9 @@ def __getattr__(name: str) -> Any:
         except AdapterError:
             return ""
     if name == "HANDLERS":
-        from . import layout_board, layout_output
+        from . import layout_board, layout_output, layout_rules
 
-        return [*layout_board.HANDLERS, *layout_output.HANDLERS]
+        return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS]
     raise AttributeError(name)
 
 

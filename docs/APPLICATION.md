@@ -162,7 +162,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-064 | Read the board geometry: component outlines, pins, pads, traces, vias, plane shapes, holes, silkscreen | Layout COM | provided | - |
 | CAP-065 | Set a rectangular board outline (rounded corners optional), replacing the route border and the manufacturing outline at the same time | `PutBoardOutline` and others | provided | - |
 | CAP-066 | Place non-plated mounting holes at the four corners; delete mounting holes | `PutMountingHoleEx` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-067 | Create net classes, assign nets, set line widths | `ConstraintsAuto` + `SynchCES` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-067 | Read and set net classes, their nets, trace widths and differential spacing per layer, and differential pairs | `ConstraintsAuto` (layout context) + `ProjectIntegration.LoadCES` | provided | - |
 | CAP-068 | Automatic placement by connectivity (clusters per sheet, area labels) | `Component.Place` + planner | provided | - |
 | CAP-069 | Move a component to a given position and angle (top side) | `Component.Place/Move` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-070 | Place a component on the bottom side | `Place(bTop=False)` | unknown | Never tried; `Side` is read-only |
@@ -178,7 +178,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-080 | Switch the display scheme, fit the board, capture an image of the Layout window | `DisplayControl.LoadScheme` + GDI | deferred | Only for people to look at; screenshots are all black while the screen is locked |
 | CAP-081 | Fabrication files: ODB++, Gerber, NC drill, plus a coordinate file, BOM, notes and a manifest | `Gui.ProcessCommand(33016–33018)` + setup files + dialogs | provided | - |
 | CAP-082 | Refresh the cells on the board (Library Services local library update) | `SETUP_LIBRARYSERVICES`, `ECO_UPDATELOCALLIBRARYDATA` | unknown | Written only in the old code; needs an interactive desktop |
-| CAP-083 | Set clearance rules | `ConstraintsAuto` | unknown | Never tried |
+| CAP-083 | Read and set clearance rules and the net class pairs that use them | `ConstraintsAuto` (layout context) + `ProjectIntegration.LoadCES` | provided | - |
 | CAP-084 | 3D view and STEP export | `EXP3D_EXPORT` 53325 | unknown | Never tried |
 | CAP-085 | IPC-D-356 netlist export | `FILE_EXPORT_IPCD356B` 32938 | unknown | Never tried |
 | CAP-086 | Generate silkscreen with Silkscreen Generator | `OUTPUT_SILKSCREEN` 33019 | excluded | The layer check boxes of each package group are not exposed to UI Automation, so they could only be clicked blind |

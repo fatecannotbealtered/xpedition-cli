@@ -853,6 +853,115 @@
         "board"
       ],
       "long": true
+    },
+    {
+      "path": "constraint get",
+      "summary": "Read the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and which class pairs use them.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "constraint",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write every rule to this file, in the rules file format constraint import reads; the response keeps the summary.",
+          "output": true
+        }
+      ],
+      "untrusted_fields": [
+        "net_classes",
+        "differential_pairs",
+        "clearance_rules",
+        "class_clearances"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "constraint import",
+      "summary": "Create or change the net classes, trace widths, differential spacing, differential pairs and clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
+      "effects": [
+        "change",
+        "persist"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "constraint",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--file",
+          "type": "path",
+          "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change.",
+          "required": true
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [
+        "net_classes_created",
+        "differential_pairs_created",
+        "clearance_rules_created"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {
+        "width_mm": 0.0005,
+        "min_width_mm": 0.0005,
+        "max_width_mm": 0.0005,
+        "differential_spacing_mm": 0.0005,
+        "trace_to_trace_mm": 0.0005,
+        "trace_to_pad_mm": 0.0005,
+        "trace_to_via_mm": 0.0005,
+        "trace_to_plane_mm": 0.0005,
+        "pad_to_pad_mm": 0.0005,
+        "pad_to_via_mm": 0.0005,
+        "via_to_via_mm": 0.0005,
+        "via_to_plane_mm": 0.0005
+      },
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
     }
   ]
 }

@@ -56,6 +56,7 @@ Risk tier: **T1**, set by these commands:
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist
+- `constraint import`: change, persist
 <!-- driver:risk:end -->
 
 ## Authorization

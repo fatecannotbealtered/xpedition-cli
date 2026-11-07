@@ -1,0 +1,12 @@
+{
+  "net_classes": [
+    {
+      "name": "USB_SS",
+      "layers": {
+        "all": {
+          "width_mm": 0
+        }
+      }
+    }
+  ]
+}

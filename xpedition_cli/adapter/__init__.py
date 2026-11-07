@@ -143,7 +143,10 @@ class Adapter(BaseAdapter):
             facts = {"dispatch_state": "dispatched", "delivery": "not_applicable", **out}
         else:
             facts = handler.apply(ctx)
-        if request.get("session") and request.get("document") and sessions.changed(facts):
+        # A change the application saved at once, such as the constraints, is not one of the
+        # document's unsaved changes, so the next doc save neither lists nor reads it (DCLI-058).
+        if (request.get("session") and request.get("document") and sessions.changed(facts)
+                and facts.get("persistence") != "saved"):
             kept = self.store.get(sessions.preview_key(request), {}) or {}
             sessions.note_change(self.store, request["session"], request["document"], kept.get("changes", []))
         if request.get("session"):

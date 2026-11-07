@@ -4,6 +4,11 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Added
+
+- `constraint get` reads the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and the class pairs that use them; `--output` writes them all in the rules file format.
+- `constraint import` creates or changes the net classes, widths, differential spacing, differential pairs and clearance rules a rules file names, writes them into the project database and loads them into Layout; what the file does not name stays. It changes the board's side of the constraints only, is refused while that side holds changes Layout has not loaded, and its receipt says persistence saved, so the board does not count it among its unsaved changes. A width outside its class's minimum or maximum moves the limit the file leaves out to that width.
+
 ### Changed
 
 - Built on tool-driver-cli-spec 1.0.6.

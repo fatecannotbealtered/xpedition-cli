@@ -56,6 +56,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist
+- `constraint import`: change, persist
 <!-- driver:risk:end -->
 
 ## 授权

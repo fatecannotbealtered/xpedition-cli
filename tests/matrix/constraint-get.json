@@ -1,0 +1,148 @@
+{
+  "command": "constraint get",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/rules.json"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The practice board's constraints: its net classes with their nets and per-layer widths, differential pairs and clearance rules; the whole rule set is written to the file in the rules file format, and the response keeps the summary."
+      }
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "On the practice board before any import: only the (Default) class holding every net, no differential pair, and only the (Default Rule) clearance rule."
+      }
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        ""
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "--output needs a path.",
+        "code": "E_USAGE"
+      }
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.pcb"
+      ],
+      "expected": {
+        "exit": 3,
+        "summary": "The session has no such board open.",
+        "code": "E_NOT_FOUND"
+      }
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [],
+      "expected": {
+        "exit": 2,
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents.",
+        "code": "E_AMBIGUOUS"
+      }
+    },
+    {
+      "row": "conflict",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "no_scope",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}"
+      ],
+      "expected": {
+        "exit": 7,
+        "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND.",
+        "code": "E_BUSY"
+      }
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}"
+      ],
+      "expected": {
+        "exit": 9,
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open.",
+        "code": "E_HUMAN_REQUIRED"
+      }
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 4,
+        "summary": "Layout goes away during the read.",
+        "code": "E_BACKEND_UNAVAILABLE"
+      },
+      "unrunnable": "The COM connection to Layout cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The board holds unsaved changes (placement not yet saved): the constraints come from the project database, which Layout's unsaved changes do not touch."
+      }
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    }
+  ]
+}

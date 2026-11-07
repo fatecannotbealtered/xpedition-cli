@@ -49,6 +49,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `placement`: run
 - `plane`: create
 - `router`: run
+- `constraint`: get, import
 <!-- driver:command-map:end -->
 
 ## Write recipe

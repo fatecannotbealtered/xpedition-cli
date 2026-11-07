@@ -158,7 +158,7 @@
 | CAP-064 | 读板几何：元件外形、管脚、焊盘、走线、过孔、铜皮、孔、丝印 | Layout COM | provided | - |
 | CAP-065 | 设置矩形板框（可圆角），同时换布线边界和制造边框 | `PutBoardOutline` 等 | provided | - |
 | CAP-066 | 在四角放非金属化安装孔，删除安装孔 | `PutMountingHoleEx` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-067 | 新建网络类、分配网络、设置线宽 | `ConstraintsAuto` + `SynchCES` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-067 | 读取和设置网络类、成员网络、每层线宽和差分线距，以及差分对 | `ConstraintsAuto`（版图上下文）+ `ProjectIntegration.LoadCES` | provided | - |
 | CAP-068 | 按连接关系自动布局（按页分簇、区域标签） | `Component.Place` + 规划器 | provided | - |
 | CAP-069 | 把元件移到指定位置和角度（顶面） | `Component.Place/Move` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-070 | 把元件放到底面 | `Place(bTop=False)` | unknown | 从未试过；`Side` 只读 |
@@ -174,7 +174,7 @@
 | CAP-080 | 切显示方案、适配板、截 Layout 窗口图 | `DisplayControl.LoadScheme` + GDI | deferred | 只给人看；锁屏时截图全黑 |
 | CAP-081 | 生产文件：ODB++、Gerber、NC 钻孔，加坐标文件、BOM、说明和清单 | `Gui.ProcessCommand(33016–33018)` + 设置文件 + 对话框 | provided | - |
 | CAP-082 | 刷新板上的封装（Library Services 本地库更新） | `SETUP_LIBRARYSERVICES`、`ECO_UPDATELOCALLIBRARYDATA` | unknown | 只在旧码里写过；需要可交互桌面 |
-| CAP-083 | 设置间距规则 | `ConstraintsAuto` | unknown | 从未试过 |
+| CAP-083 | 读取和设置间距规则，以及使用它们的网络类对 | `ConstraintsAuto`（版图上下文）+ `ProjectIntegration.LoadCES` | provided | - |
 | CAP-084 | 3D 视图与 STEP 导出 | `EXP3D_EXPORT` 53325 | unknown | 从未试过 |
 | CAP-085 | IPC-D-356 网表导出 | `FILE_EXPORT_IPCD356B` 32938 | unknown | 从未试过 |
 | CAP-086 | 用 Silkscreen Generator 生成丝印 | `OUTPUT_SILKSCREEN` 33019 | excluded | 每个封装组的层勾选框不暴露给 UI Automation，只能盲点 |

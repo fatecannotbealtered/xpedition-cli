@@ -39,6 +39,10 @@ def obj(**props: dict[str, Any]) -> dict[str, Any]:
 
 
 FINDING = obj(id=STR, severity=STR, rule=STR, message=STR, objects=arr(STR))
+# the length fields of a rules file (constraint get and constraint import), compared in mm
+RULE_WIDTH_FIELDS = ("width_mm", "min_width_mm", "max_width_mm", "differential_spacing_mm")
+RULE_CLEARANCE_FIELDS = ("trace_to_trace_mm", "trace_to_pad_mm", "trace_to_via_mm", "trace_to_plane_mm", "pad_to_pad_mm",
+                         "pad_to_via_mm", "via_to_via_mm", "via_to_plane_mm")
 BOARD_COORDINATES = ("Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update "
                      "draws; x to the right, y up, seen from the top side.")
 
@@ -563,5 +567,32 @@ COMMANDS: list[dict[str, Any]] = [
         untrusted=["problems"],
         examples=["xpedition-cli pcb export --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/fab"],
         knowledge=['layout-output-setups', 'layout-drillprefs-held'],
+    ),
+    # ------------------------------------------------------------------ constraints (Layout)
+    command(
+        "constraint get", "Read the board's constraints: net classes and their nets, trace widths and differential spacing per "
+        "layer, differential pairs, clearance rules and which class pairs use them.",
+        effects=["observe"], modes=["session"], kinds=["board"], target_kind="constraint",
+        flags=[{"name": "--output", "type": "path", "output": True,
+                "summary": "Write every rule to this file, in the rules file format constraint import reads; the response keeps the summary."}],
+        output=obj(layers=INT, nets=INT, net_class_count=INT,
+                   net_classes=arr(obj(name=STR, nets=INT, layers=OBJ)), differential_pairs=arr(STR), clearance_rules=arr(STR),
+                   class_clearances=arr(obj(**{"from": STR, "to": STR, "rule": STR})), loaded=BOOL, output=STR),
+        untrusted=["net_classes", "differential_pairs", "clearance_rules", "class_clearances"],
+        examples=["xpedition-cli constraint get --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/rules.json"],
+        knowledge=['layout-trace-widths-through-cm'],
+    ),
+    command(
+        "constraint import", "Create or change the net classes, trace widths, differential spacing, differential pairs and "
+        "clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
+        effects=["change", "persist"], modes=["session"], kinds=["board"], target_kind="constraint", long=True,
+        flags=[{"name": "--file", "type": "path", "required": True,
+                "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change."}],
+        output=obj(changes=INT, net_classes_created=arr(STR), nets_moved=INT, differential_pairs_created=arr(STR),
+                   clearance_rules_created=arr(STR), loaded=BOOL),
+        untrusted=["net_classes_created", "differential_pairs_created", "clearance_rules_created"],
+        tolerances={name: 0.0005 for name in (*RULE_WIDTH_FIELDS, *RULE_CLEARANCE_FIELDS)},
+        examples=["xpedition-cli constraint import --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --file D:/work/demo/rules.json"],
+        knowledge=['layout-trace-widths-through-cm'],
     ),
 ]
