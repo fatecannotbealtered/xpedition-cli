@@ -4,6 +4,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Changed
+
+- `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.
+
 ## [1.1.0] - 2026-11-07
 
 ### Added

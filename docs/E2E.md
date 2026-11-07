@@ -12,7 +12,8 @@ The scope file for live runs grants only listed targets, with the effects the co
 
 ## Authorized Targets
 
-- `file:///D:/driver-work/xpedition-cli/`: the practice folder of the maintainer's machine: practice projects the live runs create from Xpedition's stock templates, their copied central libraries, and the evaluation workspaces. No real project is ever placed here.
+- `file:///D:/driver-work/xpedition-cli/`: the practice folder of the maintainer's machine: practice projects the live runs create from Xpedition's stock templates, their copied central libraries, and the evaluation workspaces. No real project is placed here except the copy listed below.
+- `file:///D:/driver-work/xpedition-cli/V00test/`: a copy of a real FPC project, used only to accept 1.1 by routing it; never committed and never used as evidence.
 
 ## Procedure
 
