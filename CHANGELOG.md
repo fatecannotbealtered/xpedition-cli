@@ -12,6 +12,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Fixed
 
+- A plane created and deleted before a save no longer leaves the save's read-back expecting its fill: `plane delete` lists the hatch going with the shape, and a plane that is gone reads back without a fill.
 - `via create` keeps stitching vias 0.254 mm from the board's cutouts, the distance Layout's DRC asks; it placed two vias beside a slot.
 - `via create` and `trace create` take the size of a via the board already uses from the board's own vias, so they work on a project whose central library is on another machine's drive.
 

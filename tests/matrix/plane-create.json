@@ -134,7 +134,12 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked."
-      }
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-07-194906-plane-create.json#conflict"
     },
     {
       "row": "no_scope",

@@ -13,7 +13,11 @@
       "expected": {
         "exit": 0,
         "summary": "Layout's Batch DRC and the board rules on the routed board; hazards and findings with counts."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-194307-pcb-check.json#normal"
     },
     {
       "row": "empty",
@@ -160,7 +164,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes: Batch DRC checks the board as Layout holds it."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-194307-pcb-check.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

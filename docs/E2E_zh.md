@@ -40,6 +40,30 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-07-194908-plane-delete.json](evidence/2026-11-07-194908-plane-delete.json) | 2026-11-07T19:49:08Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194906-plane-create.json](evidence/2026-11-07-194906-plane-create.json) | 2026-11-07T19:49:06Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194903-pcb-update.json](evidence/2026-11-07-194903-pcb-update.json) | 2026-11-07T19:49:03Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194827-plane-delete.json](evidence/2026-11-07-194827-plane-delete.json) | 2026-11-07T19:48:27Z | Xpedition 2604 | windows | 1 次运行中 0 次通过 |
+| [2026-11-07-194825-plane-create.json](evidence/2026-11-07-194825-plane-create.json) | 2026-11-07T19:48:25Z | Xpedition 2604 | windows | 1 次运行中 0 次通过 |
+| [2026-11-07-194823-pcb-update.json](evidence/2026-11-07-194823-pcb-update.json) | 2026-11-07T19:48:23Z | Xpedition 2604 | windows | 1 次运行中 0 次通过 |
+| [2026-11-07-194606-pcb-export.json](evidence/2026-11-07-194606-pcb-export.json) | 2026-11-07T19:46:06Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194544-pcb-export.json](evidence/2026-11-07-194544-pcb-export.json) | 2026-11-07T19:45:44Z | Xpedition 2604 | windows | 1 次运行中 0 次通过 |
+| [2026-11-07-194528-pcb-export.json](evidence/2026-11-07-194528-pcb-export.json) | 2026-11-07T19:45:28Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194458-pcb-export.json](evidence/2026-11-07-194458-pcb-export.json) | 2026-11-07T19:44:58Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194419-pcb-export.json](evidence/2026-11-07-194419-pcb-export.json) | 2026-11-07T19:44:19Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194335-constraint-get.json](evidence/2026-11-07-194335-constraint-get.json) | 2026-11-07T19:43:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194335-constraint-import.json](evidence/2026-11-07-194335-constraint-import.json) | 2026-11-07T19:43:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194335-doc-save.json](evidence/2026-11-07-194335-doc-save.json) | 2026-11-07T19:43:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194325-pcb-export.json](evidence/2026-11-07-194325-pcb-export.json) | 2026-11-07T19:43:25Z | Xpedition 2604 | windows | 2 次运行中 2 次通过 |
+| [2026-11-07-194310-pcb-get.json](evidence/2026-11-07-194310-pcb-get.json) | 2026-11-07T19:43:10Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194307-pcb-check.json](evidence/2026-11-07-194307-pcb-check.json) | 2026-11-07T19:43:07Z | Xpedition 2604 | windows | 2 次运行中 2 次通过 |
+| [2026-11-07-194253-router-run.json](evidence/2026-11-07-194253-router-run.json) | 2026-11-07T19:42:53Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194244-router-run.json](evidence/2026-11-07-194244-router-run.json) | 2026-11-07T19:42:44Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194225-router-run.json](evidence/2026-11-07-194225-router-run.json) | 2026-11-07T19:42:25Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194149-router-run.json](evidence/2026-11-07-194149-router-run.json) | 2026-11-07T19:41:49Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194127-router-run.json](evidence/2026-11-07-194127-router-run.json) | 2026-11-07T19:41:27Z | Xpedition 2604 | windows | 1 次运行中 0 次通过 |
+| [2026-11-07-194101-router-run.json](evidence/2026-11-07-194101-router-run.json) | 2026-11-07T19:41:01Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-07-194056-router-run.json](evidence/2026-11-07-194056-router-run.json) | 2026-11-07T19:40:56Z | Xpedition 2604 | windows | 2 次运行中 2 次通过 |
 | [2026-11-07-193629-plane-delete.json](evidence/2026-11-07-193629-plane-delete.json) | 2026-11-07T19:36:29Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-07-193619-plane-delete.json](evidence/2026-11-07-193619-plane-delete.json) | 2026-11-07T19:36:19Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-07-193615-plane-delete.json](evidence/2026-11-07-193615-plane-delete.json) | 2026-11-07T19:36:15Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

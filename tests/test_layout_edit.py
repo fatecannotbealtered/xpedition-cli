@@ -102,6 +102,24 @@ class PlaneDeleteTest(unittest.TestCase):
         self.assertEqual(missing.exception.data["code"], "E_NOT_FOUND")
 
 
+class PlaneDeleteFillTest(unittest.TestCase):
+    def test_a_hatched_plane_takes_its_fill_with_it(self):
+        doc = board()
+        hatched = {"exists": True, "state": "dynamic", "hatch": "orthogonal", "hatch_width_mm": 0.1, "hatch_distance_mm": 0.5}
+        with world(FakeApp(doc)), mock.patch.object(E.L, "plane_values", lambda doc, net, layer: hatched):
+            out = E.PlaneDelete().preview(context("plane delete", {"net": "GND", "layer": 2}))
+        self.assertEqual([(c["field"], c["before"], c["after"]) for c in out["changes"]],
+                         [("exists", True, False), ("hatch", "orthogonal", None), ("hatch_width_mm", 0.1, None),
+                          ("hatch_distance_mm", 0.5, None)])
+
+    def test_a_plane_that_is_gone_reads_back_without_a_fill(self):
+        doc = board()
+        doc.shapes.clear()
+        with world(FakeApp(doc)):
+            values = E.L.plane_values(doc, "GND", 2)
+        self.assertEqual((values["exists"], values["hatch"], values["hatch_width_mm"]), (False, None, None))
+
+
 class ViaCreateTest(unittest.TestCase):
     """The plan and the placing; the board's geometry, the library row and the clearances are given."""
 

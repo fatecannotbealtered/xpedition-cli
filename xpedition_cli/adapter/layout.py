@@ -932,9 +932,9 @@ def plane_values(doc: Any, net: str, layer: int) -> dict[str, Any]:
         except Exception:  # noqa: BLE001 - no assignment for that net and layer
             state = None
     out: dict[str, Any] = {"exists": exists, "state": state}
-    if hatch is not None:
-        out["hatch"] = hatch
-        out.update(fill)
+    if hatch is not None or not exists:
+        # a deleted plane has no fill: its hatch reads back as None, readable, not unknown
+        out.update(hatch=hatch, hatch_width_mm=fill.get("hatch_width_mm"), hatch_distance_mm=fill.get("hatch_distance_mm"))
     return out
 
 

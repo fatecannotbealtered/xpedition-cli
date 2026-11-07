@@ -164,7 +164,11 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes: they are read from Layout's memory, as the board stands."
-      }
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-07-194310-pcb-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

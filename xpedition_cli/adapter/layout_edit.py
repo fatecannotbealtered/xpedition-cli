@@ -175,12 +175,16 @@ class PlaneDelete(L.ReadsBack):
     def preview(self, ctx: Context) -> dict[str, Any]:
         net, layer = _plane_inputs(ctx)
         path = ctx.document_path()
-        count = L.in_layout(ctx, lambda app, doc: len(_plane_shapes(doc, net, layer)), budget_s=L.READ_BUDGET_S,
-                            what="reading the planes")
+        count, now = L.in_layout(ctx, lambda app, doc: (len(_plane_shapes(doc, net, layer)), L.plane_values(doc, net, layer)),
+                                 budget_s=L.READ_BUDGET_S, what="reading the planes")
         domain = L.plane_key(net, layer)
+        key = base.key(path, domain)
+        # the fill goes with the shape, so a later read-back, such as a save's, expects none
+        changes = [base.change(key, "exists", True, False)]
+        changes += [base.change(key, name, now[name], None) for name in ("hatch", "hatch_width_mm", "hatch_distance_mm")
+                    if now.get(name) is not None]
         return base.preview(f"Delete the {count} plane shape(s) of {net} on layer {layer}, and with them its copper there. The board "
-                            "is not saved.", [base.target(path, "plane", domain, label=f"{net} on layer {layer}")],
-                            [base.change(base.key(path, domain), "exists", True, False)])
+                            "is not saved.", [base.target(path, "plane", domain, label=f"{net} on layer {layer}")], changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         net, layer = _plane_inputs(ctx)
