@@ -329,6 +329,28 @@ def _via_row(path: str, name: str) -> dict[str, Any] | None:
     return PS.row(library.padstacks, name)
 
 
+def via_pad_radius(doc: Any, path: str, name: str) -> tuple[float | None, str]:
+    """The pad radius in mm of the via padstack ``name``, measured on a via of the board that uses
+    it, else from the central library's row; with None, the reason. A project often names a
+    central library on another machine's drive, so a via the board has needs no library."""
+    from .layout_output import _via_radius
+
+    scale = L.geometry_scale(doc)
+    if scale is not None:
+        for via in L.collection(doc, "Vias"):
+            if L.name_of(via) == name:
+                return _via_radius(via, scale), ""
+    try:
+        row = _via_row(path, name)
+    except AdapterError as exc:
+        reason = str(exc.data.get("message") or exc).rstrip(".")
+        return None, f"no via of the board uses {name}, and {reason[:1].lower()}{reason[1:]}"
+    if row is None or row.get("type") != "via" or not row.get("pad_mm"):
+        return None, (f"no via of the board uses {name}, and the central library holds no via padstack {name}; padstack list "
+                      "--type via lists its vias, and padstack create adds one")
+    return float(row["pad_mm"]) / 2, ""
+
+
 def _class_via(doc: Any, net: str) -> str | None:
     """The via the net's class is assigned for the through span, as the autorouter places it."""
     span = [(1, int(doc.LayerCount))]
@@ -354,7 +376,7 @@ def _clearances(path: str) -> ST.Clearances:
 def _stitch_board(doc: Any, net: str) -> ST.Board:
     from .layout_output import board_model, geometry_record
 
-    model = board_model(doc, full=True)
+    model = board_model(doc, full=True, silk=False)
     scale = L.geometry_scale(doc)
     if model is None or scale is None or not model["outline"]:
         raise AdapterError("E_UNSUPPORTED", "The board's geometry can be read only on a board in mils with an outline; switch the "
@@ -398,11 +420,9 @@ def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
     if not padstack:
         raise AdapterError("E_VALIDATION", f"{net} has no via assigned for the through span; name one with --padstack.",
                            dispatch_state="not_started")
-    row = _via_row(path, padstack)
-    if row is None or row.get("type") != "via" or not row.get("pad_mm"):
-        raise AdapterError("E_NOT_FOUND", f"The central library holds no via padstack {padstack}; padstack list --type via lists its "
-                           "vias, and padstack create adds one.", dispatch_state="not_started")
-    radius = float(row["pad_mm"]) / 2
+    radius, why = via_pad_radius(doc, path, padstack)
+    if radius is None:
+        raise AdapterError("E_NOT_FOUND", f"The size of the via {padstack} is not known: {why}.", dispatch_state="not_started")
     board = _stitch_board(doc, net)
     clear = _clearances(path)
     blocked: list[str] = []
@@ -541,7 +561,7 @@ def _copper_nets(doc: Any, side: str, box: tuple[float, float, float, float]) ->
     from .layout_output import board_model, geometry_record
 
     layer = 1 if side == "top" else int(doc.LayerCount)
-    model = board_model(doc, full=True)
+    model = board_model(doc, full=True, silk=False)
     nets: set[str] = set()
     if model is not None:
         for pad in model["pads"]:
@@ -711,7 +731,7 @@ def _trace_rules(doc: Any, path: str) -> TP.Rules:
 def _copper(doc: Any) -> TP.Copper:
     from .layout_output import _via_radius, board_model
 
-    model = board_model(doc, full=True)
+    model = board_model(doc, full=True, silk=False)
     scale = L.geometry_scale(doc)
     if model is None or scale is None:
         raise AdapterError("E_UNSUPPORTED", "The board's geometry can be read only on a board in mils with an outline; switch the "
@@ -746,12 +766,10 @@ def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[
     blocked: list[str] = []
     for via in plan.vias:
         if via.padstack not in radii:
-            row = _via_row(path, via.padstack)
-            if row is None or row.get("type") != "via" or not row.get("pad_mm"):
-                blocked.append(f"the central library holds no via padstack {via.padstack}")
-                radii[via.padstack] = 0.0
-            else:
-                radii[via.padstack] = float(row["pad_mm"]) / 2
+            radius, why = via_pad_radius(doc, path, via.padstack)
+            if radius is None:
+                blocked.append(f"the size of the via {via.padstack} is not known: {why}")
+            radii[via.padstack] = radius or 0.0
         via.radius = radii[via.padstack]
     blocked += TP.check(plan, _copper(doc), _trace_rules(doc, path))
     traces = {(t.net, t.layer): L.trace_count(doc, t.net, t.layer) for t in plan.traces}

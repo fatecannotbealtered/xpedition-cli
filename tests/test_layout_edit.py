@@ -152,6 +152,21 @@ class ViaCreateTest(unittest.TestCase):
         self.assertFalse(blocked["can_apply"])
         self.assertIn("too close to a pad", blocked["blocked_by"][0])
 
+    def test_a_via_the_board_has_needs_no_central_library(self):
+        from xpedition_cli.adapter import layout_output as O
+
+        def unreadable(path, name):
+            raise AdapterError("E_NOT_FOUND", "The central library Y:\Library.lmc that the project names does not exist.")
+
+        self.doc.vias.append(Item(self.doc.vias, Net=SimpleNamespace(Name="GND"), Name="026VIA"))
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_via_row", unreadable), mock.patch.object(O, "_via_radius", lambda via, scale: 0.2):
+            facts = E.ViaCreate().run(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0}), None)
+            with self.assertRaises(AdapterError) as caught:
+                E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "VIA_NEW"}))
+        self.assertEqual(facts["result"]["placed"], 1)
+        self.assertEqual(caught.exception.data["code"], "E_NOT_FOUND")
+        self.assertIn("no via of the board uses VIA_NEW, and the central library Y:", str(caught.exception))
+
     def test_inputs_must_name_one_way_to_place(self):
         with world(FakeApp(self.doc)):
             for inputs, wanted in (({"net": "GND"}, "E_VALIDATION"), ({"net": "GND", "x_mm": 1.0}, "E_VALIDATION"),

@@ -155,9 +155,10 @@ def _silkscreen(doc: Any, model: dict[str, Any], scale: float) -> None:
             continue
 
 
-def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | None = None) -> dict[str, Any] | None:
+def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | None = None, silk: bool = True) -> dict[str, Any] | None:
     """The board as ``plan.board_metrics`` takes it, or None on a board that is not in mils.
-    ``full`` adds the pads, holes and silkscreen the board rules need."""
+    ``full`` adds the pads, holes and, unless ``silk`` is false, the silkscreen the board rules
+    need; a reader of the copper alone leaves the silkscreen out, a quarter of the time."""
     scale = L.geometry_scale(doc)
     if scale is None:
         return None
@@ -189,7 +190,8 @@ def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | Non
                 size = float(hole.GetDrillSize(L.UNIT_MM))
                 if size > 0:
                     model["holes"].append([x, y, round(size, 4)])
-        _silkscreen(doc, model, scale)
+        if silk:
+            _silkscreen(doc, model, scale)
     return model
 
 
@@ -735,7 +737,7 @@ def board_picture(doc: Any) -> PR.Picture:
     """The board as pcb render draws it: outline, pads, traces, vias, plane shapes, holes and openings."""
     from .layout_edit import FAB_COVER_LAYER, FAB_SOLDERMASK, SIDE_TOP
 
-    model = board_model(doc, full=True)
+    model = board_model(doc, full=True, silk=False)
     scale = L.geometry_scale(doc)
     if model is None or scale is None or not model["outline"]:
         raise AdapterError("E_UNSUPPORTED", UNIT_NOTE + " pcb render also needs a board outline.", dispatch_state="not_started")

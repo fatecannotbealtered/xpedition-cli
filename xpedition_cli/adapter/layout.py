@@ -136,7 +136,29 @@ def name_of(obj: Any) -> str:
         return ""
 
 
+_DISPIDS: dict[tuple[str, str], int] = {}
+_PROPERTYGET = 2  # DISPATCH_PROPERTYGET
+
+
+def _raw_get(raw: Any, kind: str, name: str) -> Any:
+    key = (kind, name)
+    dispid = _DISPIDS.get(key)
+    if dispid is None:
+        dispid = _DISPIDS[key] = raw.GetIDsOfNames(name)
+    return raw.Invoke(dispid, 0, _PROPERTYGET, 1)
+
+
 def net_name(obj: Any) -> str:
+    """The name of an object's net, "" without one. Read through the raw interface: wrapping the
+    Net object pywin32 hands back costs a type lookup in Layout, several times the read itself,
+    and a board read asks it of every pin, trace and via."""
+    raw = getattr(obj, "_oleobj_", None)
+    if raw is not None:
+        try:
+            net = _raw_get(raw, type(obj).__name__, "Net")
+            return "" if net is None else str(_raw_get(net, "Net", "Name") or "")
+        except Exception:  # noqa: BLE001 - read it the ordinary way
+            pass
     try:
         return name_of(obj.Net)
     except Exception:  # noqa: BLE001 - no net
