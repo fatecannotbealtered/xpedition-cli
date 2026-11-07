@@ -1,16 +1,13 @@
 ---
 name: xpedition-cli
 description: >-
-  Operates Xpedition through the xpedition-cli command line: checks the install,
-  reads and changes Xpedition with preview and confirmation, and reports what
-  changed, what was saved and what was verified.
-  Use it to build or change a board in Xpedition Designer and Layout: create a project,
-  add central-library parts, draw and check the schematic, export a PDF, package, create
-  the board, forward-annotate, set the outline, place, pour, route, run DRC and write the
-  fabrication package. 建工程、建库、画原理图、校验、出 PDF、打包、建板、正向标注、布局、
-  铺铜、布线、DRC、出生产文件。Not for editing single symbols, wires, traces or vias, BOMs,
-  or Xpedition versions other than 2604; 不负责逐个改元件、导线、走线、过孔和 BOM。
-  用 xpedition-cli 命令行操作 Xpedition：检查安装、读取、预览确认后修改，并汇报改了什么、存了没有、验证了没有。
+  Operates Xpedition through the xpedition-cli command line: checks the install, reads and changes Xpedition with
+  preview and confirmation, and reports what changed, what was saved and what was verified. Use it to build or
+  change a board in Xpedition Designer and Layout: create a project, add parts and vias to the central library,
+  draw and check the schematic, package, create the board, forward-annotate, set the outline, place, set routing
+  rules, route, change or delete traces, vias and planes, run DRC and write the fabrication package.
+  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设布线规则、布线、改删走线过孔铜皮、DRC、出生产文件。
+  Not for editing single symbols, wires or BOMs, or Xpedition versions other than 2604; 不负责逐个改元件、导线和 BOM。
 metadata:
   version: 1.0.4
 ---
@@ -48,8 +45,10 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `pcb`: create, update, get, check, export
 - `forward-annotation`: run
 - `placement`: run
-- `plane`: create
+- `plane`: create, delete
 - `router`: run
+- `trace`: delete
+- `via`: delete, update
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 

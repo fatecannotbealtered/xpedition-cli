@@ -168,8 +168,9 @@
 | CAP-072 | 铺铜（平面形状） | `PutPlaneShape`、`PlaneAssignment` | provided | - |
 | CAP-073 | 自动布线：指定网络、层和布线遍 | `NewRoutePass` | provided | - |
 | CAP-074 | 按计划画走线 | `PutTrace` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-075 | 放过孔，包括给地网络打缝合过孔 | `PutVia`、`PutPadstack` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-076 | 删除走线和过孔（整网，或某一点上的） | `Delete()` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-075 | 放过孔，包括给地网络打缝合过孔 | `PutVia`、`PutPadstack` | deferred | 随 1.1 后面的 via create 提供 |
+| CAP-089 | 把选定网络的过孔换成另一个焊盘栈，需要时从中心库拉进来 | `Via.CurrentPadstack`、`PutPadstack` | provided | - |
+| CAP-076 | 删除选定网络的走线（可限定层）和过孔 | `Delete()` | provided | - |
 | CAP-077 | Batch DRC，读出 hazards | `Gui.ProcessCommand(32769)` + 对话框 + `GetHazards` | provided | - |
 | CAP-078 | 布局布线指标与板级规则（飞线长、交叉、去耦电容到电源脚距离） | 纯 Python | provided | - |
 | CAP-079 | 按几何画板图 PNG（顶面、底面） | 纯 Python | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
@@ -181,7 +182,7 @@
 | CAP-085 | IPC-D-356 网表导出 | `FILE_EXPORT_IPCD356B` 32938 | unknown | 从未试过 |
 | CAP-086 | 用 Silkscreen Generator 生成丝印 | `OUTPUT_SILKSCREEN` 33019 | excluded | 每个封装组的层勾选框不暴露给 UI Automation，只能盲点 |
 | CAP-087 | 板数据库与文本互转（不开 Layout 读板） | `LayoutDB2HKP`/`HKP2LayoutDB` | unknown | 本机有，从未试过 |
-| CAP-088 | 删除铜皮 | `Delete()` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-088 | 删除一个网络在一层上的铜皮 | `Delete()` | provided | - |
 | CAP-100 | 列出运行中的 Designer、Layout 实例及其打开的工程、板 | 进程枚举 + COM | provided | 由标准命令 `session`、`doc` 提供，没有领域命令（规范只为领域命令定义了 provided，见 SPEC 问题记录） |
 | CAP-101 | 经启动器启动 Designer 或 Layout | 启动器 | provided | 由标准命令 `session`、`doc` 提供，没有领域命令（规范只为领域命令定义了 provided，见 SPEC 问题记录） |
 | CAP-102 | 关闭实例 | `Quit` | provided | 由标准命令 `session`、`doc` 提供，没有领域命令（规范只为领域命令定义了 provided，见 SPEC 问题记录） |

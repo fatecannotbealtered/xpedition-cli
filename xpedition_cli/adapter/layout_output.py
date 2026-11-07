@@ -224,15 +224,18 @@ def board_stackup(doc: Any) -> list[dict[str, Any]]:
 
 
 def net_classes(doc: Any, layer_count: int) -> list[dict[str, Any]]:
-    """Each net class with its number of nets and its trace widths per layer (Master scheme), mm."""
+    """Each net class with its number of nets, its trace widths per layer (Master scheme), mm, and the
+    via it is assigned for each via span, the one the autorouter places."""
     classes: list[dict[str, Any]] = []
+    spans = _quietly(lambda: L.via_spans(doc), [])
     for net_class in L.items(com.propget(doc, NET_CLASSES_DISPID, "*")):
         widths: dict[str, dict[str, float]] = {}
         for layer in range(1, layer_count + 1):
             row = {f"{kind}_mm": _quietly(lambda d=dispid, n=layer: round(float(com.propget(net_class, d, n, MASTER_SCHEME, L.UNIT_MM)), 4))
                    for kind, dispid in NET_CLASS_WIDTHS.items()}
             widths[str(layer)] = {kind: value for kind, value in row.items() if value is not None}
-        classes.append({"name": L.name_of(net_class), "nets": L.count(net_class, "Nets"), "widths": widths})
+        classes.append({"name": L.name_of(net_class), "nets": L.count(net_class, "Nets"), "widths": widths,
+                        "vias": L.class_vias(net_class, spans)})
     return classes
 
 

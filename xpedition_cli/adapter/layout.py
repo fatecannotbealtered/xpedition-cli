@@ -13,8 +13,8 @@ that made it, so the thread attaches itself, and nothing COM leaves it. A call t
 time reports the dialog that holds Layout, if one does, as ``E_HUMAN_REQUIRED``.
 
 The board commands live in ``layout_board`` (forward annotation, outline, placement, planes,
-routing), ``layout_output`` (reading, checking and the fabrication package) and ``layout_rules``
-(the constraints); ``HANDLERS`` collects them. Their target keys are read back by ``read_keys``, which ``read_targets`` also
+routing), ``layout_output`` (reading, checking and the fabrication package), ``layout_rules``
+(the constraints) and ``layout_edit`` (deleting traces, vias and planes); ``HANDLERS`` collects them. Their target keys are read back by ``read_keys``, which ``read_targets`` also
 uses after ``doc save`` has reopened the board.
 """
 from __future__ import annotations
@@ -98,9 +98,9 @@ def __getattr__(name: str) -> Any:
         except AdapterError:
             return ""
     if name == "HANDLERS":
-        from . import layout_board, layout_output, layout_rules
+        from . import layout_board, layout_edit, layout_output, layout_rules
 
-        return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS]
+        return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS, *layout_edit.HANDLERS]
     raise AttributeError(name)
 
 
@@ -903,6 +903,42 @@ def plane_values(doc: Any, net: str, layer: int) -> dict[str, Any]:
     return {"exists": exists, "state": state}
 
 
+def trace_count(doc: Any, net: str, layer: int | None = None) -> int:
+    """The traces of ``net``, on ``layer`` only when one is given."""
+    return sum(1 for trace in collection(doc, "Traces")
+               if net_name(trace) == net and (layer is None or int(trace.Layer) == int(layer)))
+
+
+def via_count(doc: Any, net: str) -> int:
+    return sum(1 for via in collection(doc, "Vias") if net_name(via) == net)
+
+
+def via_padstack_name(doc: Any, net: str) -> str | None:
+    """The padstack the vias of ``net`` use: one name, ``mixed: a, b`` for several, None without vias."""
+    names = sorted({name_of(via) for via in collection(doc, "Vias") if net_name(via) == net})
+    if not names:
+        return None
+    return names[0] if len(names) == 1 else "mixed: " + ", ".join(names)
+
+
+def via_spans(doc: Any) -> list[tuple[int, int]]:
+    """The via spans of the board's setup, as (first layer, last layer)."""
+    return [(int(item.StartLayer), int(item.EndLayer)) for item in items(doc.SetupParameter.ViaLayerRanges)]
+
+
+def class_vias(net_class: Any, spans: list[tuple[int, int]]) -> dict[str, str | None]:
+    """The via padstack a net class is assigned for each via span (``NetClass.ViaPadstackToUse``):
+    the one the autorouter places there."""
+    out: dict[str, str | None] = {}
+    for first, last in spans:
+        try:
+            stack = net_class.ViaPadstackToUse(first, last, "(Master)")
+            out[f"{first}-{last}"] = name_of(stack) if stack is not None else None
+        except Exception:  # noqa: BLE001 - no assignment for that span
+            out[f"{first}-{last}"] = None
+    return out
+
+
 def fragment(target: str, path: str) -> list[str] | None:
     """The domain path of a target key of ``path``, split into its (unquoted) segments."""
     if "#" not in target:
@@ -931,13 +967,16 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "routing": lambda parts: routing_values(doc),
         "components": lambda parts: component_values(find_component(doc, parts[1])),
         "planes": lambda parts: plane_values(doc, parts[1], int(parts[2])),
+        "traces": lambda parts: {"count": trace_count(doc, parts[1], int(parts[2]) if len(parts) > 2 else None)},
+        "vias": lambda parts: {"count": via_count(doc, parts[1]), "padstack": via_padstack_name(doc, parts[1])},
         "nets": lambda parts: {"routed": statuses().get(parts[1], {}).get("routed")},
     }
-    sizes = {"components": 2, "planes": 3, "nets": 2}
+    sizes = {"components": 2, "planes": 3, "nets": 2, "traces": (2, 3), "vias": 2}
     for target in targets:
         parts = fragment(target, path)
         reader = readers.get(parts[0]) if parts else None
-        if reader is None or parts is None or len(parts) != sizes.get(parts[0], 1):
+        size = sizes.get(parts[0], 1) if parts else 1
+        if reader is None or parts is None or len(parts) not in (size if isinstance(size, tuple) else (size,)):
             unreadable.update(fields)
             continue
         try:

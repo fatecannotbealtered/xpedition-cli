@@ -24,7 +24,7 @@ English | [中文](README_zh.md)
 | Modes | file, session |
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
-| Maturity | draft: 4 draft, 0 verified, 18 stable |
+| Maturity | draft: 8 draft, 0 verified, 18 stable |
 | Specification | tool-driver-cli-spec 1.0.6 |
 | Host component | no |
 <!-- driver:info-card:end -->
@@ -82,8 +82,10 @@ Every command of xpedition-cli, generated from its command registration; `(dange
 - `pcb`: create, update, get, check, export
 - `forward-annotation`: run
 - `placement`: run
-- `plane`: create
+- `plane`: create, delete
 - `router`: run
+- `trace`: delete
+- `via`: delete, update
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 

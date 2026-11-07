@@ -567,7 +567,10 @@ class RouterTest(unittest.TestCase):
 
     def test_apply_runs_the_passes_and_regenerates_the_planes(self):
         doc = self._doc()
-        doc.assignments = [FakeAssignment("GND", 2, L.PLANE_DYNAMIC), FakeAssignment("VCC", 3, L.PLANE_DRAFT)]
+        # GND on layer 1 lost its shape to plane delete: nothing to regenerate, and it is left alone
+        doc.assignments = [FakeAssignment("GND", 2, L.PLANE_DYNAMIC), FakeAssignment("VCC", 3, L.PLANE_DRAFT),
+                           FakeAssignment("GND", 1, L.PLANE_DRAFT)]
+        doc.shapes = [SimpleNamespace(Layer=layer, Net=SimpleNamespace(Name=net)) for net, layer in (("GND", 2), ("VCC", 3))]
 
         def route_everything(route_pass: FakeRoutePass):
             for net in doc.nets:
@@ -580,6 +583,7 @@ class RouterTest(unittest.TestCase):
         self.assertEqual([p.calls[0][1] for p in doc.passes], [8, 14, 10])  # route, viamin, smooth
         self.assertEqual(doc.assignments[0].states, [L.PLANE_DYNAMIC, L.PLANE_DRAFT, L.PLANE_DYNAMIC])
         self.assertEqual(doc.assignments[1].states, [L.PLANE_DRAFT, L.PLANE_DYNAMIC])
+        self.assertEqual(doc.assignments[2].states, [L.PLANE_DRAFT])
         self.assertEqual((facts["change"], facts["result"]["routed"], facts["result"]["open"]), ("applied", 4, []))
         self.assertEqual(back["observed"], {key("/nets/A"): {"routed": True}, key("/planes/VCC/3"): {"state": "dynamic"}})
 

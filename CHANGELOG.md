@@ -10,14 +10,18 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `constraint import` creates or changes the net classes, widths, differential spacing, differential pairs and clearance rules a rules file names, writes them into the project database and loads them into Layout; what the file does not name stays. It changes the board's side of the constraints only, is refused while that side holds changes Layout has not loaded, and its receipt says persistence saved, so the board does not count it among its unsaved changes. A width outside its class's minimum or maximum moves the limit the file leaves out to that width.
 - `padstack list` lists the padstacks of the central library with their type and their pad, hole and soldermask sizes; `--type via` lists the vias.
 - `padstack create` adds a via padstack to the central library: a plated hole, a round pad on every conductor layer, and a soldermask opening with `--mask` or none (tented). A via the library holds as it is is skipped; a name it holds with other content is refused.
+- `trace delete` deletes the traces of the nets named, on every layer or on the layers named; `via delete` deletes their vias; `plane delete` deletes the plane shapes of one net on one layer. They take back a routing attempt before a save.
+- `via update` changes the vias of the nets or net classes named to another via padstack, pulled from the central library when the board lacks it. The autorouter places the via each net class is assigned in Constraint Manager, which no command can change, so a router run followed by via update gives the via size the design asks for.
 
 ### Changed
 
 - Built on tool-driver-cli-spec 1.0.6.
 - `router run` routes only the nets `--nets` names and the nets of the classes `--net-classes` names, with the passes `--passes` lists in order, such as `fanout:1,route:1-5`; its result then adds `selected`, the routing of those nets. Its result reports connections only: run pcb check to judge the routing.
+- `pcb get` shows, for each net class, the via it is assigned for each via span: the via the autorouter places.
 
 ### Fixed
 
+- router run no longer fails while regenerating the planes when a plane shape was deleted: an assignment without a shape is left alone.
 - `session list`, `session get`, `doc list` and `doc get` answer in time when Designer or Layout hangs: an instance's probe and its look for a dialog take at most about 2 s together, inside the 2.5 s the runtime gives the adapter's part of the session list.
 
 ## [1.0.4] - 2026-11-06

@@ -855,12 +855,7 @@ def _check_layers(layers: list[int], layer_count: int) -> None:
 def _draft_planes(doc: Any) -> list[tuple[str, int]]:
     """The plane assignments in Draft that have a plane shape: a Draft assignment whose shape was
     deleted has nothing to regenerate, and Layout drops it when the planes are processed."""
-    shapes: set[tuple[str, int]] = set()
-    for shape in L.collection(doc, "PlaneShapes"):
-        try:
-            shapes.add((L.net_name(shape), int(shape.Layer)))
-        except Exception:  # noqa: BLE001 - a shape that cannot be read is left alone
-            continue
+    shapes = _shaped(doc)
     rows: list[tuple[str, int]] = []
     for assignment in L.collection(doc, "PlaneAssignments"):
         try:
@@ -948,11 +943,28 @@ def _route_pass(doc: Any, item: dict[str, Any], layers: list[int], layer_count: 
     return route_pass
 
 
+def _shaped(doc: Any) -> set[tuple[str, int]]:
+    shapes: set[tuple[str, int]] = set()
+    for shape in L.collection(doc, "PlaneShapes"):
+        try:
+            shapes.add((L.net_name(shape), int(shape.Layer)))
+        except Exception:  # noqa: BLE001 - a shape that cannot be read is left alone
+            continue
+    return shapes
+
+
 def _regenerate_planes(doc: Any) -> int:
     """Vias the router adds tie into a plane only once it is regenerated: each Dynamic plane goes
-    to Draft and back, each Draft plane to Dynamic (the preview lists those)."""
+    to Draft and back, each Draft plane to Dynamic (the preview lists those). An assignment whose
+    shape was deleted (plane delete) has nothing to regenerate and is left alone."""
     regenerated = 0
+    shapes = _shaped(doc)
     for assignment in L.collection(doc, "PlaneAssignments"):
+        try:
+            if (L.net_name(assignment), int(assignment.LayerObject.ConductorLayer)) not in shapes:
+                continue
+        except Exception:  # noqa: BLE001 - an assignment that cannot be read is left alone
+            continue
         state = int(assignment.PlaneDataState)
         if state == L.PLANE_DYNAMIC:
             assignment.PlaneDataState = L.PLANE_DRAFT

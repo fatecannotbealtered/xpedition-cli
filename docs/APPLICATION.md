@@ -172,8 +172,9 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-072 | Copper pour (plane shapes) | `PutPlaneShape`, `PlaneAssignment` | provided | - |
 | CAP-073 | Autoroute: chosen nets, layers and route passes | `NewRoutePass` | provided | - |
 | CAP-074 | Draw traces from a plan | `PutTrace` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-075 | Place vias, including stitching vias for ground nets | `PutVia`, `PutPadstack` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-076 | Delete traces and vias (a whole net, or those at one point) | `Delete()` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-075 | Place vias, including stitching vias for ground nets | `PutVia`, `PutPadstack` | deferred | Comes with via create later in 1.1 |
+| CAP-089 | Change the padstack of the vias of chosen nets, pulling it from the central library | `Via.CurrentPadstack`, `PutPadstack` | provided | - |
+| CAP-076 | Delete the traces (on chosen layers) and the vias of chosen nets | `Delete()` | provided | - |
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |
 | CAP-078 | Placement and routing metrics, and board-level rules (ratsnest length, crossings, distance from decoupling capacitors to power pins) | Pure Python | provided | - |
 | CAP-079 | Draw a board image PNG from the geometry (top side, bottom side) | Pure Python | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
@@ -185,7 +186,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-085 | IPC-D-356 netlist export | `FILE_EXPORT_IPCD356B` 32938 | unknown | Never tried |
 | CAP-086 | Generate silkscreen with Silkscreen Generator | `OUTPUT_SILKSCREEN` 33019 | excluded | The layer check boxes of each package group are not exposed to UI Automation, so they could only be clicked blind |
 | CAP-087 | Convert the board database to and from text (read the board without opening Layout) | `LayoutDB2HKP`/`HKP2LayoutDB` | unknown | Present on this machine; never tried |
-| CAP-088 | Delete plane shapes | `Delete()` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-088 | Delete the plane shapes of one net on one layer | `Delete()` | provided | - |
 | CAP-100 | List running Designer and Layout instances, and the projects and boards they have open | Process enumeration + COM | provided | Provided by the standard commands `session` and `doc`, not by a domain command (the spec defines provided only for domain commands; see the SPEC issue log) |
 | CAP-101 | Start Designer or Layout through the launcher | Launcher | provided | Provided by the standard commands `session` and `doc`, not by a domain command (the spec defines provided only for domain commands; see the SPEC issue log) |
 | CAP-102 | Close an instance | `Quit` | provided | Provided by the standard commands `session` and `doc`, not by a domain command (the spec defines provided only for domain commands; see the SPEC issue log) |

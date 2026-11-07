@@ -1,0 +1,311 @@
+"""Board edits on the open board: deleting traces, vias and plane shapes.
+
+Each write names its objects by net (and layer), previews how many it removes, removes them with
+the objects' own ``Delete`` and reads the counts back (``read_keys``: ``/traces/<net>[/<layer>]``,
+``/vias/<net>``, ``/planes/<net>/<layer>``). Xpedition's Undo is not reliable for changes made
+through automation, so these deletes are how an Agent takes back a routing attempt before a save.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from .._driver import AdapterError
+from . import base
+from . import layout as L
+from .base import Context
+from .plan import routing as plan_routing
+
+
+def _nets(ctx: Context) -> list[str]:
+    nets = plan_routing.parse_names(base.need_input(ctx, "nets"))
+    if not nets:
+        raise AdapterError("E_VALIDATION", f"{ctx.command} needs --nets: one or more net names, such as SS_TX1_P,SS_TX1_N.",
+                           dispatch_state="not_started")
+    return nets
+
+
+def _layer_list(ctx: Context, layer_count: int) -> list[int]:
+    try:
+        layers = plan_routing.parse_route_layers(ctx.inputs.get("layers"))
+    except Exception:  # noqa: BLE001 - the planner says what is wrong
+        raise AdapterError("E_VALIDATION", "--layers is a list of conductor layer numbers, such as 1,4.", dispatch_state="not_started") from None
+    wrong = [n for n in layers if not 1 <= n <= layer_count]
+    if wrong:
+        raise AdapterError("E_VALIDATION", f"The board has conductor layers 1 to {layer_count}; there is no layer {wrong[0]}.",
+                           dispatch_state="not_started")
+    return layers
+
+
+def _known(doc: Any, nets: list[str]) -> None:
+    missing = [name for name in nets if L.find_net(doc, name) is None]
+    if missing:
+        raise AdapterError("E_NOT_FOUND", f"The board has no net {missing[0]}.", dispatch_state="not_started")
+
+
+def trace_key(net: str, layer: int | None = None) -> str:
+    return f"/traces/{L.segment(net)}" + (f"/{int(layer)}" if layer is not None else "")
+
+
+def via_key(net: str) -> str:
+    return f"/vias/{L.segment(net)}"
+
+
+class TraceDelete(L.ReadsBack):
+    """Delete the traces of the nets named, on the layers named or on every layer. Vias stay:
+    via delete removes them."""
+
+    command = "trace delete"
+
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], list[int], dict[tuple[str, int | None], int]]:
+        nets = _nets(ctx)
+        _known(doc, nets)
+        layers = _layer_list(ctx, int(doc.LayerCount))
+        counts: dict[tuple[str, int | None], int] = {}
+        for net in nets:
+            for layer in layers or [None]:
+                counts[(net, layer)] = L.trace_count(doc, net, layer)
+        return nets, layers, counts
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        nets, layers, counts = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                           what="reading the traces")
+        live = {k: v for k, v in counts.items() if v}
+        on = f" on layers {', '.join(map(str, layers))}" if layers else ""
+        if not live:
+            return base.preview(f"The nets {', '.join(nets)} have no traces{on}; nothing to delete.", [], [])
+        targets = [base.target(path, "trace", trace_key(net, layer), label=f"{net}" + (f" on layer {layer}" if layer else ""))
+                   for net, layer in live]
+        changes = [base.change(base.key(path, trace_key(net, layer)), "count", count, 0) for (net, layer), count in live.items()]
+        return base.preview(f"Delete {sum(live.values())} traces of {len(nets)} nets{on}; their vias stay (via delete removes them). "
+                            "The board is not saved.", targets, changes)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            nets, layers, _counts = self._look(ctx, doc)
+            wanted = set(nets)
+            deleted = 0
+            for trace in L.collection(doc, "Traces"):
+                if L.net_name(trace) in wanted and (not layers or int(trace.Layer) in layers):
+                    try:
+                        trace.Delete()
+                        deleted += 1
+                    except Exception as exc:  # noqa: BLE001 - classified
+                        if not deleted:
+                            raise L.com_error(exc, "deleting a trace", "not_started") from None
+                        return base.facts("partial", "unchanged", result={"deleted": deleted},
+                                          native_message=f"deleting a trace failed after {deleted}: {exc}")
+            return base.facts("applied" if deleted else "not_applied", "unchanged", result={"deleted": deleted})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the traces")
+
+
+class ViaDelete(L.ReadsBack):
+    """Delete the vias of the nets named: routing vias and stitching vias alike."""
+
+    command = "via delete"
+
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int]]:
+        nets = _nets(ctx)
+        _known(doc, nets)
+        return nets, {net: L.via_count(doc, net) for net in nets}
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        nets, counts = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S, what="reading the vias")
+        live = {k: v for k, v in counts.items() if v}
+        if not live:
+            return base.preview(f"The nets {', '.join(nets)} have no vias; nothing to delete.", [], [])
+        targets = [base.target(path, "via", via_key(net), label=net) for net in live]
+        changes = [base.change(base.key(path, via_key(net)), "count", count, 0) for net, count in live.items()]
+        return base.preview(f"Delete {sum(live.values())} vias of {len(live)} nets. The board is not saved.", targets, changes)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            nets, _counts = self._look(ctx, doc)
+            wanted = set(nets)
+            deleted = 0
+            for via in L.collection(doc, "Vias"):
+                if L.net_name(via) in wanted:
+                    try:
+                        via.Delete()
+                        deleted += 1
+                    except Exception as exc:  # noqa: BLE001 - classified
+                        if not deleted:
+                            raise L.com_error(exc, "deleting a via", "not_started") from None
+                        return base.facts("partial", "unchanged", result={"deleted": deleted},
+                                          native_message=f"deleting a via failed after {deleted}: {exc}")
+            return base.facts("applied" if deleted else "not_applied", "unchanged", result={"deleted": deleted})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the vias")
+
+
+def _plane_inputs(ctx: Context) -> tuple[str, int]:
+    net = str(base.need_input(ctx, "net")).strip()
+    layer = base.need_input(ctx, "layer")
+    if not net:
+        raise AdapterError("E_VALIDATION", "plane delete needs a net name.", dispatch_state="not_started")
+    if type(layer) is not int or layer < 1:
+        raise AdapterError("E_VALIDATION", "--layer is a conductor layer number, 1 at the top.", dispatch_state="not_started")
+    return net, layer
+
+
+def _plane_shapes(doc: Any, net: str, layer: int) -> list[Any]:
+    if L.find_net(doc, net) is None:
+        raise AdapterError("E_NOT_FOUND", f"The board has no net {net}.", dispatch_state="not_started")
+    shapes = [shape for shape in L.collection(doc, "PlaneShapes") if L.net_name(shape) == net and int(shape.Layer) == layer]
+    if not shapes:
+        raise AdapterError("E_NOT_FOUND", f"{net} has no plane shape on layer {layer}.", dispatch_state="not_started")
+    return shapes
+
+
+class PlaneDelete(L.ReadsBack):
+    """Delete the plane shapes of one net on one layer; Layout drops their generated copper."""
+
+    command = "plane delete"
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        net, layer = _plane_inputs(ctx)
+        path = ctx.document_path()
+        count = L.in_layout(ctx, lambda app, doc: len(_plane_shapes(doc, net, layer)), budget_s=L.READ_BUDGET_S,
+                            what="reading the planes")
+        domain = L.plane_key(net, layer)
+        return base.preview(f"Delete the {count} plane shape(s) of {net} on layer {layer}, and with them its copper there. The board "
+                            "is not saved.", [base.target(path, "plane", domain, label=f"{net} on layer {layer}")],
+                            [base.change(base.key(path, domain), "exists", True, False)])
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        net, layer = _plane_inputs(ctx)
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            done = 0
+            for shape in _plane_shapes(doc, net, layer):
+                try:
+                    shape.Delete()
+                    done += 1
+                except Exception as exc:  # noqa: BLE001 - classified
+                    if not done:
+                        raise L.com_error(exc, "deleting the plane shape", "not_started") from None
+                    return base.facts("partial", "unchanged", result={"net": net, "layer": layer, "deleted": done},
+                                      native_message=f"deleting a plane shape failed after {done}: {exc}")
+            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "deleted": done})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the plane")
+
+
+def _library_via(path: str, name: str) -> bool | None:
+    """Whether the central library of the board's project holds a via padstack ``name``; None when
+    it holds a padstack of that name of another type."""
+    from .layout_rules import board_project
+    from .library import default_cache, read_library, refuse_failed
+    from .plan import padstacks as PS
+
+    prj, _design = board_project(path)
+    library = read_library(Path(prj), default_cache(), kinds=("padstacks",), symbols=False)
+    refuse_failed(library, "its padstacks cannot be read")
+    if name not in library.padstacks.get("padstacks", {}):
+        return False
+    return True if PS.row(library.padstacks, name)["type"] == "via" else None
+
+
+def board_padstack(doc: Any, name: str) -> Any | None:
+    """A padstack the board uses already (``Document.Padstacks`` lists only those)."""
+    return next((item for item in L.collection(doc, "Padstacks") if L.name_of(item) == name), None)
+
+
+def check_via_padstack(doc: Any, path: str, name: str) -> bool:
+    """Whether the board has the via padstack ``name`` already; otherwise the central library must
+    hold it as a via, or the call is refused before anything changes."""
+    if board_padstack(doc, name) is not None:
+        return True
+    held = _library_via(path, name)
+    if held is None:
+        raise AdapterError("E_VALIDATION", f"{name} in the central library is not a via padstack.", dispatch_state="not_started")
+    if not held:
+        raise AdapterError("E_NOT_FOUND", f"Neither the board nor the central library holds a padstack {name}; padstack list --type "
+                           "via lists the library's vias, and padstack create adds one.", dispatch_state="not_started")
+    return False
+
+
+def via_padstack(doc: Any, name: str) -> Any:
+    """The padstack object ``name``, pulled from the central library onto the board when it lacks
+    it (``Document.PutPadstack``, through every layer)."""
+    found = board_padstack(doc, name)
+    if found is not None:
+        return found
+    return doc.PutPadstack(1, int(doc.LayerCount), name, False, True)
+
+
+def _via_update_inputs(ctx: Context) -> tuple[list[str], list[str], str]:
+    nets = plan_routing.parse_names(ctx.inputs.get("nets"))
+    classes = plan_routing.parse_names(ctx.inputs.get("net_classes"))
+    if not nets and not classes:
+        raise AdapterError("E_VALIDATION", "via update needs --nets or --net-classes.", dispatch_state="not_started")
+    padstack = str(base.need_input(ctx, "padstack")).strip()
+    if not padstack:
+        raise AdapterError("E_VALIDATION", "via update needs --padstack.", dispatch_state="not_started")
+    return nets, classes, padstack
+
+
+def _via_nets(doc: Any, nets: list[str], classes: list[str]) -> list[str]:
+    from .layout_board import _selected
+
+    return _selected(doc, nets, classes) or []
+
+
+class ViaUpdate(L.ReadsBack):
+    """Change the padstack of every via of the nets named (``Via.CurrentPadstack``). The
+    autorouter places the via each net class is assigned in Constraint Manager, which its
+    automation cannot change; so a router run is followed by via update to the size the design
+    asks for (knowledge layout-router-via-from-net-class)."""
+
+    command = "via update"
+
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], str, dict[str, str], bool]:
+        nets, classes, padstack = _via_update_inputs(ctx)
+        chosen = _via_nets(doc, nets, classes)
+        on_board = check_via_padstack(doc, ctx.document_path(), padstack)
+        now = {net: L.via_padstack_name(doc, net) for net in chosen if L.via_count(doc, net)}
+        return chosen, padstack, now, on_board
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        chosen, padstack, now, on_board = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                                      what="reading the vias")
+        moving = {net: name for net, name in now.items() if name != padstack}
+        if not moving:
+            which = "have no vias" if not now else f"use {padstack} already"
+            return base.preview(f"The vias of the {len(chosen)} nets {which}; nothing changes.", [], [])
+        targets = [base.target(path, "via", via_key(net), label=net) for net in moving]
+        changes = [base.change(base.key(path, via_key(net)), "padstack", name, padstack) for net, name in moving.items()]
+        pulled = "" if on_board else ", pulled from the central library first"
+        return base.preview(f"Change the vias of {len(moving)} nets to {padstack}{pulled}. A larger via can break a clearance: run pcb "
+                            "check after. The board is not saved.", targets, changes)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            chosen, padstack, _now, on_board = self._look(ctx, doc)
+            wanted = set(chosen)
+            changed = 0
+            doc.TransactionStart(0)
+            try:
+                stack = via_padstack(doc, padstack)
+                for via in L.collection(doc, "Vias"):
+                    if L.net_name(via) in wanted and L.name_of(via) != padstack:
+                        via.CurrentPadstack = stack
+                        changed += 1
+            except Exception as exc:  # noqa: BLE001 - classified
+                if not changed:
+                    raise L.com_error(exc, "changing the vias", "not_started") from None
+                return base.facts("partial", "unchanged", result={"padstack": padstack, "changed": changed},
+                                  native_message=f"changing a via failed after {changed}: {exc}")
+            finally:
+                doc.TransactionEnd(True)
+            return base.facts("applied" if changed else "not_applied", "unchanged",
+                              result={"padstack": padstack, "changed": changed, "pulled": not on_board})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="changing the vias")
+
+
+HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate()]

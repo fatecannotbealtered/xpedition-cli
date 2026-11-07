@@ -855,7 +855,7 @@
     },
     {
       "path": "pcb get",
-      "summary": "Read the open board: counts, layer stack, net classes and widths, geometry and layout metrics.",
+      "summary": "Read the open board: counts, layer stack, net classes with their widths and vias, geometry and layout metrics.",
       "effects": [
         "observe"
       ],
@@ -987,6 +987,201 @@
         "board"
       ],
       "long": true
+    },
+    {
+      "path": "trace delete",
+      "summary": "Delete the traces of the nets named, on every layer or on the layers named; their vias stay.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "trace",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--nets",
+          "type": "string",
+          "summary": "The nets whose traces go, such as SS_TX1_P,SS_TX1_N.",
+          "required": true
+        },
+        {
+          "name": "--layers",
+          "type": "string",
+          "summary": "Only on these conductor layers, such as 1,4; every layer by default."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "via delete",
+      "summary": "Delete the vias of the nets named: routing vias and stitching vias alike.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "via",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--nets",
+          "type": "string",
+          "summary": "The nets whose vias go, such as GND.",
+          "required": true
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "plane delete",
+      "summary": "Delete the plane shapes of one net on one layer, and with them its copper there.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "plane",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--net",
+          "type": "string",
+          "summary": "The net, such as GND.",
+          "required": true
+        },
+        {
+          "name": "--layer",
+          "type": "integer",
+          "summary": "The conductor layer number, 1 at the top.",
+          "required": true
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "via update",
+      "summary": "Change the vias of the nets named, or of the nets of the net classes named, to another via padstack, pulled from the central library when the board lacks it.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "via",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--nets",
+          "type": "string",
+          "summary": "The nets whose vias change, such as SS_TX1_P,SS_TX1_N."
+        },
+        {
+          "name": "--net-classes",
+          "type": "string",
+          "summary": "The net classes whose nets' vias change, such as USB_SS."
+        },
+        {
+          "name": "--padstack",
+          "type": "string",
+          "summary": "The via padstack, such as VIA_D0.2_P0.4; padstack list --type via lists the central library's.",
+          "required": true
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-router-via-from-net-class"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
     },
     {
       "path": "constraint get",

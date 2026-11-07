@@ -128,7 +128,7 @@ class BoardGetTest(unittest.TestCase):
         self.assertEqual(out["stackup"][1]["thickness_mm"], 1.5)
         self.assertEqual(out["net_classes"], [{"name": "(Default)", "nets": 2, "widths": {
             "1": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3},
-            "2": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3}}}])
+            "2": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3}}, "vias": {}}])  # the fake board has no via span
         self.assertTrue(out["geometry"]["available"])
         self.assertIn("outline_mm", out["geometry"])
         self.assertEqual(out["geometry"]["counts"]["placed"], 2)
