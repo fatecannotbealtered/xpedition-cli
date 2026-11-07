@@ -4,6 +4,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-07
+
 ### Added
 
 - `constraint get` reads the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and the class pairs that use them; `--output` writes them all in the rules file format.

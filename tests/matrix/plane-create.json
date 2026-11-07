@@ -17,11 +17,7 @@
       "expected": {
         "exit": 0,
         "summary": "A GND plane shape on layer 2, 1 mm inside the outline, switched to Dynamic; exists and state dynamic read back."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051911-plane-create.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -40,12 +36,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "Run again: GND has a plane shape on layer 2 already, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked."
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051913-plane-create.json#empty"
+      }
     },
     {
       "row": "invalid_input",
@@ -66,12 +57,7 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "A bare number for --margin: the problem lists the accepted units."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_USAGE"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051154-plane-create.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -90,12 +76,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The board has no such net."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051154-plane-create.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -110,12 +91,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-053201-plane-create.json#ambiguous"
+      }
     },
     {
       "row": "conflict",
@@ -134,12 +110,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A doc save job of this board was stopped by ending its worker process (Task Manager) while it reopened the board, so its outcome is unknown and the whole board stays locked until operation resolve. This write then gets E_CONFLICT target_locked."
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-052601-plane-create.json#conflict"
+      }
     },
     {
       "row": "no_scope",
@@ -158,12 +129,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the board's planes); nothing is previewed to the application's files or sent."
-      },
-      "actual": {
-        "exit": 4,
-        "code": "E_FORBIDDEN"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-160408-plane-create.json#no_scope"
+      }
     },
     {
       "row": "busy",
@@ -180,12 +146,7 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      },
-      "actual": {
-        "exit": 7,
-        "code": "E_BUSY"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051524-plane-create.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -202,12 +163,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
-      },
-      "actual": {
-        "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054200-plane-create.json#dialog"
+      }
     },
     {
       "row": "disconnect",
@@ -245,11 +201,7 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (placement and the layer 2 plane not yet saved): a second GND plane on layer 3 is poured as usual; the receipt reports the document dirty."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051915-plane-create.json#unsaved"
+      }
     },
     {
       "row": "read_back_mismatch",
@@ -268,12 +220,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "On the top layer: the call waits before its read-back, and meanwhile the new plane's assignment is switched to Draft in Layout (--tamper), so state reads back draft, not dynamic."
-      },
-      "actual": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051950-plane-create.json#read_back_mismatch"
+      }
     }
   ]
 }

@@ -11,11 +11,7 @@
       "expected": {
         "exit": 0,
         "summary": "The instance's full state: application version, owned, state and documents."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044507-session-get.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -32,12 +28,7 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--session needs a value."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_USAGE"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044507-session-get.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -50,12 +41,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No running instance has that session ID (process 1 is never a Designer)."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044507-session-get.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -65,12 +51,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-053138-session-get.json#ambiguous"
+      }
     },
     {
       "row": "conflict",
@@ -92,11 +73,7 @@
       "expected": {
         "exit": 0,
         "summary": "While a long job of this tool runs in the instance: state busy (or unresponsive), as data."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045456-session-get.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -108,11 +85,7 @@
       "expected": {
         "exit": 0,
         "summary": "A person leaves a modal dialog open in the instance: state blocked with blocker {action: dismiss_dialog, title}, as data."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054219-session-get.json#dialog"
+      }
     },
     {
       "row": "disconnect",

@@ -13,11 +13,7 @@
       "expected": {
         "exit": 0,
         "summary": "On the placed board: the autorouter passes route every open net and the planes are regenerated; each net reads back routed; the board is not saved."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072314-router-run.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -31,11 +27,7 @@
       "expected": {
         "exit": 0,
         "summary": "Every net is routed already: nothing to route, the preview lists no change."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072317-router-run.json#empty"
+      }
     },
     {
       "row": "invalid_input",
@@ -52,12 +44,7 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "--layers must include the outer layers 1 and 4 of the 4-layer board; refused at the preview."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_VALIDATION"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051156-router-run.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -72,12 +59,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such board open."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051156-router-run.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -87,12 +69,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-053203-router-run.json#ambiguous"
+      }
     },
     {
       "row": "conflict",
@@ -107,12 +84,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "After placement, the person unplaces D1 in Layout: the nets of the placed parts are open and one component is unplaced, so the preview cannot apply, and the runtime refuses it as E_CONFLICT blocked, naming D1. (With every part unplaced Layout may report no open net; the preview then has nothing to do and the apply refuses with E_CONFLICT application_state.)"
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072323-router-run.json#conflict"
+      }
     },
     {
       "row": "no_scope",
@@ -127,12 +99,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the board's nets); nothing is previewed to the application's files or sent."
-      },
-      "actual": {
-        "exit": 4,
-        "code": "E_FORBIDDEN"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-160412-router-run.json#no_scope"
+      }
     },
     {
       "row": "busy",
@@ -145,12 +112,7 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
-      },
-      "actual": {
-        "exit": 7,
-        "code": "E_BUSY"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-051524-router-run.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -163,12 +125,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
-      },
-      "actual": {
-        "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054202-router-run.json#dialog"
+      }
     },
     {
       "row": "disconnect",
@@ -198,11 +155,7 @@
       "expected": {
         "exit": 0,
         "summary": "The board holds unsaved changes (placement not yet saved): the router runs as usual; the receipt reports the document dirty."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072321-router-run.json#unsaved"
+      }
     },
     {
       "row": "read_back_mismatch",
@@ -217,12 +170,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The person draws a route obstruct over every layer around one pad of D1 first: the passes cannot connect that net, every pass still runs, and the net reads back routed false where the preview expected true."
-      },
-      "actual": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072336-router-run.json#read_back_mismatch"
+      }
     }
   ]
 }

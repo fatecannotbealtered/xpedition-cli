@@ -13,11 +13,7 @@
       "expected": {
         "exit": 0,
         "summary": "The project Designer has open: its revision, dirty false, readonly false, disk in_sync."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044532-doc-get.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -39,12 +35,7 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "doc get has no --limit flag."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_USAGE"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044532-doc-get.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -59,12 +50,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such document open."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044532-doc-get.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -93,11 +79,7 @@
       "expected": {
         "exit": 0,
         "summary": "While a schematic create job of this tool draws: the document as the busy instance last reported it, dirty true; the state is data."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045650-doc-get.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -111,11 +93,7 @@
       "expected": {
         "exit": 0,
         "summary": "A person leaves a modal dialog open in Designer: the dialog keeps COM from answering, so the document is reported as the blocked instance last showed it, exit 0; the session's state says blocked."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054838-doc-get.json#dialog"
+      }
     },
     {
       "row": "disconnect",
@@ -145,11 +123,7 @@
       "expected": {
         "exit": 0,
         "summary": "After schematic create, not yet saved: dirty true and a new revision."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045401-doc-get.json#unsaved"
+      }
     },
     {
       "row": "read_back_mismatch",

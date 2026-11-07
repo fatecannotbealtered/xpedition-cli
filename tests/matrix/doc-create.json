@@ -15,11 +15,7 @@
       "expected": {
         "exit": 0,
         "summary": "Designer runs with no project open: the job creates Demo.prj from Xpedition's stock setup template, with its own copy of the central library and a board design, and leaves it open; the new file is verified and the project is listed in the session."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-100710-doc-create.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -41,12 +37,7 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "A project's file must end in .prj: the job ends refused before Designer is asked; nothing is created."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_VALIDATION"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072719-doc-create.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -63,12 +54,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No running instance has that session ID (process 1 is never a Designer); nothing is created."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072743-doc-create.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -88,12 +74,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "Designer has the project {doc} open, and the call would create that file again in file mode: E_CONFLICT file_open_in_session; nothing is written."
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072721-doc-create.json#conflict"
+      }
     },
     {
       "row": "no_scope",
@@ -110,12 +91,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover {dir}: nothing is created."
-      },
-      "actual": {
-        "exit": 4,
-        "code": "E_FORBIDDEN"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-160153-doc-create.json#no_scope"
+      }
     },
     {
       "row": "busy",
@@ -132,12 +108,7 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a long job of this tool runs in the Designer session: E_BUSY; nothing is created."
-      },
-      "actual": {
-        "exit": 7,
-        "code": "E_BUSY"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072807-doc-create.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -154,12 +125,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A modal dialog waits in Designer: the session is blocked; E_HUMAN_REQUIRED with the dialog's title; nothing is created."
-      },
-      "actual": {
-        "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072853-doc-create.json#dialog"
+      }
     },
     {
       "row": "disconnect",
@@ -194,12 +160,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "Designer has a project open, with unsaved changes or not: making a new project would close it, so the job ends with E_CONFLICT application_state and the open project is untouched."
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-072724-doc-create.json#unsaved"
+      }
     },
     {
       "row": "read_back_mismatch",
@@ -216,12 +177,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "The job's worker waits before its read-back, and meanwhile the new Gone.prj is deleted (--tamper): the check of the new file finds it missing, and the job ends with E_VERIFY_FAILED."
-      },
-      "actual": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073032-doc-create.json#read_back_mismatch"
+      }
     }
   ]
 }

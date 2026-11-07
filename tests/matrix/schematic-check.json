@@ -13,11 +13,7 @@
       "expected": {
         "exit": 0,
         "summary": "Designer's verification and this tool's netlist rules on the drawn, saved and reopened schematic; findings with counts."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073131-schematic-check.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -31,11 +27,7 @@
       "expected": {
         "exit": 0,
         "summary": "On the practice project before schematic create: an empty schematic, no finding."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045235-schematic-check.json#empty"
+      }
     },
     {
       "row": "invalid_input",
@@ -52,12 +44,7 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "schematic check has no --rules flag."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_USAGE"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045235-schematic-check.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -72,12 +59,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "The session has no such project open."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045235-schematic-check.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -87,12 +69,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS",
         "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_AMBIGUOUS"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-053150-schematic-check.json#ambiguous"
+      }
     },
     {
       "row": "conflict",
@@ -115,12 +92,7 @@
         "exit": 7,
         "code": "E_BUSY",
         "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
-      },
-      "actual": {
-        "exit": 7,
-        "code": "E_BUSY"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045502-schematic-check.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -133,12 +105,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED",
         "summary": "A person leaves a modal dialog open in Designer before the call, such as Setup > Settings or Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open."
-      },
-      "actual": {
-        "exit": 9,
-        "code": "E_HUMAN_REQUIRED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054816-schematic-check.json#dialog"
+      }
     },
     {
       "row": "disconnect",
@@ -168,11 +135,7 @@
       "expected": {
         "exit": 0,
         "summary": "Right after schematic create, not yet saved: Designer's verification runs on the open drawing, but the netlist rules cannot read the design until it is reopened; exit 0 with complete false and a note saying so."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073214-schematic-check.json#unsaved"
+      }
     },
     {
       "row": "read_back_mismatch",

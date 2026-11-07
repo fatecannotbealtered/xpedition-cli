@@ -13,11 +13,7 @@
       "expected": {
         "exit": 0,
         "summary": "Confirmed with its token (two-step): adds DEMO-CONN-2, DEMO-RES-1K-0603, DEMO-LED-0603 and DEMO-CAP-100N-0603 to partition Demo, registers the partition in the .prj; each part reads back with the previewed content."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073321-part-create.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -31,11 +27,7 @@
       "expected": {
         "exit": 0,
         "summary": "Run again once the library holds the four parts as they are: nothing to add, the preview lists no change; confirmed, created is empty and skipped lists all four."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073325-part-create.json#empty"
+      }
     },
     {
       "row": "invalid_input",
@@ -50,12 +42,7 @@
         "exit": 2,
         "code": "E_VALIDATION",
         "summary": "The part's value 10k 1% is not a number with an SI multiplier, which is all the library's Value keeps; refused at the preview, nothing written."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_VALIDATION"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044855-part-create.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -70,12 +57,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND",
         "summary": "No project file at that path."
-      },
-      "actual": {
-        "exit": 3,
-        "code": "E_NOT_FOUND"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044855-part-create.json#not_found"
+      }
     },
     {
       "row": "ambiguous",
@@ -95,12 +77,7 @@
         "exit": 6,
         "code": "E_CONFLICT",
         "summary": "A Designer session has the project {doc} open, so the file-mode write is refused before anything runs: E_CONFLICT file_open_in_session, naming the session."
-      },
-      "actual": {
-        "exit": 6,
-        "code": "E_CONFLICT"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044609-part-create.json#conflict"
+      }
     },
     {
       "row": "no_scope",
@@ -115,12 +92,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN",
         "summary": "Run under a scope file that does not cover the target (the project's parts and its central library); nothing is previewed to the application's files or sent."
-      },
-      "actual": {
-        "exit": 4,
-        "code": "E_FORBIDDEN"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-160011-part-create.json#no_scope"
+      }
     },
     {
       "row": "busy",
@@ -155,12 +127,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED",
         "summary": "Confirmed with its token, on a library that does not hold this part yet: its Value 1.2345678k has more digits than the parts database keeps, so the part reads back with a rounded Value (such as 1.23457K) and its content differs from the preview."
-      },
-      "actual": {
-        "exit": 1,
-        "code": "E_VERIFY_FAILED"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-073331-part-create.json#read_back_mismatch"
+      }
     }
   ]
 }

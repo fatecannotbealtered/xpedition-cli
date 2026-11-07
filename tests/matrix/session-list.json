@@ -8,11 +8,7 @@
       "expected": {
         "exit": 0,
         "summary": "Every running Designer and Layout with its state, whether this tool started it and its documents."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044529-session-list.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -24,11 +20,7 @@
       "expected": {
         "exit": 0,
         "summary": "An offset past the last instance: an empty page, exit 0."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044529-session-list.json#empty"
+      }
     },
     {
       "row": "invalid_input",
@@ -41,12 +33,7 @@
         "exit": 2,
         "code": "E_USAGE",
         "summary": "--state takes one of the session states or all."
-      },
-      "actual": {
-        "exit": 2,
-        "code": "E_USAGE"
-      },
-      "evidence": "live:docs/evidence/2026-11-06-044529-session-list.json#invalid_input"
+      }
     },
     {
       "row": "not_found",
@@ -75,11 +62,7 @@
       "expected": {
         "exit": 0,
         "summary": "A long job of this tool runs in one instance: that session is listed with state busy (or unresponsive), the others normally; the state is data (DCLI-204)."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-045458-session-list.json#busy"
+      }
     },
     {
       "row": "dialog",
@@ -88,11 +71,7 @@
       "expected": {
         "exit": 0,
         "summary": "A person leaves a modal dialog open in Designer or Layout: that session is listed with state blocked and blocker {action, title}; exit 0."
-      },
-      "actual": {
-        "exit": 0
-      },
-      "evidence": "live:docs/evidence/2026-11-06-054221-session-list.json#dialog"
+      }
     },
     {
       "row": "disconnect",
