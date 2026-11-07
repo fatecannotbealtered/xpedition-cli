@@ -85,7 +85,7 @@ Check a change with its `result` and receipt, and with the read commands, which 
 
 ### Save
 
-A change in session mode is not saved until `xpedition-cli doc save`; its receipt says `persistence: unchanged`. A receipt with verification `deferred` is verified by the next `doc save` of that document; it is not verified before. Before confirming a save, check its preview: it lists every change since the last save, including changes made outside xpedition-cli (`origin: external`), and in `blocked_by` the operations whose outcome is still unknown. Settle those first.
+A change in session mode whose receipt says `persistence: unchanged` is not saved until `xpedition-cli doc save`; a change the application saves at once says `saved`. A receipt with verification `deferred` is verified by the next `doc save` of that document; it is not verified before. Before confirming a save, check its preview: it lists every change since the last save, including changes made outside xpedition-cli (`origin: external`), and in `blocked_by` the operations whose outcome is still unknown. Settle those first.
 
 In file mode every write saves the file; its receipt says `persistence: saved`.
 

@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SKILL-SPEC_zh.md)
 
-> Version 1.0.5 · Clauses DSKL-001 to DSKL-127
+> Version 1.0.6 · Clauses DSKL-001 to DSKL-127
 
 ## How to Read
 
@@ -195,7 +195,7 @@ The entry Skill MUST contain the driver playbooks below, in the text the templat
 | Playbook | What it covers |
 |---|---|
 | `select_instance_and_document` | List the sessions and documents, then name them with `--session` and `--doc`; never rely on window focus (DCLI-202) |
-| `save` | A change in session mode is not saved until `doc save`; check the save preview, including changes made outside the tool and operations whose outcome is still unknown, before confirming (DCLI-058) |
+| `save` | A change in session mode whose receipt says `persistence: unchanged` is not saved until `doc save`; check the save preview, including changes made outside the tool and operations whose outcome is still unknown, before confirming (DCLI-058) |
 | `long_jobs_and_blocking` | Poll a long job with its exact `poll` command; on `E_BUSY`, wait and run the command again, and after 3 retries of the same command ask the person; on `E_HUMAN_REQUIRED`, pass the action to the person and run `resume` afterwards (DCLI-065, DCLI-066) |
 | `physical_effects` | Device mode only: check the device state first, confirm with `--dangerous` within the scope, stop with a halt command at once when needed, and never report simulated results as real (DSEC-018, DSEC-061 and DSEC-062) |
 | `outcome_unknown_and_partial` | After `E_OUTCOME_UNKNOWN`, never send the write again; first run the `details.lookup` command, which resolves the operation. After `E_PARTIAL`, send again only the items that failed (DCLI-063, DCLI-064) |
@@ -434,7 +434,7 @@ The evaluation runner `run_eval`, which comes with this specification, runs the 
 - put the tool on `PATH` behind a shim that records every run, hand the turns to the Agent one by one, call `before` before each turn and `grade` after the last, and always call `after`;
 - let the Agent run nothing but the tool in its shell, and use its file tools only inside the workspace.
 
-On the real application the runner MUST run only when the workspace root and every scope target are listed under Authorized Targets (DVER-050). There the tool keeps the person's environment, so it finds the running application. On the fake host the tool gets a home and a state directory of its own. With `--check` the runner runs the scripted agents in place of the Agent.
+On the real application the runner MUST run only when the workspace root and every scope target are listed under Authorized Targets (DVER-050). There the tool keeps the person's environment, so it finds the running application. On the fake host the tool gets a home and a state directory of its own. Before the first question the runner MUST stop, naming each copy, when a copy of the tool's Skills outside the project would change what the evaluation measures: a personal Skill of Claude Code whose files differ from the project's, because Claude Code loads it in place of the project's Skill of that name; and, on the real application, a copy in an Agent's Skill folder in the person's home at another version than the tool, because the tool's doctor reports it and points the Agent to `update` (DSKL-031). Before the Agent's first question the runner MUST also run, on the fake host, the scripted `right` agent of each question that has one and runs there, and stop, naming the question, when that right answer fails, so no model credits go to a broken question. With `--check` the runner runs the scripted agents in place of the Agent.
 
 Why: One file format and one runner let every tool's questions run the same way. With the documents outside the workspace and every run of the tool recorded, the Agent can reach the result only through the tool, and the grader sees what really ran.
 Check: 🤖 `check_project` checks every question file; the repository's unit tests check the runner.

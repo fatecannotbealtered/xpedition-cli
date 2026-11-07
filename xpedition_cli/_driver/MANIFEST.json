@@ -1,26 +1,26 @@
 {
   "files": {
     "__init__.py": "bd477bc98e1c69a34e9a36ac5d0adf859e27cb492ad1e12309f912103646208e",
-    "adapter.py": "2cf7a87542406e22e355d475a764f6551b6e46207851e41ac64547f41a9fa969",
+    "adapter.py": "5b7e43b97d4c84aa62680cdea50bb03c9d86e42fb8b6d06001cf05089b160d4c",
     "args.py": "8e172b6e3eef040d757c151cd441ec7dc638a5d08d524c942c18ac1bee55e72c",
     "builtin.py": "922ce767ea9ddb6cdc0a62e587693679b7ff99b726a1e9eedf4391535d33de9b",
     "contract.py": "c68279c5c0bbe1c86a76983be656015feba753682c3a812acaf17732970837de",
     "errors.py": "a143bb025fe4ca9269bdb6ce8691141f5ee4db1122937cb2a917df3e1f54c59b",
-    "hostproto.py": "9222574725b99c810cd48d003fa095b61264585cfe46a9cbecbe73e70f379d02",
+    "hostproto.py": "bbf66b06c6faddafae9d9d5924d76e45fb6551e9de5bbfef2c6b79abced6a964",
     "jobs.py": "26f67ba14ba4220dfb1e8e750d839e3962360ec865cfaa8195f7f3a9f9441542",
     "knowledge.py": "64506cfcb9eefaf804f1e2727e8652386e6ec5c6eb49c626f6e0a1f74bc41a9f",
     "output.py": "5d148bf6d3a5cd11ac170089ffa2b6fbce487f622058e155f974f464056c6495",
     "records.py": "62f679756154b8819e3fec4c6b94a24b73b22b595eed0aa3305c3496935f2189",
     "registry.py": "61a5ddd3ea6a03514eedf522f350b5be8246b35e792c079b2d7703a6a402c48a",
-    "runtime.py": "3e658b3eee67e6384ed960f58b251c8b44e72edac19ccd4b979581e6ccf0a2e2",
+    "runtime.py": "71330306f2c62c90b65976c664c59120a0ff57f2373b77facefacc012617b981",
     "scope.py": "fac4015f886624c578d50e747d9f57346d8775ce23c468a4f4f30a405b53a5e8",
-    "standard.py": "1b6093bf68d88355d7aae9e8b38d2c0884870ed2111783cc86105ca1eb09b43b",
+    "standard.py": "d6d1f270bfc105ab98034004576e92edeb28dbabd3c9f307041510e6fadb453b",
     "state.py": "919fb152cc821e32971a48141882b929f7a24a03b6e87c9eb47f0297a00fb8ae",
     "targets.py": "8418bfccfc59d4e4c427a9941de7db8045fc1480c8f8e11cf13994d3c16ffe0c",
     "tool.py": "dca20a7350df63a736cd5e24e5fdf7e4f9a0be347f3c35dd3e4fb4e1b0268cee",
     "units.py": "df3f08e7a5b29ea7e8ff147b9eadf8f1c70b09dbaeb2f5f06f2a0011e8cea991",
     "update.py": "63504a826e6ce38b29d2022eee491ac29bc915edbae185fc459bbf152c2134e2",
-    "writes.py": "7c99d6accbd6268cd37d1dad4397fe1952de9cc0fd020f0b14e1de2caced2fc6"
+    "writes.py": "d520a3a7072407002c3054c5f462d38195cc7cddd426b088de57d9d138df7e56"
   },
-  "spec_version": "1.0.5"
+  "spec_version": "1.0.6"
 }

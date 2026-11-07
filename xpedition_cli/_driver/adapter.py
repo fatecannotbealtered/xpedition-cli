@@ -22,6 +22,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from typing import Any
 
 from .hostproto import Connection, HostReplyError, NoReply, ProtocolError, Unreachable, read_discovery
@@ -208,12 +209,16 @@ class Backend:
     # ------------------------------------------------------------------ host components
 
     def probe_hosts(self, deadline_ms: int = 2000) -> dict[str, dict[str, Any]]:
-        """Connect to every live host in ``hosts/`` at once, each within ``deadline_ms``
-        (DCLI-205). Returns session ID -> ``{status, hello, address}`` where status is
-        ``ready``, ``unresponsive``, ``lost`` or ``protocol``."""
-        found: dict[str, dict[str, Any]] = {}
+        return self.start_probe(deadline_ms)()
+
+    def start_probe(self, deadline_ms: int = 2000) -> Any:
+        """Connect to every live host in ``hosts/`` at once, each within ``deadline_ms`` for
+        connecting and the hello together (DCLI-205), and return at once. The function returned
+        waits for the probes until that deadline and gives session ID -> ``{status, hello,
+        address}``, where status is ``ready``, ``unresponsive``, ``lost`` or ``protocol``; a
+        probe still running then is ``unresponsive``."""
         entries = [e for e in read_discovery(self.hosts_dir) if pid_alive(e["pid"])]
-        results: list[tuple[dict[str, Any], Any]] = [({}, None)] * len(entries)
+        results: list[tuple[dict[str, Any], Any]] = [(e, "unresponsive") for e in entries]
 
         def probe(i: int, entry: dict[str, Any]) -> None:
             conn = Connection(entry["address"], self.cli_version, self.protocol_version)
@@ -230,11 +235,18 @@ class Backend:
         threads = [threading.Thread(target=probe, args=(i, e), daemon=True) for i, e in enumerate(entries)]
         for thread in threads:
             thread.start()
-        for thread in threads:
-            thread.join(deadline_ms / 1000 + 1)
+        end = time.monotonic() + deadline_ms / 1000 + 0.2
+
+        def finish() -> dict[str, dict[str, Any]]:
+            for thread in threads:
+                thread.join(max(0.0, end - time.monotonic()))
+            return self._probed(list(results))
+
+        return finish
+
+    def _probed(self, results: list[tuple[dict[str, Any], Any]]) -> dict[str, dict[str, Any]]:
+        found: dict[str, dict[str, Any]] = {}
         for entry, outcome in results:
-            if not entry:
-                continue
             name = entry["_file"][:-5]
             if isinstance(outcome, Connection):
                 session = (outcome.hello or {}).get("session", {}).get("id", name)

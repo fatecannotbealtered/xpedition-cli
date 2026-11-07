@@ -2,7 +2,7 @@
 
 [English](DRIVER-REPO-SPEC.md) | 中文
 
-> 版本 1.0.5 · 条款 DREPO-001 至 DREPO-062
+> 版本 1.0.6 · 条款 DREPO-001 至 DREPO-062
 
 ## 怎么读
 
@@ -68,7 +68,7 @@
 
 | 方面 | 模板、同步脚本和检查提供 | 工具作者要做 |
 |---|---|---|
-| 项目骨架 | 所有必需的文件和目录，两种语言的固定标题和固定原文都已写好：工作方式、必须遵守的底线、安装块和 SECURITY 的五个固定章节 | 填写工具自己的章节，去掉所有占位符 |
+| 项目骨架 | 所有必需的文件和目录，两种语言的固定标题和固定原文都已写好：工作方式、必须遵守的底线、安装块、SECURITY 的五个固定章节和 `docs/E2E.md` 的授权规则 | 填写工具自己的章节，去掉所有占位符 |
 | 固定副本 | `sync_spec` 复制规范、契约、运行时、许可证和共用脚本，升级时整体替换 | 升级时运行 `sync_spec`，从不手改固定副本 |
 | 生成的内容 | 根据数据生成 `contract/commands.json`、命令地图、徽章行、信息卡和支持矩阵的脚本 | 登记命令，让证据和 `docs/COMPATIBILITY.md` 的其他章节保持真实 |
 | 检查 | `check_project`：布局、根目录文件、章节、双语对应、占位符、哈希、徽章、标签和能力对应 | 改正 `check_project` 报出的每个问题 |
@@ -363,14 +363,15 @@ README 必须以标题区开头，依次是：写着工具名称的 `#` 标题�
 <!-- contract:e2e_sections -->
 | 章节 | 内容 |
 |---|---|
-| `Authorized Targets` 授权目标 | 人允许真实软件运行使用的软件实例、文件、文件夹和设备，这是唯一的一份清单，只有人能往里加（DVER-050） |
+| `Authorization Rules` 授权规则 | 固定原文：谁往授权目标里加目标、目标怎么写、真实软件运行和在真实软件上评测所用的授权范围文件由谁来写（DVER-050） |
+| `Authorized Targets` 授权目标 | 允许真实软件运行使用的软件实例、文件、文件夹和设备，这是唯一的一份清单，每个目标一个列表项，不放其他文字（DVER-050） |
 | `Procedure` 步骤 | 真实软件运行用到的电脑、操作系统、软件版本和模式，以及怎样准备并在真实软件上运行行为矩阵（DVER-030、DVER-031） |
 | `Evidence Records` 证据记录 | `docs/evidence/` 里真实软件记录的索引（DVER-042） |
 
-真实软件运行的结果不在这里重复：支持矩阵由同样的记录生成，已经展示了结果（DREPO-016）。
+工具禁止改动授权规则的原文。真实软件运行的结果不在这里重复：支持矩阵由同样的记录生成，已经展示了结果（DREPO-016）。
 
-为什么：评审者或下一位维护者需要一个地方，查到哪些目标可以用、真实软件运行怎么做、记录在哪里。
-检查：🤖 `check_project`。
+为什么：评审者或下一位维护者需要一个地方，查到哪些目标可以用、真实软件运行怎么做、记录在哪里。授权目标的规则每个工具都一样，改动随模板到达每个工具。
+检查：🤖 `check_project` 检查章节，并把授权规则与模板比对。
 
 ### DREPO-018 CHANGELOG
 
@@ -420,7 +421,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 | `platform` | 出包平台：Windows、macOS、Linux | `package.json` 里的平台包（DREPO-043） |
 | `risk` | 工具的风险等级，T0 至 T2（DSEC-002） | `reference` |
 | `maturity` | 工具各领域命令中最低的成熟度（DVER-040） | `reference` |
-| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.5 | `.agent/SPEC_VERSION` |
+| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.6 | `.agent/SPEC_VERSION` |
 | `license` | 工具的许可证 | `package.json` |
 
 驱动 KiCad 10.0、支持文件和会话模式的工具，徽章行大致如下；具体样式由模板定义：
@@ -434,7 +435,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.5-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.6-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 

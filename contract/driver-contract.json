@@ -1,7 +1,7 @@
 {
   "$schema": "schemas/contract.schema.json",
   "name": "tool-driver-cli-spec",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "schema_version": "1.0",
   "spec_documents": [
     {
@@ -404,6 +404,7 @@
     "max_call_seconds": 60,
     "max_wait_seconds": 600,
     "worker_max_seconds": 21600,
+    "busy_retry_seconds": 10,
     "worker_env": "<PREFIX>_JOB_WORKER",
     "standard_long": ["session open", "session close", "doc create", "doc open", "doc save", "doc save-as", "doc close"],
     "states": ["planned", "running", "blocked", "completed", "failed", "partial", "unknown", "cancelled"],
@@ -439,6 +440,7 @@
     "commands": ["session list", "session get", "doc list", "doc get"],
     "total_ms": 5000,
     "per_instance_ms": 2000,
+    "adapter_sessions_ms": 2500,
     "unresponsive_state": "unresponsive"
   },
   "device_states": [
@@ -730,6 +732,7 @@
       "cancel"
     ],
     "request_keys": ["deadline_ms"],
+    "busy_wait_ms": 1500,
     "write_methods": ["close_session", "create_doc", "open_doc", "save_doc", "save_doc_as", "close_doc", "undo", "apply", "cancel"],
     "rpc_error_code": -32000,
     "allowed_error_codes": ["E_BUSY", "E_NATIVE_FAILURE", "E_HUMAN_REQUIRED", "E_NOT_FOUND", "E_AMBIGUOUS", "E_VALIDATION", "E_CONFLICT", "E_UNSUPPORTED", "E_BACKEND_UNAVAILABLE", "E_TIMEOUT"],
@@ -1004,7 +1007,7 @@
         "Risks"
       ],
       "docs/COMPATIBILITY.md": ["Support Matrix", "Known Limitations"],
-      "docs/E2E.md": ["Authorized Targets", "Procedure", "Evidence Records"]
+      "docs/E2E.md": ["Authorization Rules", "Authorized Targets", "Procedure", "Evidence Records"]
     },
     "sections_zh": {
       "README.md": ["安装", "能力", "工作方式", "授权", "关于本工具", "配置", "卸载", "开发", "链接"],
@@ -1013,7 +1016,7 @@
       "CONTRIBUTING.md": ["开发环境", "常用命令", "分支与提交约定", "CI 检查", "测试与证据", "新增或修改命令", "合并请求", "安全"],
       "docs/APPLICATION.md": ["软件", "自动化接口", "对象模型", "单位与坐标", "线程与阻塞", "读回", "保存与撤销", "实例与并发", "许可", "能力", "风险"],
       "docs/COMPATIBILITY.md": ["支持矩阵", "已知限制"],
-      "docs/E2E.md": ["授权目标", "步骤", "证据记录"]
+      "docs/E2E.md": ["授权规则", "授权目标", "步骤", "证据记录"]
     },
     "optional_sections": {"SECURITY.md": {"Host Component": "host_component", "Physical Effects": "device_mode"}},
     "capability_id_pattern": "^CAP-[0-9]{3}$",

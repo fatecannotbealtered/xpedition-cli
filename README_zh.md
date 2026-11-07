@@ -11,7 +11,7 @@
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-stable-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.5-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.6-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -25,7 +25,7 @@
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
 | 成熟度 | stable：draft 0 个，verified 0 个，stable 18 个 |
-| 规范 | tool-driver-cli-spec 1.0.5 |
+| 规范 | tool-driver-cli-spec 1.0.6 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
 
@@ -103,7 +103,7 @@ xpedition-cli 每次调用都输出一个 JSON 信封。`xpedition-cli reference
 
 `--dry-run` 显示任何写操作的预览，什么都不改。确认令牌只能用一次，10 分钟内有效，而且只对它预览过的那次修改有效。授权范围文件设了 `"confirm": "always"` 时，除停止工作外的所有写操作都改为两步确认，人可以逐个批准预览。
 
-**会话模式下的保存。** 修改不等于保存。修改之后，回执报告 `persistence: unchanged`，文档仍有未保存的修改；只有 `xpedition-cli doc save` 才写入文档的文件。保存的预览列出上次保存以来的所有修改，包括人在 Xpedition 里做的修改（`origin: external`），以及结果仍然未知的写操作。
+**会话模式下的保存。** 修改不等于保存。修改之后，回执报告 `persistence: unchanged`，文档仍有未保存的修改；只有 `xpedition-cli doc save` 才写入文档的文件。保存的预览列出上次保存以来的所有修改，包括人在 Xpedition 里做的修改（`origin: external`），以及结果仍然未知的写操作。Xpedition 一改就自己存盘的命令按两步确认，回执报告 `persistence: saved`。
 
 **文件模式下的保存。** 写文件就是保存：回执报告 `persistence: saved`，xpedition-cli 会重新读取文件来验证修改。
 

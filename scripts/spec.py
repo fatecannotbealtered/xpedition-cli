@@ -57,7 +57,12 @@ def bundle(version: str) -> tuple[Path, str | None]:
         if found != version:
             raise SystemExit(f"TOOL_DRIVER_SPEC={path} holds release {found}, not {version}")
         return path, None
-    pin = pinned_digest(version)
+    return download(version, pinned_digest(version))
+
+
+def download(version: str, pin: str | None) -> tuple[Path, str]:
+    """Release ``version`` from the download cache, downloaded and unpacked first when it is
+    missing there; the bundle must have the SHA-256 ``pin``, or without it the published one."""
     cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / NAME / version
     folder = cache / f"{NAME}-{version}"
     known = (cache / "bundle.sha256").read_text(encoding="utf-8").strip() if (cache / "bundle.sha256").is_file() else None

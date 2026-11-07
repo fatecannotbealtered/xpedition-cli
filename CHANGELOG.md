@@ -4,6 +4,14 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Changed
+
+- Built on tool-driver-cli-spec 1.0.6.
+
+### Fixed
+
+- `session list`, `session get`, `doc list` and `doc get` answer in time when Designer or Layout hangs: an instance's probe and its look for a dialog take at most about 2 s together, inside the 2.5 s the runtime gives the adapter's part of the session list.
+
 ## [1.0.4] - 2026-11-06
 
 ### Added

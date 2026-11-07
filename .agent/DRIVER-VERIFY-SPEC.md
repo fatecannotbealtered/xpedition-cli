@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-VERIFY-SPEC_zh.md)
 
-> Version 1.0.5 · Clauses DVER-001 to DVER-051
+> Version 1.0.6 · Clauses DVER-001 to DVER-051
 
 ## How to Read
 

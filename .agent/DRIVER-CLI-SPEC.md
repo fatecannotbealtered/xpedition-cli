@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.5 · Clauses DCLI-001 to DCLI-281
+> Version 1.0.6 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -591,6 +591,8 @@ Every command MUST declare its effects. The effect sets the default confirmation
 - A command that creates a new file as well as changing a document, such as one that adds a board to a project, declares `artifact` with its other effects. So does a command that creates a file only in some calls, such as one that defines a symbol in a new library only when the library does not exist yet.
 - An `output` flag MAY name a folder that the command writes its files into, such as a set of fabrication files. The folder exists, for the tier of `artifact`, when it holds a file or folder; the apply reports each file in `files` (DCLI-260).
 - An `artifact` command whose file the application names itself has no `output` flag; its preview MUST name as a target the file or the document it goes into, so the scope covers it, and its apply reports the file in `files` (DCLI-260).
+- The runtime finds an existing file of an `output` flag itself. When an `artifact` command would overwrite a file that no `output` flag names, such as a new document named by `--doc`, its preview MUST name `target_exists` in `tier_raises` (DCLI-052); the runtime registers that condition for every `artifact` command.
+- A command whose change the application writes to the file at once, in session mode too, such as rules written straight into the project database, declares `persist` with `change` (DCLI-058).
 - Whatever the effect, these operations MUST be dangerous: an irreversible change, discarding unsaved changes, and closing an instance the tool did not start. A change is irreversible when no command of the application or of the tool can set the earlier state back: a delete without undo is irreversible, in file mode too, while a move or a field change, which another call can set back, is not. Such a command MUST declare `irreversible: true` in its registration (DCLI-029); the runtime then makes it dangerous and never guesses.
 - Halt commands declare `lifecycle` and are always direct (DSEC-018).
 
@@ -712,7 +714,7 @@ Check: 🤖 General conformance tests G03, G04 and G10; driver conformance tests
 
 - Before dispatch, the runtime MUST check the state of the session (DCLI-204), the document (DCLI-211) and the device (DCLI-230), and the loaded host component version (DSEC-053). When one of them blocks the write, it MUST return the error those clauses give. When it is certain that nothing was sent, `dispatch_state` MUST be `not_started`.
 - The runtime then dispatches the change through the adapter's `apply`. The adapter reports facts only: the dispatch state, the change, the delivery, the persistence and the observed values (DCLI-260). It MUST NOT decide whether the write succeeded.
-- After dispatch, the runtime MUST read back what the change touched, from the running instance, the file or the device, put the values in the receipt's `observed`, and compare them with the preview's `after` (DCLI-054). A value matches when it lies within the tolerance that the command's registration declares for that field (DCLI-029), or is equal when none is declared. Verification MUST be `passed` only when every value matches. Fields that do not match MUST be listed in `mismatched`.
+- After dispatch, the runtime MUST read back what the change touched, from the running instance, the file or the device, also when the adapter's reply reports no lasting effect but the preview or the files the call names expect one, put the values in the receipt's `observed`, and compare them with the preview's `after` (DCLI-054). A value matches when it lies within the tolerance that the command's registration declares for that field (DCLI-029), or is equal when none is declared. Verification MUST be `passed` only when every value matches. Fields that do not match MUST be listed in `mismatched`.
 
 What the read-back checks depends on the write:
 
@@ -724,7 +726,7 @@ What the read-back checks depends on the write:
 | `import` | The imported objects are present, by count |
 | An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. A folder an `output` flag names holds a file or folder. The receipt makes no claim about bytes the application wrote itself |
 | `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
-| A long job | The job's outputs, when it ends (DCLI-065) |
+| A long job | The job's outputs, when it ends, as for a call of the same command (DCLI-065) |
 
 - A write that creates files and also changes a document MUST be verified both ways: the files exist, and the changed fields read back. Verification is `passed` only when both pass. A call with no file in `files`, in its preview or in an `output` flag is verified by its other changes alone.
 - A command registered with `verify_after_save` (DCLI-029) reports verification `deferred` in session mode, with a note that `doc save` verifies it, because the application shows the change correctly only after a save. The next `doc save` of that document MUST read back the deferred changes from the saved document as well, report `E_VERIFY_FAILED` when one does not match, and settle each deferred operation record with its result. The read-back after the save MUST NOT change the document or discard anything. Deferred changes are matched by session and document. When the document or its session is closed without a save, their records MUST be settled with verification `not_run`.
@@ -736,7 +738,9 @@ Check: 🤖 Driver conformance tests D04, D07 and D08.
 
 ### DCLI-058 Save is the commit point
 
-In session mode a change is not a save. After a change in session mode, the receipt's `persistence` MUST be `unchanged` and the document's `dirty` MUST be `true`. Only `doc save`, writes in file mode (DCLI-201) and writes that create files report `saved`.
+In session mode a change is not a save. After a change in session mode, the receipt's `persistence` MUST be `unchanged` and the document's `dirty` MUST be `true`, except for a command that declares `persist`. Only `doc save`, writes in file mode (DCLI-201), writes that create files and changes of a command that declares `persist` report `saved`.
+
+A command declares `persist` with `change` when the application writes its change to the file at once (DCLI-051). Its receipt MUST report `persistence: saved`, and the change leaves `dirty` as the document's other changes make it. The host component, or the adapter when there is none, MUST NOT list it among the changes since the last save, so the next `doc save` preview does not show it. It is verified as DCLI-057 sets.
 
 A write with the `artifact` effect, such as `doc save-as`, `export` or `render`, creates files. Its receipt MUST report `change: not_applicable` and `persistence: saved`, and it is verified as DCLI-057 sets.
 
@@ -857,7 +861,7 @@ A call that does work MUST return within 60 seconds. Work that can take longer M
 A long job runs in one of two places:
 
 - The application runs it: the command is registered with `jobs: true` (DCLI-029), the adapter's `apply` starts the work in the application and reports the job, and `job_status` reports its state (DCLI-260).
-- The runtime runs it: the command is registered with `long: true` (DCLI-029). The call does every check, records the job and starts a worker, then returns at once. The worker is the tool's own program, started again with `job get --job <id>` and the variable `<PREFIX>_JOB_WORKER=<id>`, detached from the call and with no window. It makes the adapter call without the 60-second limit, up to `jobs.worker_max_seconds` in the contract, and records the outcome in the state directory. The tool author writes no job code.
+- The runtime runs it: the command is registered with `long: true` (DCLI-029). The call does every check, records the job and starts a worker, then returns at once. The worker is the tool's own program, started again with `job get --job <id>` and the variable `<PREFIX>_JOB_WORKER=<id>`, detached from the call and with no window. It makes the adapter call without the 60-second limit, up to `jobs.worker_max_seconds` in the contract, and records the outcome in the state directory. When the instance or the device answers `E_BUSY` before the dispatch, nothing was dispatched, so the worker tries again after `retry_after_ms` for up to 10 seconds (`jobs.busy_retry_seconds` in the contract); only then does the job fail with `E_BUSY`. The tool author writes no job code.
 
 A standard write that can take more than a minute, such as `doc open` of a large project or `session close` of an application that takes long to quit, runs the same way when the tool lists it in `long_commands` (DCLI-029); the contract's `jobs.standard_long` names the standard writes that may be listed. The command's own checks run again in the worker right before dispatch, its own read-back runs when the work ends, and its result, such as the new session of `session open`, comes with `job get`.
 
@@ -1202,16 +1206,18 @@ Writes, and reads that need the application's main thread, MUST react to each se
 | `unreachable` | The process runs, but the tool cannot drive it, such as a second instance when the application lets a tool reach only one | `E_BACKEND_UNAVAILABLE`; nothing was dispatched |
 | `closed` | The process has ended | The session ID is no longer valid; `E_NOT_FOUND` |
 
-The adapter MUST look for a dialog each time it reports a session, also when the instance answers: some applications keep answering their automation interface while a modal dialog is open. A dialog that the tool's own running work answers itself, such as the options dialog of an export, needs no person; the session is `busy` while it is open.
+The adapter MUST look for a dialog each time it reports a session, also when the instance answers: some applications keep answering their automation interface while a modal dialog is open. A dialog that the tool's own running work answers itself, such as the options dialog of an export, needs no person; the session is `busy` while it is open. The adapter MUST report a dialog as `busy` only when it knows the dialog comes from the tool's own running work, such as by a title that work expects; any other dialog makes the session `blocked`.
 
 The standard observe commands `session list`, `session get`, `doc list`, `doc get`, `device list`, `device get`, `job list` and `job get` MUST return the state as data and MUST NOT fail because of it. Halt commands run in every state but `lost`, `unreachable` and `closed` (DSEC-018).
 
-Why: Each state has one fixed reaction, so a busy or blocked application never leaves a call hanging, and the Agent can always see the state.
-Check: 🤖 Driver conformance tests D04, D05, D21 and D22, and the live `dialog` row of the behavior matrix (DVER-030).
+Why: Each state has one fixed reaction, so a busy or blocked application never leaves a call hanging, and the Agent can always see the state. A dialog taken wrongly for the tool's own would leave the Agent waiting for an answer that never comes.
+Check: 🤖 Driver conformance tests D04, D05, D21 and D22, and the live `dialog` row of the behavior matrix (DVER-030); 👀 review of how the adapter recognizes the dialogs of its own work.
 
 ### DCLI-205 Session read deadline
 
-`session list`, `session get`, `doc list` and `doc get` MUST return within 5 seconds. When an instance does not answer within 2 seconds, the command MUST stop waiting for it, report its `state` as `unresponsive`, and return the other instances normally. An adapter in the CLI's process MUST keep these limits itself, giving each instance its own short limit, because the runtime cannot stop a call on its own thread: a call that passes its deadline ends the process.
+`session list`, `session get`, `doc list` and `doc get` MUST return within 5 seconds. When an instance does not answer within 2 seconds, the command MUST stop waiting for it, report its `state` as `unresponsive`, and return the other instances normally.
+
+Of the 5 seconds, the adapter's `sessions` has 2.5 seconds (`session_read_deadline.adapter_sessions_ms` in the contract); meanwhile the runtime connects to each host component and reads its hello, which take at most 2 seconds together. The rest is for the instances' `documents`, which `doc list` asks of all instances at once. An adapter in the CLI's process MUST keep these limits itself, asking the instances at the same time and giving each its own limit of 2 seconds, because the runtime cannot stop a call on its own thread: a call that passes its deadline ends the process.
 
 Why: One hung instance must not hide every other instance from the Agent.
 Check: 🤖 Driver conformance test D22; 👀 review of the `sessions` and `documents` of an adapter in the CLI's process.
@@ -1460,10 +1466,10 @@ Check: 🤖 Driver conformance tests D06 and D21.
 
 ### DCLI-276 Main thread
 
-The host component MUST call the application's interface on the application's main thread. When the main thread is busy, the host SHOULD reply `E_BUSY` at once, with `retry_after_ms` (DCLI-279), instead of holding the request. A host that cannot answer while its main thread is busy is reported `unresponsive` once the per-instance deadline passes (DCLI-205).
+The host component MUST call the application's interface on the application's main thread, running one instance-side request at a time. `hello` does not wait for the main thread, and neither do `cancel` and the `apply` of a halt command (DSEC-018): the host passes them on in the way the application allows while its main thread works, such as through a stop flag the running work checks. A request that finds the main thread running an earlier request of the tool MUST wait for it, up to 1.5 seconds (`host_protocol.busy_wait_ms` in the contract) and never past the request's `deadline_ms`, and only then reply `E_BUSY`: the tool's own requests often overlap, such as a long job's worker and a read the Agent runs meanwhile. When the application itself holds the main thread, such as while a person runs a command, the host SHOULD reply `E_BUSY` at once, with `retry_after_ms` (DCLI-279), instead of holding the request. A host that cannot answer while its main thread is busy is reported `unresponsive` once the per-instance deadline passes (DCLI-205).
 
-Why: A held request may run much later, after the Agent has already moved on; an immediate busy reply lets the Agent wait knowingly.
-Check: 🤖 Driver conformance test D04.
+Why: A held request may run much later, after the Agent has already moved on; an immediate busy reply lets the Agent wait knowingly. The short wait keeps the tool's own requests from refusing each other.
+Check: 🤖 Driver conformance test D04; 👀 review of how the host component takes requests.
 
 ### DCLI-277 External changes
 

@@ -30,7 +30,7 @@ from . import jobs
 from .._driver.targets import file_key, normalize
 from .base import DESIGNER, LAYOUT, SessionRef, make_session_id, parse_session
 
-INSTANCE_TIMEOUT_S = 2.0  # one instance that does not answer in time is reported unresponsive (DCLI-205)
+INSTANCE_TIMEOUT_S = 1.2  # one instance that does not answer in time is reported unresponsive; with the dialog look it stays inside the 2.5 s the adapter's sessions gets (DCLI-205)
 START_WAIT_S = 300.0  # session open runs in the long-job worker: start, register for COM and open the file
 KINDS = {"project": DESIGNER, "board": LAYOUT}  # the document kinds, and the program that opens each
 STAMP_FILES = 50000  # at most this many files are looked at to see that a save reached the disk
@@ -167,8 +167,8 @@ def _instances(kind: str) -> list[dict[str, Any]] | None:
 
 
 def list_sessions(store: AdapterStore) -> dict[str, Any]:
-    """Designer and Layout are asked side by side: the runtime gives the whole list 5 s, and an
-    instance that does not answer takes its probe and a look for a dialog."""
+    """Designer and Layout are asked side by side: the runtime gives this call 2.5 s of the list's
+    5 s (DCLI-205), and an instance that does not answer takes its probe and a look for a dialog."""
     from concurrent.futures import ThreadPoolExecutor
 
     items: list[dict[str, Any]] = []

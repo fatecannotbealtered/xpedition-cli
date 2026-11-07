@@ -11,7 +11,7 @@ Lets an AI Agent build Xpedition designs from the command line, from central-lib
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-stable-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.5-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.6-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -25,7 +25,7 @@ English | [中文](README_zh.md)
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
 | Maturity | stable: 0 draft, 0 verified, 18 stable |
-| Specification | tool-driver-cli-spec 1.0.5 |
+| Specification | tool-driver-cli-spec 1.0.6 |
 | Host component | no |
 <!-- driver:info-card:end -->
 
@@ -103,7 +103,7 @@ xpedition-cli prints one JSON envelope for every call. `xpedition-cli reference`
 
 `--dry-run` shows the preview of any write and changes nothing. A confirm token works once, within 10 minutes, and only for the change it previewed. When the scope file sets `"confirm": "always"`, every write except stopping work is two-step, so that a person can approve each preview.
 
-**Saving in session mode.** A change is not a save. After a change, the receipt reports `persistence: unchanged` and the document stays dirty; only `xpedition-cli doc save` writes the document's file. Its preview lists every change since the last save, including changes a person made in Xpedition (`origin: external`) and writes whose outcome is still unknown.
+**Saving in session mode.** A change is not a save. After a change, the receipt reports `persistence: unchanged` and the document stays dirty; only `xpedition-cli doc save` writes the document's file. Its preview lists every change since the last save, including changes a person made in Xpedition (`origin: external`) and writes whose outcome is still unknown. A command that Xpedition itself saves at once is two-step and reports `persistence: saved`.
 
 **Saving in file mode.** Writing the file is the save: the receipt reports `persistence: saved`, and xpedition-cli reads the file again to verify the change.
 

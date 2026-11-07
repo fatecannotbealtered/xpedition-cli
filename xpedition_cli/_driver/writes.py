@@ -327,6 +327,11 @@ def pause_before_read_back(run: Run, operation_id: str, command: str, facts: dic
     return f"The tool waited up to {seconds:g} s before the read-back, as {name} asked."
 
 
+def reasons(pv: dict[str, Any]) -> str:
+    """The preview's blocked_by as one clause, without the reasons' own final periods."""
+    return "; ".join(str(r).rstrip(" .") for r in pv.get("blocked_by", []))
+
+
 def is_file_target(key: str) -> bool:
     """A ``file:`` key that names a whole file, not an object inside it."""
     return key.startswith("file:///") and "#" not in key
@@ -343,6 +348,14 @@ def file_checks(record: dict[str, Any], changes: list[dict[str, Any]]) -> list[d
     """The named files no change already checks, as changes that expect them to exist (DCLI-057)."""
     have = {c["target"] for c in changes if c.get("field") == "exists"}
     return [{"target": key, "field": "exists", "origin": "tool"} for key in record.get("_files", []) if key not in have]
+
+
+def to_read_back(change: str, delivery: str, persistence: str, expected: list[dict[str, Any]]) -> bool:
+    """A completed write is read back when its reply reports a lasting effect, and also when its
+    preview or the files it names expect one, whatever the reply says (DCLI-057). A call and a
+    long job decide it alike."""
+    return (change in ("applied", "partial") or delivery == "delivered" or persistence in ("saved", "partial")
+            or any(c.get("origin", "tool") == "tool" for c in expected))
 
 
 def combine(parts: list[Verification]) -> Verification:
@@ -478,7 +491,7 @@ class Engine:
                 pv = {**pv, "can_apply": False,
                       "blocked_by": list(pv.get("blocked_by", [])) + [f"The target is locked by operation {busy[0]['operation_id']}."]}
         if not pv.get("can_apply", True) and not call.dry_run and not call.confirm:
-            raise DriverError("E_CONFLICT", f"The change cannot be applied: {'; '.join(pv.get('blocked_by', []))}.",
+            raise DriverError("E_CONFLICT", f"The change cannot be applied: {reasons(pv)}.",
                               conflict="blocked", untrusted=["message"], **self.blocked_help(pv, "Resolve what blocks it, then run the command again."))
         spec.pending_changes = changes
         binds = self.binds(spec, keys)
@@ -805,7 +818,7 @@ class Engine:
                            "Run the command again without --confirm to preview it again.")
         if not pv.get("can_apply", True):
             help_ = self.blocked_help(pv, "Resolve what blocks it, then run the command again without --confirm.")
-            raise conflict("blocked", f"The change can no longer be applied: {'; '.join(pv.get('blocked_by', []))}.",
+            raise conflict("blocked", f"The change can no longer be applied: {reasons(pv)}.",
                            help_.pop("next_action"), untrusted=["message"], **help_)
 
     def blocked_help(self, pv: dict[str, Any], then: str) -> dict[str, Any]:
@@ -919,11 +932,9 @@ class Engine:
         missing = "unknown" if spec.strict_facts else "not_applicable"
         change, delivery, persistence = (missing if d not in facts else facts[d] if facts[d] in dims[d] else "unknown"
                                          for d in ("change", "delivery", "persistence"))
-        lasting = change == "applied" or delivery == "delivered" or persistence == "saved"
         verification = Verification("not_applicable")
-        expects = any(c.get("origin", "tool") == "tool" for c in changes)
         paused = None
-        if execution == "completed" and (lasting or change == "partial" or persistence == "partial" or expects):
+        if execution == "completed" and to_read_back(change, delivery, persistence, changes + file_checks(record, changes)):
             if child is None or on_hung is not None:
                 def settle(note: str) -> Result:
                     # apply replied, so a read after it that hangs leaves the outcome known (DCLI-278).

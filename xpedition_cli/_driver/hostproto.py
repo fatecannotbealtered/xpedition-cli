@@ -213,8 +213,11 @@ class Connection:
         self._ids = itertools.count(1)
 
     def open(self, deadline_ms: int) -> dict[str, Any]:
+        """Connect and say hello, both within ``deadline_ms`` (DCLI-205)."""
+        end = time.monotonic() + deadline_ms / 1000
         self.stream = _connect(self.address, min(5.0, deadline_ms / 1000))
-        hello = self.call("hello", {"protocol_version": self.protocol_version, "cli_version": self.cli_version}, deadline_ms)
+        left = max(1, int((end - time.monotonic()) * 1000))
+        hello = self.call("hello", {"protocol_version": self.protocol_version, "cli_version": self.cli_version}, left)
         if not isinstance(hello, dict) or not isinstance(hello.get("protocol_version"), str):
             self.close()
             raise ProtocolError("the host's hello reply has no protocol_version")

@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-REPO-SPEC_zh.md)
 
-> Version 1.0.5 · Clauses DREPO-001 to DREPO-062
+> Version 1.0.6 · Clauses DREPO-001 to DREPO-062
 
 ## How to Read
 
@@ -68,7 +68,7 @@ Command behavior, security, Skills and verification have their own clauses. This
 
 | Area | The template, the sync script and the checks provide | The tool author does |
 |---|---|---|
-| Project skeleton | Every required file and directory, with all fixed headings in both languages and the fixed text: How It Works, Bare minimum to obey, the install block and the five fixed SECURITY sections | Fills in the tool's own sections and removes every placeholder |
+| Project skeleton | Every required file and directory, with all fixed headings in both languages and the fixed text: How It Works, Bare minimum to obey, the install block, the five fixed SECURITY sections and Authorization Rules of `docs/E2E.md` | Fills in the tool's own sections and removes every placeholder |
 | Pinned copies | `sync_spec` copies the specification, the contract, the runtime, the licenses and the shared scripts, and replaces them as a whole on upgrade | Runs `sync_spec` to upgrade and never edits a pinned copy |
 | Generated content | Scripts that generate `contract/commands.json`, the command map, the badge row, the info card and the support matrix from data | Registers commands and keeps the evidence and the other sections of `docs/COMPATIBILITY.md` true |
 | Checks | `check_project`: layout, root files, sections, language pairs, placeholders, hashes, badges, labels and capability tracing | Fixes everything `check_project` reports |
@@ -363,14 +363,15 @@ Check: 🤖 `check_project` checks the sections, regenerates the support matrix 
 <!-- contract:e2e_sections -->
 | Section | Content |
 |---|---|
-| `Authorized Targets` | The only list of the application instances, files, folders and devices a person allowed live runs to use; only a person adds to it (DVER-050) |
+| `Authorization Rules` | Fixed text: who adds a target to Authorized Targets, how a target is written, and who writes the scope files for live runs and for evaluations on the real application (DVER-050) |
+| `Authorized Targets` | The only list of the application instances, files, folders and devices allowed for live runs, one list item per target, and no other text (DVER-050) |
 | `Procedure` | The machines, operating systems, application versions and modes used for live runs, and how to prepare and run the behavior matrices on the real application (DVER-030, DVER-031) |
 | `Evidence Records` | An index of the live records in `docs/evidence/` (DVER-042) |
 
-The results of live runs are not repeated here: the support matrix shows them, generated from the same records (DREPO-016).
+The tool MUST NOT change the text of Authorization Rules. The results of live runs are not repeated here: the support matrix shows them, generated from the same records (DREPO-016).
 
-Why: A reviewer, or the next maintainer, needs one place that says which targets may be used, how live runs are done and where their records are.
-Check: 🤖 `check_project`.
+Why: A reviewer, or the next maintainer, needs one place that says which targets may be used, how live runs are done and where their records are. The rules for authorizing targets are the same in every tool, so a change to them reaches every tool with the template.
+Check: 🤖 `check_project` checks the sections and compares Authorization Rules with the template.
 
 ### DREPO-018 CHANGELOG
 
@@ -420,7 +421,7 @@ The README MUST show these badges, in this order, in one row under the pitch:
 | `platform` | The shipped platforms: Windows, macOS, Linux | The platform packages in `package.json` (DREPO-043) |
 | `risk` | The tool's risk tier, T0 to T2 (DSEC-002) | `reference` |
 | `maturity` | The lowest maturity among the tool's domain commands (DVER-040) | `reference` |
-| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.0.5 | `.agent/SPEC_VERSION` |
+| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.0.6 | `.agent/SPEC_VERSION` |
 | `license` | The tool's license | `package.json` |
 
 A badge row for a tool that drives KiCad 10.0 in file and session mode looks like this; the template defines the exact style:
@@ -434,7 +435,7 @@ A badge row for a tool that drives KiCad 10.0 in file and session mode looks lik
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.5-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.6-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 

@@ -586,7 +586,7 @@ def _quietly_list(fn: Callable[[], list[Any]]) -> list[Any]:
         return []
 
 
-DIALOG_LOOK_S = 1.5  # UI Automation may not answer while Layout is busy; the whole session list gets 5 s
+DIALOG_LOOK_S = 0.9  # UI Automation may not answer while Layout is busy; the adapter's sessions gets 2.5 s (DCLI-205)
 
 
 def _held(pid: int, fallback: str) -> dict[str, Any]:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -168,7 +169,9 @@ def add_target_flags(tool: Tool, command: Command) -> None:
     command.flags = extra + command.flags
     if command.writes and "--output" not in names:
         command.flags.append(Flag("--output", "path", "Write the full preview, with every change, to this file.", runtime=True))
-    if "artifact" in command.effects and any(f.output for f in command.flags):
+    if "artifact" in command.effects:
+        # The runtime finds an existing file of an output flag itself; for a file no output flag
+        # names, such as a new document named by --doc, the preview reports it (DCLI-051).
         command.tier_when = [{"when": "target_exists", "tier": "two_step"}] + command.tier_when
     tiers = tool.tiers
     if command.writes and not command.halt and any(tiers.base(command, m) == "direct" for m in command.modes):
@@ -255,7 +258,7 @@ def doc_list(run: Run) -> Result:
             if s not in ready:
                 complete = False
                 _notice_unanswered(run, s, s["state"])
-        results = parallel(ready, lambda s: run.documents(s["id"], None, SESSION_DEADLINE_MS), SESSION_DEADLINE_MS / 1000 + 0.5)
+        results = parallel(ready, lambda s: run.documents(s["id"], None, SESSION_DEADLINE_MS), SESSION_DEADLINE_MS / 1000 + 0.2)
         for s, (status, value) in zip(ready, results):
             if status == "ok":
                 items.extend(value)
@@ -369,7 +372,7 @@ def poll_job(run: Run, record: dict[str, Any]) -> dict[str, Any]:
 def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: Verification | None = None) -> None:
     """Complete the job's operation record with a full receipt (DCLI-065). ``made`` is the
     verification a standard command's worker already did with that command's own read-back."""
-    from .writes import Engine as _Engine
+    from .writes import Engine as _Engine, to_read_back
 
     job, state = record["_job"], status["state"]
     execution = {"completed": "completed", "partial": "completed", "failed": "failed", "cancelled": "interrupted",
@@ -387,7 +390,7 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
     verification = Verification("not_applicable")
     if made is not None and execution == "completed":
         verification = made
-    elif execution == "completed" and (change in ("applied", "partial") or persistence == "saved" or delivery == "delivered"):
+    elif execution == "completed" and to_read_back(change, delivery, persistence, _job_changes(record)):
         verification = _job_verification(run, record, status)
     if status.get("_note"):
         verification.notes.insert(0, status["_note"])
@@ -410,15 +413,22 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
         run.locks.release(record["operation_id"])
 
 
+def _job_changes(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """What a job's preview expects, with the files the call named (DCLI-051, DCLI-057)."""
+    from .writes import file_checks
+
+    changes = record.get("_changes", [c for c in record["preview"].get("changes", []) if c.get("origin", "tool") == "tool"])
+    return changes + file_checks(record, changes)
+
+
 def _job_verification(run: Run, record: dict[str, Any], status: dict[str, Any]) -> Verification:
     """A job's outputs: the files it made and the fields it changed, both when it did both (DCLI-057)."""
-    from .writes import combine, file_checks, is_file_target
+    from .writes import combine, is_file_target
 
     command = run.tool.commands.get(record.get("command", ""))
     if command is not None and command.verify_after_save and (record.get("_call") or {}).get("mode") == "session":
         return Verification("deferred", notes=["The application shows this change correctly only after a save; doc save verifies it."])
-    changes = record.get("_changes", [c for c in record["preview"].get("changes", []) if c.get("origin", "tool") == "tool"])
-    changes = changes + file_checks(record, changes)  # the files the call named (DCLI-051)
+    changes = _job_changes(record)
     files = [c for c in changes if c.get("field") == "exists" and is_file_target(c["target"])]
     fields = [c for c in changes if c not in files]
     parts = []
@@ -442,10 +452,11 @@ def run_write_job(run: Run, record: dict[str, Any]) -> None:
 
     def apply() -> Any:
         # The checks that run right before any dispatch run here too (DCLI-057, DSEC-061).
-        if request.get("device"):
-            run.gate_device(run.fresh_device(request["device"]))
-        if request.get("session"):
-            run.gate_session(run.session(request["session"]))
+        with _BeforeDispatch(run, run, record):
+            if request.get("device"):
+                run.gate_device(run.fresh_device(request["device"]))
+            if request.get("session"):
+                run.gate_session(run.session(request["session"]))
         return dispatch(run, "apply", request)
 
     status, _facts = _job_dispatch(run, apply, strict=True)
@@ -478,6 +489,39 @@ def _settle_hung(run: Run, sub: Run, record: dict[str, Any], status: dict[str, A
     run.records.save(record)
 
 
+class _BeforeDispatch:
+    """Around the reads right before a worker's dispatch: when one of them hangs, the watchdog
+    settles the job as failed with E_BUSY, because nothing was sent, and frees its targets before
+    it ends the worker (DCLI-278). The dispatch begins only when the watchdog has not settled it."""
+
+    def __init__(self, run: Run, sub: Run, record: dict[str, Any]) -> None:
+        self.run, self.sub, self.record = run, sub, record
+        self.lock = threading.Lock()
+        self.reading = False
+        self.settled = False
+
+    def settle(self, note: str) -> None:
+        with self.lock:
+            if not self.reading:
+                return  # the reads ended in time; the hang is the dispatch's own
+            self.settled = True
+            status = {"state": "failed", "change": "not_applied", "code": "E_BUSY",
+                      "_note": "The application did not answer a read before the dispatch in time; nothing was sent."}
+            _settle_hung(self.run, self.sub, self.record, status, Verification("not_applicable"))
+
+    def __enter__(self) -> None:
+        self.reading = True
+        self.run.settle_hang = self.settle
+
+    def __exit__(self, *exc: object) -> None:
+        with self.lock:
+            self.reading = False
+            self.run.settle_hang = None
+            settled = self.settled
+        if settled:
+            threading.Event().wait()  # the watchdog ends the worker; nothing may be sent meanwhile
+
+
 def run_standard_job(run: Run, record: dict[str, Any]) -> None:
     """In the worker: run a standard write the tool registered as long, such as opening a large
     project, with the long deadline and that command's own checks and read-back (DCLI-065)."""
@@ -493,7 +537,8 @@ def run_standard_job(run: Run, record: dict[str, Any]) -> None:
         spec = LONG_SPECS[record["command"]](sub, call.command)
 
         def apply() -> Any:
-            spec.prepare()  # the state checks that refuse a write, right before dispatch (DCLI-057)
+            with _BeforeDispatch(run, sub, record):
+                spec.prepare()  # the state checks that refuse a write, right before dispatch (DCLI-057)
             confirmed = record.get("_call") or {}
             now = {"session": (spec.where.session or {}).get("id"), "document": (spec.where.document or {}).get("id")}
             for key, value in now.items():
@@ -554,15 +599,31 @@ def _fresh_document(run: Run, spec: WriteSpec, record: dict[str, Any]) -> None:
 
 def _job_dispatch(run: Run, apply: Any, strict: bool) -> tuple[dict[str, Any], dict[str, Any]]:
     """Make the dispatch in a job's worker and turn what came back into the job's end state.
-    ``strict``: apply reports all three dimensions; other write capabilities report what applies."""
+    ``strict``: apply reports all three dimensions; other write capabilities report what applies.
+    A busy instance or device took nothing, so the worker tries again after ``retry_after_ms``
+    for up to ``jobs.busy_retry_seconds`` before the job fails with E_BUSY (DCLI-065)."""
+    end = time.monotonic() + float(run.contract["jobs"]["busy_retry_seconds"])
+    while True:
+        status, facts, wait_ms = _job_dispatch_once(run, apply, strict)
+        left = end - time.monotonic()
+        if status.get("code") != "E_BUSY" or status.get("change") != "not_applied" or left <= 0:
+            return status, facts
+        time.sleep(min(max(wait_ms, 100) / 1000, left))
+        run._sessions = None  # the next try reads the instance and the device again
+        run._devices = None
+
+
+def _job_dispatch_once(run: Run, apply: Any, strict: bool) -> tuple[dict[str, Any], dict[str, Any], int]:
     from .adapter import BadProtocol, BadReply, CapabilityError, Lost, Unanswered
 
     status: dict[str, Any]
     facts: Any = {}
+    wait_ms = 500
     try:
         facts = apply()
     except DriverError as exc:
         status = {"state": "failed", "change": "not_applied", "code": exc.code, "native_message": exc.message}
+        wait_ms = exc.details.get("retry_after_ms", wait_ms)
     except CapabilityError as exc:
         code, ds = run.host_error(exc, exc.dispatch_state, write=True).code, exc.dispatch_state
         if ds == "not_started" or (ds == "dispatched" and code in ("E_VALIDATION", "E_NOT_FOUND", "E_UNSUPPORTED")):
@@ -573,12 +634,13 @@ def _job_dispatch(run: Run, apply: Any, strict: bool) -> tuple[dict[str, Any], d
             status = {"state": "unknown"}
         if isinstance(exc.data.get("native_message"), str):
             status["native_message"] = exc.data["native_message"]
+        wait_ms = exc.data.get("retry_after_ms", wait_ms)
+    except BadReply as exc:
+        status = {"state": "unknown", "native_message": str(exc)}
     except Unanswered as exc:
         status = {"state": "unknown"} if exc.sent else {"state": "failed", "change": "not_applied", "code": "E_BUSY"}
     except (Lost, BadProtocol) as exc:
         status = {"state": "failed", "change": "not_applied", "code": "E_BACKEND_UNAVAILABLE", "native_message": str(exc)}
-    except BadReply as exc:
-        status = {"state": "unknown", "native_message": str(exc)}
     else:
         if not isinstance(facts, dict) or facts.get("dispatch_state") not in ("not_started", "dispatched", "unknown"):
             status = {"state": "unknown"}
@@ -592,7 +654,9 @@ def _job_dispatch(run: Run, apply: Any, strict: bool) -> tuple[dict[str, Any], d
             if not strict:
                 for dim in ("change", "delivery", "persistence"):
                     status.setdefault(dim, "not_applicable")
-    return status, facts if isinstance(facts, dict) else {}
+    if not isinstance(wait_ms, int) or isinstance(wait_ms, bool):
+        wait_ms = 500
+    return status, facts if isinstance(facts, dict) else {}, wait_ms
 
 
 def job_list(run: Run) -> Result:
@@ -631,7 +695,7 @@ def _blocked_sessions(run: Run) -> dict[str, dict[str, Any]]:
     if not run.backend.has("sessions"):
         return {}
     try:
-        items = run.capability("sessions", {}, 5000).get("items", [])
+        items = run.capability("sessions", {}, int(run.contract["session_read_deadline"]["adapter_sessions_ms"])).get("items", [])
     except DriverError:
         return {}
     out = {}

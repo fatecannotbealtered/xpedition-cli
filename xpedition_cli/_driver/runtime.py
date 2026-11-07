@@ -224,13 +224,15 @@ class Run:
     # ------------------------------------------------------------------ sessions
 
     def sessions(self) -> dict[str, Any]:
-        """``sessions`` with the state of each host component overlaid (DCLI-205, DCLI-278)."""
+        """``sessions`` with the state of each host component overlaid (DCLI-205, DCLI-278). The
+        host components are probed while the adapter answers, so the two share the time."""
         if self._sessions is not None:
             return self._sessions
-        result = self.capability("sessions", {}, 5000)
+        probe = self.backend.start_probe(SESSION_DEADLINE_MS) if self.tool.host_component else None
+        result = self.capability("sessions", {}, int(self.contract["session_read_deadline"]["adapter_sessions_ms"]))
         items = [s for s in result.get("items", []) if s.get("state") != "closed"]
-        if self.tool.host_component:
-            probed = self.backend.probe_hosts(SESSION_DEADLINE_MS)
+        if probe is not None:
+            probed = probe()
             for item in items:
                 status = probed.get(item["id"], {}).get("status")
                 if status == "lost":
