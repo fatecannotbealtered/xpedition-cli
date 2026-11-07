@@ -422,6 +422,49 @@ class PartCreateTest(LibraryCase):
         self.assertEqual((error["code"], error["knowledge"]), ("E_VALIDATION", ["xpedition-ascii-paths-only"]))
 
 
+class PadstackTest(LibraryCase):
+    def test_the_list_gives_types_and_sizes_and_filters_by_type(self):
+        rows = L.PadstackList().read(self.ctx("padstack list"))["items"]
+        self.assertTrue(rows)
+        self.assertTrue(all({"id", "type", "pad_mm", "drill_mm"} <= set(r) for r in rows))
+        self.assertEqual(L.PadstackList().read(self.ctx("padstack list", {"type": "via"}))["items"], [])
+        self.assertEqual(self.error(lambda: L.PadstackList().read(self.ctx("padstack list", {"type": "plated"})))["code"],
+                         "E_VALIDATION")
+
+    def test_a_via_is_previewed_then_added_and_reads_back(self):
+        inputs = {"drill_mm": 0.2, "pad_mm": 0.4}
+        out = L.PadstackCreate().preview(self.ctx("padstack create", inputs))
+        target = base.key(str(self.prj), "/padstacks/VIA_D0.2_P0.4")
+        self.assertEqual(out["targets"][0]["key"], target)
+        self.assertEqual({c["field"]: c["after"] for c in out["changes"]},
+                         {"exists": True, "type": "via", "pad_mm": 0.4, "drill_mm": 0.2, "mask_mm": None})
+        self.assertIn("tented", out["action"])
+        self.assertEqual(self.tools.imports(), [])
+        facts = L.PadstackCreate().apply(self.ctx("padstack create", inputs))
+        self.assertEqual((facts["change"], facts["persistence"], facts["result"]["created"]), ("applied", "saved", True))
+        (name, args), = self.tools.imports()
+        self.assertEqual((name, args[args.index("-o") + 1], "-m" in args), ("HKP2PadstackDB", str(self.root / "Layout" / "PadstackDB.psk"), True))
+        back = L.PadstackCreate().read_back(self.ctx("padstack create", inputs, targets=[target]))
+        self.assertEqual(back["observed"][target], {"exists": True, "type": "via", "pad_mm": 0.4, "drill_mm": 0.2, "plated": True,
+                                                     "mask_mm": None})
+        again = L.PadstackCreate().apply(self.ctx("padstack create", inputs))
+        self.assertEqual((again["change"], again["result"]["created"]), ("not_applicable", False))
+        self.assertEqual(len(self.tools.imports()), 1)
+
+    def test_a_name_held_with_other_content_is_blocked(self):
+        L.PadstackCreate().apply(self.ctx("padstack create", {"drill_mm": 0.2, "pad_mm": 0.4}))
+        found = self.error(lambda: L.PadstackCreate().preview(self.ctx("padstack create", {"drill_mm": 0.25, "pad_mm": 0.5,
+                                                                                         "name": "VIA_D0.2_P0.4"})))
+        self.assertEqual((found["code"], found.get("conflict")), ("E_CONFLICT", "application_state"))
+        self.assertIn("with other content", found["message"])
+
+    def test_sizes_that_make_no_via_are_refused(self):
+        for inputs in ({"drill_mm": 0.4, "pad_mm": 0.3}, {"drill_mm": 0, "pad_mm": 0.3}, {"drill_mm": 0.2, "pad_mm": 0.4, "mask_mm": 0}):
+            with self.subTest(inputs=inputs):
+                self.assertEqual(self.error(lambda i=inputs: L.PadstackCreate().preview(self.ctx("padstack create", i)))["code"],
+                                 "E_VALIDATION")
+
+
 class ProjectListTest(unittest.TestCase):
     def test_a_project_without_the_list_gains_it_in_the_board_design_without_repeats(self):
         with tempfile.TemporaryDirectory() as folder:

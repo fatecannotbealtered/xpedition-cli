@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | draft：draft 2 个，verified 0 个，stable 18 个 |
+| 成熟度 | draft：draft 4 个，verified 0 个，stable 18 个 |
 | 规范 | tool-driver-cli-spec 1.0.6 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -76,6 +76,7 @@
 - `knowledge`: list, get, search, create, delete
 - `project`: get
 - `part`: list, get, create
+- `padstack`: list, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
 - `pcb`: create, update, get, check, export

@@ -1,0 +1,110 @@
+{
+  "command": "padstack list",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}",
+        "--type",
+        "via"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The via padstacks of the project's central library, with pad, drill and soldermask sizes."
+      }
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}",
+        "--offset",
+        "100000"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "An offset past the last padstack: an empty page, exit 0, never E_NOT_FOUND."
+      }
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}",
+        "--type",
+        "plated"
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "--type names no padstack type; the message lists the types.",
+        "code": "E_VALIDATION"
+      }
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{dir}/Missing.prj"
+      ],
+      "expected": {
+        "exit": 3,
+        "summary": "No project file at that path.",
+        "code": "E_NOT_FOUND"
+      }
+    },
+    {
+      "row": "ambiguous",
+      "applies": false,
+      "reason": "padstack list selects nothing by name and returns every padstack of the library, never E_AMBIGUOUS; it works in file mode only, so no instance has to be chosen."
+    },
+    {
+      "row": "conflict",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "no_scope",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "busy",
+      "applies": false,
+      "reason": "This row applies only to a command that works in session mode or works in device mode."
+    },
+    {
+      "row": "dialog",
+      "applies": false,
+      "reason": "This row applies only to a command that works in session mode."
+    },
+    {
+      "row": "disconnect",
+      "applies": false,
+      "reason": "This row applies only to a command that works in session mode or works in device mode or reaches the application through the host component."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--doc",
+        "{doc}",
+        "--type",
+        "via"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Designer holds the project open with unsaved changes: the list is read from the library files on disk, exit 0."
+      }
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    }
+  ]
+}

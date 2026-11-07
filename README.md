@@ -24,7 +24,7 @@ English | [中文](README_zh.md)
 | Modes | file, session |
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
-| Maturity | draft: 2 draft, 0 verified, 18 stable |
+| Maturity | draft: 4 draft, 0 verified, 18 stable |
 | Specification | tool-driver-cli-spec 1.0.6 |
 | Host component | no |
 <!-- driver:info-card:end -->
@@ -76,6 +76,7 @@ Every command of xpedition-cli, generated from its command registration; `(dange
 - `knowledge`: list, get, search, create, delete
 - `project`: get
 - `part`: list, get, create
+- `padstack`: list, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
 - `pcb`: create, update, get, check, export

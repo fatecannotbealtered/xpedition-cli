@@ -137,6 +137,8 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-020 | Import KiCad footprint libraries | Converters | excluded | Removed in 1.0.3; the library does not depend on KiCad |
 | CAP-021 | Create a partition and register it in `.lmc` | Converters / Partition Editor | unknown | The old code contradicts itself; there is no evidence from a real installation |
 | CAP-022 | Generate cells with PCB Footprint Expert | `lm_fpe` | excluded | A GUI tool with no automation interface |
+| CAP-023 | List the padstacks of the central library with their pad, hole and soldermask sizes | `PadstackDB2HKP` | provided | - |
+| CAP-024 | Add a via padstack to the central library: plated hole, round pad on every layer, soldermask opening or tented | `HKP2PadstackDB` (merge) | provided | - |
 | CAP-030 | Read the schematic: sheets, component count, net count | Designer COM | provided | - |
 | CAP-031 | Read schematic components: reference designator, part number, value, sheet, attributes, each pin and its net | Designer COM `DesignComponents` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-032 | Read schematic nets and their pins | Designer COM | deferred | The first version includes only the steps needed to make a board; a later version will provide it |

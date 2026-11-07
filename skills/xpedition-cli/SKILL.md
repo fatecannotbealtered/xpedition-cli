@@ -42,6 +42,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `knowledge`: list, get, search, create, delete
 - `project`: get
 - `part`: list, get, create
+- `padstack`: list, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
 - `pcb`: create, update, get, check, export

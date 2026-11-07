@@ -46,6 +46,7 @@ Risk tier: **T1**, set by these commands:
 - `doc undo`: change
 - `job cancel`: lifecycle
 - `part create`: change
+- `padstack create`: change
 - `packager run`: change
 - `schematic create`: change, persist, artifact
 - `schematic export`: artifact

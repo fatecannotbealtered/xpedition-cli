@@ -46,6 +46,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `doc undo`: change
 - `job cancel`: lifecycle
 - `part create`: change
+- `padstack create`: change
 - `packager run`: change
 - `schematic create`: change, persist, artifact
 - `schematic export`: artifact

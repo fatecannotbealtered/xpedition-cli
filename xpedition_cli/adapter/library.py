@@ -33,6 +33,7 @@ from .base import Context, Handler, change, facts, key, need_input, preview, tar
 from .plan import PlanError
 from .plan import library_parts as P
 from .plan import library_read as R
+from .plan import padstacks as PS
 from .plan import project_file
 from .platform import env
 
@@ -797,5 +798,119 @@ class PartCreate(Handler):
         return {"observed": observed, "unreadable": []}
 
 
-HANDLERS: list[Handler] = [PartList(), PartGet(), PartCreate()]
+# ------------------------------------------------------------------ padstack list, padstack create
+
+PADSTACK_TYPES = ("via", "smd", "through", "mounting_hole")
+PADSTACK_FIELDS = ("type", "pad_mm", "drill_mm", "plated", "mask_mm")
+
+
+def _padstacks(ctx: Context, *, fresh: bool = False) -> dict[str, Any]:
+    library = read_library(project_path(ctx), cache_for(ctx), kinds=("padstacks",), symbols=False, fresh=fresh)
+    refuse_failed(library, "its padstacks cannot be read")
+    return library.padstacks
+
+
+class PadstackList(Handler):
+    command = "padstack list"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        kind = ctx.inputs.get("type")
+        if kind is not None and kind not in PADSTACK_TYPES:
+            raise AdapterError("E_VALIDATION", f"--type is one of {', '.join(PADSTACK_TYPES)}.", dispatch_state="not_started")
+        return {"items": [{"id": r.pop("name"), **r} for r in PS.rows(_padstacks(ctx), kind)]}
+
+
+def _via(ctx: Context) -> PS.Via:
+    try:
+        return PS.via(ctx.inputs.get("name"), need_input(ctx, "drill_mm"), need_input(ctx, "pad_mm"), ctx.inputs.get("mask_mm"))
+    except PlanError as exc:
+        raise plan_error(exc) from None
+
+
+def _via_plan(ctx: Context) -> tuple[Path, Path, Path, PS.Via, str]:
+    project = project_path(ctx)
+    spec = _via(ctx)
+    lmc, root = library_root(project)
+    _refuse_installation_library(root)
+    try:
+        action = PS.plan(spec, _padstacks(ctx))
+    except PlanError as exc:
+        # what the library holds already stands in the way: a blocked preview, nothing written
+        raise base.blocked(f"padstack create only adds to the library: {exc.message} Nothing was written.",
+                           knowledge=["library-converter-rules"]) from None
+    return project, lmc, root, spec, action
+
+
+class PadstackCreate(Handler):
+    """A via padstack in the central library, through ``HKP2PadstackDB`` (merge). Runs as a long
+    job (DCLI-065): the library converters may take minutes on a large library."""
+
+    command = "padstack create"
+    long_job = True
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        project, lmc, _root, spec, action = _via_plan(ctx)
+        prj = str(project)
+        domain = f"/padstacks/{spec.name}"
+        if action == "skip":
+            return preview(f"Nothing to add: the central library {lmc} holds the via padstack {spec.name} as it is.",
+                           [target(prj, "padstack", domain, label=spec.name)], [])
+        tented = "tented (no soldermask opening)" if spec.mask_mm is None else f"a {spec.mask_mm:g} mm soldermask opening"
+        changes = [change(key(prj, domain), "exists", False, True)]
+        changes += [change(key(prj, domain), name, None, value) for name, value in spec.fields().items() if name != "plated"]
+        return preview(f"Add the via padstack {spec.name} to the central library {lmc}: a {spec.drill_mm:g} mm plated hole, a "
+                       f"{spec.pad_mm:g} mm round pad on every conductor layer, {tented}.",
+                       [target(prj, "padstack", domain, label=spec.name), target(str(lmc), "library", label=str(lmc))], changes)
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        _project, lmc, root, spec, action = _via_plan(ctx)
+        result = {"name": spec.name, **spec.fields()}
+        if action == "skip":
+            return facts("not_applicable", "unchanged", result={**result, "created": False})
+        env.configure_environment()
+        env.launcher("HKP2PadstackDB")  # a missing converter stops before anything is written
+        folder = root.joinpath(*WORK_FOLDER)
+        source, log = folder / "padstacks.hkp", folder / "padstacks.log"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(hkp_bytes(PS.hkp(spec)))
+            log.unlink(missing_ok=True)
+        except OSError as exc:
+            raise AdapterError("E_IO", f"The padstack text cannot be written to {source}: {exc.strerror}.", dispatch_state="not_started") from None
+        database = str(root / "Layout" / "PadstackDB.psk")
+        run = env.run_tool("HKP2PadstackDB", ["-i", str(source), "-o", database, "-c", str(lmc), "-m", "-l", str(log)],
+                           timeout_s=IMPORT_TIMEOUT_S, log=log)
+        if run.blocked_by_license:
+            title = next((d.get("title", "") for d in run.dialogs if not d.get("dismissed")), "")
+            raise AdapterError("E_HUMAN_REQUIRED", "A licence window holds HKP2PadstackDB; the padstack database may be changed.",
+                               dispatch_state="dispatched", action="activate_license", title=title, knowledge=["xpedition-license-sign-in"])
+        if run.timed_out:
+            raise AdapterError("E_TIMEOUT", f"HKP2PadstackDB did not finish within {int(IMPORT_TIMEOUT_S)} s and was ended; the padstack "
+                               "database may be partly written.", dispatch_state="dispatched")
+        errors = env.tool_log_errors(run.log_text or "")
+        if run.exit_code != 0 or run.dialogs or errors:
+            raise AdapterError("E_NATIVE_FAILURE", f"HKP2PadstackDB failed: {describe_run(run, errors)}", dispatch_state="dispatched",
+                               knowledge=["library-converter-rules"])
+        warnings = "; ".join(env.tool_log_warnings(run.log_text or "")[:5]) or None
+        return facts("applied", "saved", result={**result, "created": True}, native_message=warnings)
+
+    def read_back(self, ctx: Context) -> dict[str, Any]:
+        project = project_path(ctx)
+        library = read_library(project, cache_for(ctx), kinds=("padstacks",), symbols=False, fresh=True)
+        if library.failed:
+            return {"observed": {}, "unreadable": ["exists", *PADSTACK_FIELDS]}
+        prefix = key(str(project), "/padstacks/")
+        observed: dict[str, Any] = {}
+        for item in ctx.request.get("targets") or []:
+            if item.startswith(prefix):
+                name = item[len(prefix):]
+                held = name in library.padstacks.get("padstacks", {})
+                observed[item] = {"exists": held, **({k: PS.row(library.padstacks, name).get(k) for k in PADSTACK_FIELDS} if held else {})}
+        return {"observed": observed, "unreadable": []}
+
+
+HANDLERS: list[Handler] = [PartList(), PartGet(), PartCreate(), PadstackList(), PadstackCreate()]
 

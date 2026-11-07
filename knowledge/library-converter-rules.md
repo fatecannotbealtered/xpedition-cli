@@ -2,11 +2,11 @@
 id: library-converter-rules
 title: Rules of the central library converters
 kind: guide
-applies_to: [part create, part list, part get, packager run]
+applies_to: [part create, part list, part get, padstack list, padstack create, packager run]
 tags: [library, converter, hkp, cell]
 ---
 
-part list, part get and part create read and write the central library through Xpedition's converter programs. `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP` export a database as HKP text. `HKP2PadstackDB`, `HKP2CellDB` and `HKP2PartsDB` import it. Library Manager's own automation is read-only.
+part list, part get, part create, padstack list and padstack create read and write the central library through Xpedition's converter programs. `PartsDB2HKP`, `CellDB2HKP` and `PadstackDB2HKP` export a database as HKP text. `HKP2PadstackDB`, `HKP2CellDB` and `HKP2PartsDB` import it. Library Manager's own automation is read-only.
 
 ## How the converters behave
 

@@ -133,6 +133,8 @@
 | CAP-020 | 导入 KiCad 封装库 | 转换程序 | excluded | 1.0.3 已移除，库不依赖 KiCad |
 | CAP-021 | 新建分区并登记到 `.lmc` | 转换程序 / Partition Editor | unknown | 旧码前后矛盾，没有真机证据 |
 | CAP-022 | 用 PCB Footprint Expert 生成封装 | `lm_fpe` | excluded | GUI 工具，没有自动化接口 |
+| CAP-023 | 列出中心库的焊盘栈，带焊盘、钻孔和阻焊开窗尺寸 | `PadstackDB2HKP` | provided | - |
+| CAP-024 | 往中心库加过孔焊盘栈：金属化孔、每层一个圆焊盘、阻焊开窗或盖油 | `HKP2PadstackDB`（合并） | provided | - |
 | CAP-030 | 读原理图：页、元件数、网络数 | Designer COM | provided | - |
 | CAP-031 | 读原理图元件：位号、料号、值、页、属性、每个管脚及其网络 | Designer COM `DesignComponents` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-032 | 读原理图网络及其管脚 | Designer COM | deferred | 第一版只收做板必经的步骤，以后的版本提供 |

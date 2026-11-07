@@ -185,6 +185,124 @@
       "long": true
     },
     {
+      "path": "padstack list",
+      "summary": "List the padstacks of the project's central library, with their type, pad and hole sizes.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "file"
+      ],
+      "target_kind": "padstack",
+      "flags": [
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--type",
+          "type": "string",
+          "summary": "Only padstacks of this type: via, smd, through or mounting_hole."
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "summary": "Items per page; default 20, at most 100."
+        },
+        {
+          "name": "--offset",
+          "type": "integer",
+          "summary": "Start position of the page; default 0."
+        }
+      ],
+      "untrusted_fields": [
+        "id",
+        "type",
+        "pad_shape"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [
+        "id",
+        "type",
+        "pad_mm",
+        "drill_mm",
+        "mask_mm"
+      ],
+      "related_knowledge": [
+        "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
+      "path": "padstack create",
+      "summary": "Add a via padstack to the central library: a plated hole, a round pad on every conductor layer, and a soldermask opening or none (tented); runs as a long job.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "file"
+      ],
+      "target_kind": "padstack",
+      "flags": [
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--drill",
+          "type": "quantity",
+          "summary": "The finished hole diameter.",
+          "required": true,
+          "quantity": "length"
+        },
+        {
+          "name": "--pad",
+          "type": "quantity",
+          "summary": "The pad diameter on every conductor layer; wider than the hole.",
+          "required": true,
+          "quantity": "length"
+        },
+        {
+          "name": "--mask",
+          "type": "quantity",
+          "summary": "The soldermask opening's diameter; without it the via is tented, covered by soldermask or coverlay.",
+          "quantity": "length"
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "summary": "The padstack's name; VIA_D<drill>_P<pad> in mm by default, such as VIA_D0.2_P0.4."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {
+        "pad_mm": 0.0005,
+        "drill_mm": 0.0005,
+        "mask_mm": 0.0005
+      },
+      "default_fields": [],
+      "related_knowledge": [
+        "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "project"
+      ],
+      "long": true
+    },
+    {
       "path": "packager run",
       "summary": "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
       "effects": [

@@ -58,7 +58,7 @@ class Hole:
 @dataclass(frozen=True)
 class Padstack:
     name: str
-    kind: str  # PIN_SMD, PIN_THROUGH, MOUNTING_HOLE
+    kind: str  # PIN_SMD, PIN_THROUGH, MOUNTING_HOLE, VIA
     pad: str | None = None
     mask: str | None = None
     hole: str | None = None
@@ -817,6 +817,16 @@ def render_padstacks(plan: LibraryPlan) -> str:
                 f'...TOP_SOLDERPASTE_PAD "{stack.paste or stack.pad}"',
                 f'...BOTTOM_SOLDERPASTE_PAD "{stack.paste or stack.pad}"',
             ]
+        elif stack.kind == "VIA":
+            # a tented via (no mask) has no soldermask pad: the soldermask or coverlay covers it
+            lines += [
+                f'...TOP_PAD "{stack.pad}"',
+                f'...INTERNAL_PAD "{stack.pad}"',
+                f'...BOTTOM_PAD "{stack.pad}"',
+            ]
+            if stack.mask:
+                lines += [f'...TOP_SOLDERMASK_PAD "{stack.mask}"', f'...BOTTOM_SOLDERMASK_PAD "{stack.mask}"']
+            lines += [f'...HOLE_NAME "{stack.hole}"', "....OFFSET (0, 0)"]
         elif stack.kind == "PIN_THROUGH":
             lines += [
                 f'...TOP_PAD "{stack.pad}"',
