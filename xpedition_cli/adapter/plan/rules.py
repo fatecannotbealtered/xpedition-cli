@@ -6,7 +6,8 @@ A rules file names net classes, differential pairs and clearance rules:
 {
   "net_classes": [
     {"name": "USB_90", "nets": ["USB_TX_P", "USB_TX_N"],
-     "layers": {"all": {"width_mm": 0.1, "min_width_mm": 0.08, "differential_spacing_mm": 0.12}}}
+     "layers": {"all": {"width_mm": 0.1, "min_width_mm": 0.08, "differential_spacing_mm": 0.12}}},
+    {"name": "RF_50", "nets": ["ANT"], "layers": {"1": {"width_mm": 0.3}}, "impedance": {"ohm": 50, "tolerance_ohm": 5}}
   ],
   "differential_pairs": [{"nets": ["USB_TX_P", "USB_TX_N"]}],
   "clearances": [
@@ -21,6 +22,11 @@ changes only what a file names: an Agent reads the rules, edits a few values and
 Lengths are millimetres; a layer is a conductor layer number written as a string, or ``all``.
 A net named under a class moves into that class; a class's other nets stay in it. A width
 outside its class's minimum or maximum also moves the limit the file leaves out to that width.
+
+A class's ``impedance`` is a check, not a rule Constraint Manager keeps: the single-ended
+impedance Layout computes from the stackup for the class's width on each signal layer must lie
+within the tolerance of the target, or the import is refused. ``constraint get`` reports that
+impedance for every class and layer and writes no ``impedance`` into a file.
 
 This module is pure Python: the adapter reads the board's current rules into the shape of
 ``Current`` and applies the ``Plan``.
@@ -45,6 +51,7 @@ CLEARANCE_FIELDS = {"trace_to_trace_mm": 434, "trace_to_pad_mm": 432, "trace_to_
                     "pad_to_pad_mm": 300, "pad_to_via_mm": 302, "via_to_via_mm": 460, "via_to_plane_mm": 459}
 TOP_KEYS = ("net_classes", "differential_pairs", "clearances")
 MAX_ITEMS = 500
+MAX_OHM = 1000.0
 
 
 def th(mm: float) -> float:
@@ -140,6 +147,23 @@ def _layers(value: Any, fields: dict[str, int], what: str, allow_zero: bool) -> 
     return out
 
 
+def _impedance(value: Any, what: str) -> tuple[float, float] | None:
+    """A single-ended impedance target and its tolerance, both in ohms."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {"ohm", "tolerance_ohm"}:
+        raise _error(f"{what}: impedance is an object with ohm and tolerance_ohm")
+    ohm, tolerance = value["ohm"], value["tolerance_ohm"]
+    for name, number in (("ohm", ohm), ("tolerance_ohm", tolerance)):
+        if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number):
+            raise _error(f"{what}: impedance {name} must be a number of ohms")
+    if not 0 < ohm <= MAX_OHM:
+        raise _error(f"{what}: impedance ohm must be more than 0 and at most {MAX_OHM:g}")
+    if not 0 < tolerance < ohm:
+        raise _error(f"{what}: impedance tolerance_ohm must be more than 0 and less than ohm")
+    return round(float(ohm), 3), round(float(tolerance), 3)
+
+
 def parse(data: Any) -> dict[str, Any]:
     """The checked contents of a rules file; refuses one that is malformed."""
     if not isinstance(data, dict):
@@ -166,14 +190,15 @@ def parse(data: Any) -> dict[str, Any]:
         if name in seen:
             raise _error(f"net class {name} is named twice")
         seen.add(name)
-        extra = [key for key in item if key not in ("name", "nets", "layers")]
+        extra = [key for key in item if key not in ("name", "nets", "layers", "impedance")]
         if extra:
             raise _error(f"{what} has no key {extra[0]!r}")
         nets = item.get("nets", [])
         if not isinstance(nets, list) or not all(isinstance(n, str) and n for n in nets):
             raise _error(f"{what}.nets is a list of net names")
         out["net_classes"].append({"name": name, "nets": list(dict.fromkeys(nets)),
-                                   "layers": _layers(item.get("layers"), WIDTH_FIELDS, f"net class {name}", False)})
+                                   "layers": _layers(item.get("layers"), WIDTH_FIELDS, f"net class {name}", False),
+                                   "impedance": _impedance(item.get("impedance"), f"net class {name}")})
     for index, item in enumerate(data.get("differential_pairs", [])):
         nets = item.get("nets")
         if (not isinstance(nets, list) or len(nets) != 2 or not all(isinstance(n, str) and n for n in nets)
@@ -327,3 +352,28 @@ def plan(rules: dict[str, Any], current: Current) -> Plan:
             p.class_rules[key] = rule
             p.changes.append({"path": f"/constraints/class-clearances/{src}/{dst}", "field": "rule", "before": before, "after": rule})
     return p
+
+
+def impedance(rules: dict[str, Any], current: Current, p: Plan, z0: Any, layers: list[str]) -> list[dict[str, Any]]:
+    """The impedance of each class with a target, for its width after the import on each of
+    ``layers`` (the signal layers); ``z0(layer, width_mm)`` is Layout's single-ended impedance in
+    ohms. A layer outside the target's tolerance, or without a width, goes to ``p.blocked``."""
+    rows: list[dict[str, Any]] = []
+    for item in rules["net_classes"]:
+        target = item.get("impedance")
+        if target is None:
+            continue
+        name, (ohm, tolerance) = item["name"], target
+        now_layers = current.net_classes.get(name) or current.net_classes.get(DEFAULT_CLASS, {})
+        for layer in layers:
+            width = p.class_values.get(name, {}).get(layer, {}).get("width_mm", now_layers.get(layer, {}).get("width_mm"))
+            if width is None:
+                p.blocked.append(f"net class {name} layer {layer}: there is no width to compute the impedance for")
+                continue
+            value = round(float(z0(layer, width)), 1)
+            rows.append({"net_class": name, "layer": int(layer), "width_mm": width, "z0_ohm": value, "target_ohm": ohm,
+                         "tolerance_ohm": tolerance})
+            if abs(value - ohm) > tolerance + 1e-9:
+                p.blocked.append(f"net class {name} layer {layer}: width {width:g} mm gives {value:g} ohm, outside {ohm:g} "
+                                 f"+/- {tolerance:g} ohm; give this layer the width of the fabricator's impedance table")
+    return rows

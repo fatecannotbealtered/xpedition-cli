@@ -44,6 +44,11 @@ class ParseTest(unittest.TestCase):
             ({"net_classes": [{"name": "(All)"}]}, "is not a net class"),
             ({"differential_pairs": [{"nets": ["A", "A"]}]}, "two different net names"),
             ({"clearances": [{"rule": "R", "classes": [["A"]]}]}, "[from class, to class] pairs"),
+            ({"net_classes": [{"name": "X", "impedance": 50}]}, "an object with ohm and tolerance_ohm"),
+            ({"net_classes": [{"name": "X", "impedance": {"ohm": 50}}]}, "an object with ohm and tolerance_ohm"),
+            ({"net_classes": [{"name": "X", "impedance": {"ohm": 0, "tolerance_ohm": 5}}]}, "more than 0 and at most 1000"),
+            ({"net_classes": [{"name": "X", "impedance": {"ohm": 50, "tolerance_ohm": 50}}]}, "less than ohm"),
+            ({"net_classes": [{"name": "X", "impedance": {"ohm": True, "tolerance_ohm": 5}}]}, "a number of ohms"),
         ]
         for data, words in cases:
             with self.subTest(words=words), self.assertRaises(PlanError) as caught:
@@ -128,6 +133,43 @@ class PlanTest(unittest.TestCase):
         current = board(differential_pairs=[["A_N", "A_P"]])
         again = R.parse(current.as_file())
         self.assertTrue(R.plan(again, current).empty())
+
+
+class ImpedanceTest(unittest.TestCase):
+    """The impedance target of a class, checked with z0 = 60 - 100 * width ohms on two signal layers."""
+
+    @staticmethod
+    def z0(layer: str, width: float) -> float:
+        return 60.0 - 100.0 * width
+
+    def check(self, item: dict, current: R.Current | None = None) -> tuple[list[dict], list[str]]:
+        rules = R.parse({"net_classes": [item]})
+        current = current or board()
+        p = R.plan(rules, current)
+        rows = R.impedance(rules, current, p, self.z0, ["1", "2"])
+        return rows, p.blocked
+
+    def test_widths_that_meet_the_target_pass_with_their_impedance(self) -> None:
+        rows, blocked = self.check({"name": "SE50", "nets": ["VBUS"], "layers": {"all": {"width_mm": 0.1}},
+                                    "impedance": {"ohm": 50, "tolerance_ohm": 5}})
+        self.assertEqual(blocked, [])
+        self.assertEqual(rows[0], {"net_class": "SE50", "layer": 1, "width_mm": 0.1, "z0_ohm": 50.0, "target_ohm": 50.0,
+                                   "tolerance_ohm": 5.0})
+        self.assertEqual(len(rows), 2)
+
+    def test_a_layer_outside_the_tolerance_is_blocked(self) -> None:
+        rows, blocked = self.check({"name": "SE50", "layers": {"all": {"width_mm": 0.1}, "2": {"width_mm": 0.2}},
+                                    "impedance": {"ohm": 50, "tolerance_ohm": 5}})
+        self.assertEqual([r["z0_ohm"] for r in rows], [50.0, 40.0])
+        self.assertEqual(len(blocked), 1)
+        self.assertIn("net class SE50 layer 2: width 0.2 mm gives 40 ohm, outside 50 +/- 5 ohm", blocked[0])
+
+    def test_a_target_alone_checks_the_widths_the_class_has(self) -> None:
+        current = board(net_classes={R.DEFAULT_CLASS: {"1": dict(STOCK), "2": dict(STOCK)},
+                                     "SE50": {"1": {**STOCK, "width_mm": 0.1}, "2": {"min_width_mm": 0.1}}})
+        rows, blocked = self.check({"name": "SE50", "impedance": {"ohm": 50, "tolerance_ohm": 5}}, current)
+        self.assertEqual([r["layer"] for r in rows], [1])
+        self.assertEqual(blocked, ["net class SE50 layer 2: there is no width to compute the impedance for"])
 
 
 if __name__ == "__main__":

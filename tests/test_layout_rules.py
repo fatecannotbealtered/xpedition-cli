@@ -138,6 +138,7 @@ class Session:
         self.loads = 0
         self.unloads = 0
         self.doc = SimpleNamespace(LayerCount=LAYERS)
+        self.stackup = (lambda layer, width: 60.0 - 100.0 * width, [str(n) for n in range(1, LAYERS + 1)], None)
 
     @contextmanager
     def ces(self, prj: str, name: str):
@@ -157,6 +158,7 @@ class Session:
             mock.patch.object(LR, "load_state", lambda doc: self.state),
             mock.patch.object(LR, "load_into_layout", self.load),
             mock.patch.object(L, "in_layout", lambda ctx, work, **kw: work(None, self.doc)),
+            mock.patch.object(LR, "stackup_impedance", lambda doc: self.stackup),
         ]
         for patch in self.patches:
             patch.start()
@@ -186,16 +188,23 @@ class ConstraintGetTest(unittest.TestCase):
             out = LR.ConstraintGet().read(context("constraint get", {"output": target}))
             self.assertEqual(out["nets"], 4)
             self.assertEqual(out["net_classes"], [{"name": "(Default)", "nets": 4, "layers": {
-                "1": {"differential_spacing_mm": 0.254, "max_width_mm": 0.254, "min_width_mm": 0.254, "width_mm": 0.254},
-                "2": {"differential_spacing_mm": 0.254, "max_width_mm": 0.254, "min_width_mm": 0.254, "width_mm": 0.254}}}])
+                "1": {"differential_spacing_mm": 0.254, "max_width_mm": 0.254, "min_width_mm": 0.254, "width_mm": 0.254, "z0_ohm": 34.6},
+                "2": {"differential_spacing_mm": 0.254, "max_width_mm": 0.254, "min_width_mm": 0.254, "width_mm": 0.254, "z0_ohm": 34.6}}}])
             self.assertEqual(out["clearance_rules"], ["(Default Rule)"])
             self.assertEqual(out["class_clearances"], [{"from": "(All)", "to": "(All)", "rule": "(Default Rule)"}])
             self.assertTrue(out["loaded"])
             written = json.loads(Path(out["output"]).read_text(encoding="utf-8"))
             self.assertEqual(written["net_classes"][0]["nets"], ["A_N", "A_P", "GND", "VBUS"])
             self.assertEqual(session.unloads, 1)
-            # the file it writes imports with no change
+            # the file it writes imports with no change, and holds no impedance
             self.assertTrue(R.plan(R.parse(written), LR.read_current(session.design, LAYERS)).empty())
+
+    def test_a_stackup_without_dielectric_constants_gives_no_impedance(self) -> None:
+        with Session() as session:
+            session.stackup = (None, ["1", "2"], "the stackup has no dielectric constant on SIGNAL_1")
+            out = LR.ConstraintGet().read(context("constraint get"))
+        self.assertEqual(out["z0_unavailable"], "the stackup has no dielectric constant on SIGNAL_1")
+        self.assertNotIn("z0_ohm", out["net_classes"][0]["layers"]["1"])
 
 
 class ConstraintImportTest(unittest.TestCase):
@@ -265,6 +274,35 @@ class ConstraintImportTest(unittest.TestCase):
         self.assertEqual(caught.exception.data.get("conflict"), "application_state")
         self.assertEqual(session.loads, 0)
         self.assertEqual([c.Name for c in session.design.NetClasses], ["(Default)"])
+
+
+class ImpedanceImportTest(unittest.TestCase):
+    """A class's impedance target is a check on its widths; Constraint Manager keeps no target."""
+
+    SE50 = {"net_classes": [{"name": "SE50", "nets": ["VBUS"], "layers": {"all": {"width_mm": 0.1}},
+                             "impedance": {"ohm": 50, "tolerance_ohm": 5}}]}
+
+    def test_widths_that_meet_the_target_are_imported_with_their_impedance(self) -> None:
+        with Session(), tempfile.TemporaryDirectory() as folder:
+            ctx = context("constraint import", {"file": rules_file(folder, self.SE50)})
+            preview = LR.ConstraintImport().preview(ctx)
+            facts = LR.ConstraintImport().run(ctx, Progress())
+            again = LR.ConstraintImport().run(ctx, Progress())
+        self.assertTrue(preview["can_apply"])
+        self.assertIn("Every impedance target holds: SE50 layer 1 50 ohm, SE50 layer 2 50 ohm.", preview["action"])
+        self.assertEqual(facts["result"]["impedance"][0], {"net_class": "SE50", "layer": 1, "width_mm": 0.1, "z0_ohm": 50.0,
+                                                           "target_ohm": 50.0, "tolerance_ohm": 5.0})
+        self.assertEqual((again["change"], len(again["result"]["impedance"])), ("not_applied", 2))  # a check with nothing to write
+
+    def test_a_width_off_target_or_a_stackup_without_values_blocks_the_import(self) -> None:
+        off = {"net_classes": [{**self.SE50["net_classes"][0], "layers": {"all": {"width_mm": 0.2}}}]}
+        with Session() as session, tempfile.TemporaryDirectory() as folder:
+            wide = LR.ConstraintImport().preview(context("constraint import", {"file": rules_file(folder, off)}))
+            session.stackup = (None, ["1", "2"], "the stackup has no dielectric constant on SIGNAL_1")
+            bare = LR.ConstraintImport().preview(context("constraint import", {"file": rules_file(folder, self.SE50)}))
+        self.assertFalse(wide["can_apply"])
+        self.assertIn("width 0.2 mm gives 40 ohm, outside 50 +/- 5 ohm", wide["blocked_by"][0])
+        self.assertIn("names impedance targets, but the stackup has no dielectric constant on SIGNAL_1", bare["blocked_by"][0])
 
 
 class SavedChangesTest(unittest.TestCase):

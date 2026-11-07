@@ -171,6 +171,7 @@
 | CAP-075 | 放一个过孔，或在一个网络两层铜皮都有的范围里按网格打缝合过孔，避开别的铜 | `PutVia`、`PutPadstack` | provided | - |
 | CAP-089 | 把选定网络的过孔换成另一个焊盘栈，需要时从中心库拉进来 | `Via.CurrentPadstack`、`PutPadstack` | provided | - |
 | CAP-090 | 画、删矩形阻焊开窗；柔性板叠层上画、删覆盖膜开窗 | `PutFabricationLayerGfx`（阻焊、覆盖膜） | provided | - |
+| CAP-091 | 按叠层算出每个网络类在每个信号层上线宽的单端阻抗，并对照目标检查 | `LayerProperties.Z0ForWidth` | provided | - |
 | CAP-076 | 删除选定网络的走线（可限定层）和过孔 | `Delete()` | provided | - |
 | CAP-077 | Batch DRC，读出 hazards | `Gui.ProcessCommand(32769)` + 对话框 + `GetHazards` | provided | - |
 | CAP-078 | 布局布线指标与板级规则（飞线长、交叉、去耦电容到电源脚距离） | 纯 Python | provided | - |
@@ -231,4 +232,5 @@
 - 元件 Value 只收数值加 SI 倍率，其他文字存成 0。→ `library-part-value-is-numeric`
 - 分区名只能用 ASCII 字母、数字、空格和 `_ . -`。→ 合并进 `xpedition-ascii-paths-only`
 - 人同时在软件里改：工具看不到程序内部的修改计数，保存预览里的"外部修改"只能按文件时间推断。→ `xpedition-external-edits-not-tracked`
+- Layout 按叠层算阻抗，有一层没填介电常数，算出的值就会高出几倍；叠层只能在 Stackup Editor 里设，默认板的导体层都没填。Constraint Manager 的阻抗容差没有写明单位，所以阻抗目标只放在规则文件里。→ `layout-impedance-from-stackup`
 - 只在一台机器、一个版本（2604）上实测过，换版本可能不同。→ 不做条目：写进 `docs/COMPATIBILITY.md` 的支持矩阵。

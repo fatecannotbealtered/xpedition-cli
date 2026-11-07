@@ -175,6 +175,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-075 | Place one via, or a grid of stitching vias inside a net's copper on two layers, clear of other copper | `PutVia`, `PutPadstack` | provided | - |
 | CAP-089 | Change the padstack of the vias of chosen nets, pulling it from the central library | `Via.CurrentPadstack`, `PutPadstack` | provided | - |
 | CAP-090 | Draw and delete rectangular soldermask openings, or coverlay openings on a flex stackup | `PutFabricationLayerGfx` (soldermask, cover layer) | provided | - |
+| CAP-091 | The single-ended impedance of each net class's width on each signal layer, from the stackup, checked against a target | `LayerProperties.Z0ForWidth` | provided | - |
 | CAP-076 | Delete the traces (on chosen layers) and the vias of chosen nets | `Delete()` | provided | - |
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |
 | CAP-078 | Placement and routing metrics, and board-level rules (ratsnest length, crossings, distance from decoupling capacitors to power pins) | Pure Python | provided | - |
@@ -235,4 +236,5 @@ Each risk or limit found in the survey becomes an entry in `knowledge/`, or give
 - The Value of a part accepts only a number with an SI multiplier; any other text is stored as 0. → `library-part-value-is-numeric`
 - Partition names can use only ASCII letters, digits, spaces and `_ . -`. → Merged into `xpedition-ascii-paths-only`
 - A person editing in the software at the same time: the tool cannot see the internal change counter of the program, so "external changes" in the save preview can only be inferred from file times. → `xpedition-external-edits-not-tracked`
+- Layout computes impedance from the stackup, and a layer without a dielectric constant gives figures several times too high; only the Stackup Editor sets the stackup, and the stock board's conductor layers have none. Constraint Manager's impedance tolerance has no documented unit, so targets stay in the rules file. → `layout-impedance-from-stackup`
 - Measured on only one machine and one version (2604); other versions may differ. → No entry: it is written into the support matrix in `docs/COMPATIBILITY.md`.

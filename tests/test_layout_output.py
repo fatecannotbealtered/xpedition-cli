@@ -48,7 +48,8 @@ class Layer(Fake):
         properties = Fake()
         properties.StackupLayerName, properties.Description, properties.LayerUsage = name, "", usage
         properties.DielectricConstant = 4.3
-        properties.props = {O.THICKNESS_DISPID: lambda unit: 0.035 if kind == 0 else 1.5}
+        properties.props = {O.THICKNESS_DISPID: lambda unit: 0.035 if kind == 0 else 1.5,
+                            O.Z0_DISPID: lambda width, unit: round(60.0 - 100.0 * width, 3) if unit == L.UNIT_MM else None}
         self.LayerProperties = properties
 
 
@@ -89,6 +90,20 @@ def board() -> FakeDoc:
                  O.OBSTRUCTS_DISPID: lambda *args: Collection([1, 2]), O.PLACEMENT_OBSTRUCTS_DISPID: lambda *args: Collection([3])}
     doc.LayerCount = 2
     return doc
+
+
+class StackupImpedanceTest(unittest.TestCase):
+    def test_the_signal_layers_impedance_and_a_stackup_without_a_dielectric_constant(self):
+        doc = board()
+        z0, layers, missing = O.stackup_impedance(doc)
+        self.assertEqual((layers, missing), (["1"], None))  # layer 2 is a plane
+        self.assertEqual(z0("1", 0.1), 50.0)
+        stack = doc.props[O.STACKUP_DISPID](True)
+        stack[0].LayerProperties.DielectricConstant = 0.0
+        doc.props[O.STACKUP_DISPID] = lambda insulation: stack
+        z0, layers, missing = O.stackup_impedance(doc)
+        self.assertIsNone(z0)
+        self.assertIn("no dielectric constant on Top", missing)
 
 
 class BoardModelTest(unittest.TestCase):
