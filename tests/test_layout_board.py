@@ -493,7 +493,9 @@ class PlaneTest(unittest.TestCase):
         self.assertEqual(call[3], ((1.0, 49.0, 49.0, 1.0, 1.0), (1.0, 1.0, 39.0, 39.0, 1.0), (0.0,) * 5))
         self.assertEqual(call[4:], ("GND", False, 0, 0.0, 0.0, None, L.UNIT_MM))
         self.assertEqual(doc.assignments[0].states, [L.PLANE_DRAFT, L.PLANE_DYNAMIC])
-        self.assertEqual(facts["result"], {"net": "GND", "layer": 2, "margin_mm": 1.0, "hatch": "solid", "generated": False})
+        self.assertEqual(facts["result"], {"net": "GND", "layer": 2, "within": "1 mm inside the board outline", "hatch": "solid",
+                                           "generated": False})
+        self.assertIn("1 mm inside the board outline", preview["action"])
         self.assertEqual(back["observed"][key("/planes/GND/2")], {c["field"]: c["after"] for c in preview["changes"]})
 
     def test_a_rounded_outline_gives_rounded_corners_less_the_margin(self):
@@ -504,6 +506,27 @@ class PlaneTest(unittest.TestCase):
         points = doc.calls[0][3]
         self.assertEqual(doc.calls[0][2], 13)
         self.assertEqual(points[2][1], -2.0)
+
+    def test_an_outline_that_is_no_rectangle_gives_the_route_border_and_refuses_a_margin(self):
+        doc = FakeDoc(nets=["GND"])
+        # an L-shaped flex outline, and Layout's route border 0.2 mm inside it; its arcs go as chords
+        doc.BoardOutline = Outline([[0, 10, 10, 4, 4, 0, 0], [0, 0, 4, 4, 30, 30, 0], [0.0] * 7])
+        border = [[0.2, 9.8, 9.8, 8.8, 8.8, 3.8, 3.8, 0.2, 0.2], [0.2, 0.2, 2.8, 2.8, 3.8, 3.8, 29.8, 29.8, 0.2],
+                  [0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]  # one corner rounded with a radius of 1 mm
+        doc.RouteBorder = Outline(border)
+        with world(FakeApp(doc)):
+            preview = self.handler.preview(context("plane create", {"net": "GND", "layer": 2}))
+            facts = self.handler.apply(context("plane create", {"net": "GND", "layer": 2}))
+            with self.assertRaises(AdapterError) as caught:
+                self.handler.preview(context("plane create", {"net": "GND", "layer": 3, "margin_mm": 0.5}))
+        self.assertIn("inside the route border", preview["action"])
+        points = doc.calls[0][3]
+        self.assertEqual([(points[0][i], points[1][i]) for i in range(3)], [(0.2, 0.2), (9.8, 0.2), (9.8, 2.8)])
+        self.assertGreater(len(points[0]), 9)  # the arc as chords
+        self.assertEqual(set(points[2]), {0.0})
+        self.assertEqual(facts["result"]["within"], "inside the route border")
+        self.assertEqual(code(caught), "E_VALIDATION")
+        self.assertIn("--margin does not apply", str(caught.exception))
 
     def test_no_assignment_after_the_shape_is_partial(self):
         doc = FakeDoc(nets=["GND"])

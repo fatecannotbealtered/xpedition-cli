@@ -269,13 +269,13 @@ COMMANDS: list[dict[str, Any]] = [
         effects=["change"], modes=["session"], kinds=["board"], target_kind="plane",
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."},
-               {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from the board outline; 1 mm by default."},
+               {"name": "--margin", "type": "quantity", "quantity": "length", "summary": "The distance from a rectangular board outline; 1 mm by default. On any other outline the plane follows the route border."},
                {"name": "--hatch", "type": "string",
                 "summary": "solid (the default), orthogonal or diagonal: a hatched plane, common on flex, is a grid of lines."},
                {"name": "--hatch-width", "type": "quantity", "quantity": "length", "summary": "A hatched plane's line width."},
                {"name": "--hatch-distance", "type": "quantity", "quantity": "length",
                 "summary": "A hatched plane's distance from line to line, larger than the width."}],
-        output=obj(net=STR, layer=INT, margin_mm=NUM, hatch=STR, generated=BOOL),
+        output=obj(net=STR, layer=INT, within=STR, hatch=STR, generated=BOOL),
         examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2",
                   "xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2 --hatch orthogonal "
                   "--hatch-width 0.15mm --hatch-distance 0.5mm"],
@@ -440,8 +440,8 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     command(
         "pcb render", "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask "
-        "openings, seen from the top or the bottom.",
-        effects=["artifact"], modes=["session"], kinds=["board"], target_kind="file",
+        "openings, seen from the top or the bottom; runs as a long job.",
+        effects=["artifact"], modes=["session"], kinds=["board"], target_kind="file", long=True,
         flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The .png file to write."},
                {"name": "--side", "type": "string", "summary": "top (the default) or bottom, which is drawn mirrored left to right."},
                {"name": "--layers", "type": "string", "summary": "The conductor layers to draw, such as 1,2; every layer by default."},

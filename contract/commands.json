@@ -766,7 +766,7 @@
         {
           "name": "--margin",
           "type": "quantity",
-          "summary": "The distance from the board outline; 1 mm by default.",
+          "summary": "The distance from a rectangular board outline; 1 mm by default. On any other outline the plane follows the route border.",
           "quantity": "length"
         },
         {
@@ -1474,7 +1474,7 @@
     },
     {
       "path": "pcb render",
-      "summary": "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, seen from the top or the bottom.",
+      "summary": "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, seen from the top or the bottom; runs as a long job.",
       "effects": [
         "artifact"
       ],
@@ -1524,7 +1524,8 @@
       "related_knowledge": [],
       "doc_kinds": [
         "board"
-      ]
+      ],
+      "long": true
     },
     {
       "path": "constraint get",

@@ -21,6 +21,7 @@ from .base import Context
 from .plan import PlanError, board_layout, logs, project_file
 from .plan import outline as plan_outline
 from .plan import routing as plan_routing
+from .plan.shapes import flatten
 from .platform import com, dialogs
 
 # ------------------------------------------------------------------ forward annotation
@@ -747,37 +748,69 @@ def _hatch_inputs(ctx: Context) -> tuple[str, float, float]:
     return hatch, float(width), float(distance)
 
 
-def _plane_inputs(ctx: Context) -> tuple[str, int, float]:
+def _plane_inputs(ctx: Context) -> tuple[str, int, float | None]:
+    """The net, the layer and the ``--margin`` given, or None."""
     net = str(base.need_input(ctx, "net")).strip()
     layer = base.need_input(ctx, "layer")
     margin = ctx.inputs.get("margin_mm")
-    margin = 1.0 if margin is None else margin
     if not net:
         raise AdapterError("E_VALIDATION", "plane create needs a net name.", dispatch_state="not_started")
     if type(layer) is not int or layer < 1:
         raise AdapterError("E_VALIDATION", "--layer is a conductor layer number, 1 at the top.", dispatch_state="not_started")
-    if type(margin) not in (int, float) or not math.isfinite(margin) or margin < 0:
+    if margin is not None and (type(margin) not in (int, float) or not math.isfinite(margin) or margin < 0):
         raise AdapterError("E_VALIDATION", "--margin is a distance of 0 or more.", dispatch_state="not_started")
-    return net, layer, float(margin)
+    return net, layer, None if margin is None else float(margin)
 
 
-def _plane_points(doc: Any, margin: float) -> tuple[tuple[float, ...], ...]:
-    """The board outline's extents inset by ``margin``; a rounded outline gives the shape its
-    corner radius less the margin."""
+def _scaled(doc: Any, item: Any) -> list[list[float]] | None:
+    """The (x, y, r) rows of a graphic's points in mm, or None when the board's unit cannot be measured."""
+    scale = L.geometry_scale(doc)
+    points = item.Geometry.PointsArray if item is not None else None
+    if scale is None or not points:
+        return None
+    return [[float(value) * scale for value in row] for row in points[:3]]
+
+
+def _area(rows: list[list[float]]) -> float:
+    polygon = flatten(list(zip(*rows, strict=False)))
+    return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(polygon, polygon[1:] + polygon[:1], strict=False))) / 2
+
+
+def _plane_points(doc: Any, margin: float | None) -> tuple[tuple[tuple[float, ...], ...], str]:
+    """The shape's points and where it lies. On the rounded rectangle pcb update draws, the
+    outline's extents inset by ``margin`` (1 mm by default), with its corner radius less the
+    margin. On any other outline, such as a flex board's, the route border: Layout's own inset of
+    the outline, its arcs as short chords; ``--margin`` is refused there, since no inset of it is drawn."""
     x0, y0, x1, y1 = L.board_rect(doc)
     radius = L.outline_radius(doc, doc.BoardOutline)
-    if radius is None:
-        raise AdapterError("E_UNSUPPORTED", "The board outline has rounded corners, and their radius is known only on a board in "
-                           "mils; switch the board's unit to mils in Layout, then run plane create again.", dispatch_state="not_started")
+    outline = _scaled(doc, doc.BoardOutline)
+    if radius is None or outline is None:
+        raise AdapterError("E_UNSUPPORTED", "The board outline's shape can be measured only on a board in mils or mm; switch the "
+                           "board's unit in Layout, then run plane create again.", dispatch_state="not_started")
+    box = _area(plan_outline.rounded(x0, y0, x1, y1, radius))
+    if abs(_area(outline) - box) > 0.005 * box:
+        if margin is not None:
+            raise AdapterError("E_VALIDATION", "The board outline is not a rectangle, so the plane follows the route border and "
+                               "--margin does not apply; run plane create without it.", dispatch_state="not_started")
+        border = _scaled(doc, com.member(doc, "RouteBorder"))
+        if border is None:
+            raise base.blocked("The board outline is not a rectangle and the board has no route border for the plane to follow; "
+                               "draw the route border in Layout first.")
+        # PutPlaneShape refuses the route border's own arcs (error 10237) but takes them as short chords
+        polygon = flatten(list(zip(*border, strict=False)))
+        if polygon[0] != polygon[-1]:
+            polygon.append(polygon[0])
+        return _rows([[p[0] for p in polygon], [p[1] for p in polygon], [0.0] * len(polygon)]), "inside the route border"
+    margin = 1.0 if margin is None else margin
     rect = (x0 + margin, y0 + margin, x1 - margin, y1 - margin)
     if rect[0] >= rect[2] or rect[1] >= rect[3]:
         raise AdapterError("E_VALIDATION", f"A {margin:g} mm margin leaves no room inside the board outline.", dispatch_state="not_started")
-    return _rows(plan_outline.rounded(*rect, max(radius - margin, 0.0)))
+    return _rows(plan_outline.rounded(*rect, max(radius - margin, 0.0))), f"{margin:g} mm inside the board outline"
 
 
-def _plane_target(doc: Any, net: str, layer: int, margin: float) -> tuple[Any, tuple[tuple[float, ...], ...], dict[str, Any]]:
-    """The net object, the shape's points and the plane as it is now (with the board's
-    ``layers``); refuses an unknown net or layer, and a net that has a plane shape on that layer
+def _plane_target(doc: Any, net: str, layer: int, margin: float | None) -> tuple[Any, tuple[tuple[float, ...], ...], str, dict[str, Any]]:
+    """The net object, the shape's points, where the shape lies, and the plane as it is now (with
+    the board's ``layers``); refuses an unknown net or layer, and a net that has a plane shape on that layer
     already."""
     found = L.find_net(doc, net)
     if found is None:
@@ -789,7 +822,8 @@ def _plane_target(doc: Any, net: str, layer: int, margin: float) -> tuple[Any, t
     now = L.plane_values(doc, net, layer)
     if now["exists"]:
         raise base.blocked(f"{net} has a plane shape on layer {layer} already; plane create adds none beside it.")
-    return found, _plane_points(doc, margin), {**now, "layers": layers}
+    points, where = _plane_points(doc, margin)
+    return found, points, where, {**now, "layers": layers}
 
 
 def _generated(doc: Any, net: str, layer: int) -> bool:
@@ -810,8 +844,8 @@ class PlaneCreate(L.ReadsBack):
         net, layer, margin = _plane_inputs(ctx)
         hatch, width, distance = _hatch_inputs(ctx)
         path = ctx.document_path()
-        now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin)[2], budget_s=L.READ_BUDGET_S,
-                          what="reading the planes")
+        _found, _points, where, now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin),
+                                                  budget_s=L.READ_BUDGET_S, what="reading the planes")
         domain = L.plane_key(net, layer)
         key = base.key(path, domain)
         outer = (" An outer-layer plane is best poured after routing (knowledge layout-pour-after-routing)."
@@ -821,7 +855,7 @@ class PlaneCreate(L.ReadsBack):
                    base.change(key, "hatch", None, hatch)]
         if hatch != "solid":
             changes += [base.change(key, "hatch_width_mm", None, width), base.change(key, "hatch_distance_mm", None, distance)]
-        return base.preview(f"Pour a plane shape ({fill}) for {net} on layer {layer}, {margin:g} mm inside the board outline, and switch "
+        return base.preview(f"Pour a plane shape ({fill}) for {net} on layer {layer}, {where}, and switch "
                             f"it to Dynamic so that Layout generates its copper. The board is not saved.{outer}",
                             [base.target(path, "plane", domain, label=f"{net} on layer {layer}")], changes)
 
@@ -830,7 +864,7 @@ class PlaneCreate(L.ReadsBack):
         hatch, width, distance = _hatch_inputs(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            found, points, _now = _plane_target(doc, net, layer, margin)
+            found, points, where, _now = _plane_target(doc, net, layer, margin)
             try:
                 # route obstruct false: an obstructing shape blocks the router on that layer, and laid
                 # over routed traces it is refused as a DRC violation; the copper flows around them
@@ -856,7 +890,7 @@ class PlaneCreate(L.ReadsBack):
                 assignment.PlaneDataState = L.PLANE_DYNAMIC
             except Exception as exc:  # noqa: BLE001 - classified
                 return L.failed_step(exc, "switching the plane to Dynamic", ["the plane shape"])
-            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "margin_mm": margin, "hatch": hatch,
+            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "within": where, "hatch": hatch,
                                                               "generated": _generated(doc, net, layer)})
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="pouring the plane")

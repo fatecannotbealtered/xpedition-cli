@@ -766,6 +766,7 @@ class BoardRender(base.Handler):
     works with the desktop locked, and an Agent checks the picture alongside the data."""
 
     command = "pcb render"
+    long_job = True  # reading a real board's geometry takes tens of seconds; drawing it, under one
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         output = _png_path(ctx)
@@ -788,7 +789,10 @@ class BoardRender(base.Handler):
                       "planes": len(picture.planes), "openings": len(picture.openings)}
             return base.facts("not_applicable", "saved", result=result, files=[{"path": output}])
 
-        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="drawing the board")
+        return L.in_layout(ctx, work, budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="drawing the board")
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
         output = _png_path(ctx)

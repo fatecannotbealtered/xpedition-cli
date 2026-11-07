@@ -22,7 +22,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `via update` changes the vias of the nets or net classes named to another via padstack, pulled from the central library when the board lacks it. The autorouter places the via each net class is assigned in Constraint Manager, which no command can change, so a router run followed by via update gives the via size the design asks for.
 - `via create` places vias of one net: one at `--x`, `--y`, or a stitching grid at `--pitch` inside the net's copper on two layers, clear of every pad, the traces of other nets, vias and holes by the board's default clearance rule. The via is the net class's own unless `--padstack` names another.
 - `solder-mask create` opens the soldermask over a rectangle on one side, or the coverlay of a flex board with `--cover-layer`, naming the nets whose copper it bares; an opening over no copper, or a coverlay opening on a stackup without a cover layer, is refused. `solder-mask delete` deletes the opening that holds a point.
-- `pcb render` draws the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, from the top or the bottom, for chosen layers. It needs no screen, so it works with the desktop locked.
+- `pcb render` draws the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, from the top or the bottom, for chosen layers. It needs no screen, so it works with the desktop locked, and runs as a long job, since reading a real board's geometry takes tens of seconds.
 
 ### Changed
 
@@ -37,6 +37,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Fixed
 
+- `plane create` on a board whose outline is not a rectangle, such as a flex board, pours inside the route border; it poured a rounded rectangle over the outline's extents, partly outside the board. `--margin` applies to a rectangular outline only and is refused on any other.
 - router run no longer fails while regenerating the planes when a plane shape was deleted: an assignment without a shape is left alone.
 - `session list`, `session get`, `doc list` and `doc get` answer in time when Designer or Layout hangs: an instance's probe and its look for a dialog take at most about 2 s together, inside the 2.5 s the runtime gives the adapter's part of the session list.
 
