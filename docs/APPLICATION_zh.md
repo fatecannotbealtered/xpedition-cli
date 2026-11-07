@@ -174,7 +174,7 @@
 | CAP-076 | 删除选定网络的走线（可限定层）和过孔 | `Delete()` | provided | - |
 | CAP-077 | Batch DRC，读出 hazards | `Gui.ProcessCommand(32769)` + 对话框 + `GetHazards` | provided | - |
 | CAP-078 | 布局布线指标与板级规则（飞线长、交叉、去耦电容到电源脚距离） | 纯 Python | provided | - |
-| CAP-079 | 按几何画板图 PNG（顶面、底面） | 纯 Python | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-079 | 按几何画板图 PNG（顶面、底面），不需要屏幕 | 纯 Python（标准库） | provided | - |
 | CAP-080 | 切显示方案、适配板、截 Layout 窗口图 | `DisplayControl.LoadScheme` + GDI | deferred | 只给人看；锁屏时截图全黑 |
 | CAP-081 | 生产文件：ODB++、Gerber、NC 钻孔，加坐标文件、BOM、说明和清单 | `Gui.ProcessCommand(33016–33018)` + 设置文件 + 对话框 | provided | - |
 | CAP-082 | 刷新板上的封装（Library Services 本地库更新） | `SETUP_LIBRARYSERVICES`、`ECO_UPDATELOCALLIBRARYDATA` | unknown | 只在旧码里写过；需要可交互桌面 |

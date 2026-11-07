@@ -14,6 +14,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `via update` changes the vias of the nets or net classes named to another via padstack, pulled from the central library when the board lacks it. The autorouter places the via each net class is assigned in Constraint Manager, which no command can change, so a router run followed by via update gives the via size the design asks for.
 - `via create` places vias of one net: one at `--x`, `--y`, or a stitching grid at `--pitch` inside the net's copper on two layers, clear of every pad, the traces of other nets, vias and holes by the board's default clearance rule. The via is the net class's own unless `--padstack` names another.
 - `solder-mask create` opens the soldermask over a rectangle on one side, or the coverlay of a flex board with `--cover-layer`, naming the nets whose copper it bares; an opening over no copper, or a coverlay opening on a stackup without a cover layer, is refused. `solder-mask delete` deletes the opening that holds a point.
+- `pcb render` draws the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, from the top or the bottom, for chosen layers. It needs no screen, so it works with the desktop locked.
 
 ### Changed
 

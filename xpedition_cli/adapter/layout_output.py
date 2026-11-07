@@ -24,6 +24,8 @@ from . import base
 from . import layout as L
 from .base import Context
 from .plan import board_metrics, fab_package
+from .plan import board_render as PR
+from .plan import routing as plan_routing
 from .platform import com, dialogs
 
 STACKUP_DISPID = 157  # Document.LayerStack([in] VARIANT_BOOL bIncludeInsulationLayer)
@@ -682,4 +684,116 @@ class BoardExport(base.Handler):
         return {"observed": observed, "unreadable": sorted(field for field in fields if field not in ("exists", "patched"))}
 
 
-HANDLERS: list[base.Handler] = [BoardGet(), BoardCheck(), BoardExport()]
+# ------------------------------------------------------------------ pcb render
+
+RENDER_SCALE = 20.0  # pixels per mm unless --resolution says otherwise
+VIA_RADIUS_MM = 0.3  # a via whose pads cannot be read is drawn this size
+
+
+def _png_path(ctx: Context) -> str:
+    target = os.path.abspath(str(base.need_input(ctx, "output")))
+    if not target.lower().endswith(".png"):
+        raise AdapterError("E_VALIDATION", "--output names a .png file.", dispatch_state="not_started")
+    if os.path.isdir(target):
+        raise AdapterError("E_VALIDATION", f"{target} is a folder; --output names a .png file.", dispatch_state="not_started")
+    return target
+
+
+def _render_inputs(ctx: Context, layer_count: int) -> tuple[str, list[int], float]:
+    side = str(ctx.inputs.get("side") or "top").strip().lower()
+    if side not in ("top", "bottom"):
+        raise AdapterError("E_VALIDATION", "--side is top or bottom.", dispatch_state="not_started")
+    try:
+        layers = plan_routing.parse_route_layers(ctx.inputs.get("layers"))
+    except Exception:  # noqa: BLE001 - the planner says what is wrong
+        raise AdapterError("E_VALIDATION", "--layers is a list of conductor layer numbers, such as 1,4.", dispatch_state="not_started") from None
+    if any(not 1 <= n <= layer_count for n in layers):
+        raise AdapterError("E_VALIDATION", f"The board has conductor layers 1 to {layer_count}.", dispatch_state="not_started")
+    resolution = ctx.inputs.get("resolution")
+    resolution = RENDER_SCALE if resolution is None else float(resolution)
+    if not 1 <= resolution <= 200:
+        raise AdapterError("E_VALIDATION", "--resolution is 1 to 200 pixels per mm.", dispatch_state="not_started")
+    return side, layers, resolution
+
+
+def _via_radius(via: Any, scale: float) -> float:
+    try:
+        for pad in L.collection(via, "Pads"):
+            for geometry in L.collection(pad, "Geometries"):
+                record = geometry_record(geometry, scale)
+                if record and record.get("circle"):
+                    return float(record["circle"][2])
+                if record and record.get("path"):
+                    xs = [p[0] for p in record["path"]]
+                    return (max(xs) - min(xs)) / 2
+    except Exception:  # noqa: BLE001 - the pads cannot be read
+        pass
+    return VIA_RADIUS_MM
+
+
+def board_picture(doc: Any) -> PR.Picture:
+    """The board as pcb render draws it: outline, pads, traces, vias, plane shapes, holes and openings."""
+    from .layout_edit import FAB_COVER_LAYER, FAB_SOLDERMASK, SIDE_TOP
+
+    model = board_model(doc, full=True)
+    scale = L.geometry_scale(doc)
+    if model is None or scale is None or not model["outline"]:
+        raise AdapterError("E_UNSUPPORTED", UNIT_NOTE + " pcb render also needs a board outline.", dispatch_state="not_started")
+    outline = model["outline"][0]
+    picture = PR.Picture(outline=PR.polygon_of(outline.get("path"), outline.get("circle")), layer_count=int(doc.LayerCount))
+    picture.pads = [(int(p.get("layer") or 1), PR.polygon_of(p.get("path"), p.get("circle"))) for p in model["pads"]]
+    picture.traces = [(int(t.get("layer") or 1), [(q[0], q[1]) for q in PR.polygon_of(t.get("path"))], float(t.get("width") or 0.0))
+                      for t in model["traces"] if t.get("path")]
+    picture.vias = [(float(L.extrema_mm(v)[0] + L.extrema_mm(v)[2]) / 2, float(L.extrema_mm(v)[1] + L.extrema_mm(v)[3]) / 2,
+                     _via_radius(v, scale)) for v in L.collection(doc, "Vias")]
+    picture.holes = [(x, y, d) for x, y, d in model["holes"]]
+    for shape in L.collection(doc, "PlaneShapes"):
+        record = geometry_record(shape.Geometry, scale)
+        if record:
+            picture.planes.append((int(shape.Layer), PR.polygon_of(record.get("path"), record.get("circle"))))
+    for gfx in L.collection(doc, "FabricationLayerGfxs"):
+        try:
+            if int(gfx.Type) in (FAB_SOLDERMASK, FAB_COVER_LAYER) and gfx.Component is None:
+                box = tuple(L.extrema_mm(gfx))
+                picture.openings.append(("top" if int(gfx.Side) == SIDE_TOP else "bottom", box))
+        except Exception:  # noqa: BLE001 - a graphic that cannot be read is left out
+            continue
+    return picture
+
+
+class BoardRender(base.Handler):
+    """A PNG of the board drawn from its geometry (``plan.board_render``): it needs no screen, so it
+    works with the desktop locked, and an Agent checks the picture alongside the data."""
+
+    command = "pcb render"
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        output = _png_path(ctx)
+        L.in_layout(ctx, lambda app, doc: _render_inputs(ctx, int(doc.LayerCount)), budget_s=L.READ_BUDGET_S, what="reading the board")
+        return base.preview(f"Draw the board as a picture into {output}.", [base.target(output, "file", label="board picture")],
+                            [base.change(base.key(output), "exists", os.path.isfile(output), True)])
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        output = _png_path(ctx)
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            side, layers, resolution = _render_inputs(ctx, int(doc.LayerCount))
+            picture = board_picture(doc)
+            png, width, height = PR.render(picture, side=side, layers=layers or None, scale=resolution)
+            os.makedirs(os.path.dirname(output) or ".", exist_ok=True)
+            with open(output, "wb") as handle:
+                handle.write(png)
+            result = {"path": output, "side": side, "layers": layers or list(range(1, picture.layer_count + 1)), "width_px": width,
+                      "height_px": height, "pads": len(picture.pads), "traces": len(picture.traces), "vias": len(picture.vias),
+                      "planes": len(picture.planes), "openings": len(picture.openings)}
+            return base.facts("not_applicable", "saved", result=result, files=[{"path": output}])
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="drawing the board")
+
+    def read_back(self, ctx: Context) -> dict[str, Any]:
+        output = _png_path(ctx)
+        targets = list(ctx.request.get("targets") or [])
+        return {"observed": {t: {"exists": os.path.isfile(output)} for t in targets if t == base.key(output)}, "unreadable": []}
+
+
+HANDLERS: list[base.Handler] = [BoardGet(), BoardCheck(), BoardExport(), BoardRender()]

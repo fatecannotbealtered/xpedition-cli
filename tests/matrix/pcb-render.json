@@ -1,0 +1,191 @@
+{
+  "command": "pcb render",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The practice board after routing, planes, stitching vias and an opening, drawn from the top into a new PNG; exists reads back true and the result counts the pads, traces, vias, planes and openings drawn."
+      }
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/empty.png",
+        "--layers",
+        "2"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Only layer 2, which holds nothing but its plane, is drawn: a valid picture of the outline, the plane and the vias."
+      }
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/board.jpg"
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "--output does not name a .png file.",
+        "code": "E_VALIDATION"
+      }
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.pcb",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 3,
+        "summary": "The session has no such board open.",
+        "code": "E_NOT_FOUND"
+      }
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents.",
+        "code": "E_AMBIGUOUS"
+      }
+    },
+    {
+      "row": "conflict",
+      "applies": false,
+      "reason": "pcb render writes only a new picture file and changes nothing in Layout, so no lock or changed state of the board stands in its way; a picture file that exists already raises the tier to two-step instead."
+    },
+    {
+      "row": "no_scope",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 4,
+        "summary": "Run under a scope file that does not cover the output folder; nothing is drawn.",
+        "code": "E_FORBIDDEN"
+      }
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 7,
+        "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND.",
+        "code": "E_BUSY"
+      }
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 9,
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About. Layout may go on answering COM, so a dialog box over it, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open.",
+        "code": "E_HUMAN_REQUIRED"
+      }
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/board.png"
+      ],
+      "expected": {
+        "exit": 4,
+        "summary": "Layout goes away while the board is read; no picture is written.",
+        "code": "E_BACKEND_UNAVAILABLE"
+      },
+      "unrunnable": "The COM connection to Layout cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/unsaved.png",
+        "--side",
+        "bottom"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The board holds unsaved changes: it is drawn as it stands in Layout's memory, from the bottom."
+      }
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/gone.png"
+      ],
+      "expected": {
+        "exit": 1,
+        "summary": "The call waits before its read-back, and meanwhile the picture file is deleted (--tamper), so exists reads back false.",
+        "code": "E_VERIFY_FAILED"
+      }
+    }
+  ]
+}

@@ -64,6 +64,7 @@ Risk tier: **T1**, set by these commands:
 - `via update`: change
 - `solder-mask create`: change
 - `solder-mask delete`: change
+- `pcb render`: artifact
 - `constraint import`: change, persist
 <!-- driver:risk:end -->
 

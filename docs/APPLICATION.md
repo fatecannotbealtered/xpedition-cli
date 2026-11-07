@@ -178,7 +178,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-076 | Delete the traces (on chosen layers) and the vias of chosen nets | `Delete()` | provided | - |
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |
 | CAP-078 | Placement and routing metrics, and board-level rules (ratsnest length, crossings, distance from decoupling capacitors to power pins) | Pure Python | provided | - |
-| CAP-079 | Draw a board image PNG from the geometry (top side, bottom side) | Pure Python | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-079 | Draw a board image PNG from the geometry (top side, bottom side), without a screen | Pure Python (standard library) | provided | - |
 | CAP-080 | Switch the display scheme, fit the board, capture an image of the Layout window | `DisplayControl.LoadScheme` + GDI | deferred | Only for people to look at; screenshots are all black while the screen is locked |
 | CAP-081 | Fabrication files: ODB++, Gerber, NC drill, plus a coordinate file, BOM, notes and a manifest | `Gui.ProcessCommand(33016–33018)` + setup files + dialogs | provided | - |
 | CAP-082 | Refresh the cells on the board (Library Services local library update) | `SETUP_LIBRARYSERVICES`, `ECO_UPDATELOCALLIBRARYDATA` | unknown | Written only in the old code; needs an interactive desktop |

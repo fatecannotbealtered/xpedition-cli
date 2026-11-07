@@ -699,6 +699,19 @@ COMMANDS: list[dict[str, Any]] = [
         coordinates=BOARD_COORDINATES,
         examples=["xpedition-cli solder-mask delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --x 45mm --y 4mm --cover-layer"],
     ),
+    command(
+        "pcb render", "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask "
+        "openings, seen from the top or the bottom.",
+        effects=["artifact"], modes=["session"], kinds=["board"], target_kind="file",
+        flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The .png file to write."},
+               {"name": "--side", "type": "string", "summary": "top (the default) or bottom, which is drawn mirrored left to right."},
+               {"name": "--layers", "type": "string", "summary": "The conductor layers to draw, such as 1,2; every layer by default."},
+               {"name": "--resolution", "type": "number", "summary": "Pixels per mm, 1 to 200; 20 by default, lowered to keep the picture "
+                "within 4000 pixels."}],
+        output=obj(path=STR, side=STR, layers=arr(INT), width_px=INT, height_px=INT, pads=INT, traces=INT, vias=INT, planes=INT,
+                   openings=INT),
+        examples=["xpedition-cli pcb render --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/board.png"],
+    ),
     # ------------------------------------------------------------------ constraints (Layout)
     command(
         "constraint get", "Read the board's constraints: net classes and their nets, trace widths and differential spacing per "
