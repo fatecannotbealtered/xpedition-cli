@@ -171,7 +171,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-071 | Move a silkscreen reference designator to a free spot, or to a given position | `FabricationLayerText.Move` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-072 | Copper pour (plane shapes) | `PutPlaneShape`, `PlaneAssignment` | provided | - |
 | CAP-073 | Autoroute: chosen nets, layers and route passes | `NewRoutePass` | provided | - |
-| CAP-074 | Draw traces from a plan | `PutTrace` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-074 | Draw the traces and place the vias of a routing plan, checked against the board's copper, widths and clearances first | `PutTrace`, `PutVia` | provided | - |
 | CAP-075 | Place one via, or a grid of stitching vias inside a net's copper on two layers, clear of other copper | `PutVia`, `PutPadstack` | provided | - |
 | CAP-089 | Change the padstack of the vias of chosen nets, pulling it from the central library | `Via.CurrentPadstack`, `PutPadstack` | provided | - |
 | CAP-090 | Draw and delete rectangular soldermask openings, or coverlay openings on a flex stackup | `PutFabricationLayerGfx` (soldermask, cover layer) | provided | - |

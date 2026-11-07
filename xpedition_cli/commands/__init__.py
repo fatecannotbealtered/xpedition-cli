@@ -611,6 +611,18 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-output-setups', 'layout-drillprefs-held'],
     ),
     command(
+        "trace create", "Draw the traces and place the vias of a routing plan, after checking it against the board's copper, the "
+        "net classes' widths and the clearance rules; runs as a long job.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="trace", long=True,
+        flags=[{"name": "--file", "type": "path", "required": True,
+                "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, and vias with net, at_mm and padstack, "
+                           "in board coordinates."}],
+        output=obj(traces=INT, vias=INT, nets=arr(obj(net=STR, routed=BOOL, opens=INT))),
+        coordinates=BOARD_COORDINATES,
+        examples=["xpedition-cli trace create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --file D:/work/demo/route.json"],
+        knowledge=['layout-via-near-pad', 'layout-trace-widths-through-cm'],
+    ),
+    command(
         "trace delete", "Delete the traces of the nets named, on every layer or on the layers named; their vias stay.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="trace",
         flags=[{"name": "--nets", "type": "string", "required": True, "summary": "The nets whose traces go, such as SS_TX1_P,SS_TX1_N."},

@@ -57,6 +57,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist
+- `trace create`: change
 - `trace delete`: change
 - `via delete`: change
 - `plane delete`: change

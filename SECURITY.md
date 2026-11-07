@@ -57,6 +57,7 @@ Risk tier: **T1**, set by these commands:
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist
+- `trace create`: change
 - `trace delete`: change
 - `via delete`: change
 - `plane delete`: change

@@ -167,7 +167,7 @@
 | CAP-071 | 把丝印位号挪到空位，或挪到指定位置 | `FabricationLayerText.Move` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-072 | 铺铜（平面形状） | `PutPlaneShape`、`PlaneAssignment` | provided | - |
 | CAP-073 | 自动布线：指定网络、层和布线遍 | `NewRoutePass` | provided | - |
-| CAP-074 | 按计划画走线 | `PutTrace` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-074 | 按走线计划画线、放过孔，先对照板上的铜、线宽和间距规则检查 | `PutTrace`、`PutVia` | provided | - |
 | CAP-075 | 放一个过孔，或在一个网络两层铜皮都有的范围里按网格打缝合过孔，避开别的铜 | `PutVia`、`PutPadstack` | provided | - |
 | CAP-089 | 把选定网络的过孔换成另一个焊盘栈，需要时从中心库拉进来 | `Via.CurrentPadstack`、`PutPadstack` | provided | - |
 | CAP-090 | 画、删矩形阻焊开窗；柔性板叠层上画、删覆盖膜开窗 | `PutFabricationLayerGfx`（阻焊、覆盖膜） | provided | - |

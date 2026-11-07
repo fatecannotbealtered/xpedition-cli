@@ -1,9 +1,12 @@
-"""trace delete, via delete and plane delete (adapter/layout_edit.py) on fake COM objects."""
+"""The board edits of adapter/layout_edit.py on fake COM objects."""
 from __future__ import annotations
 
+import json
 import os
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
@@ -15,6 +18,7 @@ from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base  # noqa: E402
 from xpedition_cli.adapter import layout_edit as E  # noqa: E402
 from xpedition_cli.adapter.plan import stitching as ST  # noqa: E402
+from xpedition_cli.adapter.plan import trace_plan as TP  # noqa: E402
 
 
 def key(domain: str) -> str:
@@ -221,6 +225,92 @@ class SolderMaskTest(unittest.TestCase):
         self.assertEqual(missing.exception.data["code"], "E_NOT_FOUND")
         self.assertEqual(twice.exception.data["code"], "E_AMBIGUOUS")
         self.assertEqual(len(twice.exception.data["candidates"]), 2)
+
+
+class TraceCreateTest(unittest.TestCase):
+    """The routing plan drawn on fake COM; the board's copper, rules and the library row are given."""
+
+    PLAN = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.1, "points_mm": [[0, 0], [3, 0]]},
+                       {"net": "A", "layer": 2, "width_mm": 0.1, "points_mm": [[3, 0], [10, 0]]}],
+            "vias": [{"net": "A", "at_mm": [3, 0], "padstack": "VIA_D0.2_P0.4"}]}
+
+    def setUp(self):
+        self.doc = board()
+        self.doc.drawn = []
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+
+        def put_trace(layer, net, width, count, points, component, fixed, unit):
+            self.doc.drawn.append((layer, net.Name, width, list(zip(points[0], points[1], strict=True)), unit))
+            self.doc.traces.append(Item(self.doc.traces, Net=SimpleNamespace(Name=net.Name), Layer=layer))
+
+        def put_via(x, y, stack, net, component, fixed, unit):
+            self.doc.drawn.append(("via", x, y, stack.Name, net.Name))
+            self.doc.vias.append(Item(self.doc.vias, Net=SimpleNamespace(Name=net.Name), Name=stack.Name))
+
+        self.doc.PutTrace, self.doc.PutVia = put_trace, put_via
+        self.doc.TransactionStart = lambda mode: self.doc.calls.append(("TransactionStart", mode))
+        self.doc.TransactionEnd = lambda keep: self.doc.calls.append(("TransactionEnd", keep))
+        self.doc.PutPadstack = lambda first, last, name, mirrored, central: SimpleNamespace(Name=name)
+        pads = [(1, "A", ST.polygon(circle=[0.0, 0.0, 0.2])), (2, "A", ST.polygon(circle=[10.0, 0.0, 0.2])),
+                (1, "B", ST.polygon(circle=[5.0, 0.3, 0.1]))]
+        copper = TP.Copper(layer_count=4, nets={"A", "B", "GND"}, pads=pads)
+        rules = TP.Rules(net_class_of={}, widths={"(Default)": {layer: (0.1, 0.2) for layer in range(1, 5)}},
+                         clearance=lambda a, b, layer, kind: 0.1)
+        self.patches = [mock.patch.object(E, "_copper", lambda doc: copper),
+                        mock.patch.object(E, "_trace_rules", lambda doc, path: rules),
+                        mock.patch.object(E, "_via_row", lambda path, name: {"type": "via", "pad_mm": 0.4, "drill_mm": 0.2}
+                                          if name == "VIA_D0.2_P0.4" else None)]
+        for patch in self.patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def plan_file(self, data) -> str:
+        path = self.folder / "route.json"
+        path.write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
+        return str(path)
+
+    def test_a_plan_is_checked_drawn_with_drc_off_and_read_back(self):
+        inputs = {"file": self.plan_file(self.PLAN)}
+        self.doc.nets[0].routed, self.doc.nets[0].NumberOfOpens = True, 0  # A, once drawn
+        with world(FakeApp(self.doc)):
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            facts = E.TraceCreate().run(context("trace create", inputs), None)
+            back = E.TraceCreate().read_back(context("trace create", targets=[key("/traces/A/2"), key("/vias/A")], fields=["count"]))
+        self.assertTrue(preview["can_apply"])
+        self.assertEqual([(c["target"], c["before"], c["after"]) for c in preview["changes"]],
+                         [(key("/traces/A/1"), 2, 3), (key("/traces/A/2"), 1, 2), (key("/vias/A"), 1, 2)])
+        self.assertEqual(facts["result"], {"traces": 2, "vias": 1, "nets": [{"net": "A", "routed": True, "opens": 0}]})
+        self.assertEqual(self.doc.drawn, [(1, "A", 0.1, [(0.0, 0.0), (3.0, 0.0)], E.L.UNIT_MM),
+                                          (2, "A", 0.1, [(3.0, 0.0), (10.0, 0.0)], E.L.UNIT_MM),
+                                          ("via", 3.0, 0.0, "VIA_D0.2_P0.4", "A")])
+        self.assertEqual(self.doc.calls[:1], [("TransactionStart", 0)])  # online DRC off: the check kept the rules
+        self.assertEqual(back["observed"], {key("/traces/A/2"): {"count": 2}, key("/vias/A"): {"count": 2}})
+
+    def test_a_plan_that_breaks_the_rules_is_blocked_and_never_drawn(self):
+        bad = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.3, "points_mm": [[0, 0], [5, 0], [6, 0]]}],
+               "vias": [{"net": "A", "at_mm": [6, 0], "padstack": "NOPE"}]}
+        inputs = {"file": self.plan_file(bad)}
+        with world(FakeApp(self.doc)):
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            with self.assertRaises(AdapterError) as caught:
+                E.TraceCreate().apply(context("trace create", inputs))
+        reasons = preview["blocked_by"]
+        self.assertFalse(preview["can_apply"])
+        self.assertIn("the central library holds no via padstack NOPE", reasons[0])
+        self.assertIn("width 0.3 mm is outside", reasons[1])
+        self.assertTrue(any("closer to a pad of B" in reason for reason in reasons))
+        self.assertEqual(caught.exception.data.get("conflict"), "application_state")
+        self.assertEqual(self.doc.drawn, [])
+
+    def test_a_missing_or_malformed_plan_file(self):
+        with world(FakeApp(self.doc)):
+            for inputs, wanted in (({"file": str(self.folder / "none.json")}, "E_NOT_FOUND"), ({"file": self.plan_file("{")}, "E_VALIDATION"),
+                                   ({"file": self.plan_file({"traces": []})}, "E_VALIDATION")):
+                with self.subTest(inputs=inputs), self.assertRaises(AdapterError) as caught:
+                    E.TraceCreate().preview(context("trace create", inputs))
+                self.assertEqual(caught.exception.data["code"], wanted)
 
 
 if __name__ == "__main__":

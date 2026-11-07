@@ -1007,6 +1007,53 @@
       "long": true
     },
     {
+      "path": "trace create",
+      "summary": "Draw the traces and place the vias of a routing plan, after checking it against the board's copper, the net classes' widths and the clearance rules; runs as a long job.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "trace",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--file",
+          "type": "path",
+          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, and vias with net, at_mm and padstack, in board coordinates.",
+          "required": true
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-via-near-pad",
+        "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
+    },
+    {
       "path": "trace delete",
       "summary": "Delete the traces of the nets named, on every layer or on the layers named; their vias stay.",
       "effects": [

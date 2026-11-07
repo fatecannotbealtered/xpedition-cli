@@ -47,7 +47,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `placement`: run
 - `plane`: create, delete
 - `router`: run
-- `trace`: delete
+- `trace`: create, delete
 - `via`: delete, create, update
 - `solder-mask`: create, delete
 - `constraint`: get, import

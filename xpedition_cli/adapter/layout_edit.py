@@ -1,5 +1,5 @@
-"""Board edits on the open board: vias placed and changed, soldermask openings, and traces, vias,
-plane shapes and openings deleted.
+"""Board edits on the open board: traces drawn from a routing plan, vias placed and changed,
+soldermask openings, and traces, vias, plane shapes and openings deleted.
 
 Each write names its objects by net (and layer), previews how many it removes, removes them with
 the objects' own ``Delete`` and reads the counts back (``read_keys``: ``/traces/<net>[/<layer>]``,
@@ -8,6 +8,7 @@ through automation, so these deletes are how an Agent takes back a routing attem
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from .base import Context
 from .plan import PlanError
 from .plan import routing as plan_routing
 from .plan import stitching as ST
+from .plan import trace_plan as TP
 from .plan.shapes import box_polygon, segment_box
 from .platform import com
 
@@ -670,5 +672,169 @@ class SolderMaskDelete(L.ReadsBack):
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the opening")
 
 
-HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate(), ViaCreate(), SolderMaskCreate(),
+def _clearance_lookup(current: Any) -> Any:
+    """``clearance(net_a, net_b, layer, kind)`` in mm from the board's rules: the rule of the two
+    nets' class pair, else of one class against (All), else (All) against (All)."""
+    from .plan import rules as R
+
+    def rule_for(a: str, b: str) -> str:
+        pairs = current.class_clearances
+        for key in ((a, b), (b, a), (a, R.ALL_CLASSES), (R.ALL_CLASSES, a), (b, R.ALL_CLASSES), (R.ALL_CLASSES, b)):
+            if key in pairs:
+                return pairs[key]
+        return pairs.get((R.ALL_CLASSES, R.ALL_CLASSES), R.DEFAULT_RULE)
+
+    def clearance(net_a: str, net_b: str, layer: int, kind: str) -> float:
+        a = current.net_class_of.get(net_a, R.DEFAULT_CLASS)
+        b = current.net_class_of.get(net_b, R.DEFAULT_CLASS)
+        layers = current.clearances.get(rule_for(a, b)) or current.clearances.get(R.DEFAULT_RULE, {})
+        return float(layers.get(str(layer), {}).get(f"{kind}_mm", 0.254))
+
+    return clearance
+
+
+def _trace_rules(doc: Any, path: str) -> TP.Rules:
+    from .layout_output import net_classes
+    from .layout_rules import board_project, ces_design, read_current
+
+    prj, design_name = board_project(path)
+    layer_count = int(doc.LayerCount)
+    with ces_design(prj, design_name) as design:
+        current = read_current(design, layer_count)
+    widths: dict[str, dict[int, tuple[float, float]]] = {}
+    for row in net_classes(doc, layer_count):
+        widths[row["name"]] = {int(layer): (float(values.get("minimum_mm", 0.0)), float(values.get("expansion_mm", 25.0)))
+                               for layer, values in row["widths"].items()}
+    return TP.Rules(net_class_of=current.net_class_of, widths=widths, clearance=_clearance_lookup(current))
+
+
+def _copper(doc: Any) -> TP.Copper:
+    from .layout_output import _via_radius, board_model
+
+    model = board_model(doc, full=True)
+    scale = L.geometry_scale(doc)
+    if model is None or scale is None:
+        raise AdapterError("E_UNSUPPORTED", "The board's geometry can be read only on a board in mils with an outline; switch the "
+                           "board's unit to mils in Layout, or set the outline with pcb update.", dispatch_state="not_started")
+    copper = TP.Copper(layer_count=int(doc.LayerCount), nets={L.name_of(net) for net in L.collection(doc, "Nets")})
+    copper.pads = [(int(p.get("layer") or 1), str(p.get("net") or ""), ST.polygon(p.get("path"), p.get("circle"))) for p in model["pads"]]
+    copper.traces = [(int(t.get("layer") or 1), str(t.get("net") or ""), float(t.get("width") or 0.0), [(q[0], q[1]) for q in t["path"]])
+                     for t in model["traces"] if t.get("path")]
+    for via in L.collection(doc, "Vias"):
+        x0, y0, x1, y1 = L.extrema_mm(via)
+        copper.vias.append((L.net_name(via), (x0 + x1) / 2, (y0 + y1) / 2, _via_radius(via, scale)))
+    return copper
+
+
+def _routing_plan(ctx: Context) -> TP.Plan:
+    source = str(base.need_input(ctx, "file"))
+    try:
+        data = json.loads(Path(source).read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise AdapterError("E_NOT_FOUND", f"The routing plan {source} cannot be read: {exc.strerror}.", dispatch_state="not_started") from None
+    except ValueError as exc:
+        raise AdapterError("E_VALIDATION", f"The routing plan {source} is not JSON: {exc}.", dispatch_state="not_started") from None
+    try:
+        return TP.parse(data)
+    except PlanError as exc:
+        raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+
+
+def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[tuple[str, int], int], dict[str, int]]:
+    path = ctx.document_path()
+    radii: dict[str, float] = {}
+    blocked: list[str] = []
+    for via in plan.vias:
+        if via.padstack not in radii:
+            row = _via_row(path, via.padstack)
+            if row is None or row.get("type") != "via" or not row.get("pad_mm"):
+                blocked.append(f"the central library holds no via padstack {via.padstack}")
+                radii[via.padstack] = 0.0
+            else:
+                radii[via.padstack] = float(row["pad_mm"]) / 2
+        via.radius = radii[via.padstack]
+    blocked += TP.check(plan, _copper(doc), _trace_rules(doc, path))
+    traces = {(t.net, t.layer): L.trace_count(doc, t.net, t.layer) for t in plan.traces}
+    vias = {v.net: L.via_count(doc, v.net) for v in plan.vias}
+    return blocked, traces, vias
+
+
+def _net_states(doc: Any, plan: TP.Plan) -> list[dict[str, Any]]:
+    """Whether each net of the plan is routed now, and its open connections."""
+    rows = []
+    for name in sorted({t.net for t in plan.traces} | {v.net for v in plan.vias}):
+        try:
+            net = L.find_net(doc, name)
+            opens = int(net.NumberOfOpens or 0)
+            rows.append({"net": name, "routed": bool(com.member(net, "IsRouted")) and opens == 0, "opens": opens})
+        except Exception:  # noqa: BLE001 - a net Layout cannot report is left out
+            continue
+    return rows
+
+
+class TraceCreate(L.ReadsBack):
+    """The traces and vias of a routing plan (``plan.trace_plan``), checked offline against the
+    board's copper and rules before Layout is touched, then placed with ``PutTrace`` and ``PutVia``
+    with Layout's online DRC off, since the check kept the rules. For the routes an Agent plans
+    itself, such as a differential pair between two connectors."""
+
+    command = "trace create"
+    long_job = True
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        plan = _routing_plan(ctx)
+        blocked, traces, vias = L.in_layout(ctx, lambda app, doc: _trace_look(ctx, doc, plan), budget_s=L.READ_BUDGET_S,
+                                            what="checking the routing plan")
+        added_traces: dict[tuple[str, int], int] = {}
+        for t in plan.traces:
+            added_traces[(t.net, t.layer)] = added_traces.get((t.net, t.layer), 0) + 1
+        added_vias: dict[str, int] = {}
+        for v in plan.vias:
+            added_vias[v.net] = added_vias.get(v.net, 0) + 1
+        changes = [base.change(base.key(path, trace_key(net, layer)), "count", traces.get((net, layer), 0), traces.get((net, layer), 0) + n)
+                   for (net, layer), n in added_traces.items()]
+        changes += [base.change(base.key(path, via_key(net)), "count", vias.get(net, 0), vias.get(net, 0) + n) for net, n in added_vias.items()]
+        targets = [base.target(path, "trace", "/traces", label="the routing plan's traces and vias")]
+        return base.preview(f"Draw {len(plan.traces)} traces and place {len(plan.vias)} vias of the routing plan, checked against the "
+                            "board's copper and clearance rules. Run pcb check after. The board is not saved.", targets, changes,
+                            blocked_by=blocked or None)
+
+    def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
+        return self.apply(ctx)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        plan = _routing_plan(ctx)
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            blocked, _traces, _vias = _trace_look(ctx, doc, plan)
+            if blocked:
+                raise base.blocked("; ".join(blocked[:20]))
+            drawn = placed = 0
+            doc.TransactionStart(0)
+            try:
+                for trace in plan.traces:
+                    xs, ys = [p[0] for p in trace.points], [p[1] for p in trace.points]
+                    doc.PutTrace(trace.layer, L.find_net(doc, trace.net), trace.width, len(xs), [xs, ys, [0.0] * len(xs)], None, 0,
+                                 L.UNIT_MM)
+                    drawn += 1
+                stacks: dict[str, Any] = {}
+                for via in plan.vias:
+                    stack = stacks.get(via.padstack) or via_padstack(doc, via.padstack)
+                    stacks[via.padstack] = stack
+                    doc.PutVia(via.at[0], via.at[1], stack, L.find_net(doc, via.net), None, 0, L.UNIT_MM)
+                    placed += 1
+            except Exception as exc:  # noqa: BLE001 - classified
+                if not (drawn or placed):
+                    raise L.com_error(exc, "drawing the routing plan", "not_started") from None
+                return base.facts("partial", "unchanged", result={"traces": drawn, "vias": placed, "nets": _net_states(doc, plan)},
+                                  native_message=f"the routing plan stopped after {drawn} traces and {placed} vias: {exc}")
+            finally:
+                doc.TransactionEnd(True)
+            return base.facts("applied", "unchanged", result={"traces": drawn, "vias": placed, "nets": _net_states(doc, plan)})
+
+        return L.in_layout(ctx, work, budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="drawing the routing plan")
+
+
+HANDLERS: list[base.Handler] = [TraceCreate(), TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate(), ViaCreate(), SolderMaskCreate(),
                                 SolderMaskDelete()]

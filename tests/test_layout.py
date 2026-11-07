@@ -506,10 +506,10 @@ class ModuleTest(unittest.TestCase):
     def test_the_handlers_of_the_board_commands(self):
         self.assertEqual(sorted(h.command for h in L.HANDLERS), sorted([
             "forward-annotation run", "pcb update", "placement run", "plane create", "router run", "pcb get", "pcb check", "pcb export",
-            "constraint get", "constraint import", "trace delete", "via delete", "plane delete", "via update", "via create",
+            "constraint get", "constraint import", "trace create", "trace delete", "via delete", "plane delete", "via update", "via create",
             "solder-mask create", "solder-mask delete", "pcb render"]))
         self.assertEqual([h.command for h in L.HANDLERS if h.long_job],
-                         ["forward-annotation run", "placement run", "router run", "pcb export", "constraint import", "via create"])
+                         ["forward-annotation run", "placement run", "router run", "pcb export", "constraint import", "trace create", "via create"])
 
     def test_the_version_is_empty_without_an_install(self):
         with mock.patch.object(env, "version", mock.Mock(side_effect=AdapterError("E_BACKEND_UNAVAILABLE", "none"))):

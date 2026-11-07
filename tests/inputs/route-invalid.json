@@ -1,0 +1,5 @@
+{
+  "traces": [
+    {"net": "USB_DP", "layer": 1, "width_mm": 0, "points_mm": [[6.1, 12.25], [83.9, 9.75]]}
+  ]
+}
