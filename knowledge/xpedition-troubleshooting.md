@@ -19,7 +19,7 @@ The measured installation had a Chinese user interface, so most texts below are 
 | What you see | Entry |
 |---|---|
 | The Siemens licence sign-in window when Designer starts | `xpedition-license-sign-in` |
-| `E_AUTH`; product code 10279, scode 0x8004022D; "自动化代码不包含身份验证所需的许可调用。" | `xpedition-license-sign-in` |
+| `E_HUMAN_REQUIRED` with action `activate_license`; product code 10279, scode 0x8004022D; "自动化代码不包含身份验证所需的许可调用。" | `xpedition-license-sign-in` |
 | `CO_E_SERVER_EXEC_FAILURE` (0x80080005); "no Qt platform plugin could be initialized" | `xpedition-start-through-launcher` |
 | A running Designer reported absent; "has no attribute 'CLSIDToClassMap'" | `xpedition-gen-py-cache-broken` |
 | Two Designer or two Layout sessions in session list | `designer-one-instance-only` |

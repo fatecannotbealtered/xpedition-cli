@@ -8,9 +8,9 @@ tags: [designer, symbols, cache, library]
 
 Designer keeps the definition of every symbol it has placed in the open project. If a symbol file is written again under the same name, Designer ignores the new file and keeps drawing the old symbol.
 
-Symbol files are text files, `SymbolLibs/<partition>/sym/<name>.<version>`. The highest version is the current symbol. xpedition-cli 1.0.3 wrote a replaced symbol as the next version, and Designer took it; the old file stayed.
+Symbol files are text files, `SymbolLibs/<partition>/sym/<name>.<version>`. The highest version is the current symbol. In the live runs, a symbol written as the next version was the one Designer took; the old file stayed.
 
-In this release, part create skips a part identical to the library's and refuses a part number the library holds with other content. So it does not replace a symbol.
+part create names each symbol after a hash of its text, so a changed symbol gets a new name. It skips a part identical to the library's and refuses a part number the library holds with other content. So it never replaces a symbol.
 
 What to do:
 

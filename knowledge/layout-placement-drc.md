@@ -18,7 +18,7 @@ Layout's online DRC refuses to place a part:
 - on its own old position (its old footprint);
 - where an identical footprint already sits.
 
-A part placed outside the board outline is accepted. Switching `RespectComponentPlacementDRC` off does not turn this check off. xpedition-cli 1.0.3 therefore lifted the parts first and then placed them, and it parked parts it was measuring in a grid below the board.
+A part placed outside the board outline is accepted. Switching `RespectComponentPlacementDRC` off does not turn this check off. So placement run lifts the parts first and then places them, and it parks the parts it measures in rows below the board.
 
 In one live run the board was too small. The plan listed 7 parts as `outside`, and applying it stopped at a placement DRC violation.
 

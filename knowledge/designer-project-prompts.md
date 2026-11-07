@@ -12,7 +12,7 @@ Opening another project while sheets of the current one are open makes Designer 
 
 "更改当前项目需要关闭所有打开的文档。是否希望关闭它们并继续打开选定的项目?" (changing the current project requires closing all open documents; close them and open the selected project?), Yes or No.
 
-The open call waits until the question is answered. xpedition-cli 1.0.3 answered Yes, because the operation that had opened the sheets had saved them.
+The open call waits until the question is answered. doc open does not answer it, because the open documents may hold changes nobody saved: it reports the question to the person as `E_HUMAN_REQUIRED`. schematic create answers Yes, because it saved the sheets it opened.
 
 What to do:
 
@@ -21,9 +21,9 @@ What to do:
 
 ## "close all open documents?" after a timeout
 
-A read that ran out of time (a one-second timeout in the live run) left "close all open documents?" on screen in Designer. While it was up, Quit returned without quitting. The 1.0.3 tool reported the session closed although Designer was still running. After a timeout, 1.0.3 also refused the next command as stale and hinted to restart the session with a longer timeout.
+A read that ran out of time (a one-second timeout in the live run) left "close all open documents?" on screen in Designer. While it was up, Quit returned without quitting.
 
-1.0.3 later answered the known questions while quitting, and checked that the program had gone. A Designer that stayed was reported as `E_CONFLICT` with the dialog named.
+session close answers no question while quitting, and watches whether the Designer process goes. When a dialog holds Designer, it reports `E_HUMAN_REQUIRED` with the dialog's title; when Designer stays without one, it reports `E_NATIVE_FAILURE`.
 
 What to do:
 

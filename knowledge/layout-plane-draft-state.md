@@ -16,7 +16,7 @@ A plane shape made through automation starts in the Draft state. A Draft plane g
 
 In one live run the GND plane was back in Draft after its pour had been saved, and the router regenerated only Dynamic planes.
 
-xpedition-cli 1.0.3 switched a new pour to Dynamic. Its routing step later regenerated planes it found in Draft as well.
+plane create switches a new pour to Dynamic. router run regenerates the planes after routing: each Dynamic plane goes to Draft and back, and each plane it finds in Draft goes to Dynamic.
 
 ## What to do
 

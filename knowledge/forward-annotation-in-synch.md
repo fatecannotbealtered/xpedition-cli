@@ -14,7 +14,7 @@ Forward annotation fails with "正向标注失败" (forward annotation failed), 
 
 The board already holds the packaged schematic. Layout keeps a forward-annotation status: 1 required, 2 in sync, 3 no CES data. Asking for forward annotation while the status is 2 raises error 1001.
 
-xpedition-cli 1.0.3 read the status first. When it was 2, the tool ran nothing and reported the outcome `in_synch`. A second forward annotation right after a successful one gave that outcome.
+forward-annotation run reads the status first. When it is 2, it runs nothing: the preview lists no change, and the result's outcome is `in_synch`. A second forward annotation right after a successful one gives that outcome.
 
 ## What to do
 

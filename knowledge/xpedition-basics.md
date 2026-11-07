@@ -36,7 +36,7 @@ A session-mode write changes the open document only. It is not on disk until doc
 
 ## The board flow
 
-This order made a board from an empty project in the live runs, here in this release's commands:
+This order made a board from an empty project in the live runs, written with xpedition-cli's commands:
 
 1. part create: add every part the design uses. The installation ships no parts (`xpedition-template-library-is-empty`). The project is closed in Designer.
 2. session open or doc open on the `.prj`, then schematic create. It replaces every sheet the design file names and cannot be undone.

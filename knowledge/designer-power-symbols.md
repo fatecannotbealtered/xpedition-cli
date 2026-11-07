@@ -12,7 +12,7 @@ A power or ground symbol names its net with its `NETNAME` attribute. A wire that
 
 The `Y` record of a symbol file is the symbol's type: 1 part, 3 annotation, 4 power or ground, 5 border.
 
-Power and ground symbols are not parts. Placed as a part, such a symbol rejects the reference designator and stays on the sheet without a name. xpedition-cli 1.0.3 reported such an orphan and never counted it as placed.
+Power and ground symbols are not parts. Placed as a part, such a symbol rejects the reference designator and stays on the sheet without a name. schematic create does not count it as a placed part, so its pins read back as missing from their nets.
 
 What to do:
 

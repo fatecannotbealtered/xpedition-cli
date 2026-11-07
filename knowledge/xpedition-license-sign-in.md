@@ -11,7 +11,7 @@ tags: [license, sign-in, dialog, startup]
 When Designer starts, it may stop at the Siemens licence sign-in dialog. In the live runs it did so after a reboot. Only a person can complete it.
 
 - session get may show the session as blocked, with the window title in `blocker`. A command may return `E_HUMAN_REQUIRED`.
-- Tell the person to sign in. Do not click, type into or read the dialog. xpedition-cli 1.0.3 never inspected or answered a window whose title spoke of a licence, a sign-in or a login (including 许可证, 授权 and 登录).
+- Tell the person to sign in. Do not click, type into or read the dialog. xpedition-cli never reads or answers a window whose title speaks of a licence, a sign-in or a login (including 许可证, 授权 and 登录).
 - After the person has signed in, run session get until the session is ready.
 - File-mode commands do not need Designer. In the live runs, copying a project and the library steps ran on Xpedition's converters while Designer waited at the sign-in.
 
@@ -19,9 +19,9 @@ When Designer starts, it may stop at the Siemens licence sign-in dialog. In the 
 
 Layout automation must take a licence token for each document: `Validate(0)`, then `GetToken` from `MGCPCBAutomationLicensing.Application`, then `Validate(token)`. The tool does this itself.
 
-When the step is missed, the error carries product code 10279 and scode 0x8004022D. Its message is localized. On a Chinese installation it reads "自动化代码不包含身份验证所需的许可调用。", which contains neither "license" nor "token". xpedition-cli 1.0.3 reported it as `E_AUTH`.
+When the step is missed, the error carries product code 10279 and scode 0x8004022D. Its message is localized. On a Chinese installation it reads "自动化代码不包含身份验证所需的许可调用。", which contains neither "license" nor "token". xpedition-cli recognizes it by the code and reports `E_HUMAN_REQUIRED` with the action `activate_license`.
 
-`E_AUTH` is not retryable. Do not repeat the command in a loop. Report the error and its details to the person.
+Do not repeat the command in a loop. Report the error and its details to the person.
 
 ## Licence settings
 

@@ -23,6 +23,6 @@ pywin32 (win32com) caches a generated wrapper for each type library in its `gen_
 ## What to do
 
 - The entries are only a cache. win32com builds an entry again when it is missing.
-- xpedition-cli 1.0.3 removed the broken entries itself before it attached. A broken entry is a folder under `gen_py` that has a `__pycache__` folder but no `__init__.py`. An entry being generated has its `.py` files and no `__pycache__` yet, so it was left alone.
+- xpedition-cli removes the broken entries itself before its first attach in each process. A broken entry is a folder under `gen_py` that has a `__pycache__` folder but no `__init__.py`. An entry being generated has its `.py` files and no `__pycache__` yet, so it is left alone.
 - If the error still appears, tell the person the cause. Removing the broken entry folders, by the rule above, fixes it. Ask before you delete files outside the project.
 - Then run session list again.

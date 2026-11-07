@@ -24,9 +24,9 @@ The dialogs hold their settings in memory while the board is open. They write th
 - The stock Gerber silkscreen item writes a file with a header only. The cells' silkscreen outlines and reference designators must be named as cell items.
 - The stock 4-layer setup writes the outer copper twice (`EtchLayer1Top` and `EtchLayerTop`) and negative plane files for the inner layers.
 
-## How 1.0.3 handled it
+## How pcb export handles it
 
-xpedition-cli 1.0.3 closed and reopened the board to patch the setups. It ran NC drill, ODB++ and Gerber through their dialogs, then read the setups again. Once the ODB++ dialog had written `d_1_4 INCLUDE NO` back, and the job came out without a drill layer. A second round fixed it.
+pcb export patches the setups that need it, each backed up once, with the board left open. It runs NC drill, ODB++ and Gerber through their dialogs, then reads the setups again. When a dialog has written its old settings back, it patches them and runs the three once more. `setups_rewritten` in its result names a setup that a dialog still overwrote. In one live run the ODB++ dialog wrote `d_1_4 INCLUDE NO` back, and the job came out without a drill layer; the second round fixed it.
 
 ## What to do
 

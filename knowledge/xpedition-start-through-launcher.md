@@ -8,7 +8,7 @@ tags: [startup, com, launcher]
 
 ## Symptom
 
-Starting Xpedition through COM fails with `CO_E_SERVER_EXEC_FAILURE` (0x80080005). xpedition-cli 1.0.3 reported this as `E_BACKEND_UNAVAILABLE`, with a hint to use the launcher.
+Starting Xpedition through COM fails with `CO_E_SERVER_EXEC_FAILURE` (0x80080005). xpedition-cli reports this as `E_BACKEND_UNAVAILABLE`, with a hint to use the launcher.
 
 Running a program binary directly from its own folder under `SDD_HOME`, such as `wg/win64/bin`, failed too: with `CO_E_SERVER_EXEC_FAILURE`, with `STATUS_DLL_NOT_FOUND`, or, for `package.exe`, with the message "no Qt platform plugin could be initialized".
 

@@ -19,6 +19,6 @@ The text can be recovered: encode the garbled string as Latin-1, then decode the
 ## What to do
 
 - When people must read the PDF, use English for titles and notes, or tell the person that Chinese text will be garbled in it.
-- Text that the system code page cannot hold cannot be stored. For library texts, xpedition-cli 1.0.3 refused such characters in part descriptions and properties.
-- Before 1.0.3 fixed it, Chinese text reached the central library as question marks while the read-back still passed. After part create, check Chinese descriptions with part get.
+- Text that the system code page cannot hold cannot be stored. part create refuses such characters in part descriptions and properties, and writes nothing.
+- After part create, check Chinese descriptions with part get.
 - `sch2pdf` prints only what lies inside each sheet's border. Objects outside the border do not appear in the PDF.

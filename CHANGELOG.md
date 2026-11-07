@@ -23,6 +23,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 ### Changed
 
 - The Skill gains a playbook for routing a board, with the rules file and the routing plan described in its references; the board-building steps move into a reference of their own.
+- The knowledge entries describe what xpedition-cli does now, without version labels; the licence entry says a missing licence call is reported as `E_HUMAN_REQUIRED` with the action `activate_license`, and the Designer prompts entry says doc open leaves the question about closing open documents to the person.
 - The knowledge on vias near pads, trace widths, pouring after routing and the board flow names the new commands: trace create and via create place single traces and vias, plane delete takes back a pour, and constraint import sets the rules before any copper.
 - Built on tool-driver-cli-spec 1.0.6.
 - `router run` routes only the nets `--nets` names and the nets of the classes `--net-classes` names, with the passes `--passes` lists in order, such as `fanout:1,route:1-5`; its result then adds `selected`, the routing of those nets. Its result reports connections only: run pcb check to judge the routing.
