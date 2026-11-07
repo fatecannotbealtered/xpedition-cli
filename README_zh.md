@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | draft：draft 9 个，verified 0 个，stable 18 个 |
+| 成熟度 | draft：draft 11 个，verified 0 个，stable 18 个 |
 | 规范 | tool-driver-cli-spec 1.0.6 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -86,6 +86,7 @@
 - `router`: run
 - `trace`: delete
 - `via`: delete, create, update
+- `solder-mask`: create, delete
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 

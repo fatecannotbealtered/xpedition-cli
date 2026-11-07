@@ -62,6 +62,8 @@ Risk tier: **T1**, set by these commands:
 - `plane delete`: change
 - `via create`: change
 - `via update`: change
+- `solder-mask create`: change
+- `solder-mask delete`: change
 - `constraint import`: change, persist
 <!-- driver:risk:end -->
 

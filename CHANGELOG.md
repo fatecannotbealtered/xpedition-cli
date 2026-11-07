@@ -13,6 +13,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `trace delete` deletes the traces of the nets named, on every layer or on the layers named; `via delete` deletes their vias; `plane delete` deletes the plane shapes of one net on one layer. They take back a routing attempt before a save.
 - `via update` changes the vias of the nets or net classes named to another via padstack, pulled from the central library when the board lacks it. The autorouter places the via each net class is assigned in Constraint Manager, which no command can change, so a router run followed by via update gives the via size the design asks for.
 - `via create` places vias of one net: one at `--x`, `--y`, or a stitching grid at `--pitch` inside the net's copper on two layers, clear of every pad, the traces of other nets, vias and holes by the board's default clearance rule. The via is the net class's own unless `--padstack` names another.
+- `solder-mask create` opens the soldermask over a rectangle on one side, or the coverlay of a flex board with `--cover-layer`, naming the nets whose copper it bares; an opening over no copper, or a coverlay opening on a stackup without a cover layer, is refused. `solder-mask delete` deletes the opening that holds a point.
 
 ### Changed
 
@@ -20,6 +21,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `router run` routes only the nets `--nets` names and the nets of the classes `--net-classes` names, with the passes `--passes` lists in order, such as `fanout:1,route:1-5`; its result then adds `selected`, the routing of those nets. Its result reports connections only: run pcb check to judge the routing.
 - `pcb get` shows, for each net class, the via it is assigned for each via span: the via the autorouter places.
 - `plane create --hatch orthogonal` or `diagonal`, with `--hatch-width` and `--hatch-distance`, pours a hatched plane, as flex boards often use; only that shape is hatched.
+- `pcb get` names the kind of each insulation layer of the stackup, such as `cover_layer` on a flex board.
 
 ### Fixed
 

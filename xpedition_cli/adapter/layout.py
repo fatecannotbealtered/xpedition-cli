@@ -970,6 +970,14 @@ def class_vias(net_class: Any, spans: list[tuple[int, int]]) -> dict[str, str | 
     return out
 
 
+def _opening(doc: Any, kind: str, parts: list[str]) -> bool:
+    """Whether the opening a ``/solder-mask/<side>/<x1,y1,x2,y2>`` key names is on the board."""
+    from .layout_edit import opening_exists
+
+    box = tuple(float(v) for v in parts[2].split(","))
+    return opening_exists(doc, kind, parts[1], box)
+
+
 def fragment(target: str, path: str) -> list[str] | None:
     """The domain path of a target key of ``path``, split into its (unquoted) segments."""
     if "#" not in target:
@@ -1000,9 +1008,11 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "planes": lambda parts: plane_values(doc, parts[1], int(parts[2])),
         "traces": lambda parts: {"count": trace_count(doc, parts[1], int(parts[2]) if len(parts) > 2 else None)},
         "vias": lambda parts: {"count": via_count(doc, parts[1]), "padstack": via_padstack_name(doc, parts[1])},
+        "solder-mask": lambda parts: {"exists": _opening(doc, "solder-mask", parts)},
+        "cover-layer": lambda parts: {"exists": _opening(doc, "cover-layer", parts)},
         "nets": lambda parts: {"routed": statuses().get(parts[1], {}).get("routed")},
     }
-    sizes = {"components": 2, "planes": 3, "nets": 2, "traces": (2, 3), "vias": 2}
+    sizes = {"components": 2, "planes": 3, "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3}
     for target in targets:
         parts = fragment(target, path)
         reader = readers.get(parts[0]) if parts else None

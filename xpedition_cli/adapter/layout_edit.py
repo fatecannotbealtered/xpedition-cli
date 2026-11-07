@@ -1,4 +1,5 @@
-"""Board edits on the open board: vias placed and changed, and traces, vias and plane shapes deleted.
+"""Board edits on the open board: vias placed and changed, soldermask openings, and traces, vias,
+plane shapes and openings deleted.
 
 Each write names its objects by net (and layer), previews how many it removes, removes them with
 the objects' own ``Delete`` and reads the counts back (``read_keys``: ``/traces/<net>[/<layer>]``,
@@ -17,6 +18,8 @@ from .base import Context
 from .plan import PlanError
 from .plan import routing as plan_routing
 from .plan import stitching as ST
+from .plan.shapes import box_polygon, segment_box
+from .platform import com
 
 
 def _nets(ctx: Context) -> list[str]:
@@ -481,4 +484,191 @@ class ViaCreate(L.ReadsBack):
 VIA_POINTS_LISTED = 200
 
 
-HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate(), ViaCreate()]
+FAB_SOLDERMASK = 16  # EPcbFabricationType epcbFabSoldermask
+FAB_COVER_LAYER = 1024  # epcbFabCoverLayer: the coverlay of a flex board
+SIDE_TOP, SIDE_BOTTOM = 1, 512  # EPcbSide
+
+
+def _side(ctx: Context) -> tuple[str, int]:
+    side = str(ctx.inputs.get("side") or "top").strip().lower()
+    if side not in ("top", "bottom"):
+        raise AdapterError("E_VALIDATION", "--side is top or bottom.", dispatch_state="not_started")
+    return side, SIDE_TOP if side == "top" else SIDE_BOTTOM
+
+
+def _mask_kind(ctx: Context) -> tuple[str, int]:
+    return ("cover-layer", FAB_COVER_LAYER) if ctx.inputs.get("cover_layer") else ("solder-mask", FAB_SOLDERMASK)
+
+
+def _rect(ctx: Context) -> tuple[float, float, float, float]:
+    values = [ctx.inputs.get(name) for name in ("x1_mm", "y1_mm", "x2_mm", "y2_mm")]
+    if any(v is None for v in values):
+        raise AdapterError("E_VALIDATION", "solder-mask create needs --x1, --y1, --x2 and --y2: two opposite corners.",
+                           dispatch_state="not_started")
+    x1, y1, x2, y2 = (round(float(v), 4) for v in values)
+    box = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+    if box[2] - box[0] <= 0 or box[3] - box[1] <= 0:
+        raise AdapterError("E_VALIDATION", "The opening needs an area: the corners differ in x and in y.", dispatch_state="not_started")
+    return box
+
+
+def mask_key(kind: str, side: str, box: tuple[float, float, float, float]) -> str:
+    return f"/{kind}/{side}/" + ",".join(f"{v:g}" for v in box)
+
+
+def _openings(doc: Any, fab_type: int, side_code: int) -> list[tuple[Any, tuple[float, float, float, float]]]:
+    out = []
+    for gfx in L.collection(doc, "FabricationLayerGfxs"):
+        try:
+            if int(gfx.Type) != fab_type or int(gfx.Side) != side_code or gfx.Component is not None:
+                continue
+            out.append((gfx, tuple(round(v, 4) for v in L.extrema_mm(gfx))))
+        except Exception:  # noqa: BLE001 - a graphic that cannot be read is left alone
+            continue
+    return out
+
+
+def opening_exists(doc: Any, kind: str, side: str, box: tuple[float, ...]) -> bool:
+    fab_type = FAB_COVER_LAYER if kind == "cover-layer" else FAB_SOLDERMASK
+    side_code = SIDE_TOP if side == "top" else SIDE_BOTTOM
+    return any(all(abs(a - b) < 0.002 for a, b in zip(found, box, strict=True)) for _g, found in _openings(doc, fab_type, side_code))
+
+
+def _copper_nets(doc: Any, side: str, box: tuple[float, float, float, float]) -> list[str]:
+    """The nets with copper inside the box on the outer layer of that side: pads, traces and planes."""
+    from .layout_output import board_model, geometry_record
+
+    layer = 1 if side == "top" else int(doc.LayerCount)
+    model = board_model(doc, full=True)
+    nets: set[str] = set()
+    if model is not None:
+        for pad in model["pads"]:
+            if int(pad.get("layer") or 0) == layer and box_polygon(box, ST.polygon(pad.get("path"), pad.get("circle"))):
+                nets.add(str(pad.get("net") or "") or "(no net)")
+        for trace in model["traces"]:
+            points = [(p[0], p[1]) for p in trace.get("path") or []]
+            if int(trace.get("layer") or 0) == layer and any(segment_box(points[i], points[i + 1], box) == 0.0
+                                                              for i in range(len(points) - 1)):
+                nets.add(str(trace.get("net") or ""))
+    scale = L.geometry_scale(doc)
+    for shape in L.collection(doc, "PlaneShapes"):
+        if int(shape.Layer) == layer and scale is not None:
+            record = geometry_record(shape.Geometry, scale)
+            if record and box_polygon(box, ST.polygon(record.get("path"), record.get("circle"))):
+                nets.add(L.net_name(shape))
+    return sorted(n for n in nets if n)
+
+
+def cover_layer_sides(doc: Any) -> set[str]:
+    """The sides whose outer insulation includes a cover layer (a flex board's coverlay)."""
+    from .layout_output import board_stackup
+
+    rows = board_stackup(doc)
+    conductors = [r["board_layer"] for r in rows if r["kind"] == "conductor"]
+    if not conductors:
+        return set()
+    sides = set()
+    for row in rows:
+        if row.get("insulation") == "cover_layer":
+            if row["board_layer"] < min(conductors):
+                sides.add("top")
+            elif row["board_layer"] > max(conductors):
+                sides.add("bottom")
+    return sides
+
+
+class SolderMaskCreate(L.ReadsBack):
+    """A rectangular opening in the soldermask, or in the coverlay of a flex board (--cover-layer),
+    on one side: ``PutFabricationLayerGfx``, filled. Copper under it is left bare."""
+
+    command = "solder-mask create"
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        side, _code = _side(ctx)
+        kind, _fab = _mask_kind(ctx)
+        box = _rect(ctx)
+        path = ctx.document_path()
+
+        def look(app: Any, doc: Any) -> tuple[bool, list[str], bool]:
+            cover = kind != "cover-layer" or side in cover_layer_sides(doc)
+            return opening_exists(doc, kind, side, box), _copper_nets(doc, side, box), cover
+
+        exists, nets, cover = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the copper under the opening")
+        domain = mask_key(kind, side, box)
+        target = [base.target(path, "opening", domain, label=f"{kind} opening on the {side}")]
+        where = f"{box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm"
+        if exists:
+            return base.preview(f"The {side} {kind} has an opening at {where} already; nothing changes.", target, [])
+        blocked = [] if nets else [f"no copper lies inside {where} on the {side} side, so the opening would bare nothing; pour or "
+                                   "route the copper first"]
+        if not cover:
+            blocked.append(f"the board's stackup has no cover layer on the {side} side (pcb get lists the stackup); open the "
+                           "soldermask instead, without --cover-layer")
+        layer = "coverlay" if kind == "cover-layer" else "soldermask"
+        return base.preview(f"Open the {side} {layer} over {where}, baring the copper of {', '.join(nets) or 'no net'} there. The board "
+                            "is not saved.", target, [base.change(base.key(path, domain), "exists", False, True)],
+                            blocked_by=blocked or None)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        side, code = _side(ctx)
+        kind, fab = _mask_kind(ctx)
+        box = _rect(ctx)
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            if opening_exists(doc, kind, side, box):
+                return base.facts("not_applied", "unchanged", result={"kind": kind, "side": side, "created": False})
+            x1, y1, x2, y2 = box
+            points = [[x1, x2, x2, x1, x1], [y1, y1, y2, y2, y1], [0.0] * 5]
+            doc.TransactionStart(0)
+            try:
+                doc.PutFabricationLayerGfx(fab, code, 0.0, 5, points, True, None, L.UNIT_MM)
+            except Exception as exc:  # noqa: BLE001 - classified
+                raise L.com_error(exc, "drawing the opening", com.call_state(exc)) from None
+            finally:
+                doc.TransactionEnd(True)
+            return base.facts("applied", "unchanged", result={"kind": kind, "side": side, "created": True,
+                                                              "rect_mm": list(box), "nets": _copper_nets(doc, side, box)})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="drawing the opening")
+
+
+class SolderMaskDelete(L.ReadsBack):
+    """Delete the soldermask (or coverlay) opening that contains a point on one side."""
+
+    command = "solder-mask delete"
+
+    def _found(self, ctx: Context, doc: Any) -> tuple[str, str, Any, tuple[float, float, float, float]]:
+        side, code = _side(ctx)
+        kind, fab = _mask_kind(ctx)
+        x, y = base.need_input(ctx, "x_mm"), base.need_input(ctx, "y_mm")
+        hits = [(g, box) for g, box in _openings(doc, fab, code) if box[0] <= x <= box[2] and box[1] <= y <= box[3]]
+        if not hits:
+            raise AdapterError("E_NOT_FOUND", f"No {side} {kind} opening contains ({x:g}, {y:g}) mm.", dispatch_state="not_started")
+        if len(hits) > 1:
+            raise AdapterError("E_AMBIGUOUS", f"{len(hits)} {side} {kind} openings contain ({x:g}, {y:g}) mm; give a point inside one only.",
+                               dispatch_state="not_started", candidates=[mask_key(kind, side, box) for _g, box in hits])
+        return kind, side, hits[0][0], hits[0][1]
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+        kind, side, _gfx, box = L.in_layout(ctx, lambda app, doc: self._found(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                            what="finding the opening")
+        domain = mask_key(kind, side, box)
+        return base.preview(f"Delete the {side} {kind} opening at {box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm. The board is not "
+                            "saved.", [base.target(path, "opening", domain, label=f"{kind} opening on the {side}")],
+                            [base.change(base.key(path, domain), "exists", True, False)])
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            kind, side, gfx, box = self._found(ctx, doc)
+            try:
+                gfx.Delete()
+            except Exception as exc:  # noqa: BLE001 - classified
+                raise L.com_error(exc, "deleting the opening", com.call_state(exc)) from None
+            return base.facts("applied", "unchanged", result={"kind": kind, "side": side, "rect_mm": list(box)})
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the opening")
+
+
+HANDLERS: list[base.Handler] = [TraceDelete(), ViaDelete(), PlaneDelete(), ViaUpdate(), ViaCreate(), SolderMaskCreate(),
+                                SolderMaskDelete()]

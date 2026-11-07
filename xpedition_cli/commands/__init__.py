@@ -665,6 +665,40 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli via update --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net-classes USB_SS --padstack VIA_D0.2_P0.4"],
         knowledge=['layout-router-via-from-net-class'],
     ),
+    command(
+        "solder-mask create", "Open the soldermask, or the coverlay of a flex board, over a rectangle on one side, so the copper "
+        "under it is bare.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="opening",
+        flags=[{"name": "--x1", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "One corner's X."},
+               {"name": "--y1", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "One corner's Y."},
+               {"name": "--x2", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "The opposite corner's X."},
+               {"name": "--y2", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "The opposite corner's Y."},
+               {"name": "--side", "type": "string", "summary": "top (the default) or bottom."},
+               {"name": "--cover-layer", "type": "boolean", "summary": "Open the coverlay of a flex board instead of the soldermask."}],
+        output=obj(kind=STR, side=STR, created=BOOL, rect_mm=arr(NUM), nets=arr(STR)),
+        untrusted=["nets"],
+        coordinates=BOARD_COORDINATES,
+        examples=["xpedition-cli solder-mask create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --x1 40mm --y1 2mm --x2 50mm "
+                  "--y2 6mm --cover-layer"],
+        knowledge=['layout-solder-mask-openings'],
+    ),
+    command(
+        "solder-mask delete", "Delete the soldermask or coverlay opening that contains a point on one side.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="opening",
+        flags=[{"name": "--x", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "A point inside the opening: its X."},
+               {"name": "--y", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
+                "summary": "Its Y."},
+               {"name": "--side", "type": "string", "summary": "top (the default) or bottom."},
+               {"name": "--cover-layer", "type": "boolean", "summary": "The opening is in the coverlay, not the soldermask."}],
+        output=obj(kind=STR, side=STR, rect_mm=arr(NUM)),
+        coordinates=BOARD_COORDINATES,
+        examples=["xpedition-cli solder-mask delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --x 45mm --y 4mm --cover-layer"],
+    ),
     # ------------------------------------------------------------------ constraints (Layout)
     command(
         "constraint get", "Read the board's constraints: net classes and their nets, trace widths and differential spacing per "

@@ -174,6 +174,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-074 | Draw traces from a plan | `PutTrace` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-075 | Place one via, or a grid of stitching vias inside a net's copper on two layers, clear of other copper | `PutVia`, `PutPadstack` | provided | - |
 | CAP-089 | Change the padstack of the vias of chosen nets, pulling it from the central library | `Via.CurrentPadstack`, `PutPadstack` | provided | - |
+| CAP-090 | Draw and delete rectangular soldermask openings, or coverlay openings on a flex stackup | `PutFabricationLayerGfx` (soldermask, cover layer) | provided | - |
 | CAP-076 | Delete the traces (on chosen layers) and the vias of chosen nets | `Delete()` | provided | - |
 | CAP-077 | Batch DRC, and read out the hazards | `Gui.ProcessCommand(32769)` + dialog + `GetHazards` | provided | - |
 | CAP-078 | Placement and routing metrics, and board-level rules (ratsnest length, crossings, distance from decoupling capacitors to power pins) | Pure Python | provided | - |

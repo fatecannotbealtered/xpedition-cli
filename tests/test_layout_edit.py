@@ -165,5 +165,63 @@ class ViaCreateTest(unittest.TestCase):
         self.assertEqual(caught.exception.data.get("conflict"), "application_state")
 
 
+class SolderMaskTest(unittest.TestCase):
+    def setUp(self):
+        self.doc = board()
+
+        def put_gfx(fab, side, width, n, points, filled, component, unit):
+            xs, ys = points[0], points[1]
+            box = (min(xs), min(ys), max(xs), max(ys))
+            self.doc.gfxs.append(Item(self.doc.gfxs, Type=fab, Side=side, Component=None, box=box))
+
+        self.doc.PutFabricationLayerGfx = put_gfx
+        self.doc.TransactionStart = lambda mode: None
+        self.doc.TransactionEnd = lambda keep: None
+        self.patches = [mock.patch.object(E, "_copper_nets", lambda doc, side, box: ["GND"] if box[0] < 5 else []),
+                        mock.patch.object(E, "cover_layer_sides", lambda doc: set()),
+                        mock.patch.object(E.L, "extrema_mm", lambda gfx: gfx.box)]
+        for patch in self.patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def test_an_opening_over_copper_is_drawn_read_back_and_deleted(self):
+        rect = {"x1_mm": 1.0, "y1_mm": 3.0, "x2_mm": 4.0, "y2_mm": 1.0}
+        with world(FakeApp(self.doc)):
+            preview = E.SolderMaskCreate().preview(context("solder-mask create", rect))
+            facts = E.SolderMaskCreate().apply(context("solder-mask create", rect))
+            target = preview["changes"][0]["target"]
+            back = E.SolderMaskCreate().read_back(context("solder-mask create", targets=[target], fields=["exists"]))
+            again = E.SolderMaskCreate().preview(context("solder-mask create", rect))
+            gone = E.SolderMaskDelete().apply(context("solder-mask delete", {"x_mm": 2.0, "y_mm": 2.0}))
+            after = E.SolderMaskCreate().read_back(context("solder-mask create", targets=[target], fields=["exists"]))
+        self.assertEqual(target, key("/solder-mask/top/1,1,4,3"))
+        self.assertIn("baring the copper of GND", preview["action"])
+        self.assertEqual((facts["result"]["created"], self.doc.gfxs == []), (True, True))
+        self.assertEqual(back["observed"][target], {"exists": True})
+        self.assertEqual(again["changes"], [])
+        self.assertEqual(gone["result"]["rect_mm"], [1.0, 1.0, 4.0, 3.0])
+        self.assertEqual(after["observed"][target], {"exists": False})
+
+    def test_no_copper_or_no_cover_layer_blocks_the_opening(self):
+        with world(FakeApp(self.doc)):
+            bare = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 6.0, "y1_mm": 1.0, "x2_mm": 8.0, "y2_mm": 2.0}))
+            cover = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 1.0, "y1_mm": 1.0, "x2_mm": 2.0, "y2_mm": 2.0,
+                                                                              "cover_layer": True}))
+        self.assertIn("no copper lies inside", bare["blocked_by"][0])
+        self.assertIn("no cover layer on the top side", cover["blocked_by"][0])
+
+    def test_delete_needs_exactly_one_opening_at_the_point(self):
+        with world(FakeApp(self.doc)):
+            with self.assertRaises(AdapterError) as missing:
+                E.SolderMaskDelete().preview(context("solder-mask delete", {"x_mm": 2.0, "y_mm": 2.0}))
+            for box in ((1.0, 1.0, 4.0, 3.0), (1.5, 1.5, 3.0, 2.5)):
+                self.doc.gfxs.append(Item(self.doc.gfxs, Type=E.FAB_SOLDERMASK, Side=E.SIDE_TOP, Component=None, box=box))
+            with self.assertRaises(AdapterError) as twice:
+                E.SolderMaskDelete().preview(context("solder-mask delete", {"x_mm": 2.0, "y_mm": 2.0}))
+        self.assertEqual(missing.exception.data["code"], "E_NOT_FOUND")
+        self.assertEqual(twice.exception.data["code"], "E_AMBIGUOUS")
+        self.assertEqual(len(twice.exception.data["candidates"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -202,6 +202,11 @@ def _quietly(fn: Any, default: Any = None) -> Any:
         return default
 
 
+# EPcbInsulationType: what an insulation layer of the stackup is; a flex board has cover layers
+INSULATION_TYPES = {0: "dielectric", 1: "solder_mask", 2: "rigid_substrate", 3: "flex_substrate", 4: "cover_layer", 5: "adhesive",
+                    6: "stiffener"}
+
+
 def board_stackup(doc: Any) -> list[dict[str, Any]]:
     """Every layer of the stackup from the top, conductors and insulation alike."""
     layers: list[dict[str, Any]] = []
@@ -219,6 +224,10 @@ def board_stackup(doc: Any) -> list[dict[str, Any]]:
                 row["usage"] = LAYER_USAGES.get(int(properties.LayerUsage or 0), "other")
             elif kind == "insulation":
                 row["dielectric_constant"] = _quietly(lambda p=properties: float(p.DielectricConstant))
+        if kind == "insulation":
+            insulation = _quietly(lambda: int(layer.InsulationType))
+            if insulation is not None:
+                row["insulation"] = INSULATION_TYPES.get(insulation, f"type {insulation}")
         layers.append(row)
     return layers
 

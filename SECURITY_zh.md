@@ -62,6 +62,8 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `plane delete`: change
 - `via create`: change
 - `via update`: change
+- `solder-mask create`: change
+- `solder-mask delete`: change
 - `constraint import`: change, persist
 <!-- driver:risk:end -->
 

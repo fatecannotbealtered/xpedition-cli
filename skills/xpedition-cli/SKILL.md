@@ -49,6 +49,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `router`: run
 - `trace`: delete
 - `via`: delete, create, update
+- `solder-mask`: create, delete
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 

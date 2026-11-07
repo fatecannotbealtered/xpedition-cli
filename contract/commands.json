@@ -1280,6 +1280,152 @@
       ]
     },
     {
+      "path": "solder-mask create",
+      "summary": "Open the soldermask, or the coverlay of a flex board, over a rectangle on one side, so the copper under it is bare.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "opening",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--x1",
+          "type": "quantity",
+          "summary": "One corner's X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y1",
+          "type": "quantity",
+          "summary": "One corner's Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--x2",
+          "type": "quantity",
+          "summary": "The opposite corner's X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y2",
+          "type": "quantity",
+          "summary": "The opposite corner's Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom."
+        },
+        {
+          "name": "--cover-layer",
+          "type": "boolean",
+          "summary": "Open the coverlay of a flex board instead of the soldermask."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [
+        "nets"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-solder-mask-openings"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "solder-mask delete",
+      "summary": "Delete the soldermask or coverlay opening that contains a point on one side.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "opening",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "A point inside the opening: its X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "Its Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom."
+        },
+        {
+          "name": "--cover-layer",
+          "type": "boolean",
+          "summary": "The opening is in the coverlay, not the soldermask."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
       "path": "constraint get",
       "summary": "Read the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and which class pairs use them.",
       "effects": [

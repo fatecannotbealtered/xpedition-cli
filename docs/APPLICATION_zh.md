@@ -170,6 +170,7 @@
 | CAP-074 | 按计划画走线 | `PutTrace` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-075 | 放一个过孔，或在一个网络两层铜皮都有的范围里按网格打缝合过孔，避开别的铜 | `PutVia`、`PutPadstack` | provided | - |
 | CAP-089 | 把选定网络的过孔换成另一个焊盘栈，需要时从中心库拉进来 | `Via.CurrentPadstack`、`PutPadstack` | provided | - |
+| CAP-090 | 画、删矩形阻焊开窗；柔性板叠层上画、删覆盖膜开窗 | `PutFabricationLayerGfx`（阻焊、覆盖膜） | provided | - |
 | CAP-076 | 删除选定网络的走线（可限定层）和过孔 | `Delete()` | provided | - |
 | CAP-077 | Batch DRC，读出 hazards | `Gui.ProcessCommand(32769)` + 对话框 + `GetHazards` | provided | - |
 | CAP-078 | 布局布线指标与板级规则（飞线长、交叉、去耦电容到电源脚距离） | 纯 Python | provided | - |
