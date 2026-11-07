@@ -873,13 +873,55 @@ def _draft_planes(doc: Any) -> list[tuple[str, int]]:
     return sorted(rows)
 
 
-def _route_look(doc: Any, layers: list[int]) -> dict[str, Any]:
+def _passes(ctx: Context) -> list[dict[str, Any]]:
+    try:
+        return plan_routing.parse_route_passes(str(ctx.inputs.get("passes") or ""))
+    except PlanError as exc:
+        details = exc.details
+        known = f"; the passes are {', '.join(details['known'])}" if "known" in details else ""
+        which = f" ({details['pass']}{known})" if "pass" in details else ""
+        raise AdapterError("E_VALIDATION", f"--passes: {exc.message}{which}.", dispatch_state="not_started") from None
+
+
+def _selection_inputs(ctx: Context) -> tuple[list[str], list[str]]:
+    return plan_routing.parse_names(ctx.inputs.get("nets")), plan_routing.parse_names(ctx.inputs.get("net_classes"))
+
+
+def _selected(doc: Any, nets: list[str], classes: list[str]) -> list[str] | None:
+    """The nets a call routes: those named and those of the named classes; None for every net.
+    An unknown net or class is E_NOT_FOUND."""
+    if not nets and not classes:
+        return None
+    missing = [name for name in nets if L.find_net(doc, name) is None]
+    if missing:
+        raise AdapterError("E_NOT_FOUND", f"The board has no net {missing[0]}.", dispatch_state="not_started")
+    chosen = list(nets)
+    by_class = {L.name_of(item): item for item in L.collection(doc, "NetClasses")}
+    for name in classes:
+        item = by_class.get(name)
+        if item is None:
+            raise AdapterError("E_NOT_FOUND", f"The board has no net class {name}; constraint get lists them.",
+                               dispatch_state="not_started")
+        chosen += [L.name_of(net) for net in L.collection(item, "Nets")]
+    return list(dict.fromkeys(name for name in chosen if name))
+
+
+def _route_look(doc: Any, layers: list[int], selection: list[str] | None = None) -> dict[str, Any]:
     layer_count = int(doc.LayerCount)
     _check_layers(layers, layer_count)
     status = L.route_status(doc)
+    wanted = set(status) if selection is None else set(selection)
     unplaced = sorted(str(item.RefDes) for item in L.collection(doc, "Components") if not bool(item.Placed))
-    return {"layer_count": layer_count, "open": sorted(name for name, row in status.items() if not row["routed"]),
+    return {"layer_count": layer_count, "open": sorted(name for name, row in status.items() if not row["routed"] and name in wanted),
             "unplaced": unplaced, "drafts": _draft_planes(doc)}
+
+
+def _nets_collection(app: Any, doc: Any, names: list[str]) -> Any:
+    """A Nets collection of ``names`` for ``RoutePass.Items`` (Layout Automation Reference: Utility.NewNets)."""
+    nets = app.Utility.NewNets()
+    for name in names:
+        nets.Add(L.find_net(doc, name))
+    return nets
 
 
 def _unplaced_reason(unplaced: list[str]) -> str:
@@ -887,12 +929,16 @@ def _unplaced_reason(unplaced: list[str]) -> str:
             "skips unplaced parts and reports their nets routed")
 
 
-def _route_pass(doc: Any, item: dict[str, Any], layers: list[int], layer_count: int) -> Any:
-    """One autorouter pass over every net. ``PassType`` resets every other setting, so it goes first;
-    ``LayerSelect(3, n)`` (remove) leaves out each inner layer not asked for."""
+def _route_pass(doc: Any, item: dict[str, Any], layers: list[int], layer_count: int, nets: Any = None) -> Any:
+    """One autorouter pass over every net, or over the Nets collection ``nets``. ``PassType``
+    resets every other setting, so it goes first; ``LayerSelect(3, n)`` (remove) leaves out each
+    inner layer not asked for."""
     route_pass = doc.NewRoutePass()
     route_pass.PassType(item["type"], item["effort"][0], item["effort"][1], False, False)
-    route_pass.Items(plan_routing.ROUTE_ITEMS_ALL_NETS, None)
+    if nets is None:
+        route_pass.Items(plan_routing.ROUTE_ITEMS_ALL_NETS, None)
+    else:
+        route_pass.Items(plan_routing.ROUTE_ITEMS_NETS, nets)
     route_pass.Order(plan_routing.ROUTE_ORDER_AUTO, 0)
     route_pass.Config(False, True)
     if layers:
@@ -919,46 +965,58 @@ def _regenerate_planes(doc: Any) -> int:
 
 
 class RouterRun(L.ReadsBack):
-    """Layout's batch autorouter (``Document.NewRoutePass`` and ``Go``) with the default passes of
-    ``plan.routing``, then the planes regenerated, and once more when a net is still open and
-    there is time."""
+    """Layout's batch autorouter (``Document.NewRoutePass`` and ``Go``) with the passes asked for
+    (``plan.routing``'s default ones otherwise), over every open net or only the nets selected,
+    then the planes regenerated, and once more when a net is still open and there is time."""
 
     command = "router run"
     long_job = True
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         layers = _layers(ctx)
+        passes = _passes(ctx)
+        nets, classes = _selection_inputs(ctx)
         path = ctx.document_path()
-        look = L.in_layout(ctx, lambda app, doc: _route_look(doc, layers), budget_s=L.READ_BUDGET_S, what="reading the nets")
-        if look["unplaced"]:
+
+        def look(app: Any, doc: Any) -> dict[str, Any]:
+            selection = _selected(doc, nets, classes)
+            return {**_route_look(doc, layers, selection), "selected": selection}
+
+        found = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the nets")
+        if found["unplaced"]:
             return base.preview("Route the open nets.", [base.target(path, "net", L.NETS_KEY)], [],
-                                blocked_by=[_unplaced_reason(look["unplaced"])], knowledge=["layout-unplaced-parts-invisible"])
-        if not look["open"]:
-            return base.preview("Every net is routed already; the autorouter has nothing to do.", [], [])
-        targets = [base.target(path, "net", L.NETS_KEY, label=f"{len(look['open'])} open nets")]
-        changes = [base.change(base.key(path, f"{L.NETS_KEY}/{L.segment(name)}"), "routed", False, True) for name in look["open"]]
-        for net, layer in look["drafts"]:
+                                blocked_by=[_unplaced_reason(found["unplaced"])], knowledge=["layout-unplaced-parts-invisible"])
+        which = "of the selected nets " if found["selected"] is not None else ""
+        if not found["open"]:
+            return base.preview(f"Every net {which}is routed already; the autorouter has nothing to do.", [], [])
+        targets = [base.target(path, "net", L.NETS_KEY, label=f"{len(found['open'])} open nets")]
+        changes = [base.change(base.key(path, f"{L.NETS_KEY}/{L.segment(name)}"), "routed", False, True) for name in found["open"]]
+        for net, layer in found["drafts"]:
             domain = L.plane_key(net, layer)
             targets.append(base.target(path, "plane", domain, label=f"{net} on layer {layer}"))
             changes.append(base.change(base.key(path, domain), "state", "draft", "dynamic"))
         on = f" on layers {', '.join(map(str, layers))}" if layers else ""
-        return base.preview(f"Route {len(look['open'])} open nets with the autorouter passes {plan_routing.DEFAULT_ROUTE_PASSES}{on}, then "
-                            "regenerate the planes so that the new vias tie in. The board is not saved.", targets, changes)
+        names = ",".join(f"{p['pass']}:{p['effort'][0]}-{p['effort'][1]}" for p in passes)
+        only = f" (only the {len(found['selected'])} selected nets)" if found["selected"] is not None else ""
+        return base.preview(f"Route {len(found['open'])} open nets{only} with the autorouter passes {names}{on}, then regenerate "
+                            "the planes so that the new vias tie in. The board is not saved.", targets, changes)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         """In the long-job worker: the autorouter passes take Layout minutes on a large board."""
         layers = _layers(ctx)
-        passes = plan_routing.parse_route_passes("")
-        return L.in_layout(ctx, lambda app, doc: self._route(doc, layers, passes), budget_s=L.job_budget(L.WRITE_BUDGET_S),
-                           write=True, what="routing the board")
+        passes = _passes(ctx)
+        nets, classes = _selection_inputs(ctx)
+        return L.in_layout(ctx, lambda app, doc: self._route(app, doc, layers, passes, _selected(doc, nets, classes)),
+                           budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="routing the board")
 
     @staticmethod
-    def _route(doc: Any, layers: list[int], passes: list[dict[str, Any]]) -> dict[str, Any]:
-        look = _route_look(doc, layers)
+    def _route(app: Any, doc: Any, layers: list[int], passes: list[dict[str, Any]], selection: list[str] | None) -> dict[str, Any]:
+        look = _route_look(doc, layers, selection)
         if look["unplaced"]:
             raise base.blocked(_unplaced_reason(look["unplaced"]) + ".", knowledge=["layout-unplaced-parts-invisible"])
         if not look["open"]:
-            return base.facts("not_applied", "unchanged", result=_route_result(doc, [], [], 0))
+            return base.facts("not_applied", "unchanged", result=_route_result(doc, [], [], 0, selection))
+        nets = _nets_collection(app, doc, selection) if selection is not None else None
         started = time.monotonic()
         done: list[str] = []
         skipped: list[str] = []
@@ -970,7 +1028,7 @@ class RouterRun(L.ReadsBack):
                         skipped.append(item["pass"])
                     continue
                 try:
-                    _route_pass(doc, item, layers, look["layer_count"]).Go()
+                    _route_pass(doc, item, layers, look["layer_count"], nets).Go()
                 except Exception as exc:  # noqa: BLE001 - classified
                     return L.failed_step(exc, f"running the {item['pass']} pass", done)
                 done.append(item["pass"] if round_number == 1 else f"{item['pass']} (second round)")
@@ -978,21 +1036,29 @@ class RouterRun(L.ReadsBack):
                 regenerated += _regenerate_planes(doc)
             except Exception as exc:  # noqa: BLE001 - classified
                 return L.failed_step(exc, "regenerating the planes", done)
-            still_open = any(not row["routed"] for row in L.route_status(doc).values())
+            still_open = bool(_route_look(doc, layers, selection)["open"])
             if not still_open or time.monotonic() - started > L.job_budget(SECOND_ROUND_S):
                 break
         message = (f"Passes {', '.join(skipped)} did not run: the call's time limit was near. Run router run again to route what is "
                    "left.") if skipped else None
-        return base.facts("partial" if skipped else "applied", "unchanged", result=_route_result(doc, done, skipped, regenerated),
-                          native_message=message)
+        return base.facts("partial" if skipped else "applied", "unchanged",
+                          result=_route_result(doc, done, skipped, regenerated, selection), native_message=message)
 
 
-def _route_result(doc: Any, done: list[str], skipped: list[str], regenerated: int) -> dict[str, Any]:
+def _route_result(doc: Any, done: list[str], skipped: list[str], regenerated: int,
+                  selection: list[str] | None = None) -> dict[str, Any]:
+    """The routing as it stands, in connections only: a routed net can still break a rule, which
+    pcb check judges."""
     status = L.route_status(doc)
     still_open = sorted(name for name, row in status.items() if not row["routed"])
-    return {"nets": len(status), "routed": len(status) - len(still_open), "open": still_open[:OPEN_LISTED],
-            "traces": L.count(doc, "Traces"), "vias": L.count(doc, "Vias"), "passes": done, "skipped_passes": skipped,
-            "planes_regenerated": regenerated}
+    out: dict[str, Any] = {"nets": len(status), "routed": len(status) - len(still_open), "open": still_open[:OPEN_LISTED],
+                           "traces": L.count(doc, "Traces"), "vias": L.count(doc, "Vias"), "passes": done,
+                           "skipped_passes": skipped, "planes_regenerated": regenerated}
+    if selection is not None:
+        mine = [name for name in selection if name in status]
+        open_mine = [name for name in mine if not status[name]["routed"]]
+        out["selected"] = {"nets": len(mine), "routed": len(mine) - len(open_mine), "open": open_mine[:OPEN_LISTED]}
+    return out
 
 
 HANDLERS: list[base.Handler] = [ForwardAnnotation(), OutlineUpdate(), PlacementRun(), PlaneCreate(), RouterRun()]

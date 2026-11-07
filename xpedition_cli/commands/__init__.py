@@ -548,13 +548,21 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-plane-draft-state', 'layout-pour-after-routing'],
     ),
     command(
-        "router run", "Route every open net with Layout's autorouter passes; runs as a long job.",
+        "router run", "Route the open nets with Layout's autorouter passes: every net, or only the nets and net classes named; "
+        "runs as a long job.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="net", long=True,
-        flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."}],
+        flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."},
+               {"name": "--nets", "type": "string", "summary": "Route only these nets, such as SS_TX1_P,SS_TX1_N."},
+               {"name": "--net-classes", "type": "string", "summary": "Route only the nets of these net classes, such as USB_SS."},
+               {"name": "--passes", "type": "string",
+                "summary": "The autorouter passes in order, each with its effort 1 to 5, such as fanout:1,route:1-5,smooth; "
+                           "route:1-5,viamin:1-3,smooth:1-3 by default. Passes: fanout, route, novia, viamin, smooth, spread, "
+                           "expand, removehangers."}],
         output=obj(nets=INT, routed=INT, open=arr(STR), traces=INT, vias=INT, passes=arr(STR), skipped_passes=arr(STR),
-                   planes_regenerated=INT),
-        untrusted=["open"],
-        examples=["xpedition-cli router run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --layers 1,4"],
+                   planes_regenerated=INT, selected=obj(nets=INT, routed=INT, open=arr(STR))),
+        untrusted=["open", "selected"],
+        examples=["xpedition-cli router run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --layers 1,4",
+                  "xpedition-cli router run --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net-classes USB_SS --passes fanout:1,route:1-5"],
         knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad', 'layout-trace-widths-through-cm'],
     ),
     command(

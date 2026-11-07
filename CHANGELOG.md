@@ -14,6 +14,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 ### Changed
 
 - Built on tool-driver-cli-spec 1.0.6.
+- `router run` routes only the nets `--nets` names and the nets of the classes `--net-classes` names, with the passes `--passes` lists in order, such as `fanout:1,route:1-5`; its result then adds `selected`, the routing of those nets. Its result reports connections only: run pcb check to judge the routing.
 
 ### Fixed
 

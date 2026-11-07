@@ -24,6 +24,7 @@ ROUTE_PASS_TYPES = {
 }
 ROUTE_ITEMS_ALL_NETS = 0  # epcbARAllNetsItem
 ROUTE_ITEMS_SELECTED_NETS = 8  # epcbARSelectedNetsItem
+ROUTE_ITEMS_NETS = 5  # epcbARNetsItem: the nets of a Nets collection (Utility.NewNets)
 ROUTE_ORDER_AUTO = 0  # epcbARAutoOrder
 # RoutePass.LayerSelect(EPcbARLayerSelectType eType, long nLayer): 0 BottomUp, 1 TopDown,
 # 2 AddLayer, 3 RemoveLayer. Called with (layer number, wanted) it reads layer 2 as
@@ -74,3 +75,9 @@ def parse_route_layers(value: Any) -> list[int]:
         if int(text) not in layers:
             layers.append(int(text))
     return sorted(layers)
+
+
+def parse_names(text: Any) -> list[str]:
+    """`A,B, C` → ["A", "B", "C"]: a comma-separated list of net or class names, each once."""
+    names = [part.strip() for part in str(text or "").split(",")]
+    return list(dict.fromkeys(name for name in names if name))

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from test_layout_fakes import (  # noqa: E402
     BOARD,
+    Collection,
     FakeApp,
     FakeAssignment,
     FakeComError,
@@ -581,6 +582,38 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(doc.assignments[1].states, [L.PLANE_DRAFT, L.PLANE_DYNAMIC])
         self.assertEqual((facts["change"], facts["result"]["routed"], facts["result"]["open"]), ("applied", 4, []))
         self.assertEqual(back["observed"], {key("/nets/A"): {"routed": True}, key("/planes/VCC/3"): {"state": "dynamic"}})
+
+    def test_selected_nets_and_classes_route_alone_with_the_passes_asked_for(self):
+        doc = self._doc()
+        doc.NetClasses = Collection([SimpleNamespace(Name="USB", Nets=Collection([doc.net("B")]))])
+        added: list[str] = []
+        app = FakeApp(doc)
+        app.Utility = SimpleNamespace(NewNets=lambda: SimpleNamespace(Add=lambda net: added.append(net.Name)))
+
+        def route_mine(route_pass: FakeRoutePass):
+            for name in ("A", "B"):
+                doc.net(name).routed, doc.net(name).NumberOfOpens = True, 0
+
+        doc.on_go = route_mine
+        inputs = {"nets": "A", "net_classes": "USB", "passes": "fanout:1,route:1-5"}
+        with world(app):
+            out = self.handler.preview(context("router run", inputs))
+            facts = self.handler.run(context("router run", inputs), Progress())
+        self.assertEqual([c["target"] for c in out["changes"]], [key("/nets/A"), key("/nets/B")])
+        self.assertIn("only the 2 selected nets", out["action"])
+        self.assertIn("fanout:1-1,route:1-5", out["action"])
+        self.assertEqual([p.calls[0][1] for p in doc.passes], [2, 8])  # fanout, then route
+        self.assertTrue(all(("Items", plan_routing.ROUTE_ITEMS_NETS) == p.calls[1][:2] for p in doc.passes))
+        self.assertEqual(added, ["A", "B"])
+        self.assertEqual(facts["result"]["selected"], {"nets": 2, "routed": 2, "open": []})
+
+    def test_an_unknown_net_class_or_pass_is_refused(self):
+        with world(FakeApp(self._doc())):
+            for inputs, wanted in (({"nets": "NOPE"}, "E_NOT_FOUND"), ({"net_classes": "NOPE"}, "E_NOT_FOUND"),
+                                   ({"passes": "zigzag"}, "E_VALIDATION"), ({"passes": "route:9"}, "E_VALIDATION")):
+                with self.subTest(inputs=inputs), self.assertRaises(AdapterError) as caught:
+                    self.handler.preview(context("router run", inputs))
+                self.assertEqual(code(caught), wanted)
 
     def test_a_net_still_open_gets_a_second_round(self):
         doc = self._doc()
