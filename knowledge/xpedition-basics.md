@@ -46,10 +46,11 @@ This order made a board from an empty project in the live runs, here in this rel
 6. session open on the `.pcb`, then forward-annotation run. The parts arrive unplaced and are not drawn (`layout-unplaced-parts-invisible`).
 7. pcb update: the board outline.
 8. placement run. Check `outside` first: a part that does not fit needs a bigger outline (`layout-placement-drc`).
-9. plane create on an inner layer, such as GND on layer 2.
-10. router run. Pour outer-layer planes only after routing (`layout-pour-after-routing`).
-11. doc save, then pcb check.
-12. pcb export.
+9. constraint import: the widths, differential spacing and clearances the design asks for, before any copper (`layout-trace-widths-through-cm`).
+10. plane create on an inner layer, such as GND on layer 2.
+11. router run. Pour outer-layer planes only after routing (`layout-pour-after-routing`).
+12. doc save, then pcb check.
+13. pcb export.
 
 Get every cell right before step 6. Forward annotation never changes the cell of a part already on the board (`forward-annotation-keeps-old-cells`).
 

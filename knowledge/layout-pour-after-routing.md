@@ -2,7 +2,7 @@
 id: layout-pour-after-routing
 title: Pour outer-layer planes after routing
 kind: guide
-applies_to: [plane create, router run, pcb check, placement run]
+applies_to: [plane create, plane delete, router run, pcb check, placement run]
 tags: [layout, plane, routing, order]
 ---
 
@@ -21,6 +21,6 @@ Why the outer layers come last:
 
 A plane shape laid over traces with routing obstruction on failed with "DRC 违反". Laid with it off, the plane copper flowed around the traces.
 
-This release has no command that deletes a plane shape (CAP-088 is deferred). If outer pours were made before routing, tell the person: they must be removed in Layout before router run.
+If outer pours were made before routing, delete them with plane delete, run router run, and pour them again.
 
 See also `layout-plane-draft-state`.

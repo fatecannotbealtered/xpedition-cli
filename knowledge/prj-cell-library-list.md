@@ -22,7 +22,7 @@ Without it, Database Load finds no cell during forward annotation and stops:
 No cell library search paths found from <project>.prj — Unable to initialize CellDBUpdate
 ```
 
-xpedition-cli 1.0.3 registered a cell partition for every parts partition the project listed, both when it built the library and when it created the board. In this release, pcb create reports the partitions it registered in `cells_registered`.
+part create and pcb create register a cell partition for every parts partition the project lists, and pcb create reports the partitions it registered in `cells_registered`.
 
 What to do:
 

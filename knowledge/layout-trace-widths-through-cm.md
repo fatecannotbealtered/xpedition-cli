@@ -2,7 +2,7 @@
 id: layout-trace-widths-through-cm
 title: Trace widths and clearances change only through Constraint Manager
 kind: guide
-applies_to: [constraint get, constraint import, pcb get, router run, pcb check]
+applies_to: [constraint get, constraint import, pcb get, router run, trace create, pcb check]
 tags: [layout, rules, trace-width, clearance, constraint-manager]
 ---
 
@@ -20,6 +20,6 @@ The project keeps two sides of its constraints: the schematic's and the board's.
 What to do:
 
 - Read the rules with constraint get --output, change the values you need in that file, and import it with constraint import. A rules file names only what it changes.
-- After an import, route with router run: it uses the new widths, spacing and clearances.
+- After an import, route with router run, or draw planned routes with trace create: both use the new widths, spacing and clearances.
 - If constraint import reports that the board's side holds changes Layout has not loaded, ask the person to load them in Layout (Setup > Project Integration) first.
 - If calls start to wait for minutes, run session get and wait until the session is ready before anything else.

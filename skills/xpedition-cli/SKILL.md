@@ -5,8 +5,9 @@ description: >-
   preview and confirmation, and reports what changed, what was saved and what was verified. Use it to build or
   change a board in Xpedition Designer and Layout: create a project, add parts and vias to the central library,
   draw and check the schematic, package, create the board, forward-annotate, set the outline, place, set routing
-  rules, route, change or delete traces, vias and planes, run DRC and write the fabrication package.
-  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设布线规则、布线、改删走线过孔铜皮、DRC、出生产文件。
+  rules and impedance checks, route, draw, change or delete traces, vias and planes, open the soldermask or
+  coverlay, run DRC, draw the board as a picture and write the fabrication package.
+  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设布线规则和阻抗、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
   Not for editing single symbols, wires or BOMs, or Xpedition versions other than 2604; 不负责逐个改元件、导线和 BOM。
 metadata:
   version: 1.0.4
@@ -118,15 +119,11 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 ### Build a board
 
-Before `part create`, read [references/parts-file.md](references/parts-file.md) for the parts file; before `schematic create` or `placement run`, read [references/design-file.md](references/design-file.md) for the design file.
+Follow [references/build-a-board.md](references/build-a-board.md), with [references/parts-file.md](references/parts-file.md) and [references/design-file.md](references/design-file.md) for the files. In order: `doc create`, `part create`, `schematic create`, `packager run`, `pcb create`, `forward-annotation run`, `pcb update`, `placement run`, route the board, `doc save`, `pcb export`. Report each step's receipt; stop at the first failure and say which step failed.
 
-1. `session open --kind project` starts Designer with no project. Then `doc create --session <id> --kind project --path <new.prj>` makes the project from Xpedition's stock setup template, with its own copy of the central library and a board design, and leaves it open. When the user gives a template project instead, `doc create --path <new.prj> --template <template.prj>` copies it in file mode.
-2. `doc close`, then `part create --doc <new.prj> --file <parts.json>` for every part the design uses; file-mode writes are refused while Designer has the project open.
-3. `doc open --doc <new.prj>`, `schematic create --design <design.json>`, then `doc save`, which also opens the project again, so `schematic check` and the reads see the new drawing.
-4. `doc close` in Designer, then `packager run` and `pcb create --doc <new.prj>`.
-5. `session open --doc <PCB/name.pcb>`, `forward-annotation run`, `pcb update --width --height --radius`, `placement run --design <design.json>`, `plane create --net GND --layer 2`, `router run`, `pcb check`, `doc save`, then `pcb export --output <folder>`.
-6. When `session open` ends with the session `starting`, run `session get --session <id>` until it is `ready`, then `doc open --doc <file>` if the file is not open yet.
-7. Report each step's receipt; stop at the first failure and say which step failed.
+### Route a board
+
+Follow [references/route-a-board.md](references/route-a-board.md), with [references/rules-file.md](references/rules-file.md) and [references/routing-plan.md](references/routing-plan.md) for the files; rules come before copper. In order: `constraint import` with the widths, spacing and clearances the design asks for, `padstack create` for the via, `router run` class by class, `via update`, `trace create` for planned routes, `plane create`, `via create` to stitch, `solder-mask create` for bare copper, `pcb check`.
 
 ## Report
 
