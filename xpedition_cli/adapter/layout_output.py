@@ -33,8 +33,6 @@ NET_CLASSES_DISPID = 24  # Document.NetClasses([in] BSTR sNetClassName)
 OBSTRUCTS_DISPID = 41  # Document.Obstructs(eSelectType, eSelectOnly, nLayerOnly)
 PLACEMENT_OBSTRUCTS_DISPID = 40  # Document.PlacementObstructs(eSelectOnly, nLayerOnly)
 THICKNESS_DISPID = 1  # LayerProperties.Thickness([in] EPcbUnit)
-Z0_DISPID = 6  # LayerProperties.Z0ForWidth([in] R8 width, [in] EPcbUnit): single-ended impedance in ohms
-TRACE_USAGES = {1, 3, 4}  # EPcbLayerUsage of the layers traces run on: signal, split/mixed, flooded signal
 NET_CLASS_WIDTHS = {"minimum": 7, "typical": 8, "expansion": 9}  # NetClass.<kind>TraceWidth(layer, scheme, unit)
 MASTER_SCHEME = "(Master)"
 LAYER_KINDS = {0: "conductor", 1: "fabrication", 2: "user", 3: "insulation"}  # EPcbLayerType
@@ -234,34 +232,6 @@ def board_stackup(doc: Any) -> list[dict[str, Any]]:
                 row["insulation"] = INSULATION_TYPES.get(insulation, f"type {insulation}")
         layers.append(row)
     return layers
-
-
-def stackup_impedance(doc: Any) -> tuple[Any, list[str], str | None]:
-    """Layout's single-ended impedance ``z0(layer, width_mm)`` in ohms, the signal layers it is
-    for ("1" at the top), and the reason it cannot be had, or None. Layout computes it from the
-    stackup, which needs a dielectric constant on every layer, the conductors' included; a missing
-    one gives figures far off, so the function is refused then. Only Layout's Stackup Editor sets
-    the stackup."""
-    properties: dict[str, Any] = {}
-    missing: list[str] = []
-    for layer in L.items(com.propget(doc, STACKUP_DISPID, True)):
-        kind = LAYER_KINDS.get(int(layer.Type))
-        found = layer.LayerProperties if kind in ("conductor", "insulation") else None
-        if found is None:
-            continue
-        if float(found.DielectricConstant or 0.0) <= 0.0:
-            missing.append(str(found.StackupLayerName or layer.BoardLayer))
-        if kind == "conductor" and int(found.LayerUsage or 0) in TRACE_USAGES:
-            properties[str(int(layer.ConductorLayer))] = found
-    layers = sorted(properties, key=int)
-    if missing:
-        return None, layers, (f"the stackup has no dielectric constant on {', '.join(missing)}, so Layout cannot compute impedance; "
-                              "set it in Layout's Stackup Editor")
-
-    def z0(layer: str, width_mm: float) -> float:
-        return float(com.propget(properties[layer], Z0_DISPID, float(width_mm), L.UNIT_MM))
-
-    return z0, layers, None
 
 
 def net_classes(doc: Any, layer_count: int) -> list[dict[str, Any]]:

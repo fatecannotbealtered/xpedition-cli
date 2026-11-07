@@ -5,9 +5,9 @@ description: >-
   preview and confirmation, and reports what changed, what was saved and what was verified. Use it to build or
   change a board in Xpedition Designer and Layout: create a project, add parts and vias to the central library,
   draw and check the schematic, package, create the board, forward-annotate, set the outline, place, set routing
-  rules and impedance checks, route, draw, change or delete traces, vias and planes, open the soldermask or
+  rules for impedance lines and power, route, draw, change or delete traces, vias and planes, open the soldermask or
   coverlay, run DRC, draw the board as a picture and write the fabrication package.
-  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设布线规则和阻抗、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
+  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设阻抗线和电源线规则、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
   Not for editing single symbols, wires or BOMs, or Xpedition versions other than 2604; 不负责逐个改元件、导线和 BOM。
 metadata:
   version: 1.1.0

@@ -23,7 +23,7 @@ from . import base
 from . import layout as L
 from .base import Context
 from .layout_board import project_of
-from .layout_output import stackup_impedance, write_output
+from .layout_output import write_output
 from .plan import PlanError
 from .plan import project_file
 from .plan import rules as R
@@ -241,20 +241,6 @@ def _summary(current: R.Current, state: str) -> dict[str, Any]:
             "loaded": state == "in_sync"}
 
 
-def _add_impedance(doc: Any, summary: dict[str, Any]) -> None:
-    """Each class's single-ended impedance for its width on each signal layer, or why there is none."""
-    try:
-        z0, layers, missing = stackup_impedance(doc)
-        if z0 is None:
-            summary["z0_unavailable"] = missing
-            return
-        for cls in summary["net_classes"]:
-            cls["layers"] = {layer: {**row, "z0_ohm": round(z0(layer, row["width_mm"]), 1)} if layer in layers and "width_mm" in row
-                             else dict(row) for layer, row in cls["layers"].items()}
-    except Exception as exc:  # noqa: BLE001 - the rules are read; the impedance is extra
-        summary["z0_unavailable"] = f"Layout did not compute impedance: {exc}"
-
-
 class ConstraintGet(base.Handler):
     """The board's side of the constraints, read with Constraint Manager's automation."""
 
@@ -270,7 +256,6 @@ class ConstraintGet(base.Handler):
             with ces_design(prj, design_name) as design:
                 current = read_current(design, _layer_count(doc))
             out = _summary(current, state)
-            _add_impedance(doc, out)
             if output:
                 out["output"] = write_output(str(output), current.as_file())
             return out
@@ -292,29 +277,17 @@ def _rules_input(ctx: Context) -> dict[str, Any]:
         raise _rules_error(exc) from None
 
 
-def _plan(doc: Any, prj: str, design_name: str, rules: dict[str, Any]) -> tuple[R.Plan, str, list[dict[str, Any]]]:
+def _plan(doc: Any, prj: str, design_name: str, rules: dict[str, Any]) -> tuple[R.Plan, str]:
     state = load_state(doc)
     with ces_design(prj, design_name) as design:
         current = read_current(design, _layer_count(doc))
     plan = R.plan(rules, current)
-    impedance: list[dict[str, Any]] = []
-    if any(item.get("impedance") for item in rules["net_classes"]):
-        z0, layers, missing = stackup_impedance(doc)
-        if z0 is None:
-            plan.blocked.append(f"the rules file names impedance targets, but {missing}")
-        else:
-            impedance = R.impedance(rules, current, plan, z0, layers)
     if state == "required":
         plan.blocked.append("the board's side of the constraints holds changes Layout has not loaded yet; LoadCES would load "
                             "them together with this import, so load them in Layout first (Setup > Project Integration)")
     elif state == "no_ces":
         plan.blocked.append("this board's design flow does not use Constraint Manager, so its rules cannot be changed this way")
-    return plan, state, impedance
-
-
-def _impedance_text(rows: list[dict[str, Any]]) -> str:
-    text = ", ".join(f"{row['net_class']} layer {row['layer']} {row['z0_ohm']:g} ohm" for row in rows[:12])
-    return text + (" ..." if len(rows) > 12 else "")
+    return plan, state
 
 
 def _changes(path: str, plan: R.Plan, state: str) -> list[dict[str, Any]]:
@@ -340,16 +313,15 @@ class ConstraintImport(base.Handler):
         rules = _rules_input(ctx)
         path = ctx.document_path()
         prj, design_name = board_project(path)
-        plan, state, impedance = L.in_layout(ctx, lambda app, doc: _plan(doc, prj, design_name, rules), budget_s=L.READ_BUDGET_S,
-                                             what="reading the constraints")
+        plan, state = L.in_layout(ctx, lambda app, doc: _plan(doc, prj, design_name, rules), budget_s=L.READ_BUDGET_S,
+                                  what="reading the constraints")
         target = [base.target(path, "constraint", CONSTRAINTS_KEY, label="the board's constraints")]
-        held = f" Every impedance target holds: {_impedance_text(impedance)}." if impedance and not plan.blocked else ""
         if plan.empty() and not plan.blocked:
-            return base.preview(f"The board's constraints already match the rules file; nothing changes.{held}", target, [])
+            return base.preview("The board's constraints already match the rules file; nothing changes.", target, [])
         counts = (f"{len(plan.new_classes)} new net classes, {len(plan.moves)} nets moved, {len(plan.new_pairs)} new differential "
                   f"pairs, {len(plan.new_rules)} new clearance rules, {len(plan.changes)} changes in all")
         return base.preview(f"Change the board's side of the constraints as the rules file says ({counts}), write them into the "
-                            f"project database, then load them into Layout. The schematic's side keeps its rules.{held}",
+                            "project database, then load them into Layout. The schematic's side keeps its rules.",
                             target, _changes(path, plan, state), blocked_by=plan.blocked or None)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
@@ -358,11 +330,11 @@ class ConstraintImport(base.Handler):
         prj, design_name = board_project(path)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            plan, _state, impedance = _plan(doc, prj, design_name, rules)
+            plan, _state = _plan(doc, prj, design_name, rules)
             if plan.blocked:
                 raise base.blocked("; ".join(plan.blocked))
             if plan.empty():
-                return base.facts("not_applied", "unchanged", result={"changes": 0, "loaded": True, "impedance": impedance})
+                return base.facts("not_applied", "unchanged", result={"changes": 0, "loaded": True})
             done: list[str] = []
             try:
                 with ces_design(prj, design_name) as design:
@@ -378,7 +350,7 @@ class ConstraintImport(base.Handler):
             return base.facts("applied", "saved", result={
                 "changes": len(plan.changes), "net_classes_created": plan.new_classes, "nets_moved": len(plan.moves),
                 "differential_pairs_created": [R.pair_name(p) for p in plan.new_pairs],
-                "clearance_rules_created": plan.new_rules, "loaded": bool(loaded), "impedance": impedance})
+                "clearance_rules_created": plan.new_rules, "loaded": bool(loaded)})
 
         return L.in_layout(ctx, work, budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="importing the constraints")
 

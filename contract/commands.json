@@ -1528,7 +1528,7 @@
     },
     {
       "path": "constraint get",
-      "summary": "Read the board's constraints: net classes and their nets, trace widths and differential spacing per layer with the single-ended impedance of each width, differential pairs, clearance rules and which class pairs use them.",
+      "summary": "Read the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and which class pairs use them.",
       "effects": [
         "observe"
       ],
@@ -1566,7 +1566,7 @@
       "default_fields": [],
       "related_knowledge": [
         "layout-trace-widths-through-cm",
-        "layout-impedance-from-stackup"
+        "layout-impedance-from-fab-table"
       ],
       "doc_kinds": [
         "board"
@@ -1574,7 +1574,7 @@
     },
     {
       "path": "constraint import",
-      "summary": "Create or change the net classes, trace widths, differential spacing, differential pairs and clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are. A class's impedance target is checked against Layout's impedance for its widths before anything changes.",
+      "summary": "Create or change the net classes, trace widths, differential spacing, differential pairs and clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
       "effects": [
         "change",
         "persist"
@@ -1597,7 +1597,7 @@
         {
           "name": "--file",
           "type": "path",
-          "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change, and may give a class an impedance target with ohm and tolerance_ohm.",
+          "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change.",
           "required": true
         },
         {
@@ -1609,8 +1609,7 @@
       "untrusted_fields": [
         "net_classes_created",
         "differential_pairs_created",
-        "clearance_rules_created",
-        "impedance"
+        "clearance_rules_created"
       ],
       "irreversible": false,
       "halt": false,
@@ -1631,7 +1630,7 @@
       "default_fields": [],
       "related_knowledge": [
         "layout-trace-widths-through-cm",
-        "layout-impedance-from-stackup"
+        "layout-impedance-from-fab-table"
       ],
       "doc_kinds": [
         "board"

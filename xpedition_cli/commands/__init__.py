@@ -454,31 +454,28 @@ COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ constraints (Layout)
     command(
         "constraint get", "Read the board's constraints: net classes and their nets, trace widths and differential spacing per "
-        "layer with the single-ended impedance of each width, differential pairs, clearance rules and which class pairs use them.",
+        "layer, differential pairs, clearance rules and which class pairs use them.",
         effects=["observe"], modes=["session"], kinds=["board"], target_kind="constraint",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write every rule to this file, in the rules file format constraint import reads; the response keeps the summary."}],
         output=obj(layers=INT, nets=INT, net_class_count=INT,
                    net_classes=arr(obj(name=STR, nets=INT, layers=OBJ)), differential_pairs=arr(STR), clearance_rules=arr(STR),
-                   class_clearances=arr(obj(**{"from": STR, "to": STR, "rule": STR})), loaded=BOOL, z0_unavailable=STR, output=STR),
+                   class_clearances=arr(obj(**{"from": STR, "to": STR, "rule": STR})), loaded=BOOL, output=STR),
         untrusted=["net_classes", "differential_pairs", "clearance_rules", "class_clearances"],
         examples=["xpedition-cli constraint get --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --output D:/work/demo/rules.json"],
-        knowledge=['layout-trace-widths-through-cm', 'layout-impedance-from-stackup'],
+        knowledge=['layout-trace-widths-through-cm', 'layout-impedance-from-fab-table'],
     ),
     command(
         "constraint import", "Create or change the net classes, trace widths, differential spacing, differential pairs and "
-        "clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are. A class's "
-        "impedance target is checked against Layout's impedance for its widths before anything changes.",
+        "clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
         effects=["change", "persist"], modes=["session"], kinds=["board"], target_kind="constraint", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
-                "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change, "
-                           "and may give a class an impedance target with ohm and tolerance_ohm."}],
+                "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change."}],
         output=obj(changes=INT, net_classes_created=arr(STR), nets_moved=INT, differential_pairs_created=arr(STR),
-                   clearance_rules_created=arr(STR), loaded=BOOL,
-                   impedance=arr(obj(net_class=STR, layer=INT, width_mm=NUM, z0_ohm=NUM, target_ohm=NUM, tolerance_ohm=NUM))),
-        untrusted=["net_classes_created", "differential_pairs_created", "clearance_rules_created", "impedance"],
+                   clearance_rules_created=arr(STR), loaded=BOOL),
+        untrusted=["net_classes_created", "differential_pairs_created", "clearance_rules_created"],
         tolerances={name: 0.0005 for name in (*RULE_WIDTH_FIELDS, *RULE_CLEARANCE_FIELDS)},
         examples=["xpedition-cli constraint import --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --file D:/work/demo/rules.json"],
-        knowledge=['layout-trace-widths-through-cm', 'layout-impedance-from-stackup'],
+        knowledge=['layout-trace-widths-through-cm', 'layout-impedance-from-fab-table'],
     ),
 ]
