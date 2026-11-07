@@ -51,6 +51,14 @@ class StitchTest(unittest.TestCase):
         self.assertTrue(all(x < 5.0 for x, _y in plan.points))
         self.assertIn("outside the net's copper on two layers", plan.dropped)
 
+    def test_a_cutout_keeps_vias_its_clearance_away(self):
+        slot = S.polygon([[4.5, 1.5, 0.0], [5.5, 1.5, 0.0], [5.5, 3.5, 0.0], [4.5, 3.5, 0.0], [4.5, 1.5, 0.0]])
+        b = board(cutouts=[slot])
+        plan = S.stitch("GND", 0.2, b, CLEAR, 1.0, 0.5)
+        self.assertTrue(all(S.distance_to_polygon(p, slot) >= 0.2 + S.CUTOUT_CLEARANCE_MM - 1e-9 for p in plan.points))
+        self.assertIn("too close to a cutout", plan.dropped)
+        self.assertEqual(S.free((5.0, 2.5), "GND", 0.2, b, CLEAR), "too close to a cutout")
+
     def test_new_vias_keep_their_distance_from_each_other(self):
         plan = S.stitch("GND", 0.4, board(), CLEAR, 0.5, 0.5)
         for i, a in enumerate(plan.points):

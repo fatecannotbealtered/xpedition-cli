@@ -734,8 +734,8 @@ def _via_radius(via: Any, scale: float) -> float:
 
 
 def board_picture(doc: Any) -> PR.Picture:
-    """The board as pcb render draws it: outline, pads, traces, vias, plane shapes, holes and openings."""
-    from .layout_edit import FAB_COVER_LAYER, FAB_SOLDERMASK, SIDE_TOP
+    """The board as pcb render draws it: outline, cutouts, pads, traces, vias, plane shapes, holes and openings."""
+    from .layout_edit import CONTOUR_INTERNAL, FAB_COVER_LAYER, FAB_SOLDERMASK, SIDE_TOP
 
     model = board_model(doc, full=True, silk=False)
     scale = L.geometry_scale(doc)
@@ -753,6 +753,11 @@ def board_picture(doc: Any) -> PR.Picture:
         record = geometry_record(shape.Geometry, scale)
         if record:
             picture.planes.append((int(shape.Layer), PR.polygon_of(record.get("path"), record.get("circle"))))
+    for contour in L.collection(doc, "Contours"):
+        if int(contour.ContourType) == CONTOUR_INTERNAL:
+            record = geometry_record(contour.Geometry, scale)
+            if record:
+                picture.cutouts.append(PR.polygon_of(record.get("path"), record.get("circle")))
     for gfx in L.collection(doc, "FabricationLayerGfxs"):
         try:
             if int(gfx.Type) in (FAB_SOLDERMASK, FAB_COVER_LAYER) and gfx.Component is None:

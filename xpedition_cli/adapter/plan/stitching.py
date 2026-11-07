@@ -3,7 +3,8 @@
 A stitching via ties a net's copper on several layers together, so a grid point is kept only
 where the net has a plane shape on at least two layers. It must keep the rules' clearances: to
 every pad (Layout refuses a via close to a pad of its own net too), to the traces of other nets,
-to every via and hole, and the margin to the board outline. The adapter reads the board into the
+to every via and hole, ``CUTOUT_CLEARANCE_MM`` to every cutout (an internal contour, such as a
+slot for a screw), and the margin to the board outline. The adapter reads the board into the
 shapes below, in mm; this module only does the geometry.
 """
 from __future__ import annotations
@@ -16,6 +17,9 @@ from .shapes import flatten, inside, point_segment
 
 Point = tuple[float, float]
 MAX_POINTS = 2000  # a grid this dense is a pitch mistake
+# Layout's DRC asked a via to keep 0.254 mm from an internal contour on the flex board measured;
+# the setting it comes from cannot be read through automation, so the plan keeps that distance.
+CUTOUT_CLEARANCE_MM = 0.254
 
 
 @dataclass
@@ -26,6 +30,7 @@ class Board:
     vias: list[Point] = field(default_factory=list)
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     planes: dict[int, list[list[Point]]] = field(default_factory=dict)  # the net's plane shapes by layer
+    cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts
 
 
 @dataclass
@@ -98,6 +103,9 @@ def free(point: Point, net: str, radius: float, board: Board, clear: Clearances)
     for x, y, diameter in board.holes:
         if math.hypot(point[0] - x, point[1] - y) < radius + diameter / 2 + clear.via_to_via - 1e-9:
             return "too close to a hole"
+    for cutout in board.cutouts:
+        if distance_to_polygon(point, cutout) < radius + CUTOUT_CLEARANCE_MM - 1e-9:
+            return "too close to a cutout"
     return None
 
 

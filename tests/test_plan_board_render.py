@@ -56,6 +56,13 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(at(png, 50, 50), R.COPPER["top"])  # the top trace at y 1 mm
         self.assertEqual(at(png, 75, 30), R.OPENING)  # the opening's top edge at y 3 mm
 
+    def test_a_cutout_shows_through_the_copper(self):
+        plane = (1, [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)])
+        slot = [(4.0, 2.0), (6.0, 2.0), (6.0, 3.0), (4.0, 3.0)]
+        png, _w, _h = R.render(R.Picture(outline=OUTLINE, layer_count=2, planes=[plane], cutouts=[slot]), scale=10)
+        self.assertEqual(at(png, 60, 35), R.BACKGROUND)  # inside the slot at (5, 2.5) mm
+        self.assertNotEqual(at(png, 30, 35), R.BACKGROUND)  # the plane beside it
+
     def test_a_huge_board_is_scaled_down(self):
         _png, width, height = R.render(R.Picture(outline=[(0, 0), (500, 0), (500, 100), (0, 100)], layer_count=2), scale=20)
         self.assertLessEqual(max(width, height), R.MAX_PIXELS)

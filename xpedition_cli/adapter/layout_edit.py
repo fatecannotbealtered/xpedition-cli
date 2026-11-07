@@ -393,6 +393,11 @@ def _stitch_board(doc: Any, net: str) -> ST.Board:
         record = geometry_record(shape.Geometry, scale)
         if record:
             board.planes.setdefault(int(shape.Layer), []).append(ST.polygon(record.get("path"), record.get("circle")))
+    for contour in L.collection(doc, "Contours"):
+        if int(contour.ContourType) == CONTOUR_INTERNAL:
+            record = geometry_record(contour.Geometry, scale)
+            if record:
+                board.cutouts.append(ST.polygon(record.get("path"), record.get("circle")))
     return board
 
 
@@ -506,6 +511,7 @@ class ViaCreate(L.ReadsBack):
 VIA_POINTS_LISTED = 200
 
 
+CONTOUR_INTERNAL = 1  # EPcbContourType: 0 the board's, 1 a cutout inside it
 FAB_SOLDERMASK = 16  # EPcbFabricationType epcbFabSoldermask
 FAB_COVER_LAYER = 1024  # epcbFabCoverLayer: the coverlay of a flex board
 SIDE_TOP, SIDE_BOTTOM = 1, 512  # EPcbSide

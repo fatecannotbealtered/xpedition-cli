@@ -1,7 +1,7 @@
 """A picture of the board from its geometry, drawn without a screen or an image library.
 
-pcb render reads the board as data (outline, pads, traces, vias, plane shapes, soldermask
-openings, holes) and this module draws it as a PNG, the way a board editor colours it: top copper
+pcb render reads the board as data (outline, cutouts, pads, traces, vias, plane shapes,
+soldermask openings, holes) and this module draws it as a PNG, the way a board editor colours it: top copper
 red, bottom copper blue, inner layers amber, plane shapes translucent, vias white with a dark
 drill, the outline light, soldermask openings green, on a dark background. Seen from the top the
 picture is the board as Layout shows it; seen from the bottom it is mirrored left to right.
@@ -43,6 +43,7 @@ class Picture:
     vias: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, pad radius)
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     openings: list[tuple[str, tuple[float, float, float, float]]] = field(default_factory=list)  # (side, box)
+    cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts through the board
 
 
 class Canvas:
@@ -156,6 +157,10 @@ def render(picture: Picture, *, side: str = "top", layers: list[int] | None = No
     for x, y, diameter in picture.holes:
         cx, cy = px((x, y))
         canvas.circle(cx, cy, diameter / 2 * scale, DRILL)
+    for cutout in picture.cutouts:
+        corners = [px(p) for p in cutout]
+        canvas.polygon(corners, BACKGROUND)
+        canvas.stroke(corners + corners[:1], max(1.5, 0.1 * scale), OUTLINE)
     for opening_side, (bx0, by0, bx1, by1) in picture.openings:
         if opening_side == side:
             corners = [px((bx0, by0)), px((bx1, by0)), px((bx1, by1)), px((bx0, by1)), px((bx0, by0))]

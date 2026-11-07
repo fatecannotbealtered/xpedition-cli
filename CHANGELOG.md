@@ -8,9 +8,11 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 - Reading a board's geometry takes about half the time: net names are read without wrapping each net object, and the readers of copper alone skip the silkscreen. On the flex board used to accept 1.1, the via create preview went from over 25 s, which ended it, to 9 s.
 - `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.
+- `pcb render` draws the board's cutouts, such as slots for screws, as holes through the copper.
 
 ### Fixed
 
+- `via create` keeps stitching vias 0.254 mm from the board's cutouts, the distance Layout's DRC asks; it placed two vias beside a slot.
 - `via create` and `trace create` take the size of a via the board already uses from the board's own vias, so they work on a project whose central library is on another machine's drive.
 
 ## [1.1.0] - 2026-11-07
