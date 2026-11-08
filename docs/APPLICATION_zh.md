@@ -159,7 +159,7 @@
 | CAP-063 | 读板：计数、叠层、网络类及线宽、禁布区、各网络是否布通 | Layout COM | provided | - |
 | CAP-064 | 读板几何：元件外形、管脚、焊盘、走线、过孔、铜皮、孔、丝印 | Layout COM | provided | - |
 | CAP-065 | 设置矩形板框（可圆角），同时换布线边界和制造边框 | `PutBoardOutline` 等 | provided | - |
-| CAP-066 | 在四角放非金属化安装孔，删除安装孔 | `PutMountingHoleEx` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-066 | 在四角放非金属化安装孔，删除安装孔 | `PutMountingHoleEx` | provided | - |
 | CAP-067 | 读取和设置网络类、成员网络、每层线宽和差分线距，以及差分对 | `ConstraintsAuto`（版图上下文）+ `ProjectIntegration.LoadCES` | provided | - |
 | CAP-068 | 按连接关系自动布局（按页分簇、区域标签） | `Component.Place` + 规划器 | provided | - |
 | CAP-069 | 把元件移到指定位置和角度（顶面） | `Component.Place/Move` | provided | - |

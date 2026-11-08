@@ -49,6 +49,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `pcb`: create, update, get, check, export, render
 - `forward-annotation`: run
 - `placement`: run
+- `mounting-hole`: list, create, delete
 - `plane`: create, delete
 - `router`: run
 - `trace`: create, delete

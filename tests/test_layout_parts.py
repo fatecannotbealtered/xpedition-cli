@@ -5,6 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -172,6 +173,124 @@ class MoveTest(BoardCase):
                       fields=["x_mm", "side"])
         observed = self.move().read_back(ctx)["observed"][base.key(BOARD, "/components/R10")]
         self.assertEqual(observed, {"x_mm": 25.0, "side": "bottom"})
+
+
+class Hole:
+    def __init__(self, doc: Any, x: float, y: float, padstack: str, radius: float = 1.6, component: Any = None) -> None:
+        self.doc, self.x, self.y, self.radius, self.Component = doc, x, y, radius, component
+        self.CurrentPadstack = type("Padstack", (), {"Name": padstack})()
+
+    def GetPositionX(self, unit: int) -> float:  # noqa: N802 - COM name
+        return self.x
+
+    def GetPositionY(self, unit: int) -> float:  # noqa: N802 - COM name
+        return self.y
+
+    @property
+    def Extrema(self) -> Any:  # noqa: N802 - COM name
+        from test_layout_fakes import Extrema
+
+        return Extrema((self.x - self.radius, self.y - self.radius, self.x + self.radius, self.y + self.radius))
+
+    def Delete(self) -> None:  # noqa: N802 - COM name
+        self.doc.hole_list.remove(self)
+
+
+LIBRARY_HOLE = {"name": "MH3.2", "type": "mounting_hole", "drill_mm": 3.2, "plated": False}
+
+
+class HoleTest(BoardCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.doc.hole_list = []
+        type(self.doc).MountingHoles = property(lambda doc: __import__("test_layout_fakes").Collection(doc.hole_list))
+        self.doc.PutMountingHoleEx = self.put
+        self.puts: list[tuple] = []
+        self.row: Any = dict(LIBRARY_HOLE)
+        patcher = mock.patch.object(layout_parts, "_library_hole", lambda path, name: self.lookup(name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(lambda: delattr(type(self.doc), "MountingHoles"))
+
+    def lookup(self, name: str) -> Any:
+        if isinstance(self.row, Exception):
+            raise self.row
+        return self.row
+
+    def put(self, x: float, y: float, name: str, central: bool, depth: int, mirrored: bool, net: Any, component: Any,
+            anchor: int, unit: int) -> None:
+        self.puts.append((x, y, name, central))
+        self.doc.hole_list.append(Hole(self.doc, x, y, name))
+
+    def handler(self, command: str) -> Any:
+        return next(h for h in layout_parts.HANDLERS if h.command == command)
+
+    def test_four_corners_inside_the_outline_and_no_second_time(self):
+        inputs = {"padstack": "MH3.2", "corners": True, "inset_mm": 3.0}
+        preview = self.handler("mounting-hole create").preview(context("mounting-hole create", inputs))
+        self.assertEqual(len(preview["changes"]), 4)
+        self.assertIn("3.2 mm unplated hole", preview["action"])
+        facts = self.handler("mounting-hole create").apply(context("mounting-hole create", inputs))
+        self.assertEqual([(x, y) for x, y, _n, _c in self.puts], [(3.0, 3.0), (47.0, 3.0), (47.0, 37.0), (3.0, 37.0)])
+        self.assertTrue(all(central for *_rest, central in self.puts))
+        self.assertTrue(all(h["created"] and h["exists"] for h in facts["result"]["holes"]))
+        again = self.handler("mounting-hole create").apply(context("mounting-hole create", inputs))
+        self.assertEqual(again["change"], "not_applied")
+        self.assertEqual(len(self.puts), 4)
+
+    def test_a_spot_past_the_outline_or_a_wrong_call_is_refused(self):
+        cases = [{"padstack": "MH3.2", "x_mm": 1.0, "y_mm": 20.0}, {"padstack": "MH3.2", "corners": True},
+                 {"padstack": "MH3.2", "x_mm": 10.0}, {"padstack": "MH3.2", "corners": True, "inset_mm": 3.0, "x_mm": 5.0}]
+        for inputs in cases:
+            with self.assertRaises(AdapterError) as caught:
+                self.handler("mounting-hole create").preview(context("mounting-hole create", inputs))
+            self.assertEqual(caught.exception.data["code"], "E_VALIDATION", inputs)
+
+    def test_another_padstack_on_the_spot_blocks(self):
+        self.doc.hole_list.append(Hole(self.doc, 10.0, 10.0, "MH2.4"))
+        out = self.handler("mounting-hole create").preview(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 10.0,
+                                                                                         "y_mm": 10.0}))
+        self.assertIn("MH2.4", out["blocked_by"][0])
+
+    def test_without_a_readable_library_the_board_must_hold_the_padstack(self):
+        self.row = None
+        with self.assertRaises(AdapterError) as caught:
+            self.handler("mounting-hole create").preview(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 10.0,
+                                                                                          "y_mm": 10.0}))
+        self.assertEqual(caught.exception.data["code"], "E_NOT_FOUND")
+
+    def test_list_and_delete_by_point_or_all_leaving_a_parts_holes(self):
+        self.doc.hole_list += [Hole(self.doc, 10.0, 10.0, "MH3.2"), Hole(self.doc, 30.0, 10.0, "MH3.2"),
+                               Hole(self.doc, 20.0, 20.0, "MH1", component=self.r1)]
+        listed = self.handler("mounting-hole list").read(context("mounting-hole list"))["items"]
+        self.assertEqual([(r["x_mm"], r["y_mm"]) for r in listed], [(10.0, 10.0), (30.0, 10.0)])
+        delete = self.handler("mounting-hole delete")
+        preview = delete.preview(context("mounting-hole delete", {"x_mm": 10.5, "y_mm": 9.5}))
+        self.assertEqual([c["target"] for c in preview["changes"]], [base.key(BOARD, "/mounting-holes/10,10")])
+        facts = delete.apply(context("mounting-hole delete", {"x_mm": 10.5, "y_mm": 9.5}))
+        self.assertEqual(facts["result"]["deleted"], [{"x_mm": 10.0, "y_mm": 10.0, "padstack": "MH3.2"}])
+        with self.assertRaises(AdapterError) as caught:
+            delete.preview(context("mounting-hole delete", {"x_mm": 0.5, "y_mm": 0.5}))
+        self.assertEqual(caught.exception.data["code"], "E_NOT_FOUND")
+        delete.apply(context("mounting-hole delete", {"all": True}))
+        self.assertEqual([h.Component for h in self.doc.hole_list], [self.r1])
+
+    def test_a_locked_hole_is_not_deleted(self):
+        hole = Hole(self.doc, 10.0, 10.0, "MH3.2")
+        hole.Anchor = 3
+        self.doc.hole_list.append(hole)
+        delete = self.handler("mounting-hole delete")
+        self.assertIn("locked", delete.preview(context("mounting-hole delete", {"all": True}))["blocked_by"][0])
+        with self.assertRaises(AdapterError):
+            delete.apply(context("mounting-hole delete", {"x_mm": 10.0, "y_mm": 10.0}))
+        self.assertEqual(self.doc.hole_list, [hole])
+
+    def test_the_read_back_finds_the_hole(self):
+        self.handler("mounting-hole create").apply(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 10.0,
+                                                                                    "y_mm": 12.5}))
+        key = base.key(BOARD, "/mounting-holes/10,12.5")
+        ctx = context("mounting-hole create", {}, targets=[key], fields=["exists"])
+        self.assertEqual(self.handler("mounting-hole create").read_back(ctx)["observed"][key], {"exists": True})
 
 
 if __name__ == "__main__":

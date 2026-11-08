@@ -163,7 +163,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-063 | Read the board: counts, layer stack, net classes and line widths, obstructs, whether each net is fully routed | Layout COM | provided | - |
 | CAP-064 | Read the board geometry: component outlines, pins, pads, traces, vias, plane shapes, holes, silkscreen | Layout COM | provided | - |
 | CAP-065 | Set a rectangular board outline (rounded corners optional), replacing the route border and the manufacturing outline at the same time | `PutBoardOutline` and others | provided | - |
-| CAP-066 | Place non-plated mounting holes at the four corners; delete mounting holes | `PutMountingHoleEx` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-066 | Place non-plated mounting holes at the four corners; delete mounting holes | `PutMountingHoleEx` | provided | - |
 | CAP-067 | Read and set net classes, their nets, trace widths and differential spacing per layer, and differential pairs | `ConstraintsAuto` (layout context) + `ProjectIntegration.LoadCES` | provided | - |
 | CAP-068 | Automatic placement by connectivity (clusters per sheet, area labels) | `Component.Place` + planner | provided | - |
 | CAP-069 | Move a component to a given position and angle (top side) | `Component.Place/Move` | provided | - |

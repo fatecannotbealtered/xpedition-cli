@@ -40,6 +40,29 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-08-195319-mounting-hole-delete.json](evidence/2026-11-08-195319-mounting-hole-delete.json) | 2026-11-08T19:53:19Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195317-mounting-hole-create.json](evidence/2026-11-08-195317-mounting-hole-create.json) | 2026-11-08T19:53:17Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195315-mounting-hole-list.json](evidence/2026-11-08-195315-mounting-hole-list.json) | 2026-11-08T19:53:15Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195236-mounting-hole-create.json](evidence/2026-11-08-195236-mounting-hole-create.json) | 2026-11-08T19:52:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195236-mounting-hole-delete.json](evidence/2026-11-08-195236-mounting-hole-delete.json) | 2026-11-08T19:52:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195236-mounting-hole-list.json](evidence/2026-11-08-195236-mounting-hole-list.json) | 2026-11-08T19:52:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195225-mounting-hole-delete.json](evidence/2026-11-08-195225-mounting-hole-delete.json) | 2026-11-08T19:52:25Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195223-mounting-hole-create.json](evidence/2026-11-08-195223-mounting-hole-create.json) | 2026-11-08T19:52:23Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195222-mounting-hole-list.json](evidence/2026-11-08-195222-mounting-hole-list.json) | 2026-11-08T19:52:22Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195205-mounting-hole-delete.json](evidence/2026-11-08-195205-mounting-hole-delete.json) | 2026-11-08T19:52:05Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195200-mounting-hole-delete.json](evidence/2026-11-08-195200-mounting-hole-delete.json) | 2026-11-08T19:52:00Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195156-mounting-hole-delete.json](evidence/2026-11-08-195156-mounting-hole-delete.json) | 2026-11-08T19:51:56Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195153-mounting-hole-delete.json](evidence/2026-11-08-195153-mounting-hole-delete.json) | 2026-11-08T19:51:53Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
+| [2026-11-08-195150-mounting-hole-delete.json](evidence/2026-11-08-195150-mounting-hole-delete.json) | 2026-11-08T19:51:50Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195148-mounting-hole-create.json](evidence/2026-11-08-195148-mounting-hole-create.json) | 2026-11-08T19:51:48Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195143-mounting-hole-create.json](evidence/2026-11-08-195143-mounting-hole-create.json) | 2026-11-08T19:51:43Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195141-mounting-hole-create.json](evidence/2026-11-08-195141-mounting-hole-create.json) | 2026-11-08T19:51:41Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195130-mounting-hole-list.json](evidence/2026-11-08-195130-mounting-hole-list.json) | 2026-11-08T19:51:30Z | Xpedition 2604 | windows | 2 次运行中 2 次通过 |
+| [2026-11-08-195128-mounting-hole-create.json](evidence/2026-11-08-195128-mounting-hole-create.json) | 2026-11-08T19:51:28Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195125-mounting-hole-create.json](evidence/2026-11-08-195125-mounting-hole-create.json) | 2026-11-08T19:51:25Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195122-mounting-hole-create.json](evidence/2026-11-08-195122-mounting-hole-create.json) | 2026-11-08T19:51:22Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
+| [2026-11-08-195120-mounting-hole-delete.json](evidence/2026-11-08-195120-mounting-hole-delete.json) | 2026-11-08T19:51:20Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-195118-mounting-hole-list.json](evidence/2026-11-08-195118-mounting-hole-list.json) | 2026-11-08T19:51:18Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-193640-component-move.json](evidence/2026-11-08-193640-component-move.json) | 2026-11-08T19:36:40Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-193547-component-move.json](evidence/2026-11-08-193547-component-move.json) | 2026-11-08T19:35:47Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-193522-component-move.json](evidence/2026-11-08-193522-component-move.json) | 2026-11-08T19:35:22Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

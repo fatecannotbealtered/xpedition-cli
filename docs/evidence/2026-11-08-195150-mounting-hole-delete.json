@@ -1,0 +1,36 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.1",
+  "commit": "5b81f8ad75e8",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T19:51:50Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "mounting-hole delete",
+      "arguments": [
+        "--session",
+        "layout-40204-321015da1",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--x",
+        "3.5mm",
+        "--y",
+        "3.5mm"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "doc_kind": "board"
+    }
+  ]
+}

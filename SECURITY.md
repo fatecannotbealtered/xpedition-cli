@@ -56,6 +56,8 @@ Risk tier: **T1**, set by these commands:
 - `pcb update`: change
 - `placement run`: change
 - `component move`: change
+- `mounting-hole create`: change
+- `mounting-hole delete`: change
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist

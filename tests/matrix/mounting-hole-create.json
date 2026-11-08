@@ -1,0 +1,297 @@
+{
+  "command": "mounting-hole create",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--corners",
+        "--inset",
+        "3mm"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "On the 40 x 30 mm practice board: a 3.2 mm unplated hole in each corner, 3 mm in from both edges, taken from the central library; each read back."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195125-mounting-hole-create.json#normal"
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--corners",
+        "--inset",
+        "3mm"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "After the normal row: the four holes stand there already, so nothing changes and the receipt says not_applied."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195128-mounting-hole-create.json#empty"
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "1mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 2,
+        "code": "E_VALIDATION",
+        "summary": "A 3.2 mm hole centred 1 mm from the edge would reach past the outline; refused at the preview."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195122-mounting-hole-create.json#invalid_input"
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "NO_SUCH_HOLE",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 3,
+        "code": "E_NOT_FOUND",
+        "summary": "The central library holds no such padstack; the message points to padstack list."
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195122-mounting-hole-create.json#not_found"
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS",
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195317-mounting-hole-create.json#ambiguous"
+    },
+    {
+      "row": "conflict",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "TH_Round_2.4_Nonplated",
+        "--x",
+        "3mm",
+        "--y",
+        "3mm"
+      ],
+      "expected": {
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "A hole of MC240D320N_SSM345_OBS370 stands at (3, 3) mm: the preview is blocked, and nothing is placed."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195141-mounting-hole-create.json#conflict"
+    },
+    {
+      "row": "no_scope",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 4,
+        "code": "E_FORBIDDEN",
+        "summary": "Run under a scope file that does not cover the board; nothing is sent to Layout."
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195122-mounting-hole-create.json#no_scope"
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 7,
+        "code": "E_BUSY",
+        "summary": "While a pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND."
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195236-mounting-hole-create.json#busy"
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED",
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters. A dialog box over Layout, or a Layout that stops answering, is reported as the session blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195223-mounting-hole-create.json#dialog"
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "expected": {
+        "exit": 8,
+        "code": "E_OUTCOME_UNKNOWN",
+        "summary": "Layout goes away while the holes are placed."
+      },
+      "unrunnable": "The COM connection to Layout cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "TH_Round_2.4_Nonplated",
+        "--x",
+        "20mm",
+        "--y",
+        "4mm"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The board holds unsaved changes (the corner holes): one more hole is placed as usual, and the receipt reports the document dirty."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195143-mounting-hole-create.json#unsaved"
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--padstack",
+        "TH_Round_2.4_Nonplated",
+        "--x",
+        "20mm",
+        "--y",
+        "26mm"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "The call waits before its read-back, and meanwhile the new hole is deleted again (--tamper), so exists reads back false."
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-195148-mounting-hole-create.json#read_back_mismatch"
+    }
+  ]
+}

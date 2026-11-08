@@ -1101,6 +1101,174 @@
       ]
     },
     {
+      "path": "mounting-hole list",
+      "summary": "List the board's mounting holes with their centres, padstacks and anchors.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "hole",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "summary": "Items per page; default 20, at most 100."
+        },
+        {
+          "name": "--offset",
+          "type": "integer",
+          "summary": "Start position of the page; default 0."
+        }
+      ],
+      "untrusted_fields": [
+        "padstack"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "mounting-hole create",
+      "summary": "Place mounting holes of a library padstack at a spot or in the board's four corners.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "hole",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--padstack",
+          "type": "string",
+          "summary": "A mounting-hole padstack of the central library, as padstack list --type mounting_hole lists them.",
+          "required": true
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "The centre of one hole.",
+          "quantity": "length"
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "The centre of one hole.",
+          "quantity": "length"
+        },
+        {
+          "name": "--corners",
+          "type": "boolean",
+          "summary": "One hole in each corner of the board outline's extents."
+        },
+        {
+          "name": "--inset",
+          "type": "quantity",
+          "summary": "With --corners: how far each centre lies in from the two edges it is near.",
+          "quantity": "length"
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "mounting-hole delete",
+      "summary": "Delete the board's mounting hole at a point, or all of them.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "hole",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "A point inside the hole.",
+          "quantity": "length"
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "A point inside the hole.",
+          "quantity": "length"
+        },
+        {
+          "name": "--all",
+          "type": "boolean",
+          "summary": "Every mounting hole of the board; the holes of a part's cell stay."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [
+        "deleted"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
       "path": "plane create",
       "summary": "Pour a solid or hatched plane shape for one net on one layer.",
       "effects": [

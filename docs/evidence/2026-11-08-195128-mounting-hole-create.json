@@ -1,0 +1,37 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.1",
+  "commit": "5b81f8ad75e8",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T19:51:28Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "mounting-hole create",
+      "arguments": [
+        "--session",
+        "layout-40204-321015da1",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--corners",
+        "--inset",
+        "3mm"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "session",
+      "doc_kind": "board"
+    }
+  ]
+}
