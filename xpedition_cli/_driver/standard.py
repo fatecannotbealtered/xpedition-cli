@@ -122,10 +122,10 @@ def commands(tool: Tool) -> list[Command]:
          ["doc undo --doc design.dat"], "document", [], None),
         ("job list", "List the long jobs this tool started, in every session.", [Flag("--state", "string", "Only jobs in this state; all for every state.",
          choices=tuple(tool.contract["jobs"]["states"]) + ("all",)), _limit(), _offset()], job_list, obj + "page", ["job_status"],
-         ["job list"], "job", [], None),
+         ["job list"], "job", ["title"], None),
         ("job get", "The state of one long job; --wait waits until it ends or the time runs out.",
          [Flag("--job", "string", "The job ID.", required=True), Flag("--wait", "duration", "Wait up to this long, at most 600s, for the job to end.")],
-         job_get, obj + "job", ["job_status"], ["job get --job 7 --wait 60s"], "job", [], None),
+         job_get, obj + "job", ["job_status"], ["job get --job 7 --wait 60s"], "job", ["title"], None),
         ("job cancel", "Ask to cancel a long job this tool started; a halt command.", [Flag("--job", "string", "The job ID.", required=True)],
          job_cancel, "receipt.schema.json", ["cancel", "job_status"],
          ["job cancel --job 7"], "job", [], None),
@@ -306,7 +306,7 @@ def _job_record(run: Run, job_id: str) -> dict[str, Any]:
                       next_action=f"Run `{run.tool.name} job list` to see the jobs.")
 
 
-def job_view(record: dict[str, Any], run: Run | None = None) -> dict[str, Any]:
+def job_view(record: dict[str, Any], run: Run) -> dict[str, Any]:
     job = record["_job"]
     out: dict[str, Any] = {"id": job["id"], "operation_id": record["operation_id"], "state": job["state"],
                            "cancel_requested": job.get("cancel_requested", False)}
@@ -315,11 +315,20 @@ def job_view(record: dict[str, Any], run: Run | None = None) -> dict[str, Any]:
     out["started_at"] = job["started_at"]
     if job["state"] in FINAL_JOB_STATES:
         out["finished_at"] = job.get("finished_at", record.get("finished_at", utc_now()))
-        out["receipt"] = slim_receipt(run, record["receipt"]) if run is not None and record.get("receipt") else record.get("receipt")
-        out["result"] = slim_result(run, job.get("result", {})) if run is not None else job.get("result", {})
+        out["receipt"] = slim_receipt(run, record["receipt"]) if record.get("receipt") else record.get("receipt")
+        out["result"] = slim_result(run, job.get("result", {}))
         out["ok"] = job.get("ok", False)
         if job.get("code"):
             out["code"] = job["code"]
+        human = job.get("human") if job.get("code") == "E_HUMAN_REQUIRED" and job["state"] == "unknown" else None
+        if human:
+            lookup = [("--id", record["operation_id"])]
+            out["action"] = human.get("action", "other")
+            out["resume"] = run.cmd("operation resolve", lookup)
+            if human.get("title"):
+                out["title"] = human["title"]
+            if human.get("knowledge"):
+                out["knowledge"] = human["knowledge"]
     if job["state"] == "blocked":
         out["action"] = job.get("action", "other")
     return out
@@ -411,8 +420,13 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
         record["_document_unread"] = True
     cause = "E_INTERRUPTED" if state == "cancelled" else status.get("code")
     ok, code = _Engine(run).derive(receipt, cause)
-    job.update(ok=ok, code=code, finished_at=utc_now(), result=status.get("result", {}))
     record["state"] = record_state(receipt, code)
+    if status.get("human") and code == "E_OUTCOME_UNKNOWN":
+        # A dialog the change opened: the job ends as the call would, waiting for the person and
+        # then operation resolve; the write is never sent again (DCLI-066, DCLI-220).
+        job["human"] = status["human"]
+        code = "E_HUMAN_REQUIRED"
+    job.update(ok=ok, code=code, finished_at=utc_now(), result=status.get("result", {}))
     record.update(finished_at=job["finished_at"], _finished=time.time_ns())
     if record["state"] == "unknown":
         run.locks.hold_as(record["operation_id"], "unknown", record.get("_keys", []))
@@ -650,13 +664,17 @@ def _job_dispatch_once(run: Run, apply: Any, strict: bool) -> tuple[dict[str, An
         status = {"state": "failed", "change": "not_applied", "code": exc.code, "native_message": exc.message}
         wait_ms = exc.details.get("retry_after_ms", wait_ms)
     except CapabilityError as exc:
-        code, ds = run.host_error(exc, exc.dispatch_state, write=True).code, exc.dispatch_state
+        error, ds = run.host_error(exc, exc.dispatch_state, write=True), exc.dispatch_state
+        code = error.code
         if ds == "not_started" or (ds == "dispatched" and code in ("E_VALIDATION", "E_NOT_FOUND", "E_UNSUPPORTED")):
             status = {"state": "failed", "change": "not_applied", "code": code}
         elif ds == "dispatched" and code == "E_NATIVE_FAILURE":
             status = {"state": "failed", "change": "rolled_back", "code": code}
         else:
             status = {"state": "unknown"}
+            if code == "E_HUMAN_REQUIRED":
+                # The change opened a dialog: the job keeps what the person must do (DCLI-066).
+                status["human"] = {k: error.details[k] for k in ("action", "title", "knowledge") if error.details.get(k)}
         if isinstance(exc.data.get("native_message"), str):
             status["native_message"] = exc.data["native_message"]
         wait_ms = exc.data.get("retry_after_ms", wait_ms)
@@ -710,7 +728,8 @@ def job_list(run: Run) -> Result:
         view = read_view(job)
         _show_blocked(run, view, blocked.get((job.get("_request") or {}).get("session")))
         views.append(view)
-    return _page(run, [v for v in views if state == "all" or v["state"] == state], [])
+    return _page(run, [v for v in views if state == "all" or v["state"] == state],
+                 [f".items[*]{p}" for p in (".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result", ".message", ".title")])
 
 
 def _blocked_sessions(run: Run) -> dict[str, dict[str, Any]]:
@@ -830,7 +849,7 @@ def job_get(run: Run) -> Result:
     run.notices.extend(record["_job"].get("notices") or [])
     if view["state"] not in FINAL_JOB_STATES:
         view["poll_after_ms"] = POLL_AFTER_MS
-    return Result(view, [".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result"])
+    return Result(view, [".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result", ".title"])
 
 
 # ------------------------------------------------------------------ standard writes
@@ -1386,7 +1405,7 @@ class JobCancel(_Lifecycle):
 
     def facts_result(self, facts: dict[str, Any]) -> Any:
         record = poll_job(self.run, self.run.records.load(self.job_record["operation_id"]) or self.job_record)
-        return job_view(record)
+        return job_view(record, self.run)
 
 
 class PluginInstall(_Lifecycle):

@@ -567,6 +567,9 @@ def _read_outcome(run: Run, record: dict[str, Any]) -> tuple[str | None, dict[st
     request = {**request, "operation_id": record["operation_id"], "targets": sorted({c["target"] for c in changes}),
                "fields": sorted({c["field"] for c in changes})}
     after = read_back(run, request, changes, record.get("_tolerances", {}))
+    if after.human is not None:
+        # A dialog is still open: a person deals with it, then this command runs again (DCLI-066).
+        raise run.host_error(after.human, "not_started")
     if after.call_failed:
         return None, {}, "busy"
     tolerances = record.get("_tolerances", {})

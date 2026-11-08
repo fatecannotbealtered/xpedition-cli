@@ -3,7 +3,7 @@
     "__init__.py": "bd477bc98e1c69a34e9a36ac5d0adf859e27cb492ad1e12309f912103646208e",
     "adapter.py": "5b7e43b97d4c84aa62680cdea50bb03c9d86e42fb8b6d06001cf05089b160d4c",
     "args.py": "8e172b6e3eef040d757c151cd441ec7dc638a5d08d524c942c18ac1bee55e72c",
-    "builtin.py": "e1fa27fb3dbfba4f94d9ef389d4a9b1618e85e91d76ba86896ae03b343bb8670",
+    "builtin.py": "9d949dbe97e27c7409dde4b08bece3af9ebb4fbbd71798abbe2e94daf4a96e66",
     "contract.py": "c68279c5c0bbe1c86a76983be656015feba753682c3a812acaf17732970837de",
     "errors.py": "b02e5837253165cdde587ed161c9ac25790368bb24a6a3b7c532f3f2b5e78d42",
     "hostproto.py": "bbf66b06c6faddafae9d9d5924d76e45fb6551e9de5bbfef2c6b79abced6a964",
@@ -14,13 +14,13 @@
     "registry.py": "61a5ddd3ea6a03514eedf522f350b5be8246b35e792c079b2d7703a6a402c48a",
     "runtime.py": "71330306f2c62c90b65976c664c59120a0ff57f2373b77facefacc012617b981",
     "scope.py": "e345c2a7e6266c8ad9561627a6e80db60cd078d0bfec997febca40cc0842049b",
-    "standard.py": "34c3b1ac16c4f4b13917c7634b31c5bfa9bab2f248f6bb86cfc5aee5f40e5c7b",
+    "standard.py": "2543dd01bef437d31d27794b9317bf3904ddedf196da0a5a0d8797ce8a26d782",
     "state.py": "919fb152cc821e32971a48141882b929f7a24a03b6e87c9eb47f0297a00fb8ae",
     "targets.py": "8418bfccfc59d4e4c427a9941de7db8045fc1480c8f8e11cf13994d3c16ffe0c",
     "tool.py": "11ac1d3fa4c53b0ecd2e669ffc9054ad1e58c63c4022e036031f5089b8b2f8ae",
     "units.py": "df3f08e7a5b29ea7e8ff147b9eadf8f1c70b09dbaeb2f5f06f2a0011e8cea991",
     "update.py": "63504a826e6ce38b29d2022eee491ac29bc915edbae185fc459bbf152c2134e2",
-    "writes.py": "b5b12647c600f5c406a89dc23cdc11570357672e49c7d4ce88be1e84eaf6d3a7"
+    "writes.py": "377bacf1dd57542ac708b059175448350759bab3957f150fc9367522bcc84998"
   },
-  "spec_version": "1.0.7"
+  "spec_version": "1.0.8"
 }

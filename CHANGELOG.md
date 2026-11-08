@@ -6,11 +6,11 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Added
 
-- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board.
+- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board. A report that says read-back matched or confirmed the changes counts as saying they were verified.
 
 ### Changed
 
-- Specification tool-driver-cli-spec 1.0.7. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again, and the Skill writes a scope file itself only for what the person's own message grants.
+- Specification tool-driver-cli-spec 1.0.8. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A long write that a dialog stops after it was sent ends `unknown` with `E_HUMAN_REQUIRED`, the dialog's title and the command that resumes it. The Skill saves only when the person asks for it: a grant to change a document is not a request to save it. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again, and the Skill writes a scope file itself only for what the person's own message grants.
 - Every command's behavior matrix passed live on Xpedition 2604 with 1.1, so every command is verified again.
 - Reading a board's geometry takes about half the time: net names are read without wrapping each net object, and the readers of copper alone skip the silkscreen. On the flex board used to accept 1.1, the via create preview went from over 25 s, which ended it, to 9 s.
 - `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.

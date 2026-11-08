@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.7 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.0.8 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 
@@ -1290,12 +1290,12 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 
 长任务至少必须有以下字段：`id`、`operation_id`（读操作的长任务为 `null`，DCLI-065）、`state`、`cancel_requested`、`started_at`，以及任务结束后的 `finished_at`。软件报告进度时，还必须有 `progress` `{done, total, unit}`；总量未知时 `total` 为 `null`。
 
-`state` 取 `planned`、`running`、`blocked`、`completed`、`failed`、`partial`、`unknown`、`cancelled` 之一。`blocked` 的任务还带 `action`：人要先做什么，任务才能继续（DCLI-066）。由运行时运行的长任务（DCLI-065），所在会话被弹窗挡住时必须报为 `blocked`，`action` 和 `knowledge`（适配层给出条目时）取自会话的 `blocker`（DCLI-202）；人处理完弹窗后，它又报为 `running`。任务处于终态（`completed`、`failed`、`partial`、`unknown` 或 `cancelled`）时，`job get` 必须同时返回它的 `receipt`、`result`，以及按 DCLI-062 由回执推导出的 `ok`；`ok` 为 `false` 时，错误码放在 `code` 里（DCLI-065）。读操作的长任务没有回执：返回 `ok`；`ok` 为 `true` 时返回读操作的 `result`，为 `false` 时返回 `code` 和 `message`。这些都是 `data` 里的字段：`job get` 本身是成功的，DCLI-062 所说的 `error.details.receipt` 属于写操作，不属于 `job get`。
+`state` 取 `planned`、`running`、`blocked`、`completed`、`failed`、`partial`、`unknown`、`cancelled` 之一。`blocked` 的任务还带 `action`：人要先做什么，任务才能继续（DCLI-066）。由运行时运行的长任务（DCLI-065），所在会话被弹窗挡住时必须报为 `blocked`，`action` 和 `knowledge`（适配层给出条目时）取自会话的 `blocker`（DCLI-202）；人处理完弹窗后，它又报为 `running`。任务处于终态（`completed`、`failed`、`partial`、`unknown` 或 `cancelled`）时，`job get` 必须同时返回它的 `receipt`、`result`，以及按 DCLI-062 由回执推导出的 `ok`；`ok` 为 `false` 时，错误码放在 `code` 里（DCLI-065）。写操作的长任务在派发后被弹窗或其他需要人处理的情况挡住时，和单次调用一样以 `unknown` 结束（DCLI-066）：`code` 为 `E_HUMAN_REQUIRED`，带 `action`、知道时带弹窗的 `title`、适配层给出条目时带 `knowledge`，以及 `resume`，即 `operation resolve` 命令。读操作的长任务没有回执：返回 `ok`；`ok` 为 `true` 时返回读操作的 `result`，为 `false` 时返回 `code` 和 `message`。这些都是 `data` 里的字段：`job get` 本身是成功的，DCLI-062 所说的 `error.details.receipt` 属于写操作，不属于 `job get`。
 
 `job list` 列出所有会话的长任务，被挡住的报为 `blocked`。`job get --job <id> --wait <duration>` 必须在任务结束、被挡住或时长用完时返回，以先到者为准。`--wait` 可以长达 600 秒，因为等待不算工作（DCLI-065）；超过时返回 `E_USAGE`。`job get` 必须返回 `poll_after_ms`，即过多久再查才有意义。
 
 为什么：Agent 用一次次有时限的调用等待长时间的工作，而不是让一次调用一直挂着；任务的真实结果也以与其他写操作相同的形式读到。被弹窗卡住的任务会如实说出来，Agent 就去找人，而不是干等。
-检查：🤖 驱动一致性测试 D11 和 D26；运行时单元测试检查被挡住的任务。
+检查：🤖 驱动一致性测试 D11 和 D26；运行时单元测试检查被挡住的任务，以及派发后被弹窗挡住的任务。
 
 ### DCLI-221 取消长任务
 

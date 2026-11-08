@@ -39,6 +39,7 @@ class Verification:
         self.mismatched = mismatched or []
         self.notes = notes or []
         self.call_failed = False  # the read-back itself failed, rather than a field being unreadable
+        self.human: CapabilityError | None = None  # a dialog stopped the read-back (DCLI-066)
 
 
 class WriteSpec:
@@ -257,6 +258,8 @@ def read_back(run: Run, request: dict[str, Any], changes: list[dict[str, Any]], 
     except (CapabilityError, Unanswered, Lost, BadProtocol) as exc:
         failed = Verification("incomplete", notes=[f"The read-back failed: {exc}"])
         failed.call_failed = True
+        if isinstance(exc, CapabilityError) and exc.data.get("code") == "E_HUMAN_REQUIRED":
+            failed.human = exc
         return failed
     observed = result.get("observed") if isinstance(result, dict) else None
     unreadable = result.get("unreadable", []) if isinstance(result, dict) else None
