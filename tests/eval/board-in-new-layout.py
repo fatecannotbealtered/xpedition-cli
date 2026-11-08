@@ -45,8 +45,10 @@ def after(run):
 
 def grade(run):
     path = board(run)
-    opens = [c for c in ok_calls(run, "session open") if same_path(c.value("--doc"), path)]
-    run.check(len(opens) == 1, f"not exactly one session open with the board succeeded: {opens}")
+    # session open is a long job: a call that started a job which then failed, such as one refused for
+    # a wrong --kind, started no Layout; only the ones whose job named a session count
+    opens = [c for c in ok_calls(run, "session open") if same_path(c.value("--doc"), path) and ended(run, c).get("id")]
+    run.check(len(opens) == 1, f"not exactly one session open with the board started a Layout: {opens}")
     session = ended(run, opens[0]).get("id") if opens else None
     reads = [c for c in run.ran("pcb get") if c.ok and opens and c.started > opens[0].started]
     run.check(reads, "pcb get never succeeded on the new Layout")
