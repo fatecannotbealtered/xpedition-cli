@@ -40,6 +40,15 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-08-200329-refdes-move.json](evidence/2026-11-08-200329-refdes-move.json) | 2026-11-08T20:03:29Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200258-refdes-move.json](evidence/2026-11-08-200258-refdes-move.json) | 2026-11-08T20:02:58Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200246-refdes-move.json](evidence/2026-11-08-200246-refdes-move.json) | 2026-11-08T20:02:46Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200228-refdes-move.json](evidence/2026-11-08-200228-refdes-move.json) | 2026-11-08T20:02:28Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200224-refdes-move.json](evidence/2026-11-08-200224-refdes-move.json) | 2026-11-08T20:02:24Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200218-refdes-move.json](evidence/2026-11-08-200218-refdes-move.json) | 2026-11-08T20:02:18Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200215-refdes-move.json](evidence/2026-11-08-200215-refdes-move.json) | 2026-11-08T20:02:15Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200213-refdes-move.json](evidence/2026-11-08-200213-refdes-move.json) | 2026-11-08T20:02:13Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-200210-refdes-move.json](evidence/2026-11-08-200210-refdes-move.json) | 2026-11-08T20:02:10Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-195319-mounting-hole-delete.json](evidence/2026-11-08-195319-mounting-hole-delete.json) | 2026-11-08T19:53:19Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-195317-mounting-hole-create.json](evidence/2026-11-08-195317-mounting-hole-create.json) | 2026-11-08T19:53:17Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-195315-mounting-hole-list.json](evidence/2026-11-08-195315-mounting-hole-list.json) | 2026-11-08T19:53:15Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

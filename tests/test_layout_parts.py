@@ -293,5 +293,96 @@ class HoleTest(BoardCase):
         self.assertEqual(self.handler("mounting-hole create").read_back(ctx)["observed"][key], {"exists": True})
 
 
+class Text:
+    """A silkscreen reference designator: centred on its anchor, ``width`` x ``height`` unturned."""
+
+    def __init__(self, x: float, y: float, width: float = 1.6, height: float = 0.8, rotation: float = 0.0, kind: int = 2) -> None:
+        self.x, self.y, self.width, self.height = x, y, width, height
+        self.Type, self.TextType, self.Side, self.FixLock = kind, 1, 1, 0
+        self.Format = type("Format", (), {"Orientation": rotation})()
+        self.moves: list[tuple] = []
+
+    def GetPositionX(self, unit: int) -> float:  # noqa: N802 - COM name
+        return self.x
+
+    def GetPositionY(self, unit: int) -> float:  # noqa: N802 - COM name
+        return self.y
+
+    @property
+    def Extrema(self) -> Any:  # noqa: N802 - COM name
+        from test_layout_fakes import Extrema
+
+        w, h = (self.height, self.width) if round(self.Format.Orientation) % 180 == 90 else (self.width, self.height)
+        return Extrema((self.x - w / 2, self.y - h / 2, self.x + w / 2, self.y + h / 2))
+
+    def Move(self, x: float, y: float, unit: int) -> None:  # noqa: N802 - COM name
+        self.moves.append((x, y))
+        self.x, self.y = x, y
+
+
+class RefdesTest(BoardCase):
+    def setUp(self) -> None:
+        super().setUp()
+        from test_layout_fakes import Collection
+
+        self.text = Text(10.0, 11.0)
+        self.r1.FabricationLayerTexts = Collection([Text(10.0, 10.0, kind=1), self.text])
+        self.r10.FabricationLayerTexts = Collection()
+        self.doc.hole_list = []
+        type(self.doc).MountingHoles = property(lambda doc: Collection(doc.hole_list))
+        self.addCleanup(lambda: delattr(type(self.doc), "MountingHoles"))
+
+    def handler(self) -> Any:
+        return next(h for h in layout_parts.HANDLERS if h.command == "refdes move")
+
+    def test_a_spot_and_a_rotation(self):
+        out = self.handler().preview(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0, "rotation_deg": 90.0}))
+        self.assertEqual({(c["field"], c["after"]) for c in out["changes"]}, {("x_mm", 20.0), ("y_mm", 5.0), ("rotation_deg", 90.0)})
+        self.assertEqual(out["changes"][0]["target"], base.key(BOARD, "/refdes/R1"))
+        facts = self.handler().apply(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0, "rotation_deg": 90.0}))
+        self.assertEqual((self.text.x, self.text.y, self.text.Format.Orientation), (20.0, 5.0, 90.0))
+        self.assertEqual(facts["result"]["overlaps"], [])  # R10 lies on the bottom
+        over = self.handler().apply(context("refdes move", {"refdes": "R1", "x_mm": 10.0, "y_mm": 10.0}))
+        self.assertEqual(over["result"]["overlaps"], ["R1"])  # over its own pads
+        self.assertTrue(facts["result"]["inside_board"])
+
+    def test_auto_finds_the_first_free_spot_beside_the_part(self):
+        blocker = Part("C9", placed=True, x=10.0, y=10.9)  # above R1, where the first try would go
+        blocker.FabricationLayerTexts = __import__("test_layout_fakes").Collection()
+        self.doc.components.append(blocker)
+        facts = self.handler().apply(context("refdes move", {"refdes": "R1", "auto": True}))
+        self.assertEqual((facts["result"]["x_mm"], facts["result"]["y_mm"]), (10.0, 9.0))  # below: 0.2 mm under its extents
+        self.assertEqual(facts["result"]["overlaps"], [])
+
+    def test_auto_without_a_free_spot_is_blocked(self):
+        from test_layout_fakes import Collection
+
+        for i, (x, y) in enumerate(((10.0, 10.9), (10.0, 9.1), (11.6, 10.0), (8.4, 10.0), (10.0, 11.8), (10.0, 8.2), (12.2, 10.0),
+                                    (7.8, 10.0), (10.0, 12.6), (10.0, 7.4), (13.0, 10.0), (7.0, 10.0))):
+            part = Part(f"X{i}", placed=True, x=x, y=y, width=3.0, height=0.8)
+            part.FabricationLayerTexts = Collection()
+            self.doc.components.append(part)
+        with self.assertRaises(AdapterError) as caught:
+            self.handler().preview(context("refdes move", {"refdes": "R1", "auto": True}))
+        self.assertEqual(caught.exception.data["conflict"], "application_state")
+
+    def test_wrong_calls_and_missing_texts(self):
+        for inputs, code in (({"refdes": "R1"}, "E_VALIDATION"), ({"refdes": "R1", "x_mm": 3.0}, "E_VALIDATION"),
+                             ({"refdes": "R1", "auto": True, "x_mm": 3.0, "y_mm": 3.0}, "E_VALIDATION"),
+                             ({"refdes": "U1", "auto": True}, "E_VALIDATION"), ({"refdes": "R10", "auto": True}, "E_NOT_FOUND")):
+            with self.assertRaises(AdapterError) as caught:
+                self.handler().preview(context("refdes move", inputs))
+            self.assertEqual(caught.exception.data["code"], code, inputs)
+
+    def test_a_locked_text_is_blocked_and_the_read_back_reads_it(self):
+        self.text.FixLock = 2
+        out = self.handler().preview(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0}))
+        self.assertIn("locked", out["blocked_by"][0])
+        self.text.FixLock = 0
+        key = base.key(BOARD, "/refdes/R1")
+        ctx = context("refdes move", {}, targets=[key], fields=["x_mm", "rotation_deg"])
+        self.assertEqual(self.handler().read_back(ctx)["observed"][key], {"x_mm": 10.0, "rotation_deg": 0.0})
+
+
 if __name__ == "__main__":
     unittest.main()

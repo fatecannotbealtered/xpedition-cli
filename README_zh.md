@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | verified：draft 0 个，verified 11 个，stable 30 个 |
+| 成熟度 | verified：draft 0 个，verified 12 个，stable 30 个 |
 | 规范 | tool-driver-cli-spec 1.0.9 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -86,6 +86,7 @@
 - `forward-annotation`: run
 - `placement`: run
 - `mounting-hole`: list, create, delete
+- `refdes`: move
 - `plane`: create, delete
 - `router`: run
 - `trace`: create, delete

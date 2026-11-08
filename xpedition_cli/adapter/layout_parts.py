@@ -1,5 +1,6 @@
 """Components on the open board: reading them (component list and component get on a board) and
-moving them (component move); and the board's mounting holes (mounting-hole create and delete).
+moving them (component move); the board's mounting holes (mounting-hole list, create and delete); and the
+reference designators on the silkscreen (refdes move).
 
 Positions are board coordinates in mm: a component's position is its cell origin, as Layout
 places it; its rotation is counter-clockwise in degrees, seen from the top.
@@ -495,4 +496,192 @@ class MountingHoleDelete(L.ReadsBack):
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the mounting holes")
 
 
-HANDLERS: list[base.Handler] = [ComponentMove(), MountingHoleList(), MountingHoleCreate(), MountingHoleDelete()]
+# ------------------------------------------------------------------ refdes move
+
+FAB_SILKSCREEN, TEXT_REFDES = 2, 1  # FabricationLayerText.Type and .TextType of a silkscreen reference designator
+FIX_LOCKS = {0: "none", 1: "fixed", 2: "locked"}  # EPcbFixLockType
+GAP_MM = 0.2  # between a part's extents and its reference designator placed beside it
+EDGE_MM = 0.1  # a reference designator keeps this far inside the board outline
+
+
+def refdes_key(refdes: str) -> str:
+    return f"/refdes/{L.segment(refdes)}"
+
+
+def silk_refdes(component: Any) -> Any | None:
+    """The component's reference designator on the silkscreen; its cell may have none."""
+    for text in L.collection(component, "FabricationLayerTexts"):
+        try:
+            if int(text.Type) == FAB_SILKSCREEN and int(text.TextType) == TEXT_REFDES:
+                return text
+        except Exception:  # noqa: BLE001 - a text that cannot be read is not it
+            continue
+    return None
+
+
+def text_values(text: Any) -> dict[str, Any]:
+    """Where a text stands: its anchor in mm, its rotation and its side."""
+    try:
+        lock = FIX_LOCKS.get(int(text.FixLock), "none")
+    except Exception:  # noqa: BLE001 - no lock to read
+        lock = "none"
+    return {"x_mm": round(float(text.GetPositionX(L.UNIT_MM)), 4), "y_mm": round(float(text.GetPositionY(L.UNIT_MM)), 4),
+            "rotation_deg": round(float(text.Format.Orientation or 0.0) % 360.0, 4), "side": SIDES.get(int(text.Side)),
+            "anchor": lock}
+
+
+def refdes_at(doc: Any, refdes: str) -> dict[str, Any]:
+    """Where a component's silkscreen reference designator stands: the reader ``read_keys`` uses."""
+    text = silk_refdes(find(doc, refdes))
+    return {"exists": False} if text is None else {"exists": True, **text_values(text)}
+
+
+def _overlap(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _obstacles(doc: Any, component: Any, side: str) -> list[tuple[str, tuple[float, float, float, float]]]:
+    """What a reference designator on ``side`` keeps clear of: the placed parts on that side, its own
+    included, the other parts' silkscreen reference designators, and the board's mounting holes."""
+    mine = refdes_of(component)
+    found = []
+    for other in L.collection(doc, "Components"):
+        name = refdes_of(other)
+        try:
+            if not name or not bool(other.Placed) or SIDES.get(int(other.Side)) != side:
+                continue
+            found.append((name, L.extrema_mm(other)))  # its own part too: a reference designator over its pads is a fault
+            text = silk_refdes(other)
+            if text is not None and name != mine:
+                found.append((f"{name} reference designator", L.extrema_mm(text)))
+        except Exception:  # noqa: BLE001 - what cannot be read is left out
+            continue
+    for hole, row in board_holes(doc):
+        try:
+            found.append((f"mounting hole at {row['x_mm']:g},{row['y_mm']:g}", L.extrema_mm(hole)))
+        except Exception:  # noqa: BLE001 - no extents
+            continue
+    return found
+
+
+def _text_box(text: Any, x: float, y: float, rotation: float) -> tuple[float, float, float, float]:
+    """The box the text takes with its anchor at (x, y) and the rotation given."""
+    x0, y0, x1, y1 = L.extrema_mm(text)
+    now = text_values(text)
+    width, height = x1 - x0, y1 - y0
+    if round(abs(rotation - now["rotation_deg"])) % 180 == 90:
+        width, height = height, width
+    cx, cy = (x0 + x1) / 2 - now["x_mm"] + x, (y0 + y1) / 2 - now["y_mm"] + y
+    return (cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2)
+
+
+def _free_spot(doc: Any, component: Any, text: Any, rotation: float) -> tuple[float, float] | None:
+    """An anchor beside the part where its reference designator is clear of the other parts, their
+    reference designators and the mounting holes, inside the outline: above, below, right, left,
+    then each again one text height further out."""
+    px0, py0, px1, py1 = L.extrema_mm(component)
+    side = SIDES.get(int(component.Side)) or "top"
+    obstacles = [box for _name, box in _obstacles(doc, component, side)]
+    bx0, by0, bx1, by1 = L.board_rect(doc)
+    now = text_values(text)
+    probe = _text_box(text, now["x_mm"], now["y_mm"], rotation)
+    width, height = probe[2] - probe[0], probe[3] - probe[1]
+    dx, dy = now["x_mm"] - (probe[0] + probe[2]) / 2, now["y_mm"] - (probe[1] + probe[3]) / 2  # anchor from the box centre
+    cx, cy = (px0 + px1) / 2, (py0 + py1) / 2
+    for step in range(3):
+        gap = GAP_MM + step * height
+        for x, y in ((cx, py1 + gap + height / 2), (cx, py0 - gap - height / 2),
+                     (px1 + gap + width / 2, cy), (px0 - gap - width / 2, cy)):
+            box = (x - width / 2, y - height / 2, x + width / 2, y + height / 2)
+            inside = bx0 + EDGE_MM <= box[0] and box[2] <= bx1 - EDGE_MM and by0 + EDGE_MM <= box[1] and box[3] <= by1 - EDGE_MM
+            if inside and not any(_overlap(box, other) for other in obstacles):
+                return round(x + dx, 4), round(y + dy, 4)
+    return None
+
+
+def _refdes_plan(doc: Any, ctx: Context) -> tuple[Any, Any, dict[str, Any], dict[str, Any]]:
+    """The component, its silkscreen reference designator, where it stands and where it goes."""
+    refdes = str(need_input(ctx, "refdes"))
+    x, y, rotation, auto = ctx.inputs.get("x_mm"), ctx.inputs.get("y_mm"), ctx.inputs.get("rotation_deg"), bool(ctx.inputs.get("auto"))
+    if auto and (x is not None or y is not None):
+        raise AdapterError("E_VALIDATION", "Give --auto, or --x and --y, not both.", dispatch_state="not_started")
+    if (x is None) != (y is None):
+        raise AdapterError("E_VALIDATION", "Give --x and --y together.", dispatch_state="not_started")
+    if not auto and x is None and rotation is None:
+        raise AdapterError("E_VALIDATION", "refdes move needs --x and --y, --auto, or --rotation.", dispatch_state="not_started")
+    component = find(doc, refdes)
+    if not bool(component.Placed):
+        raise AdapterError("E_VALIDATION", f"{refdes_of(component)} is not placed; place it with component move first.",
+                           dispatch_state="not_started")
+    text = silk_refdes(component)
+    if text is None:
+        raise AdapterError("E_NOT_FOUND", f"{refdes_of(component)} has no reference designator on the silkscreen; its cell "
+                           "carries none.", dispatch_state="not_started")
+    now = text_values(text)
+    turn = now["rotation_deg"] if rotation is None else round(float(rotation) % 360.0, 4)
+    if auto:
+        spot = _free_spot(doc, component, text, turn)
+        if spot is None:
+            raise base.blocked(f"No free spot lies beside {refdes_of(component)} for its reference designator, clear of the other "
+                               "parts, their reference designators and the mounting holes, inside the outline; give --x and --y.")
+        x, y = spot
+    goal = {"x_mm": now["x_mm"] if x is None else round(float(x), 4), "y_mm": now["y_mm"] if y is None else round(float(y), 4),
+            "rotation_deg": turn}
+    return component, text, now, goal
+
+
+class RefdesMove(L.ReadsBack):
+    """Move a component's reference designator on the silkscreen to a position and rotation, or to a
+    free spot beside the part: ``FabricationLayerText.Move`` and ``Format.Orientation``."""
+
+    command = "refdes move"
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        path = ctx.document_path()
+
+        def look(app: Any, doc: Any) -> tuple[str, dict[str, Any], dict[str, Any]]:
+            component, _text, now, goal = _refdes_plan(doc, ctx)
+            return refdes_of(component), now, goal
+
+        refdes, now, goal = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the reference designator")
+        domain = refdes_key(refdes)
+        target = [base.target(path, "text", domain, label=f"{refdes} reference designator")]
+        changes = [base.change(base.key(path, domain), field, now[field], goal[field])
+                   for field in ("x_mm", "y_mm", "rotation_deg") if abs(float(now[field]) - goal[field]) >= 0.0005]
+        where = f"({goal['x_mm']:g}, {goal['y_mm']:g}) mm, {goal['rotation_deg']:g} degrees"
+        if not changes:
+            return base.preview(f"{refdes}'s reference designator stands at {where} already; nothing changes.", target, [])
+        blocked = None
+        if now["anchor"] in HELD:
+            blocked = [f"{refdes}'s reference designator is {now['anchor']} in Layout; a person releases it in Layout first"]
+        return base.preview(f"Move {refdes}'s reference designator on the {now['side']} silkscreen to {where}. The board is not "
+                            "saved.", target, changes, blocked_by=blocked)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            component, text, now, goal = _refdes_plan(doc, ctx)
+            if now["anchor"] in HELD:
+                raise base.blocked(f"{refdes_of(component)}'s reference designator is {now['anchor']} in Layout; a person releases "
+                                   "it in Layout first.")
+            moved = abs(now["x_mm"] - goal["x_mm"]) >= 0.0005 or abs(now["y_mm"] - goal["y_mm"]) >= 0.0005
+            turned = abs(now["rotation_deg"] - goal["rotation_deg"]) >= 0.0005
+            try:
+                if moved:
+                    text.Move(goal["x_mm"], goal["y_mm"], L.UNIT_MM)
+                if turned:
+                    text.Format.Orientation = goal["rotation_deg"]
+            except Exception as exc:  # noqa: BLE001 - classified
+                raise L.com_error(exc, f"moving {refdes_of(component)}'s reference designator", com.call_state(exc)) from None
+            values = text_values(text)
+            box = L.extrema_mm(text)
+            board = L.board_rect(doc)
+            side = values["side"] or "top"
+            result = {"refdes": refdes_of(component), **{k: values[k] for k in ("x_mm", "y_mm", "rotation_deg", "side")},
+                      "inside_board": board[0] <= box[0] and box[2] <= board[2] and board[1] <= box[1] and box[3] <= board[3],
+                      "overlaps": [name for name, other in _obstacles(doc, component, side) if _overlap(box, other)]}
+            return base.facts("applied" if moved or turned else "not_applied", "unchanged", result=result)
+
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="moving the reference designator")
+
+
+HANDLERS: list[base.Handler] = [ComponentMove(), MountingHoleList(), MountingHoleCreate(), MountingHoleDelete(), RefdesMove()]

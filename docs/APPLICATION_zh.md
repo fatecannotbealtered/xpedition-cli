@@ -164,7 +164,7 @@
 | CAP-068 | 按连接关系自动布局（按页分簇、区域标签） | `Component.Place` + 规划器 | provided | - |
 | CAP-069 | 把元件移到指定位置和角度（顶面） | `Component.Place/Move` | provided | - |
 | CAP-070 | 把元件放到底面 | `Place(bTop=False)` | provided | - |
-| CAP-071 | 把丝印位号挪到空位，或挪到指定位置 | `FabricationLayerText.Move` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-071 | 把丝印位号挪到空位，或挪到指定位置 | `FabricationLayerText.Move` | provided | - |
 | CAP-072 | 铺铜（平面形状） | `PutPlaneShape`、`PlaneAssignment` | provided | - |
 | CAP-073 | 自动布线：指定网络、层和布线遍 | `NewRoutePass` | provided | - |
 | CAP-074 | 按走线计划画线、放过孔，先对照板上的铜、线宽和间距规则检查 | `PutTrace`、`PutVia` | provided | - |

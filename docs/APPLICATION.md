@@ -168,7 +168,7 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-068 | Automatic placement by connectivity (clusters per sheet, area labels) | `Component.Place` + planner | provided | - |
 | CAP-069 | Move a component to a given position and angle (top side) | `Component.Place/Move` | provided | - |
 | CAP-070 | Place a component on the bottom side | `Place(bTop=False)` | provided | - |
-| CAP-071 | Move a silkscreen reference designator to a free spot, or to a given position | `FabricationLayerText.Move` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-071 | Move a silkscreen reference designator to a free spot, or to a given position | `FabricationLayerText.Move` | provided | - |
 | CAP-072 | Copper pour (plane shapes) | `PutPlaneShape`, `PlaneAssignment` | provided | - |
 | CAP-073 | Autoroute: chosen nets, layers and route passes | `NewRoutePass` | provided | - |
 | CAP-074 | Draw the traces and place the vias of a routing plan, checked against the board's copper, widths and clearances first | `PutTrace`, `PutVia` | provided | - |

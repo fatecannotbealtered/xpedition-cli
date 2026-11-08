@@ -1039,9 +1039,10 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "cover-layer": lambda parts: {"exists": _opening(doc, "cover-layer", parts)},
         "nets": lambda parts: {"routed": statuses().get(parts[1], {}).get("routed")},
         "mounting-holes": lambda parts: _hole_at(doc, parts[1]),
+        "refdes": lambda parts: _refdes_at(doc, parts[1]),
     }
     sizes = {"components": 2, "planes": 3, "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
-             "mounting-holes": 2}
+             "mounting-holes": 2, "refdes": 2}
     for target in targets:
         parts = fragment(target, path)
         reader = readers.get(parts[0]) if parts else None
@@ -1062,6 +1063,12 @@ def _hole_at(doc: Any, spot: str) -> dict[str, Any]:
     from .layout_parts import hole_at
 
     return hole_at(doc, spot)
+
+
+def _refdes_at(doc: Any, refdes: str) -> dict[str, Any]:
+    from .layout_parts import refdes_at
+
+    return refdes_at(doc, refdes)
 
 
 class ReadsBack(base.Handler):

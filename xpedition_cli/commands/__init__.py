@@ -296,6 +296,17 @@ VERIFIED: dict[str, list[str]] = {
         "live:docs/evidence/2026-11-07-181410-project-get.json",
         "live:docs/evidence/2026-11-07-181708-project-get.json",
     ],
+    "refdes move": [
+        "live:docs/evidence/2026-11-08-200210-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200213-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200215-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200218-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200224-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200228-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200246-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200258-refdes-move.json",
+        "live:docs/evidence/2026-11-08-200329-refdes-move.json",
+    ],
     "router run": [
         "live:docs/evidence/2026-11-07-184529-router-run.json",
         "live:docs/evidence/2026-11-07-184803-router-run.json",
@@ -864,6 +875,24 @@ COMMANDS: list[dict[str, Any]] = [
         untrusted=["deleted"],
         coordinates=BOARD_COORDINATES,
         examples=["xpedition-cli mounting-hole delete --session layout-5280 --doc D:/work/demo/PCB/Demo.pcb --x 3mm --y 3mm"],
+    ),
+    command(
+        "refdes move", "Move a component's reference designator on the silkscreen, or to a free spot beside it.",
+        effects=["change"], modes=["session"], kinds=["board"], target_kind="text",
+        flags=[{"name": "--refdes", "type": "string", "required": True, "summary": "The component's reference designator."},
+               {"name": "--x", "type": "quantity", "quantity": "length", "summary": "Where the text's anchor goes."},
+               {"name": "--y", "type": "quantity", "quantity": "length", "summary": "Where the text's anchor goes."},
+               {"name": "--rotation", "type": "quantity", "quantity": "angle",
+                "summary": "The text's rotation, counter-clockwise; its rotation by default."},
+               {"name": "--auto", "type": "boolean",
+                "summary": "Beside the part, above, below, right or left, clear of the other parts, their reference designators "
+                "and the mounting holes, inside the outline."}],
+        output=obj(refdes=STR, x_mm=NUM, y_mm=NUM, rotation_deg=NUM, side=STR, inside_board=BOOL, overlaps=arr(STR)),
+        tolerances={"x_mm": 0.001, "y_mm": 0.001, "rotation_deg": 0.01},
+        coordinates=BOARD_COORDINATES + " The text's anchor is the point Layout places it by, its centre on a centred text.",
+        examples=["xpedition-cli refdes move --session layout-5280 --doc D:/work/demo/PCB/Demo.pcb --refdes U1 --auto",
+                  "xpedition-cli refdes move --session layout-5280 --doc D:/work/demo/PCB/Demo.pcb --refdes C3 --x 12mm --y 8mm "
+                  "--rotation 90deg"],
     ),
     command(
         "plane create", "Pour a solid or hatched plane shape for one net on one layer.",

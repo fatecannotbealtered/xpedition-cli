@@ -2,13 +2,13 @@
 name: xpedition-cli
 description: >-
   Operates Xpedition through the xpedition-cli command line: checks the install, reads and changes Xpedition with
-  preview and confirmation, and reports what changed, what was saved and what was verified. Use it to build or
-  change a board in Xpedition Designer and Layout: create a project, add parts and vias to the central library,
-  draw and check the schematic, package, create the board, forward-annotate, set the outline, place, set routing
-  rules for impedance lines and power, route, draw, change or delete traces, vias and planes, open the soldermask or
-  coverlay, run DRC, draw the board as a picture and write the fabrication package.
-  建工程、建库和过孔、画原理图、打包、建板、正向标注、布局、设阻抗线和电源线规则、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
-  Not for editing single symbols, wires or BOMs, or Xpedition versions other than 2604; 不负责逐个改元件、导线和 BOM。
+  preview and confirmation, and reports what changed, what was saved and what was verified. Use it to build, read or
+  change a board in Xpedition Designer and Layout: create a project, add parts and vias to the central library, draw,
+  read and check the schematic, check and export the BOM, package, create the board, forward-annotate, set the outline,
+  place and move parts, mounting holes and reference designators, set routing rules, route, draw, change or delete
+  traces, vias and planes, open the soldermask or coverlay, run DRC, draw the board and write the fabrication package.
+  建工程、建库和过孔、画和读原理图、查和导出 BOM、打包、建板、正向标注、布局和挪元件、放安装孔、挪丝印位号、设布线规则、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
+  Not for editing schematic symbols or wires, or Xpedition versions other than 2604; 不负责改原理图里的元件和导线。
 metadata:
   version: 1.1.1
 ---
@@ -50,6 +50,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `forward-annotation`: run
 - `placement`: run
 - `mounting-hole`: list, create, delete
+- `refdes`: move
 - `plane`: create, delete
 - `router`: run
 - `trace`: create, delete
@@ -121,13 +122,9 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 ## Playbooks
 
-### Build a board
-
-Follow [references/build-a-board.md](references/build-a-board.md), with [references/parts-file.md](references/parts-file.md) and [references/design-file.md](references/design-file.md) for the files. In order: `doc create`, `part create`, `schematic create`, `packager run`, `pcb create`, `forward-annotation run`, `pcb update`, `placement run`, route the board, `doc save`, `pcb export`. Report each step's receipt; stop at the first failure and say which step failed.
-
-### Route a board
-
-Follow [references/route-a-board.md](references/route-a-board.md), with [references/rules-file.md](references/rules-file.md) and [references/routing-plan.md](references/routing-plan.md) for the files; rules come before copper. In order: `constraint import` with the widths, spacing and clearances the design asks for, `padstack create` for the via, `router run` class by class, `via update`, `trace create` for planned routes, `plane create`, `via create` to stitch, `solder-mask create` for bare copper, `pcb check`.
+- Build a board: follow [references/build-a-board.md](references/build-a-board.md), with [references/parts-file.md](references/parts-file.md) and [references/design-file.md](references/design-file.md) for the files. In order: `doc create`, `part create`, `schematic create`, `packager run`, `pcb create`, `forward-annotation run`, `pcb update`, `placement run`, route the board, `doc save`, `pcb export`. Report each step's receipt; stop at the first failure and say which step failed.
+- Route a board: follow [references/route-a-board.md](references/route-a-board.md), with [references/rules-file.md](references/rules-file.md) and [references/routing-plan.md](references/routing-plan.md) for the files; rules come before copper. In order: `constraint import` with the widths, spacing and clearances the design asks for, `padstack create` for the via, `router run` class by class, `via update`, `trace create` for planned routes, `plane create`, `via create` to stitch, `solder-mask create` for bare copper, `pcb check`.
+- Change a design that exists: follow [references/change-a-design.md](references/change-a-design.md). Read it first with `component list`, `net list` and `bom check` in Designer, and `component list` and `mounting-hole list` in Layout; then change one named object at a time with `component move`, `refdes move` and `mounting-hole create`, run `pcb check`, and compare the BOM with `bom export --baseline`.
 
 ## Report
 
