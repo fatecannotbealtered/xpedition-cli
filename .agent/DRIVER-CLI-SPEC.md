@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.8 · Clauses DCLI-001 to DCLI-281
+> Version 1.0.9 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -414,7 +414,7 @@ Check: 🤖 Runtime unit tests (normalization and prefix matching).
 
 ### DCLI-029 Command registration
 
-Every command MUST be registered before it can run. The runtime registers the built-in and standard commands; the tool author registers each domain command, and lists in `long_commands` the standard writes that take the application more than a minute (DCLI-065). A registration holds these fields:
+Every command MUST be registered before it can run. The runtime registers the built-in and standard commands; the tool author registers each domain command, lists in `long_commands` the standard writes that take the application more than a minute (DCLI-065), and lists in `doc_kinds` the kinds of document the application has, when it has several (DCLI-210). A registration holds these fields:
 
 <!-- contract:registration_fields -->
 | Field | Content |
@@ -537,7 +537,7 @@ Check: 🤖 Runtime unit tests.
 
 - `operation get --id <id> [--output <path>]` MUST return one operation record. With `--output` it writes the whole record, with every file the write produced, to that file (DCLI-061).
 - `operation list [--state <state>] [--batch <id>] [--limit <n>] [--offset <n>]` MUST list operation records, newest first. `--batch` takes the operation ID of a batch and lists only its items (DCLI-064).
-- `operation resolve --id <id>` settles an outcome-unknown write (DCLI-063). Without `--outcome`, the runtime MUST read the target back through the adapter, compare it with the preview, record the outcome it finds with `resolved_by: read_back` and the observed values, and return them.
+- `operation resolve --id <id>` settles an outcome-unknown write (DCLI-063). Without `--outcome`, the runtime MUST read the target back through the adapter, compare it with the preview, record the outcome it finds with `resolved_by: read_back` and the observed values, and return them. A standard write that changes no field is read back by what it changes: `session open` and `doc create` in an instance by comparing the instances and documents with those there before it was sent, `session close`, `doc open` and `doc close` by the instances and documents now, `doc save` by whether the document is clean and its revision, `doc save-as` and `doc create` in file mode by the files written under the name or one that starts with it (DCLI-057), `job cancel` by the job's state, and `plugin install` and `plugin remove` by the version on disk. An instance that is starting, busy or blocked says so first, with this command as the one to run again (DCLI-204). When what it changes cannot be read or does not tell the outcome, such as no new instance listed yet, or unsaved changes in a document that changed after the save was sent, the runtime MUST NOT guess the outcome; it says so, and `--outcome` is allowed.
 - `operation resolve --id <id> --outcome applied|not_applied|partial --evidence <text>` records an outcome the Agent found by other means, with `resolved_by: agent`. It is allowed only when the target cannot be read back; otherwise it MUST be refused with `E_VALIDATION`.
 - Resolving MUST be refused with `E_FORBIDDEN` unless the scope in force covers the targets and effects of that operation; `details.scope` says what is missing (DSEC-017).
 
@@ -1239,15 +1239,15 @@ A document MUST have at least these fields; the full definition is in the contra
 - `path`: the file path, or `null` for a new document that has never been saved;
 - `key`: only for a document without a path: its target key `untitled:<session-id>/<n>` (DCLI-028). The adapter MUST give it, because only the adapter knows `<n>`. A document with a path has no `key`; its target key is `file:///<path>`;
 - `session`: the session that holds it, or `null` in file mode;
-- `kind`: the kind of document, when the application has several, such as `part`, `assembly` or `drawing`; a command that registers `doc_kinds` refuses a document of another kind with `E_VALIDATION` (DCLI-029);
+- `kind`: the kind of document, when the application has several, such as `part`, `assembly` or `drawing`. The tool lists them in its `doc_kinds`, and `--kind` of `session open` and `doc create` MUST then take only those, refusing another with `E_USAGE` before anything starts. A command that registers `doc_kinds` lists only kinds among them and refuses a document of another kind with `E_VALIDATION` (DCLI-029);
 - `revision`: an opaque string, supplied by the adapter, that changes with every change and every save; in file mode it is a hash of the file content;
 - `dirty`: whether it has unsaved changes, or `null` when the application cannot tell; `null` counts as possibly unsaved, so closing it needs `--discard` (DCLI-212);
 - `readonly`: whether it may be written;
 - `disk`: how the file on disk relates to the document (DCLI-211);
 - `extra`: application-specific fields (DCLI-203).
 
-Why: `revision` and `dirty` let a token and the save preview notice any change, including a person's, and `disk` shows when someone else changed the file.
-Check: 🤖 Driver conformance test D03.
+Why: `revision` and `dirty` let a token and the save preview notice any change, including a person's, and `disk` shows when someone else changed the file. A wrong kind refused at once never looks like an instance that started.
+Check: 🤖 Driver conformance test D03; runtime unit tests check that `--kind` takes only the tool's kinds.
 
 ### DCLI-211 Document states
 

@@ -12,16 +12,16 @@ NOT_SAVED = (r"\b(not|isn't|hasn't|has not|wasn't|was not|not yet|never|nothing)
 SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|\b(is|was|has been|have been|now|got|are|were) saved\b|\bsaved (it|the|board|project|to disk|all)\b"
          r"|已保存|已经保存|保存好了|保存成功|已存盘")
 READ_BACK = r"\bread(?:ing)?(?: (?:the \w+|it|them))?[- ]?backs?\b"  # "read-back", "read the board back"
-NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\s*no\b|未验证|没有验证|没验证"
+NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\s*no\b|未验证|没有验证|没验证|未核实|没有核实"
                 r"|" + READ_BACK + r"[^.;。\n]{0,40}\b(did not|didn't|does not|doesn't|failed to|could not|couldn't) (match|confirm)"
-                r"|\bread[- ]?back mismatch|回读[^。；\n]{0,20}不一致")
+                r"|\bread[- ]?back mismatch|(回读|读回)[^。；\n]{0,20}不一致")
 # Said without the word: "read-back matched", "read-back confirmed all three changes", "each change was
 # checked against the board after it ran", "every change checked out".
 READ_BACK_AGREES = (READ_BACK + r"[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed)\b"
                     r"|\b(each|every|all)\b[^.;。\n]{0,30}?\b(changes?|steps?|deletions?|edits?|writes?)\b[^.;。\n]{0,40}?"
                     r"(\b(checked|re-?read)\b|" + READ_BACK + ")"
                     r"|\bchecked against the (board|design|document|project|library|files?)\b"
-                    r"|回读[^。；\n]{0,20}(一致|相符|吻合|确认)")
+                    r"|(回读|读回)[^。；\n]{0,20}(一致|相符|吻合|确认)")
 CLOSED = r"\b(closed|quit|quitted|exited|shut down|stopped)\b|关闭|已关|退出"
 CANCELLED = r"\bcancel(l)?ed\b|\bcancel(l)?ation\b|已取消|取消了|已经取消"
 OPEN_NETS = r"\bopen\b|\bunrouted\b|\bnot routed\b|未布通|未布线|没布通|开路"
@@ -42,7 +42,7 @@ def says_saved(text: str) -> bool:
 
 def says_verified(text: str) -> bool:
     words = plain(text)
-    agrees = "verif" in words or "验证" in words or re.search(READ_BACK_AGREES, words) is not None
+    agrees = "verif" in words or "验证" in words or "核实" in words or re.search(READ_BACK_AGREES, words) is not None
     return agrees and re.search(NOT_VERIFIED, words) is None
 
 

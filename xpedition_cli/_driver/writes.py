@@ -91,6 +91,11 @@ class WriteSpec:
         """The adapter request ``operation resolve`` and ``doc undo`` replay to read the target back."""
         return None
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        """What ``operation resolve`` needs, taken just before dispatch, to settle a standard
+        write that changes no field the adapter reads back, such as the instances running."""
+        return None
+
     def outputs(self) -> list[str]:
         """The files and folders the call names with its ``output`` flags."""
         return []
@@ -850,6 +855,7 @@ class Engine:
                  changes: list[dict[str, Any]], keys: list[str]) -> Result:
         run = self.run
         operation_id = record["operation_id"]
+        settle = spec.settle_facts()
         with run.mutex.hold():
             # The token is spent and the targets locked in one step, so two confirms of one
             # token cannot both dispatch (DCLI-055, DCLI-060).
@@ -865,6 +871,8 @@ class Engine:
             if "_token" in record:
                 record["_token"]["spent"] = True
             record.update(state="dispatched", dispatched_at=utc_now(), _keys=sorted(keys), _batch=spec.batch)
+            if settle is not None:
+                record["_settle"] = settle
             try:
                 run.records.save(record)
             except DriverError:

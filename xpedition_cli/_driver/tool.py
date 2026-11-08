@@ -3,7 +3,7 @@
 A tool's entry point builds one ``Tool`` and calls ``main()``::
 
     TOOL = Tool(root=ROOT, adapter=KicadAdapter, commands=COMMANDS, application="KiCad",
-                versions=">=9.0 <11", modes=["file", "session"])
+                versions=">=9.0 <11", modes=["file", "session"], doc_kinds=["schematic", "board"])
 
     def main() -> None:
         TOOL.main()
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -45,6 +46,7 @@ class Tool:
         maturity: dict[str, dict[str, Any]] | None = None,
         plugin_manifest: str | os.PathLike[str] | None = None,
         long_commands: list[str] | None = None,
+        doc_kinds: list[str] | None = None,
     ) -> None:
         self.root = Path(root)
         package = json.loads((self.root / "package.json").read_text(encoding="utf-8"))
@@ -84,6 +86,22 @@ class Tool:
             if path not in self.contract["jobs"]["standard_long"] or path not in self.commands:
                 raise RegistrationError(f"long_commands names {path!r}; it takes the offered commands of jobs.standard_long")
             self.commands[path].long = True
+        # The kinds of document the application has, when it has several: --kind takes only these,
+        # so a wrong kind is refused before anything starts (DCLI-210).
+        self.doc_kinds = list(doc_kinds or [])
+        if len(set(self.doc_kinds)) != len(self.doc_kinds) or not all(
+                isinstance(k, str) and re.fullmatch(r"[a-z][a-z0-9-]*", k) for k in self.doc_kinds):
+            raise RegistrationError("doc_kinds is a list of distinct lowercase document kinds (DCLI-210)")
+        if self.doc_kinds and not ({"file", "session"} & set(self.modes)):
+            raise RegistrationError("doc_kinds needs a mode with documents")
+        for command in self.domain:
+            other = [k for k in command.doc_kinds if self.doc_kinds and k not in self.doc_kinds]
+            if other:
+                raise RegistrationError(f"{command.path}: doc_kinds lists {other[0]!r}, which is not among the tool's doc_kinds {self.doc_kinds}")
+        for path in ("session open", "doc create") if self.doc_kinds else ():
+            for flag in self.commands[path].flags if path in self.commands else []:
+                if flag.name == "--kind":
+                    flag.choices = tuple(self.doc_kinds)
         for path, level in (maturity or {}).items():
             if path not in self.commands or self.commands[path].kind != "standard":
                 raise RegistrationError(f"maturity is declared only for standard commands, not {path!r}")

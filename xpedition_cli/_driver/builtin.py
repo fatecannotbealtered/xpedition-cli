@@ -557,6 +557,11 @@ def operation_resolve(run: Run) -> Result:
 def _read_outcome(run: Run, record: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
     """Read the target back and compare each change with its values before and after
     (DCLI-035). Returns the outcome, or ``None`` with the reason it cannot be told."""
+    from .standard import settle
+
+    settled = settle(run, record)
+    if settled is not None:
+        return settled  # a standard write, settled from the instances, documents or files it changes
     command = run.tool.commands.get(record["command"])
     secret = {run.key(f) for f in command.flags if f.secret} if command else set()
     stored = record.get("_changes", (record.get("preview") or {}).get("changes", []))

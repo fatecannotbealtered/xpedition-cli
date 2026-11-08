@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SKILL-SPEC_zh.md)
 
-> Version 1.0.8 · Clauses DSKL-001 to DSKL-127
+> Version 1.0.9 · Clauses DSKL-001 to DSKL-127
 
 ## How to Read
 
@@ -403,7 +403,7 @@ A command MUST NOT be marked stable unless its `eval:` evidence names an evaluat
 - shows that every question passed;
 - holds a question that lists the command in `COMMANDS` and ran it.
 
-Other maturity levels do not need evaluation. An evaluation report is a JSON file `docs/evidence/eval-*.json` that `contract/schemas/eval-report.schema.json` validates. It records the tool version, the date, the Agent and model, the platform, whether the fake host stood in for the application, the workspace root and the other scope targets, and for each question its result, the SHA-256 of its file, its `COMMANDS` and the commands the Agent ran. A report with `simulated: true` never supports a maturity level (DVER-021). The targets of every other report MUST be listed under Authorized Targets (DVER-050). An `eval:` evidence reference points to the report (DVER-041).
+Other maturity levels do not need evaluation. An evaluation report is a JSON file `docs/evidence/eval-*.json` that `contract/schemas/eval-report.schema.json` validates. It records the tool version, the date, the Agent and model, the platform, whether the fake host stood in for the application, the workspace root and the other scope targets, and for each question its result, the SHA-256 of its file, its `COMMANDS` and the commands the Agent ran. A report with `simulated: true` never supports a maturity level (DVER-021). The targets of every other report MUST be listed under Authorized Targets or lie inside a listed folder (DVER-050). An `eval:` evidence reference points to the report (DVER-041).
 
 Why: Stable promises that Agents use the command correctly. Only a full, current run on the real application shows that, and a report tied to the question files cannot be reused once a question changes.
 Check: 🤖 `check_project` checks the report behind every stable command against these conditions, and the targets of every report.
@@ -435,7 +435,7 @@ The evaluation runner `run_eval`, which comes with this specification, runs the 
 - put the tool on `PATH` behind a shim that records every run, hand the turns to the Agent one by one, call `before` before each turn and `grade` after the last, and always call `after`;
 - let the Agent run nothing but the tool in its shell, and use its file tools only inside the workspace.
 
-On the real application the runner MUST run only when the workspace root and every scope target are listed under Authorized Targets (DVER-050). There the tool keeps the person's environment, so it finds the running application. On the fake host the tool gets a home and a state directory of its own. Before the first question the runner MUST stop, naming each copy, when a copy of the tool's Skills outside the project would change what the evaluation measures: a personal Skill of Claude Code whose files differ from the project's, because Claude Code loads it in place of the project's Skill of that name; and, on the real application, a copy in an Agent's Skill folder in the person's home at another version than the tool, because the tool's doctor reports it and points the Agent to `update` (DSKL-031). Before the Agent's first question the runner MUST also run, on the fake host, the scripted `right` agent of each question that has one and runs there, and stop, naming the question, when that right answer fails, so no model credits go to a broken question. With `--check` the runner runs the scripted agents in place of the Agent.
+On the real application the runner MUST run only when the workspace root and every scope target are listed under Authorized Targets or lie inside a listed folder (DVER-050). There the tool keeps the person's environment, so it finds the running application. On the fake host the tool gets a home and a state directory of its own. Before the first question the runner MUST stop, naming each copy, when a copy of the tool's Skills outside the project would change what the evaluation measures: a personal Skill of Claude Code whose files differ from the project's, because Claude Code loads it in place of the project's Skill of that name; and, on the real application, a copy in an Agent's Skill folder in the person's home at another version than the tool, because the tool's doctor reports it and points the Agent to `update` (DSKL-031). Before the Agent's first question the runner MUST also run the scripted `right` agent of each question that has one, on the fake host, or on the real application for a question that runs only there, and stop, naming the question, when that right answer fails, so no model credits go to a broken question. With `--check` the runner runs the scripted agents in place of the Agent.
 
 Why: One file format and one runner let every tool's questions run the same way. With the documents outside the workspace and every run of the tool recorded, the Agent can reach the result only through the tool, and the grader sees what really ran.
 Check: 🤖 `check_project` checks every question file; the repository's unit tests check the runner.

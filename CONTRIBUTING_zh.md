@@ -79,7 +79,7 @@ python scripts/spec.py check
 
 **行为矩阵。** 每个领域命令，以及每个调用适配层能力的标准命令，都在 `tests/matrix/` 里有一个矩阵文件，以命令路径命名，如 `tests/matrix/part-move.json`。文件把每一行各列一次：`normal`、`empty`、`invalid_input`、`not_found`、`ambiguous`、`conflict`、`no_scope`、`busy`、`dialog`、`disconnect`、`unsaved` 和 `read_back_mismatch`。适用的行写明参数和预期的退出码与错误码；不适用的行写 `applies: false` 和原因。写命令 `normal` 行的参数就是它的样例，通用一致性测试会拿它在模拟宿主上运行。参数只通过占位符 `{session}`、`{doc}`、`{device}` 和 `{dir}` 指定会话、文档、设备和输出文件夹，通过 `{job}` 指定作业，通过 `{inputs}`（即 `tests/inputs/` 文件夹）指定命令只读取的文件。
 
-**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行；对象在不同种类里不一样时，用这一行的 `kind_arguments` 给出该种类的参数。
+**真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了多种 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行，只列一种的不用写 `--kind`；对象在不同种类里不一样时，用这一行的 `kind_arguments` 给出该种类的参数。
 
 **评测。** 命令标为 stable 之前，`tests/eval/` 里要为每个适用于 xpedition-cli、需要工具自测的场景各出一题，`docs/evidence/` 里还要有一份在真实 Xpedition 上得到的最新评测报告：它覆盖了现在的每道题，每道题都通过了，并且有一道题在 `COMMANDS` 里列出了这条命令、实际运行了它。每道题是一个以题目 ID 命名的 Python 文件；名为 `_*.py` 的文件放各题共用的辅助代码。
 
@@ -97,7 +97,7 @@ def grade(run):
     run.check(len([c for c in run.write_calls() if c.ok]) == 1, "not exactly one write")
 ```
 
-`python scripts/spec.py eval --workspace-root <folder>` 用 Claude Code 在真实的 Xpedition 上运行这些题目并写出报告；这个文件夹必须列在 `docs/E2E.md` 的「Authorized Targets」一节里。运行器为每道题在这个文件夹里新建一个工作目录，放进 Skill 和授权范围文件，把文档放在旁边的文件夹里，并记下 xpedition-cli 的每次运行；Agent 的 shell 只能运行 xpedition-cli，文件工具只能用在工作目录里。`TURNS` 和授权范围目标里的 `{documents}` 代表文档所在的文件夹。默认的授权范围授予这个文件夹、`COMMANDS` 里命令的效果，只有其中某条命令需要时才授予 `dangerous`；`SCOPE` 可以替换其中任何字段，命令都只读取的题目不写授权范围文件。这个授权范围文件由运行器自己写，谁都不手改。在真实的 Xpedition 上，xpedition-cli 沿用你的环境，这样才找得到正在运行的实例；会话模式的题目在 `before` 里打开文档，在 `after` 里关闭，`after` 总会被调用。
+`python scripts/spec.py eval --workspace-root <folder>` 用 Claude Code 在真实的 Xpedition 上运行这些题目并写出报告；这个文件夹必须列在 `docs/E2E.md` 的「Authorized Targets」一节里，或者位于列出的文件夹里面。运行器为每道题在这个文件夹里新建一个工作目录，放进 Skill 和授权范围文件，把文档放在旁边的文件夹里，并记下 xpedition-cli 的每次运行；Agent 的 shell 只能运行 xpedition-cli，文件工具只能用在工作目录里。`TURNS` 和授权范围目标里的 `{documents}` 代表文档所在的文件夹。默认的授权范围授予这个文件夹、`COMMANDS` 里命令的效果，只有其中某条命令需要时才授予 `dangerous`；`SCOPE` 可以替换其中任何字段，命令都只读取的题目不写授权范围文件。这个授权范围文件由运行器自己写，谁都不手改。在真实的 Xpedition 上，xpedition-cli 沿用你的环境，这样才找得到正在运行的实例；会话模式的题目在 `before` 里打开文档，在 `after` 里关闭，`after` 总会被调用。
 
 | 评分程序和钩子可用 | 作用 |
 |---|---|

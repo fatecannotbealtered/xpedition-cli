@@ -24,6 +24,9 @@ TOOL = Tool(
     versions="2604",
     modes=["file", "session"],
     host_component=False,
+    # A project is opened in Designer, a board in Layout; --kind of session open and doc create
+    # takes only these (DCLI-210).
+    doc_kinds=["project", "board"],
     # Designer takes about a minute to open or close a project, and Layout as long to start or
     # quit; the runtime runs these as long jobs in its own worker (DCLI-065). A new project's first
     # open builds its database. A save closes and opens the document again, so that Xpedition

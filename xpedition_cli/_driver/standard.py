@@ -896,6 +896,15 @@ class SessionOpen(_Lifecycle):
                 request[key] = self.call.values[flag]
         return dispatch(self.run, "open_session", request)
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        facts: dict[str, Any] = {"path": self.call.values.get("--doc")}
+        try:
+            self.run._sessions = None
+            facts["before"] = sorted(s["id"] for s in self.run.sessions()["items"])
+        except DriverError:
+            pass  # resolve then cannot tell a new instance from an old one, and says so
+        return facts
+
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         sid = (facts.get("session") or {}).get("id")
         self.run._sessions = None
@@ -1038,6 +1047,15 @@ class DocCreate(_Lifecycle):
             request["overwrite"] = self.exists
         return dispatch(self.run, "create_doc", request)
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        facts: dict[str, Any] = {"path": self.path, **(_files_like(self.path) if self.path else {})}
+        if self.where.session is not None:
+            try:
+                facts["before"] = sorted(d["id"] for d in self.run.documents(self.where.session["id"]))
+            except DriverError:
+                pass
+        return facts
+
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         parts = []
         if self.where.session is not None:
@@ -1077,6 +1095,9 @@ class DocOpen(_Lifecycle):
 
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         return dispatch(self.run, "open_doc", {"operation_id": operation_id, "session": self.where.session["id"], "path": self.path})
+
+    def settle_facts(self) -> dict[str, Any] | None:
+        return {"path": self.path}
 
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         docs = self.run.documents(self.where.session["id"])
@@ -1130,6 +1151,9 @@ class DocSave(_OnDocument):
 
     def stored_request(self, child: int | None = None) -> dict[str, Any] | None:
         return {"command": "doc save", "inputs": {}, "session": self.where.session["id"], "document": self.where.document["id"]}
+
+    def settle_facts(self) -> dict[str, Any] | None:
+        return {"revision": self.where.document.get("revision")}
 
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         """The saved file is read again and the changed fields are found in it, with the
@@ -1240,6 +1264,9 @@ class DocSaveAs(_OnDocument):
 
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         return dispatch(self.run, "save_doc_as", {**self.request(operation_id), "path": self.out, "overwrite": self.exists})
+
+    def settle_facts(self) -> dict[str, Any] | None:
+        return {"path": self.out, **_files_like(self.out)}
 
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         return verify_files(facts, changes)
@@ -1400,6 +1427,9 @@ class JobCancel(_Lifecycle):
             self.run.records.save(latest)
         return facts
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        return {"job_operation": self.job_record["operation_id"]}
+
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         return Verification("passed", {"job": {"id": self.job_record["_job"]["id"], "cancel_requested": True}})
 
@@ -1447,6 +1477,14 @@ class PluginInstall(_Lifecycle):
         self.facts = dispatch(self.run, "plugin_install", request)
         return self.facts
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        facts: dict[str, Any] = {"version": self.version}
+        try:
+            facts["on_disk"] = self.run.capability("plugin_status", {}).get("version_on_disk")
+        except DriverError:
+            pass
+        return facts
+
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         status = self.run.capability("plugin_status", {})
         wanted = facts.get("version") or self.version
@@ -1468,6 +1506,9 @@ class PluginRemove(PluginInstall):
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         return dispatch(self.run, "plugin_remove", {"operation_id": operation_id})
 
+    def settle_facts(self) -> dict[str, Any] | None:
+        return {}
+
     def verify(self, operation_id: str, facts: dict[str, Any], changes: list[dict[str, Any]], child: int | None = None) -> Verification:
         status = self.run.capability("plugin_status", {})
         observed = {"plugin": {"version_on_disk": status.get("version_on_disk")}}
@@ -1476,6 +1517,231 @@ class PluginRemove(PluginInstall):
         return Verification("passed", observed)
 
 
+
+
+# ---------------------------------------------------------------------- operation resolve
+
+def settle(run: Run, record: dict[str, Any]) -> tuple[str | None, dict[str, Any], str] | None:
+    """How ``operation resolve`` settles a standard write whose outcome is unknown: from the
+    instances, documents, files, job or host component it changes, since those are no fields
+    the adapter reads back (DCLI-035). Returns the outcome, or ``None`` with the reason it cannot
+    be told, ``busy`` when it may be told later; ``None`` alone for a write whose changed fields
+    are read back, such as ``doc undo``. It never guesses: an outcome comes only from a state
+    that tells it. A session that shows a dialog says so, with this resolve as the command to
+    run again (DCLI-066)."""
+    how = _SETTLE.get(record["command"])
+    if how is None or (record["command"] not in _FROM_CALL and "_settle" not in record):
+        return None  # also a record written before the runtime took these facts
+    try:
+        return how(run, record.get("_call") or {}, record.get("_settle") or {})
+    except _CannotTell as exc:
+        return None, {}, str(exc)
+    except DriverError as exc:
+        if exc.code == "E_HUMAN_REQUIRED":
+            raise
+        return None, {}, "busy"  # starting, busy or not answering now: it may tell later
+
+
+class _CannotTell(Exception):
+    """The state the outcome depends on does not tell it; the message says why."""
+
+
+def _session_now(run: Run, sid: str | None) -> dict[str, Any] | None:
+    """The session as it is now, or None when it has ended. One that starts, is busy or shows
+    a dialog says so (DCLI-204); one that is lost or unreachable, or missing from a list the
+    adapter calls incomplete, tells nothing."""
+    run._sessions = None
+    listed = run.sessions()
+    session = next((s for s in listed["items"] if s["id"] == sid), None)
+    if session is None:
+        if not listed.get("complete", True):
+            raise _CannotTell(f"session {sid} is missing from a session list the adapter calls incomplete")
+        return None
+    if session["state"] in ("lost", "unreachable"):
+        raise _CannotTell(f"session {sid} is {session['state']}")
+    if session["state"] != "ready":
+        run.gate_session(session)
+    return session
+
+
+def _running(run: Run, sid: str | None) -> dict[str, Any]:
+    session = _session_now(run, sid)
+    if session is None:
+        raise _CannotTell(f"session {sid} has ended")
+    return session
+
+
+def _opened(run: Run, sid: str, path: str) -> bool:
+    key = file_key(path)
+    return any(d.get("path") and file_key(d["path"]) == key for d in run.documents(sid))
+
+
+def _files_like(path: str) -> dict[str, Any]:
+    """The files beside ``path`` whose names start with its name, since an application may write
+    the file under another name, such as ``part.prt.1`` (DCLI-057), and the target's own time."""
+    import os
+
+    folder, name = os.path.split(os.path.abspath(path))
+    try:
+        names = sorted(n for n in os.listdir(folder) if n.startswith(name))
+    except OSError:
+        names = []
+    try:
+        mtime: float | None = os.path.getmtime(path)
+    except OSError:
+        mtime = None
+    return {"names": names, "mtime": mtime}
+
+
+def _file_written(path: str, facts: dict[str, Any]) -> tuple[bool | None, dict[str, Any]]:
+    """True when the file, or one named like it, was written since the facts were taken; False
+    when nothing changed; None when it cannot tell."""
+    now = _files_like(path)
+    new = sorted(set(now["names"]) - set(facts.get("names", [])))
+    observed = {file_key(path): {"exists": now["mtime"] is not None, **({"written": new} if new else {})}}
+    if "names" not in facts:
+        return None, observed
+    if new or (facts.get("mtime") is not None and now["mtime"] is not None and now["mtime"] != facts["mtime"]):
+        return True, observed
+    return False, observed
+
+
+def _settle_session_open(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    if "before" not in facts:
+        raise _CannotTell("the instances running before it was sent could not be read")
+    run._sessions = None
+    new = [s for s in run.sessions()["items"] if s["id"] not in set(facts["before"])]
+    if len(new) > 1:
+        raise _CannotTell(f"several instances started since it was sent: {', '.join(s['id'] for s in new)}")
+    if not new:
+        # An application may list a new instance only once it has started, so no new instance tells nothing yet.
+        return None, {}, "busy"
+    if new[0].get("owned") is False:
+        raise _CannotTell(f"instance {new[0]['id']} started since it was sent, but not by this tool")
+    session = _running(run, new[0]["id"])
+    observed: dict[str, Any] = {"session": {"id": session["id"], "state": session["state"]}}
+    path = facts.get("path")
+    if path:
+        opened = _opened(run, session["id"], path)
+        observed[file_key(path)] = {"open": opened}
+        if not opened:
+            return "partial", observed, ""
+    return "applied", observed, ""
+
+
+def _settle_session_close(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    sid = call.get("session")
+    session = _session_now(run, sid)
+    if session is not None:
+        return "not_applied", {"session": {"id": sid, "state": session["state"]}}, ""
+    drop_deferred(run, sid, None, "The session was closed without a save; the change was not verified.")
+    return "applied", {"session": {"id": sid, "state": "closed"}}, ""
+
+
+def _settle_doc_open(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    sid, path = call.get("session"), facts["path"]
+    _running(run, sid)
+    opened = _opened(run, sid, path)
+    return ("applied" if opened else "not_applied"), {file_key(path): {"open": opened}}, ""
+
+
+def _settle_doc_close(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    sid, doc_id = call.get("session"), call.get("document")
+    _running(run, sid)
+    opened = any(d.get("id") == doc_id for d in run.documents(sid))
+    if not opened:
+        drop_deferred(run, sid, doc_id, "The document was closed without a save; the change was not verified.")
+    return ("not_applied" if opened else "applied"), {"document": {"id": doc_id, "open": opened}}, ""
+
+
+def _settle_doc_save(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    """A save is settled by whether the document is clean: the fields it holds tell nothing."""
+    sid, doc_id = call.get("session"), call.get("document")
+    _running(run, sid)
+    doc = next((d for d in run.documents(sid) if d.get("id") == doc_id), None)
+    if doc is None:
+        raise _CannotTell("the document is no longer open")
+    observed = {"document": {"id": doc_id, "dirty": doc.get("dirty"), "disk": doc.get("disk"), "revision": doc.get("revision")}}
+    if doc.get("dirty") is False and doc.get("disk", "in_sync") == "in_sync":
+        return "applied", observed, ""
+    if doc.get("dirty") is True and facts.get("revision") is not None and doc.get("revision") == facts["revision"]:
+        return "not_applied", observed, ""
+    # Unsaved changes after a revision that moved may be a person's edits after a save that worked.
+    raise _CannotTell("the document has or may have unsaved changes, and it changed since the save was sent"
+                      if doc.get("dirty") is True and facts.get("revision") is not None else
+                      "the document has or may have unsaved changes")
+
+
+def _settle_doc_create(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    sid, path = call.get("session"), facts.get("path")
+    if not sid:
+        written, observed = _file_written(path, facts)
+        if written is None:
+            raise _CannotTell(f"the files beside {path} before it was sent are not recorded")
+        return ("applied" if written else "not_applied"), observed, ""
+    if "before" not in facts:
+        raise _CannotTell("the documents open before it was sent could not be read")
+    _running(run, sid)
+    new = [d for d in run.documents(sid) if d.get("id") not in set(facts["before"])]
+    if not new:
+        return "not_applied", {"document": {"exists": False}}, ""
+    if path:
+        new = [d for d in new if d.get("path") and file_key(d["path"]) == file_key(path)]
+    if len(new) != 1:
+        raise _CannotTell(f"other documents were opened in session {sid} since it was sent")
+    return "applied", {"document": {"id": new[0].get("id"), "exists": True}}, ""
+
+
+def _settle_doc_save_as(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    path = facts["path"]
+    written, observed = _file_written(path, facts)
+    if written:
+        return "applied", observed, ""
+    _running(run, call.get("session"))  # a dialog or busy instance may still write it
+    if written is None:
+        raise _CannotTell(f"the files beside {path} before it was sent are not recorded")
+    return "not_applied", observed, ""
+
+
+def _settle_job_cancel(run: Run, call: dict[str, Any], facts: dict[str, Any]) -> tuple[str | None, dict[str, Any], str]:
+    record = run.records.load(facts["job_operation"])
+    if record is None or "_job" not in record:
+        raise _CannotTell("the record of the job cannot be read")
+    record = poll_job(run, record)
+    state = record["_job"]["state"]
+    observed = {"job": {"id": record["_job"]["id"], "state": state}}
+    if state == "cancelled":
+        return "applied", observed, ""
+    if state == "completed":
+        return "not_applied", observed, ""
+    if state not in FINAL_JOB_STATES:
+        return None, observed, "busy"  # the job still runs; the cancel may still take effect
+    raise _CannotTell(f"the job ended {state}, which does not tell whether the cancel took effect")
+
+
+def _settle_plugin(run: Run, call: dict[str, Any], facts: dict[str, Any], install: bool) -> tuple[str | None, dict[str, Any], str]:
+    on_disk = run.capability("plugin_status", {}).get("version_on_disk")
+    observed = {"plugin": {"version_on_disk": on_disk}}
+    if not install:
+        return ("not_applied" if on_disk else "applied"), observed, ""
+    wanted = facts.get("version")
+    if wanted:
+        return ("applied" if on_disk == wanted else "not_applied"), observed, ""
+    if not on_disk:
+        return "not_applied", observed, ""
+    if "on_disk" in facts and on_disk != facts["on_disk"]:
+        return "applied", observed, ""
+    raise _CannotTell("the host component on disk is the one that was there before, or the one before is not recorded")
+
+
+_SETTLE = {
+    "session open": _settle_session_open, "session close": _settle_session_close, "doc open": _settle_doc_open,
+    "doc close": _settle_doc_close, "doc save": _settle_doc_save, "doc create": _settle_doc_create,
+    "doc save-as": _settle_doc_save_as, "job cancel": _settle_job_cancel,
+    "plugin install": lambda run, call, facts: _settle_plugin(run, call, facts, True),
+    "plugin remove": lambda run, call, facts: _settle_plugin(run, call, facts, False),
+}
+_FROM_CALL = {"session close", "doc close", "doc save"}  # settled from the session and document the call named
 
 
 # The standard writes a tool may register as long jobs (contract ``jobs.standard_long``, DCLI-065).

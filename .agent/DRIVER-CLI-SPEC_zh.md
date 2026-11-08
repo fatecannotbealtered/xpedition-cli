@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.8 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.0.9 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 
@@ -414,7 +414,7 @@
 
 ### DCLI-029 命令登记
 
-每个命令都必须先登记才能运行。内置命令和标准命令由运行时登记；每个领域命令由工具作者登记，软件要花一分钟以上的标准写命令由工具作者列进 `long_commands`（DCLI-065）。登记包括以下字段：
+每个命令都必须先登记才能运行。内置命令和标准命令由运行时登记；每个领域命令由工具作者登记，软件要花一分钟以上的标准写命令由工具作者列进 `long_commands`（DCLI-065），软件有几种文档时，这些种类由工具作者列进 `doc_kinds`（DCLI-210）。登记包括以下字段：
 
 <!-- contract:registration_fields -->
 | 字段 | 内容 |
@@ -537,7 +537,7 @@
 
 - `operation get --id <id> [--output <path>]` 必须返回一条操作记录。带 `--output` 时，把整条记录连同写操作生成的每个文件写进那个文件（DCLI-061）。
 - `operation list [--state <state>] [--batch <id>] [--limit <n>] [--offset <n>]` 必须按时间倒序列出操作记录。`--batch` 取一个批量操作的操作 ID，只列出它的各项（DCLI-064）。
-- `operation resolve --id <id>` 查清结果未知的写操作（DCLI-063）。不带 `--outcome` 时，运行时必须经适配层读回目标，与预览比较，把查到的结果连同 `resolved_by: read_back` 和读回的值一起登记并返回。
+- `operation resolve --id <id>` 查清结果未知的写操作（DCLI-063）。不带 `--outcome` 时，运行时必须经适配层读回目标，与预览比较，把查到的结果连同 `resolved_by: read_back` 和读回的值一起登记并返回。不改字段的标准写命令按它改动的东西读回：`session open` 和实例里的 `doc create` 与发出前的实例和文档对比，`session close`、`doc open` 和 `doc close` 查现在的实例和文档，`doc save` 看文档是否已无未保存的修改以及它的修订号，`doc save-as` 和文件模式下的 `doc create` 查以这个文件名或以它开头的名字写出的文件（DCLI-057），`job cancel` 看任务状态，`plugin install` 和 `plugin remove` 看磁盘上的版本。实例正在启动、正忙或被弹窗挡住时，先如实报告，并把这条命令作为人处理完后要再运行的命令（DCLI-204）。改动的东西读不到，或者看不出结果时，比如新实例还没列出来，或者文档有未保存的修改、而它在保存发出后又被改过，运行时禁止猜测结果，必须如实说明，这时允许使用 `--outcome`。
 - `operation resolve --id <id> --outcome applied|not_applied|partial --evidence <text>` 登记 Agent 用其他办法查到的结果，记为 `resolved_by: agent`。只有目标无法读回时才允许这样做；否则必须以 `E_VALIDATION` 拒绝。
 - 当前生效的授权范围没有覆盖该操作的目标和效果时，查清操作必须以 `E_FORBIDDEN` 拒绝，`details.scope` 说明缺什么（DSEC-017）。
 
@@ -1239,15 +1239,15 @@ Windows 上正在运行的程序不能被覆盖，但可以改名移走。所以
 - `path`：文件路径；从未保存过的新文档为 `null`；
 - `key`：只用于没有路径的文档，即它的目标键 `untitled:<session-id>/<n>`（DCLI-028）。适配层必须给出，因为 `<n>` 只有适配层知道。有路径的文档没有 `key`，目标键就是 `file:///<path>`；
 - `session`：文档所在的会话；文件模式下为 `null`；
-- `kind`：软件有几种文档时，这份文档的种类，如 `part`、`assembly`、`drawing`；登记了 `doc_kinds` 的命令，遇到其他种类的文档时以 `E_VALIDATION` 拒绝（DCLI-029）；
+- `kind`：软件有几种文档时，这份文档的种类，如 `part`、`assembly`、`drawing`。工具把这些种类列进自己的 `doc_kinds`，这时 `session open` 和 `doc create` 的 `--kind` 必须只接受这些种类，其他种类在动手之前就以 `E_USAGE` 拒绝。登记了 `doc_kinds` 的命令只能列其中的种类，遇到其他种类的文档时以 `E_VALIDATION` 拒绝（DCLI-029）；
 - `revision`：由适配层给出的不透明字符串，每次修改和每次保存都会变；文件模式下是文件内容的哈希；
 - `dirty`：有没有未保存的修改；软件无法判断时为 `null`，按可能有未保存的修改处理，关闭时需要 `--discard`（DCLI-212）；
 - `readonly`：能不能写；
 - `disk`：磁盘上的文件与文档的关系（DCLI-211）；
 - `extra`：软件特有的字段（DCLI-203）。
 
-为什么：有了 `revision` 和 `dirty`，令牌和保存预览都能发现任何修改，包括人做的修改；`disk` 则显示文件是否被别人改过。
-检查：🤖 驱动一致性测试 D03。
+为什么：有了 `revision` 和 `dirty`，令牌和保存预览都能发现任何修改，包括人做的修改；`disk` 则显示文件是否被别人改过。种类写错时当场拒绝，就不会被当成实例已经启动。
+检查：🤖 驱动一致性测试 D03；运行时单元测试检查 `--kind` 只接受工具的种类。
 
 ### DCLI-211 文档状态
 

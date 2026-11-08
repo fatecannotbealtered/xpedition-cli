@@ -4,6 +4,13 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-08
+
+### Changed
+
+- Built on tool-driver-cli-spec 1.0.9. `--kind` of `session open` and `doc create` takes only `project` or `board`, and another kind is refused with `E_USAGE` before anything starts. `operation resolve` settles a standard write whose outcome is unknown, such as `session open`, `doc open` or `doc save`, by reading back the instances, documents or files it changes; it refused them with `E_UNSUPPORTED` before.
+- The evaluation questions count a report in Chinese that says each change read back consistently, or was checked, as saying it was verified.
+
 ## [1.1.0] - 2026-11-08
 
 ### Added
