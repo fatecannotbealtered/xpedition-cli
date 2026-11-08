@@ -123,7 +123,7 @@ xpedition-cli 把状态保存在每个用户一个的目录里：`XPEDITION_CLI_
 | `hosts/` | 运行中的宿主组件的登记文件 | 宿主组件 |
 | `adapter/` | 适配层在两次调用之间要记住的东西 | xpedition-cli，代适配层写 |
 | `trash/` | `update` 移走的原生程序，下次运行时删除 | xpedition-cli |
-| `scope.json` | 默认位置的授权范围文件 | 只有人 |
+| `scope.json` | 默认位置的授权范围文件 | 人，或「授权」一节允许的 Agent |
 | `knowledge-links.json` | 团队知识的登记 | 只有 `knowledge create` 和 `knowledge delete` |
 
 每一项只由表中写明的一方来写。这个目录只允许当前用户读写：在 macOS 和 Linux 上权限是 `0700`，在 Windows 上 ACL 只授权给当前用户。xpedition-cli 在创建目录时设置好保护，`xpedition-cli context` 报告实际生效的保护方式：`posix_0700`、`windows_acl` 或 `none`。操作记录写不进去时，所有写操作都以 `E_IO` 拒绝，什么都不派发，读取照常。测试用临时的状态目录，从不碰真实的那个。

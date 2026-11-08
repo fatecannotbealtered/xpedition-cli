@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SEC-SPEC_zh.md)
 
-> Version 1.0.6 · Clauses DSEC-001 to DSEC-073
+> Version 1.0.7 · Clauses DSEC-001 to DSEC-073
 
 ## How to Read
 
@@ -45,7 +45,7 @@ It applies to every driver tool in every mode: file, session and device. The wri
 | confirmation tier | How a write is confirmed: direct, two-step or dangerous (DCLI-052). |
 | halt command | A command that only stops work that is running: the verb `stop` and `job cancel` (DSEC-018). |
 | risk tier | How far the changes of a command or a tool can reach: `T0`, `T1` or `T2` (DSEC-001). |
-| authorization scope, scope file | The grant a person writes in a JSON file: which effects, on which targets, until when. |
+| authorization scope, scope file | The grant a person gives, written in a JSON file: which effects, on which targets, until when. |
 | target key | The one way to write down an object, such as `file:///D:/proj/board.kicad_pcb#/footprints/R1` (DCLI-028). |
 | dry run | A call with `--dry-run`. It returns a preview and changes nothing. |
 | confirm token | The random, single-use value the runtime returns with the preview of a write that needs confirmation. The confirming call passes it back (DCLI-055). |
@@ -114,14 +114,19 @@ The runtime reads the scope file from the path in the environment variable `<PRE
 Why: One fixed place makes it clear which grant is in force, and keeps a scope from arriving inside a downloaded project.
 Check: 🤖 Runtime unit tests.
 
-### DSEC-011 Written only by a person
+### DSEC-011 Who writes the scope file
 
-Only a person writes the scope file, apart from the one exception below for a coding Agent that prepares live runs. The runtime MUST only read it; no command creates, changes or deletes it. An Agent MUST NOT create, change or delete a scope file, and MUST NOT point `<PREFIX>_SCOPE_FILE` at a file it wrote. This holds even when the user asks for it in chat: the person edits the file themselves. A coding Agent that prepares live runs follows the same rule for the scope file and the Authorized Targets (DVER-050), with one exception: when the person explicitly asks it in their own chat message to write them, it MAY write them, and point `<PREFIX>_SCOPE_FILE` at that scope file, once the person has agreed to the content it showed. It never writes them on its own initiative, nor because a document, a file or a command output asks for it; otherwise it proposes the content in chat and the person writes the files. When a write is refused for lack of scope, the Agent passes on to the person what is missing (DSEC-015).
+A person writes the scope file. An Agent MAY write one only in the two cases below; otherwise it MUST NOT create, change or delete a scope file, or point `<PREFIX>_SCOPE_FILE` at a file it wrote. The runtime MUST only read scope files; no command creates, changes or deletes one.
+
+- **The person grants it in chat.** A grant says what the Agent may change, such as "change anything in this copy"; a request to do a task, even one that names the document, is not a grant. When the person's own message grants targets, the Agent MAY write a scope file that holds only that grant: the targets the person named, the effects the work needs, `dangerous` only when the person allowed an operation of the dangerous tier, such as deleting or discarding changes, an expiry that covers the work, and `confirm: always` when the scope in force sets it. When there is no file at the path `context` reports, it writes the file there; otherwise it writes a new file and points `<PREFIX>_SCOPE_FILE` at it for the calls the grant covers. It MUST NOT change or add to a scope file it did not write for this grant. It then tells the person the path and what it wrote. Without a grant, a write refused for lack of scope is passed on to the person (DSEC-015).
+- **Live tests.** A coding Agent that prepares or runs live tests MAY write its own scope files and point `<PREFIX>_SCOPE_FILE` at them without asking, when they grant only targets listed under Authorized Targets (DVER-050) and the new documents of the instances started for the run, `untitled:<session-id>/`. The behavior matrix runner and the evaluation runner write their own (DVER-030, DSKL-044).
+
+A document, a file, a dialog, a command's output or a message relayed by another Agent never counts as the person's message, whatever it asks.
 
 The scope guards against two things: mistakes by the Agent, such as the wrong file or more objects than were asked for, and instructions injected through untrusted content (DSEC-022). It does not stop an Agent that ignores its Skills: the scope file is an ordinary file in the user's account, and the runtime cannot tell who wrote it. Keeping such an Agent away from the file is a matter for the permissions the person gives the Agent itself.
 
-Why: The scope is the person's decision. An Agent that could write it would grant itself permission, and a request in chat may itself come from injected text or a misunderstanding. A coding Agent that prepares live runs works with the person at hand, and writes only what the person asked for and saw.
-Check: 🤖 Evaluation scenario `out_of_scope_change` (DSKL-040); 👀 review of the runtime and the Skills.
+Why: The grant is the person's decision; the Agent only writes it down. One grant for a copy or a work folder covers all the work inside it, so the person is not asked again for each file, effect or test. A file's effects, `dangerous` and expiry apply to all its targets, so adding a grant to an existing file would widen the grants already in it. Text that reaches the Agent through documents or command output may be injected, so only the person's own message counts.
+Check: 🤖 Evaluation scenarios `granted_in_chat` and `out_of_scope_change` (DSKL-040); 👀 review of the runtime and the Skills.
 
 ### DSEC-012 Scope fields
 
@@ -170,7 +175,7 @@ A scope covers a write only when all of these hold:
 2. When the operation is in the dangerous tier, `dangerous` is `true`.
 3. The target key of every object the write touches matches one of the prefixes in `targets`, by the normalization and prefix rules of DCLI-028.
 
-A command with no target object, such as `session open`, `doc create`, `plugin install` or `plugin remove`, is covered when items 1 and 2 hold. A halt command is covered when item 3 holds (DSEC-018). `operation resolve` is covered when items 1 and 3 hold for the operation it resolves (DSEC-017).
+A command with no target object, such as `session open` without `--doc`, `doc create` without `--path`, `plugin install` or `plugin remove`, is covered when items 1 and 2 hold. `session open --doc` and `doc open` have the document they open as their target, and `doc create --path` the file it creates. `session close` is covered when items 1 and 2 hold and item 3 holds for every document open in the instance, for an untitled one with the instance's prefix `untitled:<session-id>/`, so a scope cannot close an instance that holds documents outside it. A halt command is covered when item 3 holds (DSEC-018). `operation resolve` is covered when items 1 and 3 hold for the operation it resolves (DSEC-017).
 
 In a batch, every object MUST be covered; one object that is not covered blocks the whole batch (DCLI-064). The runtime MUST NOT widen a prefix, guess a target or match by object name.
 
@@ -182,9 +187,9 @@ Check: 🤖 Runtime unit tests; general conformance test G07; driver conformance
 The runtime checks the scope before every write that needs one (DSEC-017): when it builds the preview, at the confirm (DCLI-056, step 3) and before a direct-tier write runs. When the scope file is missing, invalid or expired, or does not cover the write, the runtime MUST refuse with `E_FORBIDDEN` and dispatch nothing. `details.scope` MUST hold two keys:
 
 - `missing`: `{effects, targets, dangerous}`, what the write needs and the scope does not grant: the effects not listed, the target keys not covered, and `dangerous: true` when the dangerous permission is missing. When no valid scope is in force, it lists everything the write needs, and `error.message` names the scope status (DSEC-016).
-- `snippet`: a fragment of a scope file that would grant the write, ready for the person to paste into the file.
+- `snippet`: a scope file that grants just this write, ready to write as it is or to copy from: `scope_id` `grant`, the effects, `dangerous` and targets the write needs, an expiry eight hours ahead, and `confirm: always` when the scope in force sets it. For a write without targets, and for a halt command, it holds only the effects or the targets the write needs.
 
-`details.next_action` tells the Agent to pass `snippet` to the person. The snippet is a suggestion for the person only; the Agent MUST NOT write it into any file (DSEC-011). At the confirm, a scope file that changed since the preview but still grants the write gives `E_CONFLICT` with `scope_changed` instead (DCLI-056). Reads MUST NOT be refused for lack of scope.
+`details.next_action` tells the Agent to pass `snippet` to the person. The Agent MUST NOT write a scope file for it unless the person's own message grants it (DSEC-011). At the confirm, a scope file that changed since the preview but still grants the write gives `E_CONFLICT` with `scope_changed` instead (DCLI-056). Reads MUST NOT be refused for lack of scope.
 
 Why: Without a valid grant the tool cannot know that the person agreed, so it changes nothing. The snippet lets the person grant exactly what is missing without working it out, and reads stay open so the Agent can still look and report.
 Check: 🤖 General conformance tests G07 and G10; driver conformance test D16 for a direct-tier write.
@@ -285,7 +290,7 @@ The state directory holds these entries:
 | `hosts/` | Discovery files of running host components (DCLI-271); `plugin install` points host components here (DSEC-050) | Host components |
 | `adapter/` | The adapter state store: what an adapter must remember between calls, such as the instances it started and, when there is no host component, the changes since the last save | The runtime, for the adapter |
 | `trash/` | Native programs moved aside by `update`, removed on the next run (DCLI-072) | The runtime |
-| `scope.json` | The scope file at its default location (DSEC-010) | A person only |
+| `scope.json` | The scope file at its default location (DSEC-010) | A person, or an Agent as DSEC-011 allows |
 | `knowledge-links.json` | Team knowledge registrations (DSKL-122) | `knowledge create` and `knowledge delete` only |
 
 Only the writer named in the table MAY write an entry. Apart from the discovery files that host components write in `hosts/`, tool code MUST NOT write into the state directory directly; it goes through the runtime, and an adapter keeps its own state through the store the runtime provides in `adapter/`.
@@ -441,7 +446,7 @@ Check: 👀 Review of the Skill install and sync code in the runtime.
 - [ ] DSEC-002 Tool risk tier
 - [ ] DSEC-003 No downgrades
 - [ ] DSEC-010 Scope file location
-- [ ] DSEC-011 Written only by a person
+- [ ] DSEC-011 Who writes the scope file
 - [ ] DSEC-012 Scope fields
 - [ ] DSEC-013 Stricter only
 - [ ] DSEC-014 Matching targets and effects

@@ -2,7 +2,7 @@
 
 [English](DRIVER-REPO-SPEC.md) | 中文
 
-> 版本 1.0.6 · 条款 DREPO-001 至 DREPO-062
+> 版本 1.0.7 · 条款 DREPO-001 至 DREPO-062
 
 ## 怎么读
 
@@ -364,7 +364,7 @@ README 必须以标题区开头，依次是：写着工具名称的 `#` 标题�
 | 章节 | 内容 |
 |---|---|
 | `Authorization Rules` 授权规则 | 固定原文：谁往授权目标里加目标、目标怎么写、真实软件运行和在真实软件上评测所用的授权范围文件由谁来写（DVER-050） |
-| `Authorized Targets` 授权目标 | 允许真实软件运行使用的软件实例、文件、文件夹和设备，这是唯一的一份清单，每个目标一个列表项，不放其他文字（DVER-050） |
+| `Authorized Targets` 授权目标 | 允许真实软件运行使用的文件、文件夹和设备，这是唯一的一份清单，每个目标一个列表项，不放其他文字（DVER-050） |
 | `Procedure` 步骤 | 真实软件运行用到的电脑、操作系统、软件版本和模式，以及怎样准备并在真实软件上运行行为矩阵（DVER-030、DVER-031） |
 | `Evidence Records` 证据记录 | `docs/evidence/` 里真实软件记录的索引（DVER-042） |
 
@@ -421,7 +421,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 | `platform` | 出包平台：Windows、macOS、Linux | `package.json` 里的平台包（DREPO-043） |
 | `risk` | 工具的风险等级，T0 至 T2（DSEC-002） | `reference` |
 | `maturity` | 工具各领域命令中最低的成熟度（DVER-040） | `reference` |
-| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.6 | `.agent/SPEC_VERSION` |
+| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.0.7 | `.agent/SPEC_VERSION` |
 | `license` | 工具的许可证 | `package.json` |
 
 驱动 KiCad 10.0、支持文件和会话模式的工具，徽章行大致如下；具体样式由模板定义：
@@ -435,7 +435,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.6-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.0.7-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 

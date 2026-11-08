@@ -6,6 +6,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Changed
 
+- Specification tool-driver-cli-spec 1.0.7. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again, and the Skill writes a scope file itself only for what the person's own message grants.
 - Every command's behavior matrix passed live on Xpedition 2604 with 1.1, so every command is verified again.
 - Reading a board's geometry takes about half the time: net names are read without wrapping each net object, and the readers of copper alone skip the silkscreen. On the flex board used to accept 1.1, the via create preview went from over 25 s, which ended it, to 9 s.
 - `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.

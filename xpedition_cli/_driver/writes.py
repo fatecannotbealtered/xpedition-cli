@@ -26,7 +26,7 @@ from .output import Result
 from .records import conflict_locked, expired, expiry, utc_now
 from .registry import Command, Tiers
 from .runtime import READ_DEADLINE_MS, Inputs, Run, Where
-from .targets import covers, file_key, kind_of, path_of
+from .targets import covers, file_key, kind_of, normalize, path_of
 
 STATE_STOPS_BATCH = {"E_BUSY", "E_HUMAN_REQUIRED", "E_BACKEND_UNAVAILABLE"}
 
@@ -57,6 +57,7 @@ class WriteSpec:
         self.secrets: dict[str, str] = {}  # secret inputs, never stored in clear
         self.pending_changes: list[dict[str, Any]] | None = None  # the changes of the current preview
         self.strict_facts = False  # apply must report change, delivery and persistence
+        self.scope_keys: list[str] = []  # keys the scope must also cover, without locking them (DSEC-014)
 
     # The parts a write fills in --------------------------------------------------------
 
@@ -350,6 +351,15 @@ def file_checks(record: dict[str, Any], changes: list[dict[str, Any]]) -> list[d
     return [{"target": key, "field": "exists", "origin": "tool"} for key in record.get("_files", []) if key not in have]
 
 
+def _mark_unread(record: dict[str, Any], read: bool) -> None:
+    """A receipt whose document was not read after the write still names it as it was before;
+    the next save draws nothing from it (DCLI-058)."""
+    if (record.get("receipt") or {}).get("document") and not read:
+        record["_document_unread"] = True
+    else:
+        record.pop("_document_unread", None)
+
+
 def to_read_back(change: str, delivery: str, persistence: str, expected: list[dict[str, Any]]) -> bool:
     """A completed write is read back when its reply reports a lasting effect, and also when its
     preview or the files it names expect one, whatever the reply says (DCLI-057). A call and a
@@ -426,11 +436,14 @@ def made(path: str) -> bool:
 
 def verify_files(facts: dict[str, Any], changes: list[dict[str, Any]]) -> Verification:
     """Every produced file exists; its size and SHA-256 are recorded. A folder an ``output`` flag
-    names counts as made when it holds something; the files in it are those in ``files`` (DCLI-057)."""
+    names counts as made when it holds something; the files in it are those in ``files``. A file
+    listed with ``requested_path`` counts for that path: the application wrote it under another
+    name, such as a numbered version (DCLI-057)."""
     paths = [f["path"] for f in facts.get("files", [])]
+    stand_ins = {normalize(file_key(f["requested_path"])) for f in facts.get("files", []) if isinstance(f.get("requested_path"), str)}
     for change in changes:
         path = path_of(change["target"])
-        if path and change.get("field") == "exists" and path not in paths:
+        if path and change.get("field") == "exists" and path not in paths and normalize(file_key(path)) not in stand_ins:
             paths.append(path)
     if not paths:
         return Verification("incomplete", notes=["The write named no file to check."])
@@ -481,7 +494,7 @@ class Engine:
                            "Run the command again without --confirm to see the new preview.")
         dangerous = tier == "dangerous"
         if command.needs_scope:
-            self.check_scope(command, dangerous, keys, spec.halt)
+            self.check_scope(command, dangerous, keys + spec.scope_keys, spec.halt)
         if not spec.halt and not call.confirm:
             # A locked target gets no token: the write could not run (DCLI-060).
             busy = run.locks.holders(keys)
@@ -573,7 +586,6 @@ class Engine:
                "expired": f"the scope {scope.scope_id} has expired", "granted": f"the scope {scope.scope_id} does not cover it"}[status]
         raise DriverError(
             "E_FORBIDDEN", f"This write is not authorized: {why}. Nothing was sent.", scope=missing,
-            next_action="Pass `details.scope.snippet` to the person; only the person edits the scope file, then run the command again.",
         )
 
     # ------------------------------------------------------------------ preview
@@ -707,6 +719,7 @@ class Engine:
                       state="planned", preview=preview, planned_at=utc_now())
         record["_seq"] = time.time_ns()  # newest first, also within one second (DCLI-035)
         record["_call"] = {"session": (spec.where.session or {}).get("id"), "document": (spec.where.document or {}).get("id"),
+                           "path": (spec.where.document or {}).get("path"),
                            "device": (spec.where.device or {}).get("id"), "mode": spec.where.mode}
         request = spec.stored_request()
         if request is not None:
@@ -790,7 +803,7 @@ class Engine:
         run = self.run
         scope = run.scope
         if spec.command.needs_scope:
-            self.check_scope(spec.command, tier == "dangerous", keys, spec.halt)
+            self.check_scope(spec.command, tier == "dangerous", keys + spec.scope_keys, spec.halt)
             if scope.scope_id != (old["scope_id"] or "") or scope.hash != old["scope_hash"]:
                 raise conflict("scope_changed", "The scope file changed after the preview; nothing was sent.",
                                "Run the command again without --confirm to preview it under the new scope.")
@@ -1022,7 +1035,7 @@ class Engine:
             # The outcome is known; a read that hangs from here on leaves it as it is (DCLI-278).
             run.settle_hang = lambda note: self.finish_single(spec, record, out, hung=True)
         try:
-            self._decorate(spec, receipt, fresh=not hung)
+            read = self._decorate(spec, receipt, fresh=not hung)
         finally:
             if not hung:
                 run.settle_hang = None
@@ -1042,6 +1055,7 @@ class Engine:
             run.dispatching = None
             raise error
         record["receipt"] = receipt
+        _mark_unread(record, read)
         if out["job"]:
             job = out["job"]
             record["_job"] = {"id": job["id"], "state": job.get("state", "running"), "started_at": utc_now(),
@@ -1148,15 +1162,19 @@ class Engine:
         return DriverError(code, message or code, dispatch_state=dispatch_state, receipt=receipt, untrusted=untrusted,
                            next_action=details_next, **extra)
 
-    def _decorate(self, spec: WriteSpec, receipt: dict[str, Any], fresh: bool = True) -> None:
+    def _decorate(self, spec: WriteSpec, receipt: dict[str, Any], fresh: bool = True) -> bool:
+        """Returns whether the receipt's document was read after the write."""
         if spec.session_ref():
             receipt["session"] = spec.session_ref()
         doc = spec.where.document
+        now = None
         if doc is not None:
-            receipt["document"] = (self._fresh_document(spec) if fresh else None) or (
-                {"id": doc["id"], "revision": doc["revision"], "dirty": doc["dirty"]})
+            now = self._fresh_document(spec) if fresh else None
+            # Not read again: the revision before the write, and dirty unknown (DCLI-061).
+            receipt["document"] = now or {"id": doc["id"], "revision": doc["revision"], "dirty": None}
         if self.run.fake or (spec.where.device or {}).get("simulated"):
             receipt["simulated"] = True
+        return now is not None
 
     def _fresh_document(self, spec: WriteSpec) -> dict[str, Any] | None:
         doc = spec.where.document
@@ -1208,11 +1226,12 @@ class Engine:
             if not hung:
                 run.settle_hang = lambda note: hung_batch(index, target, child, child_keys, out)
             try:
-                self._decorate(spec, receipt, fresh=not hung)
+                read = self._decorate(spec, receipt, fresh=not hung)
             finally:
                 if not hung:
                     run.settle_hang = None
             child["receipt"] = receipt
+            _mark_unread(child, read)
             error = out["error"]
             if out["job"]:
                 ok, code = True, None

@@ -261,7 +261,7 @@ def doctor(run: Run) -> Result:
                "missing": f"There is no scope file at {scope.path}; reads work, writes are refused.",
                "expired": f"The scope {scope.scope_id} expired at {scope.data.get('expires_at')}; writes are refused.",
                "invalid": f"The scope file {scope.path} is invalid: {scope.problem}."}[scope.status]
-    checks.append(_check("authorization", status, message, f"Ask the person to write or fix the scope file at {scope.path}."))
+    checks.append(_check("authorization", status, message, f"Writes need a grant: the person writes the scope file at {scope.path}, or grants targets in their own message for you to write."))
     checks.append(_skills_version(run))
     checks.append(_update_check(run))
     probe: dict[str, Any] | None = None
@@ -480,13 +480,15 @@ def operation_get(run: Run) -> Result:
     record = _record(run, run.call.values["--id"])
     data = public(record)
     if run.call.has("--output"):
-        # The whole record, however many files the write produced, goes to a new file (DCLI-008).
+        # The whole record, however many files the write produced, and a long job's result go
+        # to a new file (DCLI-008).
         path = run.call.values["--output"]
         if os.path.exists(path):
             raise usage(f"{path} exists; --output writes a new file and never replaces one.", "--output")
+        full = {**data, "result": record["_job"]["result"]} if "result" in (record.get("_job") or {}) else data
         try:
             with open(path, "x", encoding="utf-8", newline="\n") as handle:
-                handle.write(json.dumps(data, ensure_ascii=False, indent=1))
+                handle.write(json.dumps(full, ensure_ascii=False, indent=1))
         except OSError as exc:
             raise DriverError("E_IO", f"Cannot write {path}: {exc.strerror}.") from None
     if isinstance(data.get("receipt"), dict):
@@ -519,8 +521,7 @@ def operation_resolve(run: Run) -> Result:
     missing = run.scope.missing(record["effects"], False, keys)
     if missing is not None:
         raise DriverError("E_FORBIDDEN", f"Resolving {operation_id} needs a scope that covers its effects and targets ({run.scope.status}).",
-                          scope=missing,
-                          next_action="Pass `details.scope.snippet` to the person; only the person edits the scope file.")
+                          scope=missing)
     found, observed, why = _read_outcome(run, record)
     outcome = call.values.get("--outcome")
     by_hand = (f"`{run.tool.name} operation resolve --id {operation_id} --outcome applied|not_applied|partial "

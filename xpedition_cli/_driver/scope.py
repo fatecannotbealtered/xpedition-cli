@@ -11,12 +11,15 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from .contract import Contract
 from .records import expired
 from .targets import covers
+
+SNIPPET_HOURS = 8  # the expiry a whole-file snippet suggests (DSEC-015)
 
 UTC = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$")
 
@@ -53,6 +56,15 @@ class Scope:
             return None
         missing = {"effects": need_effects, "targets": need_targets, "dangerous": need_dangerous}
         snippet: dict[str, Any] = {}
+        wanted = list(dict.fromkeys(e for e in effects if e != "observe"))
+        if not halt and wanted and keys:
+            # A scope file that grants just this write, ready to write as it is (DSEC-015).
+            until = datetime.now(timezone.utc) + timedelta(hours=SNIPPET_HOURS)
+            snippet = {"scope_id": "grant", "effects": wanted, "dangerous": bool(dangerous),
+                       "targets": list(dict.fromkeys(keys)), "expires_at": until.strftime("%Y-%m-%dT%H:%M:%SZ")}
+            if self.confirm_always:
+                snippet["confirm"] = "always"
+            return {"missing": missing, "snippet": snippet}
         if need_effects:
             snippet["effects"] = need_effects
         if need_targets:

@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.6 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.0.7 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 
@@ -169,7 +169,7 @@
 
 ### DCLI-008 响应大小
 
-用默认参数调用时，成功信封必须不超过 8000 个字符，错误信封必须不超过 2000 个字符，按整个信封计。`E_CONFIRMATION_REQUIRED` 信封带着预览，必须按成功信封的上限计，即不超过 8000 个字符（DCLI-054）。列表靠分页保持在上限之内（DCLI-006）。结果可能大到放不下的命令，比如返回文件内容或长日志的命令，必须提供 `--output <path>`：完整结果写进这个文件，响应里只给摘要和文件路径。
+用默认参数调用时，成功信封必须不超过 8000 个字符，错误信封必须不超过 2000 个字符，按整个信封计。`E_CONFIRMATION_REQUIRED` 信封带着预览，必须按成功信封的上限计，即不超过 8000 个字符（DCLI-054）。列表靠分页保持在上限之内（DCLI-006）。结果可能大到放不下的命令，比如返回文件内容或长日志的命令，必须提供 `--output <path>`：完整结果写进这个文件，响应里只给摘要和文件路径。预演的预览先按确认时的办法缩短（DCLI-054）；仍然放不下时，下一步要求一次少点几个对象。其他仍然超长的成功信封以 `E_USAGE` 失败，它的下一步只提这条命令有的办法：`--fields`，列表的 `--limit`，带 `--output` 的读命令的 `--output`，以及把长任务的整份操作记录（包括结果）写进文件的 `operation get --output`。写操作已经执行时，它说明这一点并给出操作编号，免得 Agent 再发一次。
 
 为什么：工具返回的每个字符都占用 Agent 的上下文，固定上限让每次调用都不贵。
 检查：🤖 通用一致性测试 R04 检查大小上限。
@@ -642,7 +642,7 @@
 | `operation_id` | 计划中的操作的 ID |
 | `command` | 命令路径 |
 | `action` | 一句话说明要做什么 |
-| `target` | `{key, kind, label}`；`key` 是目标键（DCLI-028）。没有目标对象的命令没有这个字段，如 `session open`、`session close`、`doc create`、`knowledge create`、`knowledge delete`、`plugin install`、`plugin remove`、`operation resolve` |
+| `target` | `{key, kind, label}`；`key` 是目标键（DCLI-028）。没有目标对象的命令没有这个字段，如不带 `--doc` 的 `session open`、`session close`、不带 `--path` 的 `doc create`、`knowledge create`、`knowledge delete`、`plugin install`、`plugin remove`、`operation resolve` |
 | `effects` | 命令的效果 |
 | `tier` | `direct`、`two_step` 或 `dangerous` |
 | `summary` | 改动的条数，按 `origin` 和目标类型分别计数 |
@@ -724,7 +724,7 @@
 | `create` | 对象存在，且带有给定的字段 |
 | `delete` | 对象已不存在 |
 | `import` | 导入的对象都在，按数量核对 |
-| `artifact` 类写操作，如 `export`、`render`、`doc save-as` | 生成的每个文件都存在，并记下路径、大小和 SHA-256；可以有多个文件。`output` 参数指明的文件夹里有文件或子文件夹。回执不对软件自己写出的字节内容作任何声明 |
+| `artifact` 类写操作，如 `export`、`render`、`doc save-as` | 生成的每个文件都存在，并记下路径、大小和 SHA-256；可以有多个文件。`output` 参数指明的文件夹里有文件或子文件夹。软件没用调用给的文件名、另起名字写出文件时（比如把 `part.prt` 写成 `part.prt.1`），适配层在 `files` 里列出它，并在 `requested_path` 里写上调用给的路径；这个文件就算作那个路径的文件。回执不对软件自己写出的字节内容作任何声明 |
 | 会话模式下的 `doc save` | 重新读取保存后的文件，在其中找到被改的字段，且文档的 `saved` 字段为 `true`。软件要把文档关掉再打开才能读这个文件时，适配层改为从实例读这些字段，只有看到磁盘上的文件确实变了才报 `saved: true`。适配层判断不了时，验证为 `incomplete` |
 | 长任务 | 任务结束时核实它的产出，和同一命令的单次调用一样（DCLI-065） |
 
@@ -744,7 +744,7 @@
 
 效果为 `artifact` 的写操作，如 `doc save-as`、`export`、`render`，会新建文件。它的回执必须报告 `change: not_applicable` 和 `persistence: saved`，并按 DCLI-057 核实。
 
-`doc save` 的预览必须列出上次保存以来的全部修改：本工具做的修改标为 `origin: tool`；不是本工具做的修改，比如人在软件里手动改的，标为 `origin: external`。上次保存以来的修改清单由宿主组件保存，没有宿主组件时由适配层保存（DCLI-277）。软件说不清改了什么时，只要文档版本在本工具没有写入的情况下变了，预览也必须至少列出一条外来修改，不带字段细节。
+`doc save` 的预览必须列出上次保存以来的全部修改：本工具做的修改标为 `origin: tool`；不是本工具做的修改，比如人在软件里手动改的，标为 `origin: external`。上次保存以来的修改清单由宿主组件保存，没有宿主组件时由适配层保存（DCLI-277）。软件说不清改了什么时，只要文档版本在本工具没有写入的情况下变了，预览也必须至少列出一条外来修改，不带字段细节。运行时拿文档版本和本工具在这个会话里对这份文档最后成功完成的那次写操作的回执比较（DCLI-061）；那次写操作之后没能重新读到文档时，就不做这项比较。由软件运行的长任务，在工具第一次看到它结束时读文档，所以在此之前人做的修改会算作工具的修改。
 
 文档上有结果未知的写操作时，它的目标一直锁着（DCLI-060），这把锁会挡住整个文件的保存。这时保存预览必须在 `blocked_by` 里列出每个这样的操作，并给出查清它的 `operation resolve` 命令（DCLI-063）。
 
@@ -780,9 +780,9 @@
 
 - `operation_id`、`command`、`target`（没有目标对象的命令没有这一项，DCLI-054）、`effects`、`tier`；
 - `outcome`，即下表的五个维度；
-- `observed`：读回的值，每个键一项：适配层 `read_back` 报告的每个目标键（DCLI-260）；生成的每个文件，键为 `file:///<path>`，带 `path`、`bytes` 和 `sha256`；没有目标对象的命令，键为对象名，如 `session`、`document` 或 `plugin`；
+- `observed`：读回的值，每个键一项：适配层 `read_back` 报告的每个目标键（DCLI-260）；生成的每个文件，键为 `file:///<path>`，带 `path`、`bytes` 和 `sha256`；没有目标对象的命令和 `session open`，键为对象名，如 `session`、`document` 或 `plugin`；
 - `mismatched`：每个不一致的字段，写成 `<field>@<key>`，`<key>` 是它在 `observed` 里的键；
-- `session` `{id, generation}` 和 `document` `{id, revision, dirty}`；
+- `session` `{id, generation}` 和 `document` `{id, revision, dirty}`；`document` 是写操作之后重新读到的状态，长任务在任务结束时读；读不到时为写之前的版本，`dirty` 为 null；
 - `notes`：补充说明；
 - `simulated: true`：结果来自模拟设备时带上（DSEC-062）；
 - `more_files` `{count, command}`：写入生成的文件多于契约的 `receipt.listed_files`（10 个）时带上。`observed` 只保留这么多个，缺失的文件排在前面，`count` 是略去的个数；`command` 是把整条记录写进文件的 `operation get --output` 命令（DCLI-008）。
@@ -1515,7 +1515,7 @@ CLI 与宿主组件之间必须只在本机连接：Windows 用命名管道，ma
 
 ### DCLI-280 协议版本
 
-协议版本必须遵循 SemVer，并必须同时写在契约和宿主组件的清单里。本规范定义的协议版本是 1.2.0。
+协议版本必须遵循 SemVer，并必须同时写在契约和宿主组件的清单里。本规范定义的协议版本是 1.3.0。
 
 为什么：双方在交换任何写入之前就能比较版本。
 检查：🤖 驱动一致性测试 D20。

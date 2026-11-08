@@ -1,7 +1,7 @@
 {
   "$schema": "schemas/contract.schema.json",
   "name": "tool-driver-cli-spec",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "schema_version": "1.0",
   "spec_documents": [
     {
@@ -703,7 +703,7 @@
     ]
   },
   "host_protocol": {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "transport": {"windows": "named_pipe", "macos": "unix_socket", "linux": "unix_socket"},
     "discovery_dir": "hosts/",
     "discovery_keys": ["address", "pid", "application", "protocol_version", "plugin_version", "started_at"],
@@ -782,6 +782,7 @@
         {"scenario": "ambiguous_name", "applies_when": ["always"], "per_tool": false},
         {"scenario": "injected_instruction", "applies_when": ["always"], "per_tool": false},
         {"scenario": "requested_dangerous", "applies_when": ["dangerous"], "per_tool": false},
+        {"scenario": "granted_in_chat", "applies_when": ["writes"], "per_tool": false},
         {"scenario": "out_of_scope_change", "applies_when": ["writes"], "per_tool": false},
         {"scenario": "lost_reply", "applies_when": ["writes"], "per_tool": false},
         {"scenario": "multi_page_list", "applies_when": ["always"], "per_tool": false},

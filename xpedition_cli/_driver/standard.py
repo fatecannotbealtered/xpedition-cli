@@ -365,13 +365,17 @@ def poll_job(run: Run, record: dict[str, Any]) -> dict[str, Any]:
         job["action"] = status.get("action", "other")
     if status["state"] in FINAL_JOB_STATES:
         _settle_job(run, record, status)
+        if status["state"] in ("completed", "partial"):
+            run.records.save(record)  # the outcome is kept when the read below hangs (DCLI-278)
+            _job_document(record, _read_document(run, record))
     run.records.save(record)
     return record
 
 
 def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: Verification | None = None) -> None:
     """Complete the job's operation record with a full receipt (DCLI-065). ``made`` is the
-    verification a standard command's worker already did with that command's own read-back."""
+    verification a standard command's worker already did with that command's own read-back.
+    The receipt's document is still the one the job started on; ``_job_document`` replaces it."""
     from .writes import Engine as _Engine, to_read_back
 
     job, state = record["_job"], status["state"]
@@ -402,15 +406,41 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
     if isinstance(status.get("native_message"), str):
         receipt["notes"].append(f"The application said: {status['native_message']}")
     record["receipt"] = receipt
+    if receipt.get("document"):
+        receipt["document"] = {**receipt["document"], "dirty": None}
+        record["_document_unread"] = True
     cause = "E_INTERRUPTED" if state == "cancelled" else status.get("code")
     ok, code = _Engine(run).derive(receipt, cause)
     job.update(ok=ok, code=code, finished_at=utc_now(), result=status.get("result", {}))
     record["state"] = record_state(receipt, code)
-    record["finished_at"] = job["finished_at"]
+    record.update(finished_at=job["finished_at"], _finished=time.time_ns())
     if record["state"] == "unknown":
         run.locks.hold_as(record["operation_id"], "unknown", record.get("_keys", []))
     else:
         run.locks.release(record["operation_id"])
+
+
+def _read_document(run: Run, record: dict[str, Any]) -> dict[str, Any] | None:
+    """The job's document as the job left it, or None when it cannot be read (DCLI-058)."""
+    doc, call = (record.get("receipt") or {}).get("document"), record.get("_call") or {}
+    if not doc or not (call.get("session") or call.get("path")):
+        return None
+    try:
+        items = run.documents(call["session"]) if call.get("session") else run.documents(None, call["path"])
+    except DriverError:
+        return None
+    now = next((d for d in items if d.get("id") == doc["id"]), None)
+    if now is None or not now.get("revision"):
+        return None
+    return {"id": now["id"], "revision": now["revision"], "dirty": now.get("dirty")}
+
+
+def _job_document(record: dict[str, Any], document: dict[str, Any] | None) -> None:
+    """The receipt names the document as the job left it, so the next save lists no change from
+    outside (DCLI-058). Without it, the record stays marked and the save draws nothing from it."""
+    if document is not None and (record.get("receipt") or {}).get("document"):
+        record["receipt"]["document"] = document
+        record.pop("_document_unread", None)
 
 
 def _job_changes(record: dict[str, Any]) -> list[dict[str, Any]]:
@@ -474,6 +504,10 @@ def run_write_job(run: Run, record: dict[str, Any]) -> None:
                 status["_note"] = note
         record["_job"]["state"] = status["state"]
         _settle_job(run, record, status)
+        if status["state"] == "completed":
+            # The outcome is known; a read that hangs from here on leaves it as it is (DCLI-278).
+            run.settle_hang = lambda note: _save_settled(run, run, record)
+            _job_document(record, _read_document(run, record))
     finally:
         run.settle_hang = None
     _keep_notices(record, run)
@@ -485,6 +519,10 @@ def _settle_hung(run: Run, sub: Run, record: dict[str, Any], status: dict[str, A
     the hang ends the worker (DCLI-278)."""
     record["_job"]["state"] = status["state"]
     _settle_job(run, record, status, made)
+    _save_settled(run, sub, record)
+
+
+def _save_settled(run: Run, sub: Run, record: dict[str, Any]) -> None:
     _keep_notices(record, sub)
     run.records.save(record)
 
@@ -533,6 +571,7 @@ def run_standard_job(run: Run, record: dict[str, Any]) -> None:
     sub = _Run(run.tool, call, run.env)
     sub.on_hang = run.on_hang  # an in-process call that hangs still ends the worker (DCLI-278)
     made: Verification | None = None
+    document: dict[str, Any] | None = None
     try:
         spec = LONG_SPECS[record["command"]](sub, call.command)
 
@@ -564,10 +603,11 @@ def run_standard_job(run: Run, record: dict[str, Any]) -> None:
                 status["result"] = spec.result(facts, made)
             except Exception as exc:  # noqa: BLE001
                 made.notes.append(f"The result could not be read after the write: {exc}")
-            _fresh_document(sub, spec, record)
+            document = _read_document(sub, record)
         run.settle_hang = None
         record["_job"]["state"] = status["state"]
         _settle_job(run, record, status, made)
+        _job_document(record, document)
         _keep_notices(record, sub)
         run.records.save(record)
     finally:
@@ -580,21 +620,6 @@ def _keep_notices(record: dict[str, Any], run: Run) -> None:
     kept = [n for n in run.notices if n.get("type") == "application"]
     if kept:
         record["_job"]["notices"] = kept
-
-
-def _fresh_document(run: Run, spec: WriteSpec, record: dict[str, Any]) -> None:
-    """The receipt names the document as the job left it, so the next save sees no change from outside."""
-    doc, session = spec.where.document, spec.where.session
-    receipt = record.get("receipt") or {}
-    if not doc or not session or "document" not in receipt:
-        return
-    try:
-        run._sessions = None
-        now = next((d for d in run.documents(session["id"]) if d.get("id") == doc["id"]), None)
-    except DriverError:
-        return
-    if now is not None:
-        receipt["document"] = {"id": now["id"], "revision": now.get("revision"), "dirty": now.get("dirty")}
 
 
 def _job_dispatch(run: Run, apply: Any, strict: bool) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -840,6 +865,11 @@ class SessionOpen(_Lifecycle):
         self.action = f"Start a new instance of {self.run.tool.application}" + (f" for {kind} documents" if kind else "") + (
             f" and open {path}." if path else ".")
 
+    def targets(self) -> list[dict[str, Any]]:
+        """The document it opens is its target, as with doc open (DSEC-014)."""
+        path = self.call.values.get("--doc")
+        return [{"key": file_key(path), "kind": "document", "label": path}] if path else []
+
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         request: dict[str, Any] = {"operation_id": operation_id}
         for flag, key in (("--doc", "path"), ("--kind", "kind")):
@@ -867,6 +897,10 @@ class SessionClose(_Lifecycle):
         self.bound = {"inputs": {"discard": bool(self.call.values.get("--discard"))}}
         if not session.get("owned"):
             self.conditions.append("close_unowned_session")
+        # The scope must cover every document open in the instance; an untitled one by the
+        # instance's untitled: prefix, since the session lists no key for it (DSEC-014).
+        self.scope_keys = sorted({file_key(d["path"]) if d.get("path") else f"untitled:{session['id']}/"
+                                  for d in session.get("documents", [])})
         # dirty null means the application cannot tell; such a document may hold unsaved work (DCLI-210).
         dirty = [d for d in session.get("documents", []) if d.get("dirty") is not False]
         if self.call.values.get("--discard"):
@@ -1006,7 +1040,7 @@ class DocCreate(_Lifecycle):
         return out
 
     def untrusted_result(self) -> list[str]:
-        return [".result.path", ".result.files[*].path"]
+        return [".result.path", ".result.files[*].path", ".result.files[*].requested_path"]
 
 
 class DocOpen(_Lifecycle):
@@ -1061,13 +1095,16 @@ class DocSave(_OnDocument):
         return pv
 
     def _changed_outside(self, key: str) -> bool:
-        """The revision moved since the tool's last write, with no external change listed."""
-        doc = self.where.document
-        for record in self.run.records.all():
-            receipt = record.get("receipt") or {}
-            if receipt.get("document", {}).get("id") == doc["id"] and record.get("state") == "completed":
-                return receipt["document"].get("revision") != doc["revision"]
-        return False
+        """The revision moved since the tool's last completed write on this document, with no
+        external change listed. A write whose document could not be read again tells nothing."""
+        doc, session = self.where.document, self.where.session["id"]
+        done = [r for r in self.run.records.all()
+                if (r.get("receipt") or {}).get("document", {}).get("id") == doc["id"] and r.get("state") == "completed"
+                and (r.get("_call") or {}).get("session") == session]
+        last = max(done, key=lambda r: r.get("_finished") or r.get("_seq", 0), default=None)
+        if last is None or last.get("_document_unread"):
+            return False
+        return last["receipt"]["document"].get("revision") != doc["revision"]
 
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         return dispatch(self.run, "save_doc", self.request(operation_id))
@@ -1192,7 +1229,7 @@ class DocSaveAs(_OnDocument):
         return {"document": facts.get("document", {}), "files": facts.get("files", [])}
 
     def untrusted_result(self) -> list[str]:
-        return [".result.document.path", ".result.files[*].path"]
+        return [".result.document.path", ".result.files[*].path", ".result.files[*].requested_path"]
 
 
 class DocClose(_OnDocument):
@@ -1246,6 +1283,7 @@ class DocUndo(_OnDocument):
                         and (r.get("_call") or {}).get("document") == doc["id"]]
         candidates = [r for r in records
                       if (r.get("receipt") or {}).get("document", {}).get("id") == doc["id"] and r.get("state") == "completed"
+                      and (r.get("_call") or {}).get("session") == self.where.session["id"]
                       and r.get("_request") and r["command"] not in ("doc undo", "doc save")
                       and (not r.get("_undone_by") or states.get(r["_undone_by"]) == "failed")]
         self.last = max(candidates, key=lambda r: r.get("_finished", 0), default=None)

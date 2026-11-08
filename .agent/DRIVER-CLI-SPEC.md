@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.6 · Clauses DCLI-001 to DCLI-281
+> Version 1.0.7 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -169,7 +169,7 @@ Check: 👀 Review of the default fields in `reference`.
 
 ### DCLI-008 Response size
 
-Called with default arguments, a command MUST keep a success envelope within 8000 characters and an error envelope within 2000 characters, counting the whole envelope. An `E_CONFIRMATION_REQUIRED` envelope carries a preview and MUST keep within the success limit, 8000 characters (DCLI-054). Lists stay within the limits by paging (DCLI-006). A command whose result can be too large to fit, such as file content or a long log, MUST offer `--output <path>`: it writes the full result to that file, and the response holds only a summary and the file path.
+Called with default arguments, a command MUST keep a success envelope within 8000 characters and an error envelope within 2000 characters, counting the whole envelope. An `E_CONFIRMATION_REQUIRED` envelope carries a preview and MUST keep within the success limit, 8000 characters (DCLI-054). Lists stay within the limits by paging (DCLI-006). A command whose result can be too large to fit, such as file content or a long log, MUST offer `--output <path>`: it writes the full result to that file, and the response holds only a summary and the file path. A dry run's preview is shortened first, as a confirmation's is (DCLI-054); when it still does not fit, the next action asks for fewer objects in one call. Any other success envelope that is still too long fails with `E_USAGE`, whose next action names only what the command offers: `--fields`, `--limit` for a list, `--output` for a read that has it, and `operation get --output`, which writes a long job's whole operation record, result included, to a file. After a write that ran, it says so and names the operation, so that the Agent does not send the write again.
 
 Why: Every character the tool returns costs the Agent context; a fixed limit keeps each call cheap.
 Check: 🤖 General conformance test R04 checks the size limits.
@@ -642,7 +642,7 @@ Every write builds a preview, in the direct tier too, where the runtime keeps it
 | `operation_id` | The ID of the planned operation |
 | `command` | The command path |
 | `action` | One sentence that says what will be done |
-| `target` | `{key, kind, label}`; `key` is the target key (DCLI-028). Absent for a command with no target object, such as `session open`, `session close`, `doc create`, `knowledge create`, `knowledge delete`, `plugin install`, `plugin remove` or `operation resolve` |
+| `target` | `{key, kind, label}`; `key` is the target key (DCLI-028). Absent for a command with no target object, such as `session open` without `--doc`, `session close`, `doc create` without `--path`, `knowledge create`, `knowledge delete`, `plugin install`, `plugin remove` or `operation resolve` |
 | `effects` | The command's effects |
 | `tier` | `direct`, `two_step` or `dangerous` |
 | `summary` | The number of changes, counted by `origin` and by target kind |
@@ -724,7 +724,7 @@ What the read-back checks depends on the write:
 | `create` | The object exists with the given fields |
 | `delete` | The object is absent |
 | `import` | The imported objects are present, by count |
-| An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. A folder an `output` flag names holds a file or folder. The receipt makes no claim about bytes the application wrote itself |
+| An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. A folder an `output` flag names holds a file or folder. When the application writes a file under another name than the call gave, such as the numbered version `part.prt.1` for `part.prt`, the adapter lists it in `files` with the given path as `requested_path`, and that file counts for the given path. The receipt makes no claim about bytes the application wrote itself |
 | `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
 | A long job | The job's outputs, when it ends, as for a call of the same command (DCLI-065) |
 
@@ -744,7 +744,7 @@ A command declares `persist` with `change` when the application writes its chang
 
 A write with the `artifact` effect, such as `doc save-as`, `export` or `render`, creates files. Its receipt MUST report `change: not_applicable` and `persistence: saved`, and it is verified as DCLI-057 sets.
 
-The preview of `doc save` MUST list every change since the last save: the tool's own changes with `origin: tool`, and changes the tool did not make, such as a person's edits in the application, with `origin: external`. The host component, or the adapter when there is none, keeps the list of changes since the last save (DCLI-277). When the application cannot say what changed, the preview MUST still show at least one external change, without field details, whenever the document's revision changed without a write of the tool.
+The preview of `doc save` MUST list every change since the last save: the tool's own changes with `origin: tool`, and changes the tool did not make, such as a person's edits in the application, with `origin: external`. The host component, or the adapter when there is none, keeps the list of changes since the last save (DCLI-277). When the application cannot say what changed, the preview MUST still show at least one external change, without field details, whenever the document's revision changed without a write of the tool. The runtime compares the revision with the receipt of the tool's last completed write on the document in that session (DCLI-061); when the document could not be read again after that write, it skips the comparison. A job the application runs is read when the tool first sees it ended, so a person's edit made before that counts as the tool's.
 
 A write on the document whose outcome is unknown keeps its target locked (DCLI-060), and that lock blocks the save of the whole file. The save preview MUST then list each such operation in `blocked_by`, with the `operation resolve` command that settles it (DCLI-063).
 
@@ -780,9 +780,9 @@ A write that succeeds MUST return `data` = `{operation_id, receipt, result}`, wh
 
 - `operation_id`, `command`, `target` (absent for a command with no target object, DCLI-054), `effects` and `tier`;
 - `outcome`, with the five dimensions below;
-- `observed`: the values read back, one entry per key: each target key the adapter's `read_back` reports (DCLI-260); each produced file under `file:///<path>`, with `path`, `bytes` and `sha256`; or, for a command with no target object, the object's name, such as `session`, `document` or `plugin`;
+- `observed`: the values read back, one entry per key: each target key the adapter's `read_back` reports (DCLI-260); each produced file under `file:///<path>`, with `path`, `bytes` and `sha256`; or, for a command with no target object and for `session open`, the object's name, such as `session`, `document` or `plugin`;
 - `mismatched`: each field that does not match, written `<field>@<key>`, where `<key>` is its key in `observed`;
-- `session` `{id, generation}` and `document` `{id, revision, dirty}`;
+- `session` `{id, generation}` and `document` `{id, revision, dirty}`, the document as read again after the write, or for a long job when the job ends; when it cannot be read again, the revision from before the write with `dirty: null`;
 - `notes`: extra remarks;
 - `simulated: true` when the result comes from a simulated device (DSEC-062);
 - `more_files` `{count, command}` when the write produced more files than the contract's `receipt.listed_files` (10): `observed` keeps that many, missing files first, `count` is the number left out, and `command` is the `operation get --output` call that writes the whole record to a file (DCLI-008).
@@ -1515,7 +1515,7 @@ Check: 🤖 Runtime unit tests.
 
 ### DCLI-280 Protocol version
 
-The protocol version MUST follow SemVer and MUST be recorded both in the contract and in the host component's manifest. This specification defines protocol version 1.2.0.
+The protocol version MUST follow SemVer and MUST be recorded both in the contract and in the host component's manifest. This specification defines protocol version 1.3.0.
 
 Why: Both sides can compare versions before they exchange a single write.
 Check: 🤖 Driver conformance test D20.

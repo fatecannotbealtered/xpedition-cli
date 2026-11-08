@@ -47,11 +47,12 @@ class Envelopes:
         self.contract = contract
         self.limits = contract["envelope"]["limits"]
 
-    def success(self, result: Result, notices: list[dict[str, str]]) -> dict[str, Any]:
+    def success(self, result: Result, notices: list[dict[str, str]], too_long: str | None = None) -> dict[str, Any]:
+        """``too_long`` is the next action when the result does not fit: what the command offers instead."""
         env = {"ok": True, "data": result.data, **self._meta(notices, ["$.data" + p for p in result.untrusted])}
         _resolve_untrusted(env)
         if len(dumps(env)) > self.limits["success_chars"]:
-            env = self._shrink_success(env, result)
+            env = self._shrink_success(env, result, too_long)
         return env
 
     def failure(self, err: DriverError, notices: list[dict[str, str]]) -> dict[str, Any]:
@@ -79,10 +80,18 @@ class Envelopes:
             meta["untrusted"] = sorted(set(untrusted))
         return {"meta": meta} if meta else {}
 
-    def _shrink_success(self, env: dict[str, Any], result: Result) -> dict[str, Any]:
+    def _shrink_success(self, env: dict[str, Any], result: Result, too_long: str | None) -> dict[str, Any]:
         if _drop_application_notices(env) and len(dumps(env)) <= self.limits["success_chars"]:
             return env
         data = env["data"]
+        preview = data.get("preview") if isinstance(data, dict) else None
+        if isinstance(preview, dict) and isinstance(preview.get("changes"), list):
+            # A dry run: its preview is shortened as a confirmation's is (DCLI-054).
+            while preview["changes"] and len(dumps(env)) > self.limits["success_chars"]:
+                preview["changes"].pop()
+                preview["changes_truncated"] = True
+            if len(dumps(env)) <= self.limits["success_chars"]:
+                return env
         if isinstance(data, dict) and isinstance(data.get("items"), list) and result.offset is not None:
             while data["items"] and len(dumps(env)) > self.limits["success_chars"]:
                 data["items"].pop()
@@ -95,7 +104,7 @@ class Envelopes:
         raise DriverError(
             "E_USAGE", f"The result is longer than the {self.limits['success_chars']}-character limit of one response.",
             problem="The result is too long for one response.",
-            next_action="Ask for fewer fields with --fields, a smaller page with --limit, or the full result in a file with --output.",
+            next_action=too_long or "Ask for fewer fields with --fields.",
         )
 
 

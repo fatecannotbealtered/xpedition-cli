@@ -123,7 +123,7 @@ xpedition-cli keeps its state in one directory per user: the path in `XPEDITION_
 | `hosts/` | Discovery files of running host components | Host components |
 | `adapter/` | What the adapter must remember between calls | xpedition-cli, for the adapter |
 | `trash/` | Native programs moved aside by `update`, removed on its next run | xpedition-cli |
-| `scope.json` | The scope file at its default location | A person only |
+| `scope.json` | The scope file at its default location | A person, or an Agent as the Authorization section says |
 | `knowledge-links.json` | Team knowledge registrations | `knowledge create` and `knowledge delete` only |
 
 Only the writer named in the table writes an entry. Only the current user may read or write the directory: its mode is `0700` on macOS and Linux, and on Windows its ACL grants access to the current user only. xpedition-cli sets this when it creates the directory, and `xpedition-cli context` reports the protection actually in place: `posix_0700`, `windows_acl` or `none`. When operation records cannot be written, every write is refused with `E_IO` and nothing is dispatched, while reads keep working. Tests use a temporary state directory and never touch the real one.

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Mapping, TextIO
 
 from . import builtin, knowledge, standard
-from .args import Call, Meta, Parser
+from .args import Call, Meta, Parser, command_line
 from .contract import Contract
 from .errors import DriverError, usage
 from .output import Envelopes, Result, dumps, render_text
@@ -113,7 +113,8 @@ class Tool:
             note = f"The application did not answer {cap} within {deadline_ms} ms, so the read-back could not finish."
             try:
                 settled = settle(note)
-                env_out = self.envelopes.success(settled, run.notices) if settled is not None else (
+                hint = too_long_hint(self.name, run.call.command if run.call else None, settled.data if settled else None)
+                env_out = self.envelopes.success(settled, run.notices, hint) if settled is not None else (
                     self.envelopes.failure(DriverError("E_VERIFY_INCOMPLETE", note), run.notices))
             except DriverError as exc:
                 env_out = self.envelopes.failure(exc, run.notices)
@@ -194,7 +195,7 @@ class Tool:
                 out.buffer.write(result.raw) if hasattr(out, "buffer") else out.write(result.raw.decode("utf-8", "replace"))
                 return 0
             try:
-                env_out = self.envelopes.success(result, notices)
+                env_out = self.envelopes.success(result, notices, too_long_hint(self.name, call.command if call else None, result.data))
             except DriverError as exc:
                 env_out = self.envelopes.failure(exc, notices)
         else:
@@ -254,6 +255,31 @@ def _domain_handler(command: Command) -> Any:
     if command.writes:
         return lambda run: Engine(run).execute(DomainWrite(run, command))
     return lambda run: standard.domain_read(run, command)
+
+
+def too_long_hint(tool: str, command: Command | None, data: Any) -> str:
+    """What a result over the size limit can ask for instead: only what this command offers (DCLI-008)."""
+    operation = data.get("operation_id") if isinstance(data, dict) else None
+    record = command_line(tool, "operation get", [("--id", operation), ("--output", "<file>")]) if isinstance(operation, str) else None
+    if command is not None and command.writes:
+        if record and "preview" not in data:
+            # The write ran: it must not be sent again (DCLI-063).
+            if isinstance(data.get("items"), list):
+                items = command_line(tool, "operation list", [("--batch", operation)])
+                return f"The batch ran as operation {operation}; do not send it again. `{items}` lists the operation of each item."
+            return (f"The write ran as operation {operation}; do not send it again. Its whole record, with the receipt, "
+                    f"goes to a file with `{record}`.")
+        return "Name fewer objects in one call; nothing was changed."  # a dry run, its changes already shortened
+    names = {f.name for f in command.flags} if command is not None else set()
+    ways = ["fewer fields with --fields"]
+    if "--limit" in names:
+        ways.append("a smaller page with --limit")
+    if "--output" in names:
+        ways.append("the full result in a file with --output")
+    elif record:
+        ways.append(f"the whole operation record in a file with `{record}`")
+    listed = ways[0] if len(ways) == 1 else ", ".join(ways[:-1]) + (", or " if len(ways) > 2 else " or ") + ways[-1]
+    return f"Ask for {listed}."
 
 
 def _early_format(argv: list[str]) -> tuple[str, bool]:

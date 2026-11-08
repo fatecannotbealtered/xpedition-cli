@@ -17,7 +17,8 @@ NEXT_ACTION = {
     "E_UNSUPPORTED": "Do not retry; this tool, mode or application version cannot do it.",
     "E_NOT_FOUND": "Find the right target with a list command, then run the command again.",
     "E_AUTH": "Ask the user to fix the credentials, then run the command again.",
-    "E_FORBIDDEN": "Pass `details.scope.snippet` to the person; only the person edits the scope file.",
+    "E_FORBIDDEN": "Pass `details.scope.missing` and `details.scope.snippet` to the person. Write a scope file for it only "
+                   "when the person grants it in their own message, then run the command again.",
     "E_CONFIG": "Fix the local configuration, then run the command again.",
     "E_BACKEND_UNAVAILABLE": "Make sure the application is installed, licensed and running, then run the command again.",
     "E_CONFIRMATION_REQUIRED": "Check the preview, then run the same command again with `--confirm <token>`.",
