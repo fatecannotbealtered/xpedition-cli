@@ -49,6 +49,24 @@ BOARD_COORDINATES = ("Board coordinates in mm: the origin is the board origin, t
 # The commands whose behavior matrix passed in full on Xpedition 2604, and the live records of
 # those runs (DVER-040, DVER-041).
 VERIFIED: dict[str, list[str]] = {
+    "bom check": [
+        "live:docs/evidence/2026-11-08-190244-bom-check.json",
+        "live:docs/evidence/2026-11-08-190323-bom-check.json",
+        "live:docs/evidence/2026-11-08-190342-bom-check.json",
+        "live:docs/evidence/2026-11-08-190352-bom-check.json",
+        "live:docs/evidence/2026-11-08-190636-bom-check.json",
+        "live:docs/evidence/2026-11-08-190717-bom-check.json",
+    ],
+    "bom export": [
+        "live:docs/evidence/2026-11-08-190249-bom-export.json",
+        "live:docs/evidence/2026-11-08-190302-bom-export.json",
+        "live:docs/evidence/2026-11-08-190306-bom-export.json",
+        "live:docs/evidence/2026-11-08-190325-bom-export.json",
+        "live:docs/evidence/2026-11-08-190342-bom-export.json",
+        "live:docs/evidence/2026-11-08-190356-bom-export.json",
+        "live:docs/evidence/2026-11-08-190639-bom-export.json",
+        "live:docs/evidence/2026-11-08-190718-bom-export.json",
+    ],
     "component get": [
         "live:docs/evidence/2026-11-08-184033-component-get.json",
         "live:docs/evidence/2026-11-08-184059-component-get.json",
@@ -671,6 +689,35 @@ COMMANDS: list[dict[str, Any]] = [
         untrusted=["name", "pins"],
         examples=["xpedition-cli net get --session designer-4120 --doc D:/work/demo/Demo.prj --name VBUS"],
         knowledge=['designer-reopen-after-sheet-changes'],
+    ),
+    command(
+        "bom check", "Check the schematic's BOM: missing or unknown part numbers, repeated references, mixed values.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="bom",
+        output=obj(findings=arr(FINDING), errors=INT, warnings=INT, components=INT, part_numbers=INT, library_checked=BOOL,
+                   notes=arr(STR)),
+        untrusted=["findings", "notes"],
+        examples=["xpedition-cli bom check --session designer-4120 --doc D:/work/demo/Demo.prj"],
+        knowledge=['designer-reopen-after-sheet-changes', 'library-converter-rules'],
+    ),
+    command(
+        "bom export", "Write the schematic's BOM to a CSV file, and compare it with an earlier BOM.",
+        effects=["artifact"], modes=["session"], kinds=["project"], target_kind="bom",
+        flags=[{"name": "--output", "type": "path", "required": True, "output": True,
+                "summary": "The CSV file to write, in UTF-8 that Excel reads."},
+               {"name": "--per-component", "type": "boolean",
+                "summary": "One row per component instead of one per part number and value."},
+               {"name": "--baseline", "type": "path",
+                "summary": "An earlier BOM in CSV, from this tool or another, with a reference and a part number column; "
+                "the result lists the components added, removed and changed since."}],
+        output=obj(path=STR, rows=INT, components=INT, part_numbers=INT, warnings=arr(STR),
+                   changes=obj(baseline=STR, added=arr(obj(refdes=STR, part_number=STR)),
+                               removed=arr(obj(refdes=STR, part_number=STR)),
+                               changed=arr(obj(refdes=STR, field=STR, before=STR, after=STR)))),
+        untrusted=["warnings", "changes"],
+        examples=["xpedition-cli bom export --session designer-4120 --doc D:/work/demo/Demo.prj --output D:/work/demo/out/bom.csv",
+                  "xpedition-cli bom export --session designer-4120 --doc D:/work/demo/Demo.prj --output D:/work/demo/out/bom-b.csv "
+                  "--baseline D:/work/demo/out/bom-a.csv"],
+        knowledge=['designer-reopen-after-sheet-changes', 'library-converter-rules'],
     ),
     # ------------------------------------------------------------------ board (Layout)
     command(

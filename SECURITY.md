@@ -50,6 +50,7 @@ Risk tier: **T1**, set by these commands:
 - `packager run`: change
 - `schematic create`: change, persist, artifact
 - `schematic export`: artifact
+- `bom export`: artifact
 - `pcb create`: change, persist, artifact
 - `forward-annotation run`: change
 - `pcb update`: change

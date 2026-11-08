@@ -149,8 +149,8 @@
 | CAP-041 | 运行 Designer 校验（Full/Quick Verification），解析 `vdrc.log`、`grc.log` | `ExecuteCommandByID(34155/46461)` | provided | - |
 | CAP-042 | 原理图导出 PDF | `sch2pdf.exe` | provided | - |
 | CAP-043 | 打包原理图供 Layout 使用 | `package.exe` | provided | - |
-| CAP-044 | BOM 检查：缺料号、重复位号、同料号不同值 | 原理图读数 | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-045 | 导出 BOM（可分组、可与基线比较） | 原理图读数 | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
+| CAP-044 | BOM 检查：缺料号、重复位号、同料号不同值 | 原理图读数 | provided | - |
+| CAP-045 | 导出 BOM（可分组、可与基线比较） | 原理图读数 | provided | - |
 | CAP-046 | 激活某页、适配窗口、截 Designer 窗口图 | Designer COM + GDI | deferred | 只给人看；锁屏时截图全黑；PDF 和预览图已能看图。以后再考虑 |
 | CAP-047 | 反标（Back Annotation） | `ProjectIntegration.BackAnnotate` | unknown | 从未试过 |
 | CAP-060 | 用 JobWizard 从版图模板建板 | `JobWizard.exe` | provided | - |

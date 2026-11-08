@@ -1,0 +1,251 @@
+{
+  "command": "bom export",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/bom.csv"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Once schematic create drew tests/inputs/design.json and doc save saved it: {dir}/bom.csv holds 4 rows, one per part number and value, each with the central library's description; verified by the file."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190249-bom-export.json#normal"
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/empty.csv"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "On a practice project before schematic create: the file holds the header line only, and the result says 0 rows."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190639-bom-export.json#empty"
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/bom.xlsx"
+      ],
+      "expected": {
+        "exit": 2,
+        "code": "E_VALIDATION",
+        "summary": "--output must name a .csv file; refused at the preview."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190249-bom-export.json#invalid_input"
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.prj",
+        "--output",
+        "{dir}/bom.csv"
+      ],
+      "expected": {
+        "exit": 3,
+        "code": "E_NOT_FOUND",
+        "summary": "The session has no such project open."
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190249-bom-export.json#not_found"
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [
+        "--output",
+        "{dir}/bom.csv"
+      ],
+      "expected": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS",
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190718-bom-export.json#ambiguous"
+    },
+    {
+      "row": "conflict",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Locked.csv"
+      ],
+      "expected": {
+        "exit": 6,
+        "code": "E_CONFLICT",
+        "summary": "Another program holds {dir}/Locked.csv open for writing, as Excel holds a CSV it shows: the preview refuses with E_CONFLICT target_locked and nothing is written."
+      },
+      "actual": {
+        "exit": 6,
+        "code": "E_CONFLICT"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190302-bom-export.json#conflict"
+    },
+    {
+      "row": "no_scope",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/bom.csv"
+      ],
+      "expected": {
+        "exit": 4,
+        "code": "E_FORBIDDEN",
+        "summary": "Run under a scope file that does not cover the target ({dir}/bom.csv); nothing is read from Designer or written."
+      },
+      "actual": {
+        "exit": 4,
+        "code": "E_FORBIDDEN"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190249-bom-export.json#no_scope"
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/busy.csv"
+      ],
+      "expected": {
+        "exit": 7,
+        "code": "E_BUSY",
+        "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190342-bom-export.json#busy"
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--output",
+        "{dir}/dialog.csv"
+      ],
+      "expected": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED",
+        "summary": "A person leaves a modal dialog open in Designer before the call, such as Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190325-bom-export.json#dialog"
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/bom.csv"
+      ],
+      "expected": {
+        "exit": 4,
+        "code": "E_BACKEND_UNAVAILABLE",
+        "summary": "Designer goes away during the read."
+      },
+      "unrunnable": "The COM connection to Designer cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/unsaved.csv"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Right after schematic create, not yet saved: the BOM shows the open design, unsaved changes included."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190356-bom-export.json#unsaved"
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--output",
+        "{dir}/Gone.csv"
+      ],
+      "expected": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED",
+        "summary": "The call waits before its read-back, and meanwhile the new CSV is deleted (--tamper): the check of the file finds it missing."
+      },
+      "actual": {
+        "exit": 1,
+        "code": "E_VERIFY_FAILED"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-190306-bom-export.json#read_back_mismatch"
+    }
+  ]
+}

@@ -153,8 +153,8 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-041 | Run Designer verification (Full/Quick Verification) and parse `vdrc.log`, `grc.log` | `ExecuteCommandByID(34155/46461)` | provided | - |
 | CAP-042 | Export the schematic to PDF | `sch2pdf.exe` | provided | - |
 | CAP-043 | Package the schematic for Layout | `package.exe` | provided | - |
-| CAP-044 | BOM check: missing part numbers, duplicate reference designators, one part number with different values | Schematic reads | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-045 | Export a BOM (optionally grouped, optionally compared with a baseline) | Schematic reads | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-044 | BOM check: missing part numbers, duplicate reference designators, one part number with different values | Schematic reads | provided | - |
+| CAP-045 | Export a BOM (optionally grouped, optionally compared with a baseline) | Schematic reads | provided | - |
 | CAP-046 | Activate a sheet, fit the window, capture an image of the Designer window | Designer COM + GDI | deferred | Only for people to look at; screenshots are all black while the screen is locked; the PDF and preview images already show the drawing. To be reconsidered later |
 | CAP-047 | Back annotation | `ProjectIntegration.BackAnnotate` | unknown | Never tried |
 | CAP-060 | Create a board from a layout template with JobWizard | `JobWizard.exe` | provided | - |

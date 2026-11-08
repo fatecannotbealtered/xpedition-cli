@@ -43,7 +43,7 @@ from .._driver import AdapterError
 from .._driver.targets import normalize, path_of
 from . import base, jobs, sessions
 from .base import DESIGNER, Context, Handler, need_input, same_path
-from .plan import PlanError, pdf_pages, project_file, review_engine, verification
+from .plan import PlanError, bom, pdf_pages, project_file, review_engine, verification
 from .plan import schematic_layout as L
 from .platform import com, dialogs, env, processes
 
@@ -1225,6 +1225,142 @@ class NetGet(Handler):
         return {"name": found["name"], "unnamed": found["unnamed"], "sheets": found["sheets"], "pins": found["pins"]}
 
 
+# ------------------------------------------------------------------ bom check, bom export
+
+
+def _bom_components(snap: Snapshot) -> list[dict[str, Any]]:
+    return [{"refdes": c["refdes"], "part_number": c["part_number"], "value": c["value"], "sheet": c["sheet"]}
+            for c in snap.components]
+
+
+def _library_index(prj: str) -> tuple[dict[str, str] | None, str]:
+    """The central library's part numbers with their descriptions, or None and why they are not
+    known. A licence window or a read that ran out of time stops the call: the call made again
+    continues the export where it ended."""
+    from . import library
+
+    try:
+        held = library.read_library(Path(prj).resolve(), library.default_cache(), kinds=("parts",), symbols=False)
+    except PlanError as exc:
+        return None, f"The central library could not be read: {exc.message}"
+    if held.failed:
+        names = ", ".join(f"{f['kind']} {f['partition']}" for f in held.failed[:8])
+        return None, f"The converters could not export {names} of the central library."
+    return {part["number"]: part["description"] for part in held.parts}, ""
+
+
+class BomCheck(Handler):
+    command = "bom check"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        components = _bom_components(_schematic_snapshot(ctx))
+        index, why = _library_index(ctx.document_path())
+        findings = bom.check(components, set(index) if index is not None else None)
+        return {"findings": findings, "errors": sum(1 for f in findings if f["severity"] == "error"),
+                "warnings": sum(1 for f in findings if f["severity"] == "warning"), "components": len(components),
+                "part_numbers": len({c["part_number"] for c in components if c["part_number"]}),
+                "library_checked": index is not None, "notes": [why] if why else []}
+
+
+def _bom_paths(ctx: Context) -> tuple[str, str, str | None]:
+    """The project, the BOM file to write and the baseline to compare with."""
+    out = os.path.abspath(str(need_input(ctx, "output")))
+    if not out.lower().endswith(".csv"):
+        raise AdapterError("E_VALIDATION", f"--output must name a .csv file, not {os.path.basename(out)}.",
+                           dispatch_state="not_started")
+    baseline = ctx.inputs.get("baseline")
+    if baseline:
+        baseline = os.path.abspath(str(baseline))
+        if not os.path.isfile(baseline):
+            raise AdapterError("E_NOT_FOUND", f"There is no baseline file {baseline}.", dispatch_state="not_started")
+        if base.same_path(baseline, out):
+            raise AdapterError("E_VALIDATION", "--baseline and --output name the same file; write the new BOM elsewhere.",
+                               dispatch_state="not_started")
+    return ctx.document_path(), out, baseline
+
+
+def _locked(path: str) -> AdapterError | None:
+    """A file another program holds open for writing, as Excel holds a CSV it shows."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r+b"):
+            return None
+    except PermissionError:
+        return AdapterError("E_CONFLICT", f"{path} is open in another program, such as Excel, which keeps it from being "
+                            "replaced; close it there and export again.", dispatch_state="not_started", conflict="target_locked")
+    except OSError:
+        return None
+
+
+class BomExport(Handler):
+    command = "bom export"
+
+    def preview(self, ctx: Context) -> dict[str, Any]:
+        prj, out, baseline = _bom_paths(ctx)
+        locked = _locked(out)
+        if locked:
+            raise locked
+        exists = os.path.isfile(out)
+        per = "one row per component" if ctx.inputs.get("per_component") else "one row per part number and value"
+        action = f"Write the BOM of {prj} to {out}, {per}"
+        action += ", replacing that file" if exists else ""
+        action += f", and compare it with {baseline}." if baseline else "."
+        changes = [base.change(base.key(out), "exists", exists, True)]
+        return base.preview(action, [base.target(out, "file", label=os.path.basename(out))], changes)
+
+    def apply(self, ctx: Context) -> dict[str, Any]:
+        prj, out, baseline = _bom_paths(ctx)
+        per_component = bool(ctx.inputs.get("per_component"))
+        components = _bom_components(_schematic_snapshot(ctx))
+        index, why = _library_index(prj)
+        table = bom.rows(components, index or {}, per_component=per_component)
+        warnings = [why + " The Description column is empty."] if why else []
+        missing = [c["refdes"] for c in components if not c["part_number"]]
+        if missing:
+            warnings.append(f"{len(missing)} component(s) have no part number; each keeps a row of its own (bom check lists them).")
+        result: dict[str, Any] = {"path": out, "rows": len(table), "components": len(components),
+                                  "part_numbers": len({c["part_number"] for c in components if c["part_number"]}),
+                                  "warnings": warnings}
+        if baseline:
+            try:
+                earlier = bom.read_baseline(Path(baseline).read_bytes())
+            except PlanError as exc:
+                raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+            except OSError as exc:
+                raise AdapterError("E_IO", f"The baseline {baseline} cannot be read: {exc.strerror}.",
+                                   dispatch_state="not_started") from None
+            result["changes"] = {"baseline": baseline, **bom.compare(components, earlier, values=bom.baseline_has_values(earlier))}
+        folder = Path(out).parent
+        partial = folder / f"{Path(out).stem}.partial-{uuid.uuid4().hex[:8]}.csv"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            # UTF-8 with a byte order mark, so that Excel shows Chinese text right.
+            partial.write_text(bom.csv_text(table, per_component=per_component), encoding="utf-8-sig", newline="")
+            os.replace(partial, out)
+        except PermissionError:
+            raise _locked(out) or AdapterError("E_IO", f"{out} cannot be written: permission denied.",
+                                               dispatch_state="not_started") from None
+        except OSError as exc:
+            raise AdapterError("E_IO", f"{out} cannot be written: {exc.strerror}.", dispatch_state="not_started") from None
+        finally:
+            partial.unlink(missing_ok=True)
+        return base.facts("not_applicable", "saved", result=result, files=[{"path": out}])
+
+    def read_back(self, ctx: Context) -> dict[str, Any]:
+        return _files_read_back(ctx)
+
+
+def _files_read_back(ctx: Context) -> dict[str, Any]:
+    """Whether each file target exists."""
+    observed = {}
+    for target in ctx.request.get("targets") or []:
+        path = path_of(target) if "#" not in target else None
+        if path:
+            observed[target] = {"exists": os.path.isfile(path)}
+    return {"observed": observed, "unreadable": []}
+
+
 # ------------------------------------------------------------------ schematic create
 
 
@@ -1974,13 +2110,8 @@ class SchematicExport(Handler):
                                native_message=" | ".join(said)[-1500:])
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
-        observed = {}
-        for target in ctx.request.get("targets") or []:
-            path = path_of(target) if "#" not in target else None
-            if path:
-                observed[target] = {"exists": os.path.isfile(path)}
-        return {"observed": observed, "unreadable": []}
+        return _files_read_back(ctx)
 
 
 HANDLERS: list[Handler] = [SchematicGet(), SchematicCreate(), SchematicCheck(), SchematicExport(), ComponentList(), ComponentGet(),
-                           NetList(), NetGet()]
+                           NetList(), NetGet(), BomCheck(), BomExport()]

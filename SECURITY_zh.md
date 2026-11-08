@@ -50,6 +50,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `packager run`: change
 - `schematic create`: change, persist, artifact
 - `schematic export`: artifact
+- `bom export`: artifact
 - `pcb create`: change, persist, artifact
 - `forward-annotation run`: change
 - `pcb update`: change

@@ -713,6 +713,99 @@
       ]
     },
     {
+      "path": "bom check",
+      "summary": "Check the schematic's BOM: missing or unknown part numbers, repeated references, mixed values.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "bom",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        }
+      ],
+      "untrusted_fields": [
+        "findings",
+        "notes"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes",
+        "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
+      "path": "bom export",
+      "summary": "Write the schematic's BOM to a CSV file, and compare it with an earlier BOM.",
+      "effects": [
+        "artifact"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "bom",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "The CSV file to write, in UTF-8 that Excel reads.",
+          "required": true,
+          "output": true
+        },
+        {
+          "name": "--per-component",
+          "type": "boolean",
+          "summary": "One row per component instead of one per part number and value."
+        },
+        {
+          "name": "--baseline",
+          "type": "path",
+          "summary": "An earlier BOM in CSV, from this tool or another, with a reference and a part number column; the result lists the components added, removed and changed since."
+        }
+      ],
+      "untrusted_fields": [
+        "warnings",
+        "changes"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes",
+        "library-converter-rules"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
       "path": "pcb create",
       "summary": "Create the project's board from a layout template.",
       "effects": [

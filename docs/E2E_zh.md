@@ -40,6 +40,20 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-08-190718-bom-export.json](evidence/2026-11-08-190718-bom-export.json) | 2026-11-08T19:07:18Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190717-bom-check.json](evidence/2026-11-08-190717-bom-check.json) | 2026-11-08T19:07:17Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190639-bom-export.json](evidence/2026-11-08-190639-bom-export.json) | 2026-11-08T19:06:39Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190636-bom-check.json](evidence/2026-11-08-190636-bom-check.json) | 2026-11-08T19:06:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190356-bom-export.json](evidence/2026-11-08-190356-bom-export.json) | 2026-11-08T19:03:56Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190352-bom-check.json](evidence/2026-11-08-190352-bom-check.json) | 2026-11-08T19:03:52Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190342-bom-check.json](evidence/2026-11-08-190342-bom-check.json) | 2026-11-08T19:03:42Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190342-bom-export.json](evidence/2026-11-08-190342-bom-export.json) | 2026-11-08T19:03:42Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190325-bom-export.json](evidence/2026-11-08-190325-bom-export.json) | 2026-11-08T19:03:25Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190323-bom-check.json](evidence/2026-11-08-190323-bom-check.json) | 2026-11-08T19:03:23Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190306-bom-export.json](evidence/2026-11-08-190306-bom-export.json) | 2026-11-08T19:03:06Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190302-bom-export.json](evidence/2026-11-08-190302-bom-export.json) | 2026-11-08T19:03:02Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-190249-bom-export.json](evidence/2026-11-08-190249-bom-export.json) | 2026-11-08T19:02:49Z | Xpedition 2604 | windows | 4 次运行中 4 次通过 |
+| [2026-11-08-190244-bom-check.json](evidence/2026-11-08-190244-bom-check.json) | 2026-11-08T19:02:44Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-184438-net-get.json](evidence/2026-11-08-184438-net-get.json) | 2026-11-08T18:44:38Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-184436-net-list.json](evidence/2026-11-08-184436-net-list.json) | 2026-11-08T18:44:36Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-184434-component-get.json](evidence/2026-11-08-184434-component-get.json) | 2026-11-08T18:44:34Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

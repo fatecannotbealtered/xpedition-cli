@@ -45,6 +45,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `schematic`: get, create (dangerous), check, export
 - `component`: list, get
 - `net`: list, get
+- `bom`: check, export
 - `pcb`: create, update, get, check, export, render
 - `forward-annotation`: run
 - `placement`: run

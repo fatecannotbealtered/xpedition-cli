@@ -7,6 +7,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 ### Added
 
 - `component list`, `component get`, `net list` and `net get` read the schematic Designer has open: each component's part number, value, sheet and attributes, each pin with its name and net, and each net with the component pins it joins and the sheets it reaches. An unnamed net goes by the name Designer gives it, such as `$1N54`; a reference designator two components share is refused as ambiguous, with both listed.
+- `bom check` checks the schematic's bill of materials: components without a part number, reference designators used twice, part numbers the central library does not hold, and one part number with several values.
+- `bom export` writes the schematic's bill of materials to a CSV file Excel reads, one row per part number and value with the central library's description, or one row per component with `--per-component`. With `--baseline` it compares the BOM with an earlier one, from this tool or another, and lists the components added, removed and changed in part number or value. A file another program holds open, as Excel holds a CSV it shows, is refused before anything is written.
 
 ### Changed
 

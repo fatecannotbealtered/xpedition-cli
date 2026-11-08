@@ -25,7 +25,7 @@ from xpedition_cli._driver.state import AdapterStore, StateDir
 from xpedition_cli._driver.targets import normalize
 from xpedition_cli.adapter import base, designer, sessions
 from xpedition_cli.adapter import library as library_module
-from xpedition_cli.adapter.plan import library_read, verification
+from xpedition_cli.adapter.plan import bom, library_read, verification
 from xpedition_cli.adapter.plan import schematic_layout as L
 from xpedition_cli.adapter.plan import symbols as S
 from xpedition_cli.adapter.platform import com, dialogs, env, processes
@@ -781,6 +781,99 @@ class ComponentNetReadTest(DesignerCase):
                 self.read(command, **inputs)
 
 
+class BomTest(DesignerCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.app.components = [
+            placed("R1", "1", [("1", "1", "5V")], {"Part Number": "RES-1K", "Value": "1k"}),
+            placed("R2", "1", [("1", "1", "5V")], {"Part Number": "RES-1K", "Value": "1k"}),
+            placed("U1", "2", [("1", "1", "GND")], {"Part Number": "MCU-9"}),
+            placed("TP1", "2", [("1", "1", "GND")], {}),
+        ]
+        self.library: tuple = ({"RES-1K": "Resistor, 1 kOhm"}, "")
+        patcher = mock.patch.object(designer, "_library_index", lambda prj: self.library)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.out = str(self.root / "out" / "bom.csv")
+
+    def handler(self, command: str) -> Any:
+        return next(h for h in designer.HANDLERS if h.command == command)
+
+    def test_bom_check_finds_unknown_and_missing_part_numbers(self):
+        result = self.handler("bom check").read(self.ctx("bom check"))
+        self.assertEqual([f["rule"] for f in result["findings"]], ["missing_part_number", "not_in_library"])
+        self.assertEqual((result["errors"], result["warnings"], result["components"], result["part_numbers"]), (2, 0, 4, 2))
+        self.assertTrue(result["library_checked"])
+
+    def test_bom_check_without_the_library_says_so(self):
+        self.library = (None, "The converters could not export parts PartQuest of the central library.")
+        result = self.handler("bom check").read(self.ctx("bom check"))
+        self.assertEqual([f["rule"] for f in result["findings"]], ["missing_part_number"])
+        self.assertFalse(result["library_checked"])
+        self.assertIn("PartQuest", result["notes"][0])
+
+    def test_bom_export_preview_names_the_file(self):
+        out = self.handler("bom export").preview(self.ctx("bom export", {"output": self.out}))
+        self.assertIn("one row per part number and value", out["action"])
+        self.assertEqual(out["targets"][0]["key"], base.key(self.out))
+
+    def test_bom_export_refuses_a_wrong_name_or_baseline(self):
+        handler = self.handler("bom export")
+        cases = [({"output": str(self.root / "bom.xlsx")}, "E_VALIDATION"),
+                 ({"output": self.out, "baseline": str(self.root / "old.csv")}, "E_NOT_FOUND")]
+        for inputs, code in cases:
+            with self.assertRaises(AdapterError) as caught:
+                handler.preview(self.ctx("bom export", inputs))
+            self.assertEqual(self.code(caught), code)
+        Path(self.out).parent.mkdir()
+        Path(self.out).write_text("x", encoding="utf-8")
+        with self.assertRaises(AdapterError) as caught:
+            handler.preview(self.ctx("bom export", {"output": self.out, "baseline": self.out}))
+        self.assertEqual(self.code(caught), "E_VALIDATION")
+
+    def test_bom_export_refuses_a_file_another_program_holds(self):
+        win32file = __import__("win32file") if os.name == "nt" else None
+        if win32file is None:
+            self.skipTest("locking a file needs Windows")
+        Path(self.out).parent.mkdir()
+        Path(self.out).write_text("x", encoding="utf-8")
+        handle = win32file.CreateFile(self.out, win32file.GENERIC_READ, win32file.FILE_SHARE_READ, None,
+                                      win32file.OPEN_EXISTING, 0, None)
+        try:
+            with self.assertRaises(AdapterError) as caught:
+                self.handler("bom export").preview(self.ctx("bom export", {"output": self.out}))
+        finally:
+            handle.Close()
+        self.assertEqual((self.code(caught), caught.exception.data["conflict"]), ("E_CONFLICT", "target_locked"))
+
+    def test_bom_export_writes_the_csv_and_compares_with_a_baseline(self):
+        baseline = self.root / "old.csv"
+        baseline.write_text("Reference,Part Number,Value\nR1-R3,RES-1K,1k\n", encoding="utf-8")
+        facts = self.handler("bom export").apply(self.ctx("bom export", {"output": self.out, "baseline": str(baseline)}))
+        result = facts["result"]
+        text = Path(self.out).read_bytes()
+        self.assertTrue(text.startswith(b"\xef\xbb\xbf"))
+        lines = text.decode("utf-8-sig").splitlines()
+        self.assertEqual(lines[1], '1,2,"R1, R2",RES-1K,1k,"Resistor, 1 kOhm"')
+        self.assertEqual((result["rows"], result["components"], result["part_numbers"]), (3, 4, 2))
+        self.assertIn("1 component(s) have no part number", result["warnings"][0])
+        self.assertEqual(result["changes"]["added"], [{"refdes": "TP1", "part_number": ""}, {"refdes": "U1", "part_number": "MCU-9"}])
+        self.assertEqual(result["changes"]["removed"], [{"refdes": "R3", "part_number": "RES-1K"}])
+        self.assertEqual(facts["persistence"], "saved")
+        self.assertFalse(list(Path(self.out).parent.glob("*.partial-*")))
+
+    def test_bom_export_one_row_per_component_and_no_library(self):
+        self.library = (None, "The central library could not be read: no export.")
+        result = self.handler("bom export").apply(self.ctx("bom export", {"output": self.out, "per_component": True}))["result"]
+        self.assertEqual(result["rows"], 4)
+        self.assertIn("Description column is empty", result["warnings"][0])
+        self.assertEqual(Path(self.out).read_text(encoding="utf-8-sig").splitlines()[0], ",".join(bom.COMPONENT_COLUMNS))
+
+    def test_bom_export_read_back_checks_the_file(self):
+        ctx = self.ctx("bom export", {"output": self.out}, targets=[base.key(self.out)])
+        self.assertEqual(self.handler("bom export").read_back(ctx)["observed"][base.key(self.out)], {"exists": False})
+
+
 # ------------------------------------------------------------------ schematic create
 
 
@@ -1228,7 +1321,7 @@ class HandlerTableTest(unittest.TestCase):
             self.assertIn(handler.command, registered)
         self.assertEqual({h.command for h in designer.HANDLERS},
                          {"schematic get", "schematic create", "schematic check", "schematic export", "component list",
-                          "component get", "net list", "net get"})
+                          "component get", "net list", "net get", "bom check", "bom export"})
         self.assertTrue(designer.SchematicCreate.long_job)
 
 
