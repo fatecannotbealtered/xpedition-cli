@@ -865,20 +865,77 @@ class Snapshot:
         }
 
 
+GET_OR_CALL = 3  # DISPATCH_METHOD | DISPATCH_PROPERTYGET: a member that is a property on one release and a method on another
+
+
+class _Kind:
+    """The members of one kind of Designer object, called by DISPID.
+
+    win32com's dynamic wrapper describes every object a call returns anew from its type
+    information, which costs Designer several round trips per object: a design read pin by pin
+    took 12 s for 136 pins. Every object of one kind shares its DISPIDs, so they are looked up
+    once and each member then costs one call. A stand-in object in the tests has no ``Invoke``
+    and is read as ``_get`` reads it."""
+
+    def __init__(self) -> None:
+        self._ids: dict[str, int | None] = {}
+
+    def get(self, obj: Any, name: str, *args: Any) -> Any:
+        raw = getattr(obj, "_oleobj_", obj)
+        if not (hasattr(raw, "Invoke") and hasattr(raw, "GetIDsOfNames")):
+            return getattr(obj, name)(*args) if args else _get(obj, name)
+        if name not in self._ids:
+            try:
+                self._ids[name] = int(raw.GetIDsOfNames(name))
+            except Exception:  # noqa: BLE001 - this kind has no such member
+                self._ids[name] = None
+        dispid = self._ids[name]
+        if dispid is None:
+            raise AttributeError(name)
+        return raw.Invoke(dispid, 0, GET_OR_CALL, True, *args)
+
+    def try_get(self, obj: Any, name: str, default: Any = None) -> Any:
+        try:
+            value = self.get(obj, name)
+        except Exception:  # noqa: BLE001 - the member is absent or unreadable
+            return default
+        return default if value is None else value
+
+    def items(self, collection: Any) -> Iterator[Any]:
+        """A collection's items: ``Count`` and a 1-based ``Item``."""
+        if collection is None:
+            return
+        for index in range(1, int(self.get(collection, "Count")) + 1):
+            yield self.get(collection, "Item", index)
+
+
+# One per kind of object, since two interfaces may give one member name different DISPIDs.
+COMPONENTS, COMPONENT, CONNECTIONS, CONNECTION, COMP_PIN, SYMBOL_PIN = (_Kind() for _ in range(6))
+ATTRIBUTES, ATTRIBUTE, NET, SEGMENTS, LABEL, POINT, BLOCK = (_Kind() for _ in range(7))
+
+
+def _location(value: Any) -> tuple[int | None, int | None]:
+    """A point Designer returns: a pair, or an object with ``X`` and ``Y``."""
+    if value is None or isinstance(value, (tuple, list)):
+        return _point(value)
+    x, y = POINT.try_get(value, "X"), POINT.try_get(value, "Y")
+    return (int(x) if isinstance(x, (int, float)) else None, int(y) if isinstance(y, (int, float)) else None)
+
+
 def _net_name(net: Any) -> str:
     """A net's name. A Designer net carries no ``Name`` of its own on a live sheet: the name is
     the text of the label on one of its segments, ``net.GetLabel(segment).TextString``."""
-    direct = _try_get(net, "Name")
+    direct = NET.try_get(net, "Name")
     if direct:
         return str(direct)
-    for segment in _items(_try_get(net, "GetSegments")):
+    for segment in SEGMENTS.items(NET.try_get(net, "GetSegments")):
         try:
-            label = net.GetLabel(segment)
+            label = NET.get(net, "GetLabel", segment)
         except Exception:  # noqa: BLE001 - this segment carries no label
             continue
         if label is None:
             continue
-        text = _try_get(label, "TextString") or _try_get(label, "Text")
+        text = LABEL.try_get(label, "TextString") or LABEL.try_get(label, "Text")
         if text:
             return str(text)
     return ""
@@ -887,34 +944,22 @@ def _net_name(net: Any) -> str:
 def _net_identity(net: Any) -> str:
     """The logical name of a net, its label, or Designer's own ``$<sheet>N<id>`` UID when it has
     no name: two pins joined by a bare wire share no name, but their UID tells the net apart."""
-    logical = _try_get(net, "LogicalNetName")
+    logical = NET.try_get(net, "LogicalNetName")
     if logical:
         return str(logical)
-    return _net_name(net) or str(_try_get(net, "UID", "") or "")
+    return _net_name(net) or str(NET.try_get(net, "UID", "") or "")
 
 
-def _attribute(component: Any, name: str) -> str:
-    for attribute in _items(_try_get(component, "Attributes")):
-        if str(_get(attribute, "Name")) == name:
-            return str(_get(attribute, "Value") or "")
-    return ""
-
-
-def _attributes(component: Any) -> dict[str, str]:
-    """The component's attributes that hold a value; Designer's own ``@`` attributes left out."""
-    found: dict[str, str] = {}
-    for attribute in _items(_try_get(component, "Attributes")):
-        name, value = str(_try_get(attribute, "Name", "")), str(_try_get(attribute, "Value", "") or "")
-        if name and value and not name.startswith("@"):
-            found[name] = value
-    return found
+def _attribute_pairs(component: Any) -> list[tuple[str, str]]:
+    return [(str(ATTRIBUTE.try_get(a, "Name", "")), str(ATTRIBUTE.try_get(a, "Value", "") or ""))
+            for a in ATTRIBUTES.items(COMPONENT.try_get(component, "Attributes"))]
 
 
 def _pin_name(pin: Any) -> str:
     """The symbol pin's name, such as ``VBUS``; the component pin itself carries only its number."""
-    symbol_pin = _try_get(pin, "Pin")
+    symbol_pin = COMP_PIN.try_get(pin, "Pin")
     try:
-        return str(symbol_pin.GetName(0) or "") if symbol_pin is not None else ""
+        return str(SYMBOL_PIN.get(symbol_pin, "GetName", 0) or "") if symbol_pin is not None else ""
     except Exception:  # noqa: BLE001 - a pin without a name
         return ""
 
@@ -922,31 +967,37 @@ def _pin_name(pin: Any) -> str:
 def _sheet_of(component: Any) -> int | None:
     """The number of the sheet the component sits on: its parent is the sheet's block, whose
     ``SheetNum`` Designer returns as text."""
-    number = str(_try_get(_try_get(component, "Parent"), "SheetNum", "")).strip()
+    number = str(BLOCK.try_get(COMPONENT.try_get(component, "Parent"), "SheetNum", "")).strip()
     return int(number) if number.isdigit() else None
 
 
 def _component_record(component: Any, detail: bool = False) -> dict[str, Any]:
-    """A component with its pins and their nets; ``detail`` adds its sheet, attributes and pin names."""
-    refdes = str(_try_get(component, "Refdes") or _try_get(component, "RefDes") or "")
-    x, y = _point(_try_get(component, "GetLocation"))
+    """A component with its pins and their nets; ``detail`` adds its sheet, attributes and pin names.
+
+    A symbol without a reference designator is a mark (power, ground, no-connect, off-page), read
+    for its location only; a pin's location is read only when it has no net, to find the
+    no-connect mark on its end."""
+    refdes = str(COMPONENT.try_get(component, "Refdes") or "")
+    if not refdes:
+        x, y = _location(COMPONENT.try_get(component, "GetLocation"))
+        return {"refdes": "", "x": x, "y": y, "part_number": "", "pins": []}
     pins: list[dict[str, Any]] = []
-    if refdes:
-        for connection in _items(_get(component, "GetConnections")):
-            pin = _get(connection, "CompPin")
-            net = _try_get(connection, "Net")
-            number = _get(pin, "Number")
-            identity = _net_identity(net) if net is not None else ""
-            px, py = _point(_try_get(pin, "GetLocation"))
-            entry = {"number": str(number) if number is not None else None, "net": identity or None,
-                     "unnamed": identity.startswith("$"), "x": px, "y": py, "no_connect": False}
-            if detail:
-                entry["name"] = _pin_name(pin)
-            pins.append(entry)
-    record = {"refdes": refdes, "x": x, "y": y, "part_number": _attribute(component, "Part Number") if refdes else "",
+    for connection in CONNECTIONS.items(COMPONENT.get(component, "GetConnections")):
+        pin = CONNECTION.get(connection, "CompPin")
+        net = CONNECTION.try_get(connection, "Net")
+        number = COMP_PIN.get(pin, "Number")
+        identity = _net_identity(net) if net is not None else ""
+        px, py = (None, None) if identity else _location(COMP_PIN.try_get(pin, "GetLocation"))
+        entry = {"number": str(number) if number is not None else None, "net": identity or None,
+                 "unnamed": identity.startswith("$"), "x": px, "y": py, "no_connect": False}
+        if detail:
+            entry["name"] = _pin_name(pin)
+        pins.append(entry)
+    pairs = _attribute_pairs(component)
+    record = {"refdes": refdes, "x": None, "y": None, "part_number": next((v for n, v in pairs if n == "Part Number"), ""),
               "pins": pins}
-    if detail and refdes:
-        attributes = _attributes(component)
+    if detail:
+        attributes = {name: value for name, value in pairs if name and value and not name.startswith("@")}
         record.update(sheet=_sheet_of(component), value=attributes.get("Value", ""), attributes=attributes)
     return record
 
@@ -1018,7 +1069,7 @@ def _design_snapshot(app: Any, prj: str, deadline: float | None = None, detail: 
         raise AdapterError("E_NOT_FOUND", "Designer reports no active design.", dispatch_state="not_started")
     try:
         records = []
-        for component in _items(_design_collection(app, "DesignComponents", design)):
+        for component in COMPONENTS.items(_design_collection(app, "DesignComponents", design)):
             if deadline is not None and time.monotonic() > deadline:
                 raise _Unreadable("out of time")
             records.append(_component_record(component, detail))
@@ -1049,7 +1100,7 @@ def _sheet_snapshot(app: Any, prj: str, deadline: float) -> Snapshot:
             if _active_sheet(app) != number:
                 raise _Unreadable(f"sheet {number} could not be activated")
             block = app.ActiveView.Block
-            records += [_component_record(component) for component in _items(_get(block, "Components"))]
+            records += [_component_record(component) for component in COMPONENTS.items(_get(block, "Components"))]
     finally:
         if original is not None and _active_sheet(app) != original:
             try:
@@ -1229,20 +1280,26 @@ class NetGet(Handler):
 
 
 def _bom_components(snap: Snapshot) -> list[dict[str, Any]]:
-    return [{"refdes": c["refdes"], "part_number": c["part_number"], "value": c["value"], "sheet": c["sheet"]}
+    """Each component as the BOM takes it, with the description its own attributes give."""
+    return [{"refdes": c["refdes"], "part_number": c["part_number"], "value": c["value"], "sheet": c["sheet"],
+             "description": next((v for n, v in c["attributes"].items() if n.casefold() == "description"), "")}
             for c in snap.components]
 
 
 def _library_index(prj: str) -> tuple[dict[str, str] | None, str]:
     """The central library's part numbers with their descriptions, or None and why they are not
-    known. A licence window or a read that ran out of time stops the call: the call made again
-    continues the export where it ended."""
+    known, such as a library on a drive this machine does not have. A licence window or a read
+    that ran out of time stops the call: the call made again continues the export where it ended."""
     from . import library
 
     try:
         held = library.read_library(Path(prj).resolve(), library.default_cache(), kinds=("parts",), symbols=False)
     except PlanError as exc:
         return None, f"The central library could not be read: {exc.message}"
+    except AdapterError as exc:
+        if exc.data.get("code") not in ("E_NOT_FOUND", "E_VALIDATION"):
+            raise
+        return None, f"The central library could not be read: {exc}"
     if held.failed:
         names = ", ".join(f"{f['kind']} {f['partition']}" for f in held.failed[:8])
         return None, f"The converters could not export {names} of the central library."
@@ -1315,7 +1372,7 @@ class BomExport(Handler):
         components = _bom_components(_schematic_snapshot(ctx))
         index, why = _library_index(prj)
         table = bom.rows(components, index or {}, per_component=per_component)
-        warnings = [why + " The Description column is empty."] if why else []
+        warnings = [why + " The Description column takes each component's own description, if any."] if why else []
         missing = [c["refdes"] for c in components if not c["part_number"]]
         if missing:
             warnings.append(f"{len(missing)} component(s) have no part number; each keeps a row of its own (bom check lists them).")

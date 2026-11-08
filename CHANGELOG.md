@@ -7,11 +7,13 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 ### Added
 
 - `component list`, `component get`, `net list` and `net get` read the schematic Designer has open: each component's part number, value, sheet and attributes, each pin with its name and net, and each net with the component pins it joins and the sheets it reaches. An unnamed net goes by the name Designer gives it, such as `$1N54`; a reference designator two components share is refused as ambiguous, with both listed.
-- `bom check` checks the schematic's bill of materials: components without a part number, reference designators used twice, part numbers the central library does not hold, and one part number with several values.
-- `bom export` writes the schematic's bill of materials to a CSV file Excel reads, one row per part number and value with the central library's description, or one row per component with `--per-component`. With `--baseline` it compares the BOM with an earlier one, from this tool or another, and lists the components added, removed and changed in part number or value. A file another program holds open, as Excel holds a CSV it shows, is refused before anything is written.
+- `bom check` checks the schematic's bill of materials: components without a part number, reference designators used twice, part numbers the central library does not hold, and one part number with several values. When the central library cannot be read, such as one on a drive this machine does not have, it checks the rest and says why the library was left out.
+- `bom export` writes the schematic's bill of materials to a CSV file Excel reads, one row per part number and value with the central library's description, or the component's own when the library has none or cannot be read, or one row per component with `--per-component`. With `--baseline` it compares the BOM with an earlier one, from this tool or another, and lists the components added, removed and changed in part number or value. A file another program holds open, as Excel holds a CSV it shows, is refused before anything is written.
 
 ### Changed
 
+- Reading a schematic takes a fraction of the time: each kind of Designer object is described once, not every object anew, and a pin's location is read only when it has no net. A schematic with 136 pins that took 12 s reads in under a second, which speeds `schematic get`, `schematic check` and the read-back of `schematic create` too.
+- `docs/E2E.md` lists the copy of a real FPC project also for accepting 1.2 by reading its schematic and its bill of materials.
 - Every domain command's summary is one short line, so the index `reference` returns fits one response; the details stay in each command's flags, as `reference --command` shows them.
 - The live records and the capability survey name the commits of the repository's current history.
 

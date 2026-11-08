@@ -1,8 +1,9 @@
 """The bill of materials of a schematic: its rows, its checks, its CSV file and the comparison with
 an earlier BOM.
 
-A component is ``{refdes, part_number, value, sheet}``; ``descriptions`` maps a part number to
-the central library's description of it.
+A component is ``{refdes, part_number, value, sheet, description}``, the description its own
+attributes give; ``descriptions`` maps a part number to the central library's description of
+it, which comes first.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ def rows(components: list[dict[str, Any]], descriptions: dict[str, str], *, per_
     ordered = sorted(components, key=lambda c: natural(c["refdes"]))
     if per_component:
         return [{"Item": i, "Reference": c["refdes"], "Part Number": c["part_number"], "Value": c["value"],
-                 "Description": descriptions.get(c["part_number"], ""), "Sheet": c.get("sheet")}
+                 "Description": _description(c, descriptions), "Sheet": c.get("sheet")}
                 for i, c in enumerate(ordered, 1)]
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for component in ordered:
@@ -48,8 +49,12 @@ def rows(components: list[dict[str, Any]], descriptions: dict[str, str], *, per_
         first = members[0]
         out.append({"Item": i, "Quantity": len(members), "Reference": ", ".join(c["refdes"] for c in members),
                     "Part Number": first["part_number"], "Value": first["value"],
-                    "Description": descriptions.get(first["part_number"], "")})
+                    "Description": _description(first, descriptions)})
     return out
+
+
+def _description(component: dict[str, Any], descriptions: dict[str, str]) -> str:
+    return descriptions.get(component["part_number"]) or component.get("description", "")
 
 
 def csv_text(table: list[dict[str, Any]], *, per_component: bool = False) -> str:

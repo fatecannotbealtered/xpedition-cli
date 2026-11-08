@@ -791,6 +791,7 @@ class BomTest(DesignerCase):
             placed("TP1", "2", [("1", "1", "GND")], {}),
         ]
         self.library: tuple = ({"RES-1K": "Resistor, 1 kOhm"}, "")
+        self.real_index = designer._library_index
         patcher = mock.patch.object(designer, "_library_index", lambda prj: self.library)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -866,8 +867,25 @@ class BomTest(DesignerCase):
         self.library = (None, "The central library could not be read: no export.")
         result = self.handler("bom export").apply(self.ctx("bom export", {"output": self.out, "per_component": True}))["result"]
         self.assertEqual(result["rows"], 4)
-        self.assertIn("Description column is empty", result["warnings"][0])
+        self.assertIn("each component's own description", result["warnings"][0])
         self.assertEqual(Path(self.out).read_text(encoding="utf-8-sig").splitlines()[0], ",".join(bom.COMPONENT_COLUMNS))
+
+    def test_a_library_this_machine_cannot_reach_leaves_the_library_out(self):
+        missing = AdapterError("E_NOT_FOUND", "The central library Y:/Library.lmc that the project names does not exist.",
+                               dispatch_state="not_started")
+        with mock.patch.object(library_module, "read_library", side_effect=missing):
+            index, why = self.real_index(self.prj)
+        self.assertIsNone(index)
+        self.assertIn("Y:", why)
+        licence = AdapterError("E_HUMAN_REQUIRED", "A licence window holds the converters.", dispatch_state="not_started")
+        with mock.patch.object(library_module, "read_library", side_effect=licence), self.assertRaises(AdapterError):
+            self.real_index(self.prj)
+
+    def test_bom_export_takes_a_components_own_description_without_the_library(self):
+        self.library = (None, "The central library could not be read.")
+        self.app.components = [placed("J1", "1", [("1", "1", "5V")], {"Part Number": "CON-2", "DESCRIPTION": "Header, 2 pins"})]
+        self.handler("bom export").apply(self.ctx("bom export", {"output": self.out}))
+        self.assertEqual(Path(self.out).read_text(encoding="utf-8-sig").splitlines()[1], "1,1,J1,CON-2,,\"Header, 2 pins\"")
 
     def test_bom_export_read_back_checks_the_file(self):
         ctx = self.ctx("bom export", {"output": self.out}, targets=[base.key(self.out)])
