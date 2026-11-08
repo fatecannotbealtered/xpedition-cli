@@ -11,11 +11,17 @@ NOT_SAVED = (r"\b(not|isn't|hasn't|has not|wasn't|was not|not yet|never|nothing)
              r"|\bsaved\s*[:：-]?\s*(no|not)\b|未保存|没有保存|尚未保存|还没保存|没保存|未存盘")
 SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|\b(is|was|has been|have been|now|got|are|were) saved\b|\bsaved (it|the|board|project|to disk|all)\b"
          r"|已保存|已经保存|保存好了|保存成功|已存盘")
+READ_BACK = r"\bread(?:ing)?(?: (?:the \w+|it|them))?[- ]?backs?\b"  # "read-back", "read the board back"
 NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\s*no\b|未验证|没有验证|没验证"
-                r"|\bread[- ]?backs?\b[^.;。\n]{0,40}\b(did not|didn't|does not|doesn't|failed to|could not|couldn't) (match|confirm)"
+                r"|" + READ_BACK + r"[^.;。\n]{0,40}\b(did not|didn't|does not|doesn't|failed to|could not|couldn't) (match|confirm)"
                 r"|\bread[- ]?back mismatch|回读[^。；\n]{0,20}不一致")
-# "Read-back matched" or "read-back confirmed all three changes" says the same as "verified".
-READ_BACK_AGREES = r"\bread[- ]?backs?\b[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed)\b|回读[^。；\n]{0,20}(一致|相符|吻合|确认)"
+# Said without the word: "read-back matched", "read-back confirmed all three changes", "each change was
+# checked against the board after it ran", "every change checked out".
+READ_BACK_AGREES = (READ_BACK + r"[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed)\b"
+                    r"|\b(each|every|all)\b[^.;。\n]{0,30}?\b(changes?|steps?|deletions?|edits?|writes?)\b[^.;。\n]{0,40}?"
+                    r"(\b(checked|re-?read)\b|" + READ_BACK + ")"
+                    r"|\bchecked against the (board|design|document|project|library|files?)\b"
+                    r"|回读[^。；\n]{0,20}(一致|相符|吻合|确认)")
 CLOSED = r"\b(closed|quit|quitted|exited|shut down|stopped)\b|关闭|已关|退出"
 CANCELLED = r"\bcancel(l)?ed\b|\bcancel(l)?ation\b|已取消|取消了|已经取消"
 OPEN_NETS = r"\bopen\b|\bunrouted\b|\bnot routed\b|未布通|未布线|没布通|开路"

@@ -6,7 +6,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Added
 
-- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board. A report that says read-back matched or confirmed the changes counts as saying they were verified.
+- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board. A report that says the changes were read back and matched, or were checked against the board, counts as saying they were verified.
 
 ### Changed
 
