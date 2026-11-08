@@ -517,7 +517,7 @@
     },
     {
       "path": "component list",
-      "summary": "List the schematic's components: reference designator, part number, value and sheet.",
+      "summary": "List the components of the open schematic or board, with where each stands on a board.",
       "effects": [
         "observe"
       ],
@@ -539,7 +539,7 @@
         {
           "name": "--sheet",
           "type": "integer",
-          "summary": "Only the components on this sheet."
+          "summary": "Only the components on this schematic sheet."
         },
         {
           "name": "--limit",
@@ -555,7 +555,8 @@
       "untrusted_fields": [
         "refdes",
         "part_number",
-        "value"
+        "value",
+        "cell"
       ],
       "irreversible": false,
       "halt": false,
@@ -564,18 +565,23 @@
         "refdes",
         "part_number",
         "value",
-        "sheet"
+        "sheet",
+        "x_mm",
+        "y_mm",
+        "rotation_deg",
+        "side"
       ],
       "related_knowledge": [
         "designer-reopen-after-sheet-changes"
       ],
       "doc_kinds": [
-        "project"
+        "project",
+        "board"
       ]
     },
     {
       "path": "component get",
-      "summary": "Read one schematic component: its attributes, and each pin's name and net.",
+      "summary": "Read one component: on a schematic its attributes and pins' names and nets, on a board where it and its pins stand.",
       "effects": [
         "observe"
       ],
@@ -606,6 +612,7 @@
         "part_number",
         "value",
         "attributes",
+        "cell",
         "pins"
       ],
       "irreversible": false,
@@ -616,7 +623,8 @@
         "designer-reopen-after-sheet-changes"
       ],
       "doc_kinds": [
-        "project"
+        "project",
+        "board"
       ]
     },
     {
@@ -1019,6 +1027,78 @@
         "board"
       ],
       "long": true
+    },
+    {
+      "path": "component move",
+      "summary": "Move one component on the open board to a position, rotation and side.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "component",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--refdes",
+          "type": "string",
+          "summary": "The component's reference designator.",
+          "required": true
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "Where its cell origin goes; its x by default.",
+          "quantity": "length"
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "Where its cell origin goes; its y by default.",
+          "quantity": "length"
+        },
+        {
+          "name": "--rotation",
+          "type": "quantity",
+          "summary": "Its rotation, counter-clockwise; its rotation by default.",
+          "quantity": "angle"
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top or bottom; its side by default. A part on the bottom is mirrored."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {
+        "x_mm": 0.001,
+        "y_mm": 0.001,
+        "rotation_deg": 0.01
+      },
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-placement-drc"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
     },
     {
       "path": "plane create",

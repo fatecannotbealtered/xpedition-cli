@@ -55,6 +55,7 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `forward-annotation run`: change
 - `pcb update`: change
 - `placement run`: change
+- `component move`: change
 - `plane create`: change
 - `router run`: change
 - `pcb export`: artifact, persist

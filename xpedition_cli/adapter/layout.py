@@ -98,9 +98,10 @@ def __getattr__(name: str) -> Any:
         except AdapterError:
             return ""
     if name == "HANDLERS":
-        from . import layout_board, layout_edit, layout_output, layout_rules
+        from . import layout_board, layout_edit, layout_output, layout_parts, layout_rules
 
-        return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS, *layout_edit.HANDLERS]
+        return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS, *layout_edit.HANDLERS,
+                *layout_parts.HANDLERS]
     raise AttributeError(name)
 
 
@@ -876,15 +877,19 @@ def outline_values(doc: Any) -> dict[str, Any]:
 
 
 def component_values(component: Any) -> dict[str, Any]:
-    """Where a component stands: its cell origin in mm and its rotation, or only ``placed``
-    False (an unplaced part reports position 0, 0)."""
+    """Where a component stands: its cell origin in mm, its rotation and its side, or only
+    ``placed`` False (an unplaced part reports position 0, 0)."""
     if component is None:
-        return {"placed": None, "x_mm": None, "y_mm": None, "rotation_deg": None}
+        return {"placed": None, "x_mm": None, "y_mm": None, "rotation_deg": None, "side": None}
     if not bool(component.Placed):
-        return {"placed": False, "x_mm": None, "y_mm": None, "rotation_deg": None}
+        return {"placed": False, "x_mm": None, "y_mm": None, "rotation_deg": None, "side": None}
+    try:
+        side = {1: "top", 512: "bottom"}.get(int(component.Side))  # EPcbSide
+    except Exception:  # noqa: BLE001 - a side that cannot be read
+        side = None
     return {"placed": True, "x_mm": round(float(component.GetPositionX(UNIT_MM)), 4),
             "y_mm": round(float(component.GetPositionY(UNIT_MM)), 4),
-            "rotation_deg": round(float(component.Orientation or 0.0) % 360.0, 4)}
+            "rotation_deg": round(float(component.Orientation or 0.0) % 360.0, 4), "side": side}
 
 
 def routing_values(doc: Any) -> dict[str, Any]:

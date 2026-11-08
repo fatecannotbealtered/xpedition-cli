@@ -162,8 +162,8 @@
 | CAP-066 | 在四角放非金属化安装孔，删除安装孔 | `PutMountingHoleEx` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-067 | 读取和设置网络类、成员网络、每层线宽和差分线距，以及差分对 | `ConstraintsAuto`（版图上下文）+ `ProjectIntegration.LoadCES` | provided | - |
 | CAP-068 | 按连接关系自动布局（按页分簇、区域标签） | `Component.Place` + 规划器 | provided | - |
-| CAP-069 | 把元件移到指定位置和角度（顶面） | `Component.Place/Move` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
-| CAP-070 | 把元件放到底面 | `Place(bTop=False)` | unknown | 从未试过；`Side` 只读 |
+| CAP-069 | 把元件移到指定位置和角度（顶面） | `Component.Place/Move` | provided | - |
+| CAP-070 | 把元件放到底面 | `Place(bTop=False)` | provided | - |
 | CAP-071 | 把丝印位号挪到空位，或挪到指定位置 | `FabricationLayerText.Move` | deferred | 第一版只收做板必经的步骤，以后的版本提供 |
 | CAP-072 | 铺铜（平面形状） | `PutPlaneShape`、`PlaneAssignment` | provided | - |
 | CAP-073 | 自动布线：指定网络、层和布线遍 | `NewRoutePass` | provided | - |

@@ -1227,6 +1227,10 @@ class ComponentList(Handler):
     command = "component list"
 
     def read(self, ctx: Context) -> dict[str, Any]:
+        if sessions.doc_kind(ctx.document_path()) == "board":
+            from . import layout_parts
+
+            return layout_parts.list_components(ctx)
         sheet = ctx.inputs.get("sheet")
         rows = [{"refdes": c["refdes"], "part_number": c["part_number"], "value": c["value"], "sheet": c["sheet"],
                  "pins": len(c["pins"]), "connected": sum(1 for p in c["pins"] if p["net"])}
@@ -1238,6 +1242,10 @@ class ComponentGet(Handler):
     command = "component get"
 
     def read(self, ctx: Context) -> dict[str, Any]:
+        if sessions.doc_kind(ctx.document_path()) == "board":
+            from . import layout_parts
+
+            return layout_parts.get_component(ctx)
         found = _one(_schematic_snapshot(ctx).components, str(need_input(ctx, "refdes")), "refdes", "component",
                      "component list")
         return {"refdes": found["refdes"], "part_number": found["part_number"], "value": found["value"], "sheet": found["sheet"],

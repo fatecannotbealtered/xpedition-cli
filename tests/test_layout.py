@@ -507,7 +507,7 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(sorted(h.command for h in L.HANDLERS), sorted([
             "forward-annotation run", "pcb update", "placement run", "plane create", "router run", "pcb get", "pcb check", "pcb export",
             "constraint get", "constraint import", "trace create", "trace delete", "via delete", "plane delete", "via update", "via create",
-            "solder-mask create", "solder-mask delete", "pcb render"]))
+            "solder-mask create", "solder-mask delete", "pcb render", "component move"]))
         self.assertEqual([h.command for h in L.HANDLERS if h.long_job],
                          ["forward-annotation run", "placement run", "router run", "pcb export", "pcb render", "constraint import",
                           "trace create", "via create"])

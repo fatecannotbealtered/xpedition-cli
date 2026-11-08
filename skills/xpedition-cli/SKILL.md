@@ -43,7 +43,7 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `padstack`: list, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
-- `component`: list, get
+- `component`: list, get, move
 - `net`: list, get
 - `bom`: check, export
 - `pcb`: create, update, get, check, export, render
