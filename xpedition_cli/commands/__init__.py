@@ -343,14 +343,20 @@ VERIFIED: dict[str, list[str]] = {
 }
 
 # The evaluation report in which every question passed on Xpedition 2604 (DSKL-043).
-EVALUATION = "eval:docs/evidence/eval-2026-11-06.json"
+EVALUATION = "eval:docs/evidence/eval-2026-11-08.json"
 
 # Verified commands that an evaluation question lists and the Agent ran there (DSKL-043).
-STABLE: set[str] = set()
+STABLE = {
+    "constraint get", "constraint import", "forward-annotation run", "packager run", "padstack create", "padstack list",
+    "part create", "part get", "part list", "pcb check", "pcb create", "pcb export", "pcb get", "pcb render", "pcb update",
+    "placement run", "plane create", "plane delete", "project get", "router run", "schematic check", "schematic create",
+    "schematic export", "schematic get", "solder-mask create", "solder-mask delete", "trace delete", "via create", "via delete",
+    "via update", "doc close", "doc create", "doc get", "doc open", "doc save", "session close", "session list", "session open",
+}
 
-# The standard commands whose behavior matrix passed in full on Xpedition 2604 (DVER-040).
-STANDARD_MATURITY: dict[str, dict[str, Any]] = {
-    "doc close": {"maturity": "verified", "evidence": [
+# The live records of the standard commands whose behavior matrix passed in full on Xpedition 2604 (DVER-040).
+STANDARD_VERIFIED: dict[str, list[str]] = {
+    "doc close": [
         "live:docs/evidence/2026-11-07-184507-doc-close.json",
         "live:docs/evidence/2026-11-07-184733-doc-close.json",
         "live:docs/evidence/2026-11-07-184835-doc-close.json",
@@ -359,8 +365,8 @@ STANDARD_MATURITY: dict[str, dict[str, Any]] = {
         "live:docs/evidence/2026-11-07-192449-doc-close.json",
         "live:docs/evidence/2026-11-07-193251-doc-close.json",
         "live:docs/evidence/2026-11-07-193414-doc-close.json",
-    ]},
-    "doc create": {"maturity": "verified", "evidence": [
+    ],
+    "doc create": [
         "live:docs/evidence/2026-11-07-181033-doc-create.json",
         "live:docs/evidence/2026-11-07-181212-doc-create.json",
         "live:docs/evidence/2026-11-07-181214-doc-create.json",
@@ -368,20 +374,20 @@ STANDARD_MATURITY: dict[str, dict[str, Any]] = {
         "live:docs/evidence/2026-11-07-181226-doc-create.json",
         "live:docs/evidence/2026-11-07-182207-doc-create.json",
         "live:docs/evidence/2026-11-07-182622-doc-create.json",
-    ]},
-    "doc get": {"maturity": "verified", "evidence": [
+    ],
+    "doc get": [
         "live:docs/evidence/2026-11-07-181243-doc-get.json",
         "live:docs/evidence/2026-11-07-181722-doc-get.json",
         "live:docs/evidence/2026-11-07-181819-doc-get.json",
         "live:docs/evidence/2026-11-07-182624-doc-get.json",
-    ]},
-    "doc list": {"maturity": "verified", "evidence": [
+    ],
+    "doc list": [
         "live:docs/evidence/2026-11-07-181246-doc-list.json",
         "live:docs/evidence/2026-11-07-181723-doc-list.json",
         "live:docs/evidence/2026-11-07-181821-doc-list.json",
         "live:docs/evidence/2026-11-07-182626-doc-list.json",
-    ]},
-    "doc open": {"maturity": "verified", "evidence": [
+    ],
+    "doc open": [
         "live:docs/evidence/2026-11-07-184509-doc-open.json",
         "live:docs/evidence/2026-11-07-184736-doc-open.json",
         "live:docs/evidence/2026-11-07-184837-doc-open.json",
@@ -392,8 +398,8 @@ STANDARD_MATURITY: dict[str, dict[str, Any]] = {
         "live:docs/evidence/2026-11-07-192616-doc-open.json",
         "live:docs/evidence/2026-11-07-192620-doc-open.json",
         "live:docs/evidence/2026-11-07-192640-doc-open.json",
-    ]},
-    "doc save": {"maturity": "verified", "evidence": [
+    ],
+    "doc save": [
         "live:docs/evidence/2026-11-07-184511-doc-save.json",
         "live:docs/evidence/2026-11-07-184738-doc-save.json",
         "live:docs/evidence/2026-11-07-184840-doc-save.json",
@@ -403,33 +409,39 @@ STANDARD_MATURITY: dict[str, dict[str, Any]] = {
         "live:docs/evidence/2026-11-07-193058-doc-save.json",
         "live:docs/evidence/2026-11-07-193212-doc-save.json",
         "live:docs/evidence/2026-11-07-194335-doc-save.json",
-    ]},
-    "session close": {"maturity": "verified", "evidence": [
+    ],
+    "session close": [
         "live:docs/evidence/2026-11-07-181743-session-close.json",
         "live:docs/evidence/2026-11-07-182018-session-close.json",
         "live:docs/evidence/2026-11-07-182205-session-close.json",
         "live:docs/evidence/2026-11-07-182632-session-close.json",
         "live:docs/evidence/2026-11-07-184300-session-close.json",
         "live:docs/evidence/2026-11-07-184540-session-close.json",
-    ]},
-    "session get": {"maturity": "verified", "evidence": [
+    ],
+    "session get": [
         "live:docs/evidence/2026-11-07-181248-session-get.json",
         "live:docs/evidence/2026-11-07-181823-session-get.json",
         "live:docs/evidence/2026-11-07-182628-session-get.json",
         "live:docs/evidence/2026-11-07-184543-session-get.json",
-    ]},
-    "session list": {"maturity": "verified", "evidence": [
+    ],
+    "session list": [
         "live:docs/evidence/2026-11-07-181250-session-list.json",
         "live:docs/evidence/2026-11-07-181824-session-list.json",
         "live:docs/evidence/2026-11-07-182630-session-list.json",
-    ]},
-    "session open": {"maturity": "verified", "evidence": [
+    ],
+    "session open": [
         "live:docs/evidence/2026-11-07-181906-session-open.json",
         "live:docs/evidence/2026-11-07-182007-session-open.json",
         "live:docs/evidence/2026-11-07-182106-session-open.json",
         "live:docs/evidence/2026-11-07-182147-session-open.json",
         "live:docs/evidence/2026-11-07-184259-session-open.json",
-    ]},
+    ],
+}
+
+# Their maturity: stable when an evaluation question lists them and the Agent ran them there.
+STANDARD_MATURITY: dict[str, dict[str, Any]] = {
+    path: {"maturity": "stable" if path in STABLE else "verified", "evidence": [*records, *([EVALUATION] if path in STABLE else [])]}
+    for path, records in STANDARD_VERIFIED.items()
 }
 
 

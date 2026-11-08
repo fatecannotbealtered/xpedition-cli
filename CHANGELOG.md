@@ -4,27 +4,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
-### Added
-
-- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board. A report that says the changes were read back and matched, or were checked against the board, counts as saying they were verified.
-
-### Changed
-
-- Specification tool-driver-cli-spec 1.0.8. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A long write that a dialog stops after it was sent ends `unknown` with `E_HUMAN_REQUIRED`, the dialog's title and the command that resumes it. The Skill saves only when the person asks for it: a grant to change a document is not a request to save it. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again, and the Skill writes a scope file itself only for what the person's own message grants.
-- Every command's behavior matrix passed live on Xpedition 2604 with 1.1, so every command is verified again.
-- Reading a board's geometry takes about half the time: net names are read without wrapping each net object, and the readers of copper alone skip the silkscreen. On the flex board used to accept 1.1, the via create preview went from over 25 s, which ended it, to 9 s.
-- `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.
-- `pcb render` draws the board's cutouts, such as slots for screws, as holes through the copper.
-
-### Fixed
-
-- `pcb render` counts what it drew: the pads, traces and plane shapes on the layers drawn and the openings on the side drawn. It counted those of the whole board, so a picture of layer 1 reported the plane of layer 2.
-- A via padstack changed and then deleted before a save no longer leaves the save's read-back expecting it: `via delete` lists the padstack going with the vias.
-- A plane created and deleted before a save no longer leaves the save's read-back expecting its fill: `plane delete` lists the hatch going with the shape, and a plane that is gone reads back without a fill.
-- `via create` keeps stitching vias 0.254 mm from the board's cutouts, the distance Layout's DRC asks; it placed two vias beside a slot.
-- `via create` and `trace create` take the size of a via the board already uses from the board's own vias, so they work on a project whose central library is on another machine's drive.
-
-## [1.1.0] - 2026-11-07
+## [1.1.0] - 2026-11-08
 
 ### Added
 
@@ -33,23 +13,27 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - The knowledge entry `layout-impedance-from-fab-table` says impedance widths and spacing come from the fabricator's table: Layout's own impedance figures were several hundred ohms for any width on both boards measured.
 - `padstack list` lists the padstacks of the central library with their type and their pad, hole and soldermask sizes; `--type via` lists the vias.
 - `padstack create` adds a via padstack to the central library: a plated hole, a round pad on every conductor layer, and a soldermask opening with `--mask` or none (tented). A via the library holds as it is is skipped; a name it holds with other content is refused.
-- `trace create` draws the traces and places the vias of a routing plan, a JSON file in board coordinates. It first checks the plan offline against the board's copper, the width limits of each net's class and the clearance rules for each pair of classes, and is refused with every reason it finds; its result says which of the plan's nets are routed now.
-- `trace delete` deletes the traces of the nets named, on every layer or on the layers named; `via delete` deletes their vias; `plane delete` deletes the plane shapes of one net on one layer. They take back a routing attempt before a save.
+- `trace create` draws the traces and places the vias of a routing plan, a JSON file in board coordinates. It first checks the plan offline against the board's copper, the width limits of each net's class and the clearance rules for each pair of classes, and is refused with every reason it finds; its result says which of the plan's nets are routed now. A via the board already uses takes its size from the board's own vias, so a plan works on a project whose central library is on another machine's drive.
+- `trace delete` deletes the traces of the nets named, on every layer or on the layers named; `via delete` deletes their vias; `plane delete` deletes the plane shapes of one net on one layer. They take back a routing attempt before a save, and the save's read-back expects neither the padstack of the deleted vias nor the fill of the deleted plane.
 - `via update` changes the vias of the nets or net classes named to another via padstack, pulled from the central library when the board lacks it. The autorouter places the via each net class is assigned in Constraint Manager, which no command can change, so a router run followed by via update gives the via size the design asks for.
-- `via create` places vias of one net: one at `--x`, `--y`, or a stitching grid at `--pitch` inside the net's copper on two layers, clear of every pad, the traces of other nets, vias and holes by the board's default clearance rule. The via is the net class's own unless `--padstack` names another.
+- `via create` places vias of one net: one at `--x`, `--y`, or a stitching grid at `--pitch` inside the net's copper on two layers, clear of every pad, the traces of other nets, vias and holes by the board's default clearance rule, and 0.254 mm from the board's cutouts, the distance Layout's DRC asks. The via is the net class's own unless `--padstack` names another; a via the board already uses takes its size from the board's own vias.
 - `solder-mask create` opens the soldermask over a rectangle on one side, or the coverlay of a flex board with `--cover-layer`, naming the nets whose copper it bares; an opening over no copper, or a coverlay opening on a stackup without a cover layer, is refused. `solder-mask delete` deletes the opening that holds a point.
-- `pcb render` draws the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, from the top or the bottom, for chosen layers. It needs no screen, so it works with the desktop locked, and runs as a long job, since reading a real board's geometry takes tens of seconds.
+- `pcb render` draws the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes, cutouts such as slots for screws, and soldermask openings, from the top or the bottom, for chosen layers. Its result counts the pads, traces and plane shapes on the layers drawn and the openings on the side drawn. It needs no screen, so it works with the desktop locked, and runs as a long job, since reading a real board's geometry takes tens of seconds.
+- Evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias.
 
 ### Changed
 
 - The Skill gains a playbook for routing a board, with the rules file and the routing plan described in its references; the board-building steps move into a reference of their own.
 - The knowledge entries describe what xpedition-cli does now, without version labels; the licence entry says a missing licence call is reported as `E_HUMAN_REQUIRED` with the action `activate_license`, and the Designer prompts entry says doc open leaves the question about closing open documents to the person.
 - The knowledge on vias near pads, trace widths, pouring after routing and the board flow names the new commands: trace create and via create place single traces and vias, plane delete takes back a pour, and constraint import sets the rules before any copper.
-- Built on tool-driver-cli-spec 1.0.6.
+- Built on tool-driver-cli-spec 1.0.8. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A long write that a dialog stops after it was sent ends `unknown` with `E_HUMAN_REQUIRED`, the dialog's title and the command that resumes it. The Skill saves only when the person asks for it, since a grant to change a document is not a request to save it, and writes a scope file itself only for what the person's own message grants. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again.
 - `router run` routes only the nets `--nets` names and the nets of the classes `--net-classes` names, with the passes `--passes` lists in order, such as `fanout:1,route:1-5`; its result then adds `selected`, the routing of those nets. Its result reports connections only: run pcb check to judge the routing.
 - `pcb get` shows, for each net class, the via it is assigned for each via span: the via the autorouter places.
 - `plane create --hatch orthogonal` or `diagonal`, with `--hatch-width` and `--hatch-distance`, pours a hatched plane, as flex boards often use; only that shape is hatched.
 - `pcb get` names the kind of each insulation layer of the stackup, such as `cover_layer` on a flex board.
+- Reading a board's geometry takes about half the time: net names are read without wrapping each net object, and the readers of copper alone skip the silkscreen.
+- `docs/E2E.md` lists a copy of a real FPC project among the authorized targets, used only to accept 1.1 by routing it.
+- Maturity on Xpedition 2604, with live records and an evaluation report in `docs/evidence/`: `stable` for every domain command but `trace create`, and for `session open`, `session close`, `session list`, `doc create`, `doc open`, `doc get`, `doc save` and `doc close`; `verified` for `trace create`, `session get` and `doc list`.
 
 ### Fixed
 
