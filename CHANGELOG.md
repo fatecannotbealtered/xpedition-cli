@@ -4,6 +4,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Changed
+
+- The live records and the capability survey name the commits of the repository's current history.
+
 ## [1.1.1] - 2026-11-08
 
 ### Changed

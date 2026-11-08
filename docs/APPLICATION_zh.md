@@ -6,7 +6,7 @@
 
 出处缩写：
 - 〔实测〕xpedition-cli 1.0.3 在 Xpedition Standard XPED2604（Windows 11）上的实测记录，2026年9月12日至30日，见 npm 包 `@fateforge/xpedition-cli@1.0.3` 里的 `docs/E2E.md`、`docs/COMPATIBILITY.md` 和 `docs/NATIVE_ADAPTER.md`。
-- 〔旧码〕本仓库 main 分支上的旧实现（提交 4a054a3）及其 CHANGELOG。其中只有关闭诊断做过一次真机运行，其余是代码注释和私有运行的转述，可信度低于〔实测〕。
+- 〔旧码〕本仓库 main 分支上的旧实现（提交 fd0e4ec）及其 CHANGELOG。其中只有关闭诊断做过一次真机运行，其余是代码注释和私有运行的转述，可信度低于〔实测〕。
 - 〔本机〕本机安装的 Xpedition Enterprise 2604（`XENTP2604`，`COM_VERSION 151`）的注册表、安装目录和 `SDD_HOME/standard/automation/Commands_*.csv` 命令目录。
 - 本机安装没有附带自动化参考手册（`docs/` 下只有 `legal`），所以下面没有引用厂商手册。
 

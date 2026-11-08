@@ -6,7 +6,7 @@ This survey records what Xpedition can do and how it can be automated. It is fil
 
 Source markers:
 - [measured] Records of xpedition-cli 1.0.3 measured on Xpedition Standard XPED2604 (Windows 11), 12 to 30 September 2026. See `docs/E2E.md`, `docs/COMPATIBILITY.md` and `docs/NATIVE_ADAPTER.md` in the npm package `@fateforge/xpedition-cli@1.0.3`.
-- [old code] The old implementation on the main branch of this repository (commit 4a054a3) and its CHANGELOG. Only the close diagnostics were run once on a real installation. The rest is retold from code comments and private runs, so it is less reliable than [measured].
+- [old code] The old implementation on the main branch of this repository (commit fd0e4ec) and its CHANGELOG. Only the close diagnostics were run once on a real installation. The rest is retold from code comments and private runs, so it is less reliable than [measured].
 - [this machine] The registry, the install directory and the command catalogs `SDD_HOME/standard/automation/Commands_*.csv` of the Xpedition Enterprise 2604 installed on this machine (`XENTP2604`, `COM_VERSION 151`).
 - The installation on this machine has no automation reference manual (`docs/` holds only `legal`), so no vendor manual is cited below.
 
