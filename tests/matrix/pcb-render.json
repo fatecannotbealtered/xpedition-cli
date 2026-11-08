@@ -14,12 +14,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "The practice board after routing, planes, stitching vias and an opening, drawn from the top into a new PNG; exists reads back true and the result counts the pads, traces, vias, planes and openings drawn."
+        "summary": "The practice board with GND planes on layers 1 and 2, stitching vias and a top soldermask opening, drawn from the top into a new PNG; exists reads back true and the result counts the pads, traces, planes and openings drawn on the layers and side drawn, and every via."
       },
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200512-pcb-render.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-095935-pcb-render.json#normal"
     },
     {
       "row": "empty",
@@ -36,12 +36,12 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "Only layer 2, which holds nothing but its plane, is drawn: a valid picture of the outline, the plane and the vias."
+        "summary": "Only layer 2, which holds nothing but its plane, is drawn: a valid picture of the outline, the plane and the vias, and the result counts no pad, no trace and the one plane of layer 2."
       },
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200512-pcb-render.json#empty"
+      "evidence": "live:docs/evidence/2026-11-08-095948-pcb-render.json#empty"
     },
     {
       "row": "invalid_input",
@@ -210,7 +210,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200512-pcb-render.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-100002-pcb-render.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

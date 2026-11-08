@@ -792,8 +792,7 @@ class BoardRender(base.Handler):
             with open(output, "wb") as handle:
                 handle.write(png)
             result = {"path": output, "side": side, "layers": layers or list(range(1, picture.layer_count + 1)), "width_px": width,
-                      "height_px": height, "pads": len(picture.pads), "traces": len(picture.traces), "vias": len(picture.vias),
-                      "planes": len(picture.planes), "openings": len(picture.openings)}
+                      "height_px": height, **PR.drawn(picture, side=side, layers=layers or None)}
             return base.facts("not_applicable", "saved", result=result, files=[{"path": output}])
 
         return L.in_layout(ctx, work, budget_s=L.job_budget(L.WRITE_BUDGET_S), write=True, what="drawing the board")

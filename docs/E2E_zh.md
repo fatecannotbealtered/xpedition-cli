@@ -40,6 +40,9 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-08-100002-pcb-render.json](evidence/2026-11-08-100002-pcb-render.json) | 2026-11-08T10:00:02Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-095948-pcb-render.json](evidence/2026-11-08-095948-pcb-render.json) | 2026-11-08T09:59:48Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-08-095935-pcb-render.json](evidence/2026-11-08-095935-pcb-render.json) | 2026-11-08T09:59:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-07-201608-pcb-check.json](evidence/2026-11-07-201608-pcb-check.json) | 2026-11-07T20:16:08Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-07-201558-pcb-get.json](evidence/2026-11-07-201558-pcb-get.json) | 2026-11-07T20:15:58Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-07-201318-plane-delete.json](evidence/2026-11-07-201318-plane-delete.json) | 2026-11-07T20:13:18Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

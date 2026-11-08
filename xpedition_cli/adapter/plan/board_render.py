@@ -122,6 +122,17 @@ def layer_colour(layer: int, layer_count: int) -> tuple[int, int, int]:
     return COPPER["inner"]
 
 
+def drawn(picture: Picture, *, side: str = "top", layers: list[int] | None = None) -> dict[str, int]:
+    """What ``render`` draws with the same choices: the pads, traces and plane shapes on the layers
+    drawn, every via, and the openings on the side drawn."""
+    wanted = set(layers or range(1, picture.layer_count + 1))
+    return {"pads": sum(1 for layer, _poly in picture.pads if layer in wanted),
+            "traces": sum(1 for layer, _points, _width in picture.traces if layer in wanted),
+            "vias": len(picture.vias),
+            "planes": sum(1 for layer, _poly in picture.planes if layer in wanted),
+            "openings": sum(1 for opening_side, _box in picture.openings if opening_side == side)}
+
+
 def render(picture: Picture, *, side: str = "top", layers: list[int] | None = None, scale: float = 20.0) -> tuple[bytes, int, int]:
     """The PNG of the picture and its size in pixels. ``layers`` are the copper layers drawn (every
     layer by default), the far ones first so the near side lies on top; ``scale`` is pixels per mm,

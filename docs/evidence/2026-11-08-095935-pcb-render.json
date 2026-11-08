@@ -1,0 +1,35 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.0",
+  "commit": "e5128a0288b8",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T09:59:35Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "pcb render",
+      "arguments": [
+        "--session",
+        "layout-43520-32100d849",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\FlexDemo\\PCB\\FlexDemo.pcb",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\elsewhere\\r-normal/board.png"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "doc_kind": "board",
+      "notes": "job job-6058a3b4da ended completed"
+    }
+  ]
+}

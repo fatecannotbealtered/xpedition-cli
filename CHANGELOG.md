@@ -4,6 +4,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Added
+
+- Four evaluation questions for the routing commands, on the sample board: put the power nets in a net class of their own width, route only that class and give its vias the size asked for; pour a second GND plane, stitch the two, bare a patch of copper and draw the board; take back the traces, vias, a plane and a soldermask opening; read a net class's width and the library's vias. The sample project can now stop at the placed board.
+
 ### Changed
 
 - Specification tool-driver-cli-spec 1.0.7. A long write's final receipt names the document as the job left it, so a `doc save` after it no longer lists the job's own change as made outside the tool. A person grants live-run targets once, in `docs/E2E.md`; inside them the coding Agent works without asking again, and the Skill writes a scope file itself only for what the person's own message grants.
@@ -14,6 +18,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Fixed
 
+- `pcb render` counts what it drew: the pads, traces and plane shapes on the layers drawn and the openings on the side drawn. It counted those of the whole board, so a picture of layer 1 reported the plane of layer 2.
 - A via padstack changed and then deleted before a save no longer leaves the save's read-back expecting it: `via delete` lists the padstack going with the vias.
 - A plane created and deleted before a save no longer leaves the save's read-back expecting its fill: `plane delete` lists the hatch going with the shape, and a plane that is gone reads back without a fill.
 - `via create` keeps stitching vias 0.254 mm from the board's cutouts, the distance Layout's DRC asks; it placed two vias beside a slot.

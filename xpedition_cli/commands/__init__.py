@@ -155,6 +155,9 @@ VERIFIED: dict[str, list[str]] = {
         "live:docs/evidence/2026-11-07-191544-pcb-render.json",
         "live:docs/evidence/2026-11-07-200512-pcb-render.json",
         "live:docs/evidence/2026-11-07-200534-pcb-render.json",
+        "live:docs/evidence/2026-11-08-095935-pcb-render.json",
+        "live:docs/evidence/2026-11-08-095948-pcb-render.json",
+        "live:docs/evidence/2026-11-08-100002-pcb-render.json",
     ],
     "pcb update": [
         "live:docs/evidence/2026-11-07-184521-pcb-update.json",

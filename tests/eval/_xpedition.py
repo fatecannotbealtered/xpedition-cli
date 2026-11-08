@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 FIXTURES = Path(__file__).resolve().parents[1] / "inputs"
-STAGES = ("project", "parts", "drawn", "board", "laid_out")
+STAGES = ("project", "parts", "drawn", "board", "placed", "laid_out")
 FINAL_JOB_STATES = {"completed", "failed", "partial", "unknown", "cancelled"}
 START_WAIT_S = 300.0
 OUTLINE = {"width": 70.0, "height": 48.0, "radius": 3.0}
@@ -194,6 +194,54 @@ def near(value: Any, wanted: float, tolerance: float = 0.01) -> bool:
     return isinstance(value, (int, float)) and abs(value - wanted) <= tolerance
 
 
+def pcb_args(run: Any) -> list[str]:
+    """The Layout session the hooks started and the board, for the grader's reads."""
+    return ["--session", run.notes.get("layout") or "", "--doc", str(board(run))]
+
+
+def copper(run: Any) -> dict[str, Any]:
+    """The board's traces and vias, each with its net, from ``pcb get --output``."""
+    out = run.documents / "grader-board.json"
+    read(run, "pcb", "get", *pcb_args(run), "--output", str(out))
+    try:
+        model = json.loads(out.read_text(encoding="utf-8")).get("model") or {}
+    except (OSError, ValueError):
+        model = {}
+    return {"traces": model.get("traces") or [], "vias": model.get("vias") or []}
+
+
+def by_net(items: list[dict[str, Any]], *nets: str) -> list[dict[str, Any]]:
+    return [item for item in items if item.get("net") in nets]
+
+
+def rules(run: Any) -> dict[str, Any]:
+    """The board's constraints in the rules file format, from ``constraint get --output``."""
+    out = run.documents / "grader-rules.json"
+    read(run, "constraint", "get", *pcb_args(run), "--output", str(out))
+    try:
+        return json.loads(out.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def class_of(rule_set: dict[str, Any], net: str) -> dict[str, Any]:
+    """The net class that holds the net, or an empty dict."""
+    return next((c for c in rule_set.get("net_classes") or [] if net in (c.get("nets") or [])), {})
+
+
+def width_on(net_class: dict[str, Any], layer: int) -> Any:
+    layers = net_class.get("layers") or {}
+    return (layers.get(str(layer)) or layers.get("all") or {}).get("width_mm")
+
+
+def drawn(run: Any, *args: str) -> dict[str, Any]:
+    """What ``pcb render`` drew, as the grader: the counts of pads, traces, vias, planes and openings."""
+    out = run.documents / "grader-render.png"
+    found = write(run, "pcb", "render", *pcb_args(run), "--output", str(out), *args)
+    run.check(found.get("ok"), f"the grader's pcb render failed: {(found.get('error') or {}).get('message')}")
+    return (found.get("data") or {}).get("result") or {}
+
+
 # ------------------------------------------------------------------ writing as a hook
 
 
@@ -299,9 +347,11 @@ def copy_inputs(run: Any) -> None:
 
 def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
     """Real Xpedition: make the sample project Demo.prj in the documents folder up to a stage of
-    STAGES. With ``keep_open``, the last instance used stays open with the file (``drawn``:
-    Designer with the project, reopened after the save; ``laid_out``: Layout with the saved
-    board), and its session is returned. Fake host: copy the input files only."""
+    STAGES: ``placed`` has the board's netlist, outline and parts, ``laid_out`` also a GND plane
+    on layer 2 and the routing, both saved. With ``keep_open``, the last instance used stays open
+    with the file (``drawn``: Designer with the project, reopened after the save; ``placed`` and
+    ``laid_out``: Layout with the saved board), and its session is returned. Fake host: copy the
+    input files only."""
     if fake(run):
         copy_inputs(run)
         return None
@@ -325,14 +375,15 @@ def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
     if level >= STAGES.index("board"):
         need(write(run, "packager", "run", "--doc", prj), "packager run")
         need(write(run, "pcb", "create", "--doc", prj), "pcb create")
-    if level >= STAGES.index("laid_out"):
+    if level >= STAGES.index("placed"):
         layout = start(run, board(run))
         pcb = ["--session", layout, "--doc", str(board(run))]
         need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run")
         need(write(run, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm"), "pcb update")
         need(write(run, "placement", "run", *pcb, "--design", str(design(run))), "placement run")
-        need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
-        need(write(run, "router", "run", *pcb), "router run")
+        if level >= STAGES.index("laid_out"):
+            need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
+            need(write(run, "router", "run", *pcb), "router run")
         need(write(run, "doc", "save", *pcb), "doc save of the board")
         if keep_open:
             return layout

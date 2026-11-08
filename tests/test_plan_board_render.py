@@ -63,6 +63,14 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(at(png, 60, 35), R.BACKGROUND)  # inside the slot at (5, 2.5) mm
         self.assertNotEqual(at(png, 30, 35), R.BACKGROUND)  # the plane beside it
 
+    def test_the_counts_are_of_what_is_drawn(self):
+        square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        picture = R.Picture(outline=OUTLINE, layer_count=4, pads=[(1, square), (4, square)], planes=[(2, square)],
+                            traces=[(1, [(0.0, 0.0), (1.0, 0.0)], 0.2), (3, [(0.0, 0.0), (1.0, 0.0)], 0.2)], vias=[(5.0, 4.0, 0.3)],
+                            openings=[("top", (6.0, 2.0, 8.0, 3.0)), ("bottom", (1.0, 1.0, 2.0, 2.0))])
+        self.assertEqual(R.drawn(picture, layers=[1]), {"pads": 1, "traces": 1, "vias": 1, "planes": 0, "openings": 1})
+        self.assertEqual(R.drawn(picture, side="bottom"), {"pads": 2, "traces": 2, "vias": 1, "planes": 1, "openings": 1})
+
     def test_a_huge_board_is_scaled_down(self):
         _png, width, height = R.render(R.Picture(outline=[(0, 0), (500, 0), (500, 100), (0, 100)], layer_count=2), scale=20)
         self.assertLessEqual(max(width, height), R.MAX_PIXELS)
