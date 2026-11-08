@@ -140,8 +140,8 @@ Each capability has one row with an ID `CAP-nnn`, unique in this survey, and one
 | CAP-023 | List the padstacks of the central library with their pad, hole and soldermask sizes | `PadstackDB2HKP` | provided | - |
 | CAP-024 | Add a via padstack to the central library: plated hole, round pad on every layer, soldermask opening or tented | `HKP2PadstackDB` (merge) | provided | - |
 | CAP-030 | Read the schematic: sheets, component count, net count | Designer COM | provided | - |
-| CAP-031 | Read schematic components: reference designator, part number, value, sheet, attributes, each pin and its net | Designer COM `DesignComponents` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
-| CAP-032 | Read schematic nets and their pins | Designer COM | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
+| CAP-031 | Read schematic components: reference designator, part number, value, sheet, attributes, each pin and its net | Designer COM `DesignComponents` | provided | - |
+| CAP-032 | Read schematic nets and their pins | Designer COM | provided | - |
 | CAP-033 | Plan a schematic from a design description and draw a preview PNG (without Designer) | Pure Python | deferred | The first version includes only the steps needed to make a board; a later version will provide it |
 | CAP-034 | Draw a whole schematic from a design description: clear each sheet, place components, draw wires, labels and titles, save, reopen and compare the netlist read back | Designer COM | provided | - |
 | CAP-035 | Place a component | `AddPartInstance` | deferred | The first version includes only the steps needed to make a board; a later version will provide it |

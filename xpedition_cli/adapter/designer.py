@@ -900,7 +900,34 @@ def _attribute(component: Any, name: str) -> str:
     return ""
 
 
-def _component_record(component: Any) -> dict[str, Any]:
+def _attributes(component: Any) -> dict[str, str]:
+    """The component's attributes that hold a value; Designer's own ``@`` attributes left out."""
+    found: dict[str, str] = {}
+    for attribute in _items(_try_get(component, "Attributes")):
+        name, value = str(_try_get(attribute, "Name", "")), str(_try_get(attribute, "Value", "") or "")
+        if name and value and not name.startswith("@"):
+            found[name] = value
+    return found
+
+
+def _pin_name(pin: Any) -> str:
+    """The symbol pin's name, such as ``VBUS``; the component pin itself carries only its number."""
+    symbol_pin = _try_get(pin, "Pin")
+    try:
+        return str(symbol_pin.GetName(0) or "") if symbol_pin is not None else ""
+    except Exception:  # noqa: BLE001 - a pin without a name
+        return ""
+
+
+def _sheet_of(component: Any) -> int | None:
+    """The number of the sheet the component sits on: its parent is the sheet's block, whose
+    ``SheetNum`` Designer returns as text."""
+    number = str(_try_get(_try_get(component, "Parent"), "SheetNum", "")).strip()
+    return int(number) if number.isdigit() else None
+
+
+def _component_record(component: Any, detail: bool = False) -> dict[str, Any]:
+    """A component with its pins and their nets; ``detail`` adds its sheet, attributes and pin names."""
     refdes = str(_try_get(component, "Refdes") or _try_get(component, "RefDes") or "")
     x, y = _point(_try_get(component, "GetLocation"))
     pins: list[dict[str, Any]] = []
@@ -911,10 +938,17 @@ def _component_record(component: Any) -> dict[str, Any]:
             number = _get(pin, "Number")
             identity = _net_identity(net) if net is not None else ""
             px, py = _point(_try_get(pin, "GetLocation"))
-            pins.append({"number": str(number) if number is not None else None, "net": identity or None,
-                         "unnamed": identity.startswith("$"), "x": px, "y": py, "no_connect": False})
-    return {"refdes": refdes, "x": x, "y": y, "part_number": _attribute(component, "Part Number") if refdes else "",
-            "pins": pins}
+            entry = {"number": str(number) if number is not None else None, "net": identity or None,
+                     "unnamed": identity.startswith("$"), "x": px, "y": py, "no_connect": False}
+            if detail:
+                entry["name"] = _pin_name(pin)
+            pins.append(entry)
+    record = {"refdes": refdes, "x": x, "y": y, "part_number": _attribute(component, "Part Number") if refdes else "",
+              "pins": pins}
+    if detail and refdes:
+        attributes = _attributes(component)
+        record.update(sheet=_sheet_of(component), value=attributes.get("Value", ""), attributes=attributes)
+    return record
 
 
 def _snapshot(design: str, records: list[dict[str, Any]]) -> Snapshot:
@@ -975,8 +1009,8 @@ def _design_read_error(exc: BaseException, active: str, board: str) -> AdapterEr
     return com.to_adapter_error(exc, "reading the design's components", dispatch_state="not_started")
 
 
-def _design_snapshot(app: Any, prj: str, deadline: float | None = None) -> Snapshot:
-    """The whole design through ``DesignComponents``."""
+def _design_snapshot(app: Any, prj: str, deadline: float | None = None, detail: bool = False) -> Snapshot:
+    """The whole design through ``DesignComponents``; ``detail`` as ``_component_record`` takes it."""
     board = _board_design(prj)
     active = str(_try_get(app, "GetActiveDesign", "") or "")
     design = board or active
@@ -987,7 +1021,7 @@ def _design_snapshot(app: Any, prj: str, deadline: float | None = None) -> Snaps
         for component in _items(_design_collection(app, "DesignComponents", design)):
             if deadline is not None and time.monotonic() > deadline:
                 raise _Unreadable("out of time")
-            records.append(_component_record(component))
+            records.append(_component_record(component, detail))
     except (_Unreadable, AdapterError):
         raise
     except Exception as exc:  # noqa: BLE001 - classified
@@ -1098,6 +1132,97 @@ class SchematicGet(Handler):
             sizes = _sheet_sizes(app, numbers, SIZE_BUDGET_S)
         return {"design": snap.design, "sheets": [{"number": n, "name": f"{schematic}.{n}", "size": sizes[n]} for n in numbers],
                 "components": len(snap.components), "nets": len(snap.nets())}
+
+
+# ------------------------------------------------------------------ components and nets
+
+
+def natural(text: str) -> list[Any]:
+    """A sort key that puts R2 before R10."""
+    return [int(part) if part.isdigit() else part.casefold() for part in re.split(r"(\d+)", text or "")]
+
+
+def _schematic_snapshot(ctx: Context) -> Snapshot:
+    """The open project's design with each component's sheet, attributes and pin names."""
+    ref = ctx.need_session(DESIGNER)
+    prj = ctx.document_path()
+    with com.initialized(), _com_errors("reading the schematic", "not_started"):
+        app = _connect(ref.pid)
+        _check_open(app, prj)
+        return _design_snapshot(app, prj, detail=True)
+
+
+def _one(found: list[dict[str, Any]], wanted: str, key: str, what: str, listing: str) -> dict[str, Any]:
+    """The one record whose ``key`` is ``wanted``: the exact name first, then in any case."""
+    exact = [r for r in found if r[key] == wanted]
+    matches = exact or [r for r in found if r[key].casefold() == wanted.casefold()]
+    if not matches:
+        raise AdapterError("E_NOT_FOUND", f"The schematic has no {what} {wanted}; {listing} lists them.",
+                           dispatch_state="not_started")
+    if len(matches) > 1:
+        raise AdapterError("E_AMBIGUOUS", f"The schematic has {len(matches)} {what}s named {wanted}: "
+                           + ", ".join(f"{r[key]} on sheet {r.get('sheet')}" for r in matches) + ".",
+                           dispatch_state="not_started",
+                           candidates=[{key: r[key], "sheet": r.get("sheet"), "part_number": r.get("part_number", "")}
+                                       for r in matches])
+    return matches[0]
+
+
+def _pin_row(pin: dict[str, Any]) -> dict[str, Any]:
+    return {"number": pin["number"], "name": pin.get("name", ""), "net": pin["net"], "no_connect": pin["no_connect"]}
+
+
+class ComponentList(Handler):
+    command = "component list"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        sheet = ctx.inputs.get("sheet")
+        rows = [{"refdes": c["refdes"], "part_number": c["part_number"], "value": c["value"], "sheet": c["sheet"],
+                 "pins": len(c["pins"]), "connected": sum(1 for p in c["pins"] if p["net"])}
+                for c in _schematic_snapshot(ctx).components if sheet is None or c["sheet"] == int(sheet)]
+        return {"items": sorted(rows, key=lambda r: natural(r["refdes"]))}
+
+
+class ComponentGet(Handler):
+    command = "component get"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        found = _one(_schematic_snapshot(ctx).components, str(need_input(ctx, "refdes")), "refdes", "component",
+                     "component list")
+        return {"refdes": found["refdes"], "part_number": found["part_number"], "value": found["value"], "sheet": found["sheet"],
+                "attributes": found["attributes"],
+                "pins": [_pin_row(p) for p in sorted(found["pins"], key=lambda p: natural(p["number"] or ""))]}
+
+
+def _nets(snap: Snapshot) -> list[dict[str, Any]]:
+    """Every net with the component pins on it, as the components' connections give them."""
+    nets: dict[str, dict[str, Any]] = {}
+    for component in snap.components:
+        for pin in component["pins"]:
+            if pin["net"]:
+                net = nets.setdefault(pin["net"], {"name": pin["net"], "unnamed": pin["unnamed"], "pins": []})
+                net["pins"].append({"refdes": component["refdes"], "number": pin["number"], "name": pin.get("name", ""),
+                                    "part_number": component["part_number"], "sheet": component["sheet"]})
+    for net in nets.values():
+        net["pins"].sort(key=lambda p: (natural(p["refdes"]), natural(p["number"] or "")))
+        net["sheets"] = sorted({p["sheet"] for p in net["pins"] if p["sheet"] is not None})
+    return sorted(nets.values(), key=lambda n: (n["unnamed"], natural(n["name"])))
+
+
+class NetList(Handler):
+    command = "net list"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        return {"items": [{"name": n["name"], "pins": len(n["pins"]), "unnamed": n["unnamed"], "sheets": n["sheets"]}
+                          for n in _nets(_schematic_snapshot(ctx))]}
+
+
+class NetGet(Handler):
+    command = "net get"
+
+    def read(self, ctx: Context) -> dict[str, Any]:
+        found = _one(_nets(_schematic_snapshot(ctx)), str(need_input(ctx, "name")), "name", "net", "net list")
+        return {"name": found["name"], "unnamed": found["unnamed"], "sheets": found["sheets"], "pins": found["pins"]}
 
 
 # ------------------------------------------------------------------ schematic create
@@ -1857,4 +1982,5 @@ class SchematicExport(Handler):
         return {"observed": observed, "unreadable": []}
 
 
-HANDLERS: list[Handler] = [SchematicGet(), SchematicCreate(), SchematicCheck(), SchematicExport()]
+HANDLERS: list[Handler] = [SchematicGet(), SchematicCreate(), SchematicCheck(), SchematicExport(), ComponentList(), ComponentGet(),
+                           NetList(), NetGet()]

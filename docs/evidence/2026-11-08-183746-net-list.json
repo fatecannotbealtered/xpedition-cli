@@ -1,0 +1,62 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.1",
+  "commit": "eb26568a8434",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T18:37:46Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "net list",
+      "arguments": [
+        "--session",
+        "designer-47028-32101520d",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\ReadDemo.prj"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "session",
+      "doc_kind": "project"
+    },
+    {
+      "command": "net list",
+      "arguments": [
+        "--session",
+        "designer-47028-32101520d",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\ReadDemo.prj",
+        "--sheet",
+        "1"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "doc_kind": "project"
+    },
+    {
+      "command": "net list",
+      "arguments": [
+        "--session",
+        "designer-47028-32101520d",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo-out/Missing.prj"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "doc_kind": "project"
+    }
+  ]
+}

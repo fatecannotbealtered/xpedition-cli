@@ -4,8 +4,13 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Added
+
+- `component list`, `component get`, `net list` and `net get` read the schematic Designer has open: each component's part number, value, sheet and attributes, each pin with its name and net, and each net with the component pins it joins and the sheets it reaches. An unnamed net goes by the name Designer gives it, such as `$1N54`; a reference designator two components share is refused as ambiguous, with both listed.
+
 ### Changed
 
+- Every domain command's summary is one short line, so the index `reference` returns fits one response; the details stay in each command's flags, as `reference --command` shows them.
 - The live records and the capability survey name the commits of the repository's current history.
 
 ## [1.1.1] - 2026-11-08

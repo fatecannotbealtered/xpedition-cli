@@ -24,7 +24,7 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | verified：draft 0 个，verified 1 个，stable 30 个 |
+| 成熟度 | verified：draft 0 个，verified 5 个，stable 30 个 |
 | 规范 | tool-driver-cli-spec 1.0.9 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
@@ -79,6 +79,8 @@
 - `padstack`: list, create
 - `packager`: run
 - `schematic`: get, create (dangerous), check, export
+- `component`: list, get
+- `net`: list, get
 - `pcb`: create, update, get, check, export, render
 - `forward-annotation`: run
 - `placement`: run

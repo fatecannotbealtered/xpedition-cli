@@ -1,0 +1,64 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.1.1",
+  "commit": "eb26568a8434",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T18:42:10Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "component get",
+      "arguments": [
+        "--session",
+        "designer-29848-32101529f",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\ReadDemo.prj",
+        "--refdes",
+        "R1"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "doc_kind": "project"
+    },
+    {
+      "command": "component get",
+      "arguments": [
+        "--session",
+        "designer-29848-32101529f",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\ReadDemo.prj"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "doc_kind": "project"
+    },
+    {
+      "command": "component get",
+      "arguments": [
+        "--session",
+        "designer-29848-32101529f",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\ReadDemo.prj",
+        "--refdes",
+        "U99"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "doc_kind": "project"
+    }
+  ]
+}

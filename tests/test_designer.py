@@ -698,6 +698,89 @@ class SchematicGetTest(DesignerCase):
             designer.HANDLERS[0].read(ctx)
 
 
+# ------------------------------------------------------------------ components and nets
+
+
+def placed(refdes: str, sheet: str, pins: list[tuple], attributes: dict[str, str]) -> Part:
+    """A component on a sheet whose pins carry names: ``pins`` holds (number, name, net[, x, y])."""
+    part = Part(refdes, [(number, net, *rest) for number, _name, net, *rest in pins], attributes.get("Part Number", ""))
+    part.Attributes = Coll([Attr(name, value) for name, value in attributes.items()])
+    part.Parent = SimpleNamespace(SheetNum=sheet)
+    for (_number, name, *_rest), conn in zip(pins, part._connections.items):
+        conn.CompPin.Pin = SimpleNamespace(GetName=lambda flag, name=name: name)
+    return part
+
+
+class ComponentNetReadTest(DesignerCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.app.components = [
+            placed("R10", "2", [("1", "1", "+3V3"), ("2", "2", "LED_A")],
+                   {"Part Number": "RES-10K", "Value": "10k", "@Sheet": "2", "Ref Designator": ""}),
+            placed("R2", "1", [("2", "2", "LED_A"), ("1", "1", "$1N7")], {"Part Number": "RES-1K", "Value": "1k"}),
+            placed("U1", "1", [("10", "GND", "GND"), ("2", "VBUS", "+3V3"), ("1", "NC", None, 300, 40)],
+                   {"Part Number": "MCU-1", "Description": "Controller"}),
+            Part("", x=300, y=40),  # a no-connect mark on U1 pin 1
+        ]
+
+    def read(self, command: str, **inputs: Any) -> dict[str, Any]:
+        handler = next(h for h in designer.HANDLERS if h.command == command)
+        return handler.read(self.ctx(command, inputs))
+
+    def test_component_list_in_reference_order_with_values_sheets_and_counts(self):
+        items = self.read("component list")["items"]
+        self.assertEqual([i["refdes"] for i in items], ["R2", "R10", "U1"])
+        self.assertEqual(items[1], {"refdes": "R10", "part_number": "RES-10K", "value": "10k", "sheet": 2, "pins": 2,
+                                    "connected": 2})
+        self.assertEqual((items[2]["pins"], items[2]["connected"]), (3, 2))
+        self.assertEqual([i["refdes"] for i in self.read("component list", sheet=1)["items"]], ["R2", "U1"])
+
+    def test_component_get_attributes_and_pins_with_names_nets_and_no_connects(self):
+        found = self.read("component get", refdes="u1")
+        self.assertEqual((found["refdes"], found["part_number"], found["value"], found["sheet"]), ("U1", "MCU-1", "", 1))
+        self.assertEqual(found["attributes"], {"Part Number": "MCU-1", "Description": "Controller"})
+        self.assertEqual(found["pins"], [{"number": "1", "name": "NC", "net": None, "no_connect": True},
+                                         {"number": "2", "name": "VBUS", "net": "+3V3", "no_connect": False},
+                                         {"number": "10", "name": "GND", "net": "GND", "no_connect": False}])
+        self.assertEqual(self.read("component get", refdes="R10")["attributes"], {"Part Number": "RES-10K", "Value": "10k"})
+
+    def test_component_get_refuses_a_missing_and_a_repeated_reference(self):
+        with self.assertRaises(AdapterError) as caught:
+            self.read("component get", refdes="C1")
+        self.assertEqual(self.code(caught), "E_NOT_FOUND")
+        self.assertIn("component list", str(caught.exception))
+        self.app.components.append(placed("R2", "3", [("1", "1", "X")], {"Part Number": "RES-2K"}))
+        with self.assertRaises(AdapterError) as caught:
+            self.read("component get", refdes="R2")
+        self.assertEqual(self.code(caught), "E_AMBIGUOUS")
+        self.assertEqual(caught.exception.data["candidates"], [{"refdes": "R2", "sheet": 1, "part_number": "RES-1K"},
+                                                               {"refdes": "R2", "sheet": 3, "part_number": "RES-2K"}])
+
+    def test_net_list_counts_pins_and_sheets_named_nets_first(self):
+        items = self.read("net list")["items"]
+        self.assertEqual(items, [{"name": "+3V3", "pins": 2, "unnamed": False, "sheets": [1, 2]},
+                                 {"name": "GND", "pins": 1, "unnamed": False, "sheets": [1]},
+                                 {"name": "LED_A", "pins": 2, "unnamed": False, "sheets": [1, 2]},
+                                 {"name": "$1N7", "pins": 1, "unnamed": True, "sheets": [1]}])
+
+    def test_net_get_lists_the_pins_it_joins(self):
+        found = self.read("net get", name="led_a")
+        self.assertEqual(found["name"], "LED_A")
+        self.assertEqual(found["pins"], [{"refdes": "R2", "number": "2", "name": "2", "part_number": "RES-1K", "sheet": 1},
+                                         {"refdes": "R10", "number": "2", "name": "2", "part_number": "RES-10K", "sheet": 2}])
+        with self.assertRaises(AdapterError) as caught:
+            self.read("net get", name="VBUS")
+        self.assertEqual(self.code(caught), "E_NOT_FOUND")
+        self.assertIn("net list", str(caught.exception))
+
+    def test_the_reads_need_the_open_project(self):
+        self.app.project = str(self.root / "Other.prj")
+        for command, inputs in (("component list", {}), ("component get", {"refdes": "U1"}), ("net list", {}),
+                                ("net get", {"name": "GND"})):
+            with self.assertRaises(AdapterError):
+                self.read(command, **inputs)
+
+
 # ------------------------------------------------------------------ schematic create
 
 
@@ -1137,14 +1220,15 @@ class SchematicExportTest(DesignerCase):
 
 
 class HandlerTableTest(unittest.TestCase):
-    def test_the_four_schematic_commands_are_registered(self):
+    def test_the_schematic_commands_are_registered(self):
         from xpedition_cli.commands import COMMANDS
 
         registered = {c["path"]: c for c in COMMANDS}
         for handler in designer.HANDLERS:
             self.assertIn(handler.command, registered)
         self.assertEqual({h.command for h in designer.HANDLERS},
-                         {"schematic get", "schematic create", "schematic check", "schematic export"})
+                         {"schematic get", "schematic create", "schematic check", "schematic export", "component list",
+                          "component get", "net list", "net get"})
         self.assertTrue(designer.SchematicCreate.long_job)
 
 

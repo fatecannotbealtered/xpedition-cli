@@ -4,7 +4,7 @@
   "commands": [
     {
       "path": "project get",
-      "summary": "Read a project file: its designs, board, central library and library lists.",
+      "summary": "Read a project file: designs, board, central library and library lists.",
       "effects": [
         "observe"
       ],
@@ -39,7 +39,7 @@
     },
     {
       "path": "part list",
-      "summary": "List the parts of the project's central library.",
+      "summary": "List the parts of the central library.",
       "effects": [
         "observe"
       ],
@@ -93,7 +93,7 @@
     },
     {
       "path": "part get",
-      "summary": "Read one part: its pin map, symbols, footprint cell, padstacks and the problems found.",
+      "summary": "Read one part: pin map, symbols, cell, padstacks and the problems found.",
       "effects": [
         "observe"
       ],
@@ -142,7 +142,7 @@
     },
     {
       "path": "part create",
-      "summary": "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map; runs as a long job.",
+      "summary": "Add parts from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
       "effects": [
         "change"
       ],
@@ -186,7 +186,7 @@
     },
     {
       "path": "padstack list",
-      "summary": "List the padstacks of the project's central library, with their type, pad and hole sizes.",
+      "summary": "List the central library's padstacks with their pad and hole sizes.",
       "effects": [
         "observe"
       ],
@@ -240,7 +240,7 @@
     },
     {
       "path": "padstack create",
-      "summary": "Add a via padstack to the central library: a plated hole, a round pad on every conductor layer, and a soldermask opening or none (tented); runs as a long job.",
+      "summary": "Add a via padstack to the central library: plated hole, round pads, mask opening or tented.",
       "effects": [
         "change"
       ],
@@ -304,7 +304,7 @@
     },
     {
       "path": "packager run",
-      "summary": "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
+      "summary": "Package the schematic for Layout and report its errors and warnings.",
       "effects": [
         "change"
       ],
@@ -380,7 +380,7 @@
     },
     {
       "path": "schematic create",
-      "summary": "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
+      "summary": "Draw the schematic from a design file, replacing every sheet it names.",
       "effects": [
         "change",
         "persist",
@@ -434,7 +434,7 @@
     },
     {
       "path": "schematic check",
-      "summary": "Run Designer's verification and this tool's netlist rules, and list the problems found; runs as a long job.",
+      "summary": "Run Designer's verification and the netlist rules, and list the problems.",
       "effects": [
         "observe"
       ],
@@ -472,7 +472,7 @@
     },
     {
       "path": "schematic export",
-      "summary": "Export the schematic to a PDF with Xpedition's sch2pdf.",
+      "summary": "Export the schematic to a PDF.",
       "effects": [
         "artifact"
       ],
@@ -516,8 +516,205 @@
       ]
     },
     {
+      "path": "component list",
+      "summary": "List the schematic's components: reference designator, part number, value and sheet.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "component",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--sheet",
+          "type": "integer",
+          "summary": "Only the components on this sheet."
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "summary": "Items per page; default 20, at most 100."
+        },
+        {
+          "name": "--offset",
+          "type": "integer",
+          "summary": "Start position of the page; default 0."
+        }
+      ],
+      "untrusted_fields": [
+        "refdes",
+        "part_number",
+        "value"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [
+        "refdes",
+        "part_number",
+        "value",
+        "sheet"
+      ],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
+      "path": "component get",
+      "summary": "Read one schematic component: its attributes, and each pin's name and net.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "component",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--refdes",
+          "type": "string",
+          "summary": "The reference designator, such as U1.",
+          "required": true
+        }
+      ],
+      "untrusted_fields": [
+        "refdes",
+        "part_number",
+        "value",
+        "attributes",
+        "pins"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
+      "path": "net list",
+      "summary": "List the schematic's nets with how many pins they join and their sheets.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "net",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--limit",
+          "type": "integer",
+          "summary": "Items per page; default 20, at most 100."
+        },
+        {
+          "name": "--offset",
+          "type": "integer",
+          "summary": "Start position of the page; default 0."
+        }
+      ],
+      "untrusted_fields": [
+        "name"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [
+        "name",
+        "pins",
+        "sheets"
+      ],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
+      "path": "net get",
+      "summary": "Read one schematic net: the component pins it joins.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "net",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--name",
+          "type": "string",
+          "summary": "The net's name, such as VBUS; an unnamed net by the name net list gives it, such as $1N23.",
+          "required": true
+        }
+      ],
+      "untrusted_fields": [
+        "name",
+        "pins"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "designer-reopen-after-sheet-changes"
+      ],
+      "doc_kinds": [
+        "project"
+      ]
+    },
+    {
       "path": "pcb create",
-      "summary": "Create the project's board from a layout template with Xpedition's JobWizard; runs as a long job.",
+      "summary": "Create the project's board from a layout template.",
       "effects": [
         "change",
         "persist",
@@ -566,7 +763,7 @@
     },
     {
       "path": "forward-annotation run",
-      "summary": "Bring the packaged schematic into the open board; runs as a long job.",
+      "summary": "Bring the packaged schematic into the open board.",
       "effects": [
         "change"
       ],
@@ -611,7 +808,7 @@
     },
     {
       "path": "pcb update",
-      "summary": "Replace the board outline by a rectangle from the origin; the route border and manufacturing outline follow.",
+      "summary": "Replace the board outline by a rectangle from the origin.",
       "effects": [
         "change"
       ],
@@ -672,7 +869,7 @@
     },
     {
       "path": "placement run",
-      "summary": "Place every component of the board from its connections, grouped by schematic sheet; runs as a long job.",
+      "summary": "Place every component from its connections, grouped by schematic sheet.",
       "effects": [
         "change"
       ],
@@ -732,7 +929,7 @@
     },
     {
       "path": "plane create",
-      "summary": "Pour a plane shape for one net on one layer, inside the board outline: solid, or hatched.",
+      "summary": "Pour a solid or hatched plane shape for one net on one layer.",
       "effects": [
         "change"
       ],
@@ -808,7 +1005,7 @@
     },
     {
       "path": "router run",
-      "summary": "Route the open nets with Layout's autorouter passes: every net, or only the nets and net classes named; runs as a long job.",
+      "summary": "Route the open nets with the autorouter: all, or the nets and net classes named.",
       "effects": [
         "change"
       ],
@@ -873,7 +1070,7 @@
     },
     {
       "path": "pcb get",
-      "summary": "Read the open board: counts, layer stack, net classes with their widths and vias, geometry and layout metrics.",
+      "summary": "Read the open board: stackup, net classes, geometry and layout metrics.",
       "effects": [
         "observe"
       ],
@@ -917,7 +1114,7 @@
     },
     {
       "path": "pcb check",
-      "summary": "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard; runs as a long job.",
+      "summary": "Run Batch DRC and the board rules it lacks, and list every hazard.",
       "effects": [
         "observe"
       ],
@@ -962,7 +1159,7 @@
     },
     {
       "path": "pcb export",
-      "summary": "Write the fabrication package: ODB++, Gerber, NC drill, a centroid file, a BOM and a manifest; runs as a long job.",
+      "summary": "Write the fabrication package: ODB++, Gerber, drill, centroid, BOM and manifest.",
       "effects": [
         "artifact",
         "persist"
@@ -1008,7 +1205,7 @@
     },
     {
       "path": "trace create",
-      "summary": "Draw the traces and place the vias of a routing plan, after checking it against the board's copper, the net classes' widths and the clearance rules; runs as a long job.",
+      "summary": "Draw the traces and vias of a routing plan, checked against the board's rules first.",
       "effects": [
         "change"
       ],
@@ -1055,7 +1252,7 @@
     },
     {
       "path": "trace delete",
-      "summary": "Delete the traces of the nets named, on every layer or on the layers named; their vias stay.",
+      "summary": "Delete the traces of the nets named; their vias stay.",
       "effects": [
         "change"
       ],
@@ -1103,7 +1300,7 @@
     },
     {
       "path": "via delete",
-      "summary": "Delete the vias of the nets named: routing vias and stitching vias alike.",
+      "summary": "Delete the vias of the nets named.",
       "effects": [
         "change"
       ],
@@ -1146,7 +1343,7 @@
     },
     {
       "path": "plane delete",
-      "summary": "Delete the plane shapes of one net on one layer, and with them its copper there.",
+      "summary": "Delete one net's plane shapes on one layer.",
       "effects": [
         "change"
       ],
@@ -1195,7 +1392,7 @@
     },
     {
       "path": "via create",
-      "summary": "Place vias of one net: one at --x, --y, or a stitching grid at --pitch inside the net's copper on two layers, clear of other copper by the default clearance rule; runs as a long job.",
+      "summary": "Place one via, or a stitching grid of vias, of one net.",
       "effects": [
         "change"
       ],
@@ -1273,7 +1470,7 @@
     },
     {
       "path": "via update",
-      "summary": "Change the vias of the nets named, or of the nets of the net classes named, to another via padstack, pulled from the central library when the board lacks it.",
+      "summary": "Change the vias of the nets or net classes named to another via padstack.",
       "effects": [
         "change"
       ],
@@ -1328,7 +1525,7 @@
     },
     {
       "path": "solder-mask create",
-      "summary": "Open the soldermask, or the coverlay of a flex board, over a rectangle on one side, so the copper under it is bare.",
+      "summary": "Open the soldermask or coverlay over a rectangle on one side.",
       "effects": [
         "change"
       ],
@@ -1411,7 +1608,7 @@
     },
     {
       "path": "solder-mask delete",
-      "summary": "Delete the soldermask or coverlay opening that contains a point on one side.",
+      "summary": "Delete the soldermask or coverlay opening at a point.",
       "effects": [
         "change"
       ],
@@ -1474,7 +1671,7 @@
     },
     {
       "path": "pcb render",
-      "summary": "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask openings, seen from the top or the bottom; runs as a long job.",
+      "summary": "Draw the board as a PNG from its geometry, seen from the top or the bottom.",
       "effects": [
         "artifact"
       ],
@@ -1529,7 +1726,7 @@
     },
     {
       "path": "constraint get",
-      "summary": "Read the board's constraints: net classes and their nets, trace widths and differential spacing per layer, differential pairs, clearance rules and which class pairs use them.",
+      "summary": "Read the board's net classes, widths, differential pairs and clearance rules.",
       "effects": [
         "observe"
       ],
@@ -1575,7 +1772,7 @@
     },
     {
       "path": "constraint import",
-      "summary": "Create or change the net classes, trace widths, differential spacing, differential pairs and clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
+      "summary": "Create or change the constraints a rules file names, and load them into Layout.",
       "effects": [
         "change",
         "persist"

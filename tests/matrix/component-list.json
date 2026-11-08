@@ -1,0 +1,183 @@
+{
+  "command": "component list",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Once schematic create drew tests/inputs/design.json and doc save saved it: C1, D1, J1 and R1 in reference order, each with its part number, value, sheet 1 and how many of its pins are connected."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-184202-component-list.json#normal"
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "On the practice project before schematic create: the sheet is empty, so the list is empty."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-183743-component-list.json#empty"
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--sheet",
+        "first"
+      ],
+      "expected": {
+        "exit": 2,
+        "code": "E_USAGE",
+        "summary": "--sheet takes an integer."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_USAGE"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-183743-component-list.json#invalid_input"
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.prj"
+      ],
+      "expected": {
+        "exit": 3,
+        "code": "E_NOT_FOUND",
+        "summary": "The session has no such project open."
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-183743-component-list.json#not_found"
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [],
+      "expected": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS",
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents."
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-184432-component-list.json#ambiguous"
+    },
+    {
+      "row": "conflict",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "no_scope",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}"
+      ],
+      "expected": {
+        "exit": 7,
+        "code": "E_BUSY",
+        "summary": "While a schematic create job of this tool is still drawing in Designer, the session reports busy. Only --session is given: a busy Designer may not say which project it has open, and a --doc it cannot match would be E_NOT_FOUND."
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-184058-component-list.json#busy"
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}"
+      ],
+      "expected": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED",
+        "summary": "A person leaves a modal dialog open in Designer before the call, such as Help > About. The session is reported blocked with the dialog's title; E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a blocked Designer may not say which project it has open."
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-08-184335-component-list.json#dialog"
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 4,
+        "code": "E_BACKEND_UNAVAILABLE",
+        "summary": "Designer goes away during the read."
+      },
+      "unrunnable": "The COM connection to Designer cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "Right after schematic create, not yet saved: the drawing replaced sheet 1 and added or resized no sheet, so Designer reads the open design at once: the 4 components. (After sheets are added, removed or resized, Designer reads the design only after a reopen, and the read refuses with E_CONFLICT application_state, knowledge designer-reopen-after-sheet-changes.)"
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-08-184029-component-list.json#unsaved"
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    }
+  ]
+}

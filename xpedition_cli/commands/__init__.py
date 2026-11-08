@@ -49,6 +49,21 @@ BOARD_COORDINATES = ("Board coordinates in mm: the origin is the board origin, t
 # The commands whose behavior matrix passed in full on Xpedition 2604, and the live records of
 # those runs (DVER-040, DVER-041).
 VERIFIED: dict[str, list[str]] = {
+    "component get": [
+        "live:docs/evidence/2026-11-08-184033-component-get.json",
+        "live:docs/evidence/2026-11-08-184059-component-get.json",
+        "live:docs/evidence/2026-11-08-184210-component-get.json",
+        "live:docs/evidence/2026-11-08-184337-component-get.json",
+        "live:docs/evidence/2026-11-08-184434-component-get.json",
+    ],
+    "component list": [
+        "live:docs/evidence/2026-11-08-183743-component-list.json",
+        "live:docs/evidence/2026-11-08-184029-component-list.json",
+        "live:docs/evidence/2026-11-08-184058-component-list.json",
+        "live:docs/evidence/2026-11-08-184202-component-list.json",
+        "live:docs/evidence/2026-11-08-184335-component-list.json",
+        "live:docs/evidence/2026-11-08-184432-component-list.json",
+    ],
     "constraint get": [
         "live:docs/evidence/2026-11-07-184503-constraint-get.json",
         "live:docs/evidence/2026-11-07-184728-constraint-get.json",
@@ -79,6 +94,21 @@ VERIFIED: dict[str, list[str]] = {
         "live:docs/evidence/2026-11-07-191959-forward-annotation-run.json",
         "live:docs/evidence/2026-11-07-192225-forward-annotation-run.json",
         "live:docs/evidence/2026-11-07-192709-forward-annotation-run.json",
+    ],
+    "net get": [
+        "live:docs/evidence/2026-11-08-184039-net-get.json",
+        "live:docs/evidence/2026-11-08-184059-net-get.json",
+        "live:docs/evidence/2026-11-08-184216-net-get.json",
+        "live:docs/evidence/2026-11-08-184341-net-get.json",
+        "live:docs/evidence/2026-11-08-184438-net-get.json",
+    ],
+    "net list": [
+        "live:docs/evidence/2026-11-08-183746-net-list.json",
+        "live:docs/evidence/2026-11-08-184036-net-list.json",
+        "live:docs/evidence/2026-11-08-184059-net-list.json",
+        "live:docs/evidence/2026-11-08-184205-net-list.json",
+        "live:docs/evidence/2026-11-08-184339-net-list.json",
+        "live:docs/evidence/2026-11-08-184436-net-list.json",
     ],
     "packager run": [
         "live:docs/evidence/2026-11-07-183159-packager-run.json",
@@ -480,7 +510,7 @@ def command(path: str, summary: str, *, effects: list[str], modes: list[str], ta
 COMMANDS: list[dict[str, Any]] = [
     # ------------------------------------------------------------------ project
     command(
-        "project get", "Read a project file: its designs, board, central library and library lists.",
+        "project get", "Read a project file: designs, board, central library and library lists.",
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="project",
         output=obj(path=STR, xpedition_version=STR, central_library=obj(path=STR, exists=BOOL),
                    designs=arr(obj(name=STR, kind=STR, board=STR, board_exists=BOOL, layout_template=STR)),
@@ -492,7 +522,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     # ------------------------------------------------------------------ central library
     command(
-        "part list", "List the parts of the project's central library.",
+        "part list", "List the parts of the central library.",
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         output=obj(items=arr(obj(id=STR, partition=STR, description=STR, prefix=STR, type=STR, cell=STR,
                                  symbols=arr(STR), pins=INT, value=STR)), total=INT),
@@ -502,7 +532,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules'],
     ),
     command(
-        "part get", "Read one part: its pin map, symbols, footprint cell, padstacks and the problems found.",
+        "part get", "Read one part: pin map, symbols, cell, padstacks and the problems found.",
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="part",
         flags=[{"name": "--id", "type": "string", "required": True, "summary": "The part number."}],
         output=obj(id=STR, partition=STR, description=STR, prefix=STR, value=STR, properties=OBJ,
@@ -524,8 +554,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules', 'cell-pin-count-must-match'],
     ),
     command(
-        "part create", "Add parts to the central library from a parts file: symbol, IPC-7351B footprint, padstacks and pin map; "
-        "runs as a long job.",
+        "part create", "Add parts from a parts file: symbol, IPC-7351B footprint, padstacks and pin map.",
         effects=["change"], modes=["file"], kinds=["project"], target_kind="part", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
                 "summary": "The parts file (JSON). A part identical to the library's is skipped; a part number the library holds with other content is refused."}],
@@ -534,7 +563,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules', 'library-part-value-is-numeric', 'cell-pin-count-must-match', 'xpedition-ascii-paths-only'],
     ),
     command(
-        "padstack list", "List the padstacks of the project's central library, with their type, pad and hole sizes.",
+        "padstack list", "List the central library's padstacks with their pad and hole sizes.",
         effects=["observe"], modes=["file"], kinds=["project"], target_kind="padstack",
         flags=[{"name": "--type", "type": "string", "summary": "Only padstacks of this type: via, smd, through or mounting_hole."}],
         output=obj(items=arr(obj(id=STR, type=STR, pad_shape=STR, pad_mm=NUM, pad_height_mm=NUM, drill_mm=NUM, plated=BOOL,
@@ -545,8 +574,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules'],
     ),
     command(
-        "padstack create", "Add a via padstack to the central library: a plated hole, a round pad on every conductor layer, and "
-        "a soldermask opening or none (tented); runs as a long job.",
+        "padstack create", "Add a via padstack to the central library: plated hole, round pads, mask opening or tented.",
         effects=["change"], modes=["file"], kinds=["project"], target_kind="padstack", long=True,
         flags=[{"name": "--drill", "type": "quantity", "quantity": "length", "required": True, "summary": "The finished hole diameter."},
                {"name": "--pad", "type": "quantity", "quantity": "length", "required": True,
@@ -561,7 +589,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['library-converter-rules'],
     ),
     command(
-        "packager run", "Package the schematic for Layout with Xpedition's packager and report its errors and warnings; runs as a long job.",
+        "packager run", "Package the schematic for Layout and report its errors and warnings.",
         effects=["change"], modes=["file"], kinds=["project"], target_kind="project", long=True,
         output=obj(packaged=BOOL, design=STR, errors=arr(STR), warnings=INT, verdict=STR, log=STR),
         untrusted=["errors", "verdict"],
@@ -578,7 +606,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['designer-reopen-after-sheet-changes'],
     ),
     command(
-        "schematic create", "Draw the whole schematic from a design file, replacing every sheet it names; runs as a long job.",
+        "schematic create", "Draw the schematic from a design file, replacing every sheet it names.",
         effects=["change", "persist", "artifact"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
         flags=[{"name": "--design", "type": "path", "required": True,
                 "summary": "The design file (JSON): sheets, parts by central-library part number, and the pin of every connection."}],
@@ -588,8 +616,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['designer-power-symbols', 'designer-pin-on-wire-corner', 'designer-symbol-cache', 'designer-reopen-after-sheet-changes', 'designer-one-instance-only'],
     ),
     command(
-        "schematic check", "Run Designer's verification and this tool's netlist rules, and list the problems found; runs as a "
-        "long job.",
+        "schematic check", "Run Designer's verification and the netlist rules, and list the problems.",
         effects=["observe"], modes=["session"], kinds=["project"], target_kind="schematic", long=True,
         output=obj(findings=arr(FINDING), errors=INT, warnings=INT, complete=BOOL, logs=arr(STR)),
         untrusted=["findings"],
@@ -597,7 +624,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['designer-pin-types-and-erc', 'designer-reopen-after-sheet-changes'],
     ),
     command(
-        "schematic export", "Export the schematic to a PDF with Xpedition's sch2pdf.",
+        "schematic export", "Export the schematic to a PDF.",
         effects=["artifact"], modes=["file", "session"], kinds=["project"], target_kind="schematic",
         flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The PDF file to write."}],
         output=obj(path=STR, pages=arr(obj(sheet=STR, width_mm=NUM, height_mm=NUM)), warnings=arr(STR)),
@@ -605,9 +632,49 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli schematic export --doc D:/work/demo/Demo.prj --output D:/work/demo/out/Demo.pdf"],
         knowledge=['designer-chinese-text-in-pdf'],
     ),
+    command(
+        "component list", "List the schematic's components: reference designator, part number, value and sheet.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="component",
+        flags=[{"name": "--sheet", "type": "integer", "summary": "Only the components on this sheet."}],
+        output=obj(items=arr(obj(refdes=STR, part_number=STR, value=STR, sheet=INT, pins=INT, connected=INT)), total=INT),
+        untrusted=["refdes", "part_number", "value"],
+        default_fields=["refdes", "part_number", "value", "sheet"],
+        examples=["xpedition-cli component list --session designer-4120 --doc D:/work/demo/Demo.prj --sheet 2"],
+        knowledge=['designer-reopen-after-sheet-changes'],
+    ),
+    command(
+        "component get", "Read one schematic component: its attributes, and each pin's name and net.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="component",
+        flags=[{"name": "--refdes", "type": "string", "required": True, "summary": "The reference designator, such as U1."}],
+        output=obj(refdes=STR, part_number=STR, value=STR, sheet=INT, attributes=OBJ,
+                   pins=arr(obj(number=STR, name=STR, net=STR, no_connect=BOOL))),
+        untrusted=["refdes", "part_number", "value", "attributes", "pins"],
+        examples=["xpedition-cli component get --session designer-4120 --doc D:/work/demo/Demo.prj --refdes U1"],
+        knowledge=['designer-reopen-after-sheet-changes'],
+    ),
+    command(
+        "net list", "List the schematic's nets with how many pins they join and their sheets.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="net",
+        output=obj(items=arr(obj(name=STR, pins=INT, unnamed=BOOL, sheets=arr(INT))), total=INT),
+        untrusted=["name"],
+        default_fields=["name", "pins", "sheets"],
+        examples=["xpedition-cli net list --session designer-4120 --doc D:/work/demo/Demo.prj"],
+        knowledge=['designer-reopen-after-sheet-changes'],
+    ),
+    command(
+        "net get", "Read one schematic net: the component pins it joins.",
+        effects=["observe"], modes=["session"], kinds=["project"], target_kind="net",
+        flags=[{"name": "--name", "type": "string", "required": True,
+                "summary": "The net's name, such as VBUS; an unnamed net by the name net list gives it, such as $1N23."}],
+        output=obj(name=STR, unnamed=BOOL, sheets=arr(INT),
+                   pins=arr(obj(refdes=STR, number=STR, name=STR, part_number=STR, sheet=INT))),
+        untrusted=["name", "pins"],
+        examples=["xpedition-cli net get --session designer-4120 --doc D:/work/demo/Demo.prj --name VBUS"],
+        knowledge=['designer-reopen-after-sheet-changes'],
+    ),
     # ------------------------------------------------------------------ board (Layout)
     command(
-        "pcb create", "Create the project's board from a layout template with Xpedition's JobWizard; runs as a long job.",
+        "pcb create", "Create the project's board from a layout template.",
         effects=["change", "persist", "artifact"], modes=["file"], kinds=["project"], target_kind="pcb", long=True,
         flags=[{"name": "--template", "type": "string", "summary": "The layout template's name; 4 Layer Template by default."},
                {"name": "--name", "type": "string", "summary": "The board's name: letters, digits, - and _; the project's name by default."}],
@@ -617,7 +684,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['prj-cell-library-list'],
     ),
     command(
-        "forward-annotation run", "Bring the packaged schematic into the open board; runs as a long job.",
+        "forward-annotation run", "Bring the packaged schematic into the open board.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         output=obj(outcome=STR, components=INT, nets=INT, pins=INT, errors=arr(STR), warnings=arr(STR)),
         untrusted=["errors", "warnings"],
@@ -625,7 +692,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['forward-annotation-in-synch', 'forward-annotation-keeps-old-cells', 'layout-open-prompts'],
     ),
     command(
-        "pcb update", "Replace the board outline by a rectangle from the origin; the route border and manufacturing outline follow.",
+        "pcb update", "Replace the board outline by a rectangle from the origin.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--width", "type": "quantity", "quantity": "length", "required": True, "summary": "The board's width."},
                {"name": "--height", "type": "quantity", "quantity": "length", "required": True, "summary": "The board's height."},
@@ -636,7 +703,7 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli pcb update --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --width 70mm --height 48mm --radius 3mm"],
     ),
     command(
-        "placement run", "Place every component of the board from its connections, grouped by schematic sheet; runs as a long job.",
+        "placement run", "Place every component from its connections, grouped by schematic sheet.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="component", long=True,
         flags=[{"name": "--design", "type": "path", "summary": "The design file the schematic was drawn from; its sheets and zones group the parts."},
                {"name": "--all", "type": "boolean", "summary": "Place the parts already placed again too."}],
@@ -650,7 +717,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-placement-drc', 'layout-unplaced-parts-invisible'],
     ),
     command(
-        "plane create", "Pour a plane shape for one net on one layer, inside the board outline: solid, or hatched.",
+        "plane create", "Pour a solid or hatched plane shape for one net on one layer.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="plane",
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."},
@@ -667,8 +734,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-plane-draft-state', 'layout-pour-after-routing', 'layout-plane-hatch'],
     ),
     command(
-        "router run", "Route the open nets with Layout's autorouter passes: every net, or only the nets and net classes named; "
-        "runs as a long job.",
+        "router run", "Route the open nets with the autorouter: all, or the nets and net classes named.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="net", long=True,
         flags=[{"name": "--layers", "type": "string", "summary": "The conductor layers to route on, such as 1,4; all by default."},
                {"name": "--nets", "type": "string", "summary": "Route only these nets, such as SS_TX1_P,SS_TX1_N."},
@@ -685,7 +751,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad', 'layout-trace-widths-through-cm'],
     ),
     command(
-        "pcb get", "Read the open board: counts, layer stack, net classes with their widths and vias, geometry and layout metrics.",
+        "pcb get", "Read the open board: stackup, net classes, geometry and layout metrics.",
         effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
@@ -699,7 +765,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-trace-widths-through-cm'],
     ),
     command(
-        "pcb check", "Run Layout's Batch DRC and the board rules it does not cover, and list every hazard; runs as a long job.",
+        "pcb check", "Run Batch DRC and the board rules it lacks, and list every hazard.",
         effects=["observe"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write the whole result to this JSON file; the response keeps the summary."}],
@@ -712,7 +778,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad'],
     ),
     command(
-        "pcb export", "Write the fabrication package: ODB++, Gerber, NC drill, a centroid file, a BOM and a manifest; runs as a long job.",
+        "pcb export", "Write the fabrication package: ODB++, Gerber, drill, centroid, BOM and manifest.",
         effects=["artifact", "persist"], modes=["session"], kinds=["board"], target_kind="pcb", long=True,
         flags=[{"name": "--output", "type": "path", "required": True, "output": True,
                 "summary": "The folder for the package; it must not exist or must be empty."}],
@@ -723,8 +789,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-output-setups', 'layout-drillprefs-held'],
     ),
     command(
-        "trace create", "Draw the traces and place the vias of a routing plan, after checking it against the board's copper, the "
-        "net classes' widths and the clearance rules; runs as a long job.",
+        "trace create", "Draw the traces and vias of a routing plan, checked against the board's rules first.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="trace", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
                 "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, and vias with net, at_mm and padstack, "
@@ -735,7 +800,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-via-near-pad', 'layout-trace-widths-through-cm'],
     ),
     command(
-        "trace delete", "Delete the traces of the nets named, on every layer or on the layers named; their vias stay.",
+        "trace delete", "Delete the traces of the nets named; their vias stay.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="trace",
         flags=[{"name": "--nets", "type": "string", "required": True, "summary": "The nets whose traces go, such as SS_TX1_P,SS_TX1_N."},
                {"name": "--layers", "type": "string", "summary": "Only on these conductor layers, such as 1,4; every layer by default."}],
@@ -743,14 +808,14 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli trace delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --nets SS_TX1_P,SS_TX1_N"],
     ),
     command(
-        "via delete", "Delete the vias of the nets named: routing vias and stitching vias alike.",
+        "via delete", "Delete the vias of the nets named.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="via",
         flags=[{"name": "--nets", "type": "string", "required": True, "summary": "The nets whose vias go, such as GND."}],
         output=obj(deleted=INT),
         examples=["xpedition-cli via delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --nets GND"],
     ),
     command(
-        "plane delete", "Delete the plane shapes of one net on one layer, and with them its copper there.",
+        "plane delete", "Delete one net's plane shapes on one layer.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="plane",
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--layer", "type": "integer", "required": True, "summary": "The conductor layer number, 1 at the top."}],
@@ -758,8 +823,7 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli plane delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2"],
     ),
     command(
-        "via create", "Place vias of one net: one at --x, --y, or a stitching grid at --pitch inside the net's copper on two "
-        "layers, clear of other copper by the default clearance rule; runs as a long job.",
+        "via create", "Place one via, or a stitching grid of vias, of one net.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="via", long=True,
         flags=[{"name": "--net", "type": "string", "required": True, "summary": "The net, such as GND."},
                {"name": "--x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
@@ -778,8 +842,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-via-near-pad', 'layout-router-via-from-net-class'],
     ),
     command(
-        "via update", "Change the vias of the nets named, or of the nets of the net classes named, to another via padstack, "
-        "pulled from the central library when the board lacks it.",
+        "via update", "Change the vias of the nets or net classes named to another via padstack.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="via",
         flags=[{"name": "--nets", "type": "string", "summary": "The nets whose vias change, such as SS_TX1_P,SS_TX1_N."},
                {"name": "--net-classes", "type": "string", "summary": "The net classes whose nets' vias change, such as USB_SS."},
@@ -790,8 +853,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-router-via-from-net-class'],
     ),
     command(
-        "solder-mask create", "Open the soldermask, or the coverlay of a flex board, over a rectangle on one side, so the copper "
-        "under it is bare.",
+        "solder-mask create", "Open the soldermask or coverlay over a rectangle on one side.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="opening",
         flags=[{"name": "--x1", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
                 "summary": "One corner's X."},
@@ -811,7 +873,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-solder-mask-openings'],
     ),
     command(
-        "solder-mask delete", "Delete the soldermask or coverlay opening that contains a point on one side.",
+        "solder-mask delete", "Delete the soldermask or coverlay opening at a point.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="opening",
         flags=[{"name": "--x", "type": "quantity", "quantity": "length", "required": True, "coordinate_system": BOARD_COORDINATES,
                 "summary": "A point inside the opening: its X."},
@@ -824,8 +886,7 @@ COMMANDS: list[dict[str, Any]] = [
         examples=["xpedition-cli solder-mask delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --x 45mm --y 4mm --cover-layer"],
     ),
     command(
-        "pcb render", "Draw the board as a PNG from its geometry: outline, pads, traces, vias, plane shapes, holes and soldermask "
-        "openings, seen from the top or the bottom; runs as a long job.",
+        "pcb render", "Draw the board as a PNG from its geometry, seen from the top or the bottom.",
         effects=["artifact"], modes=["session"], kinds=["board"], target_kind="file", long=True,
         flags=[{"name": "--output", "type": "path", "required": True, "output": True, "summary": "The .png file to write."},
                {"name": "--side", "type": "string", "summary": "top (the default) or bottom, which is drawn mirrored left to right."},
@@ -838,8 +899,7 @@ COMMANDS: list[dict[str, Any]] = [
     ),
     # ------------------------------------------------------------------ constraints (Layout)
     command(
-        "constraint get", "Read the board's constraints: net classes and their nets, trace widths and differential spacing per "
-        "layer, differential pairs, clearance rules and which class pairs use them.",
+        "constraint get", "Read the board's net classes, widths, differential pairs and clearance rules.",
         effects=["observe"], modes=["session"], kinds=["board"], target_kind="constraint",
         flags=[{"name": "--output", "type": "path", "output": True,
                 "summary": "Write every rule to this file, in the rules file format constraint import reads; the response keeps the summary."}],
@@ -851,8 +911,7 @@ COMMANDS: list[dict[str, Any]] = [
         knowledge=['layout-trace-widths-through-cm', 'layout-impedance-from-fab-table'],
     ),
     command(
-        "constraint import", "Create or change the net classes, trace widths, differential spacing, differential pairs and "
-        "clearance rules a rules file names, then load them into Layout; rules the file does not name stay as they are.",
+        "constraint import", "Create or change the constraints a rules file names, and load them into Layout.",
         effects=["change", "persist"], modes=["session"], kinds=["board"], target_kind="constraint", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
                 "summary": "The rules file (JSON), in the format constraint get writes; it names only what to create or change."}],
