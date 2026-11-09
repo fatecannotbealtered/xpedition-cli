@@ -1615,7 +1615,8 @@
       "default_fields": [],
       "related_knowledge": [
         "layout-fine-pitch-clearance",
-        "layout-via-near-pad"
+        "layout-via-near-pad",
+        "layout-flex-bend-and-stiffener"
       ],
       "doc_kinds": [
         "board"

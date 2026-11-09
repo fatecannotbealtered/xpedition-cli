@@ -295,3 +295,65 @@ class BoardMetricsTest(unittest.TestCase):
         self.assertIn("the board's silkscreen runs over R1's pads 1", found[(None, "R1")]["finding"])
         self.assertTrue(all(rule["severity"] == "low" for rule in rules))
         self.assertEqual([r["rule"] for r in M.board_rules(board)].count("silk_over_pad"), 2)
+
+
+def _flex() -> dict:
+    """A 20 x 100 mm flex board: stiffeners at both ends, a bend zone at y 40 to 50 where GND on layer 2 is hatched."""
+    return {
+        "outline": [{"path": [[0, 0, 0], [20, 0, 0], [20, 100, 0], [0, 100, 0], [0, 0, 0]]}],
+        "components": [],
+        "planes": [{"net": "GND", "layer": 2, "hatch": "solid", "extents_mm": [0, 0, 20, 100]},
+                   {"net": "GND", "layer": 2, "hatch": "diagonal", "extents_mm": [0, 40, 20, 50]}],
+        "keepouts": [{"kind": "placement", "height_mm": 0.15, "extents_mm": [0, 0, 20, 10]},
+                     {"kind": "placement", "height_mm": 0.15, "extents_mm": [0, 90, 20, 100]}],
+        "vias": [{"circle": [5, 45, 0], "net": "GND"}, {"circle": [5, 60, 0], "net": "SIG"}, {"circle": [5, 5, 0], "net": "SIG2"}],
+        "traces": [
+            {"net": "A", "layer": 1, "width": 0.1, "path": [[3, 20], [3, 80]]},
+            {"net": "B", "layer": 3, "width": 0.1, "path": [[3.05, 20], [3.05, 80]]},
+            {"net": "C", "layer": 1, "width": 0.1, "path": [[8, 20], [8, 45], [9, 46], [9, 80]]},
+            {"net": "D", "layer": 1, "width": 0.1, "path": [[12, 20], [12, 45]]},
+            {"net": "D", "layer": 1, "width": 0.2, "path": [[12, 45], [12, 80]]},
+            {"net": "E", "layer": 3, "width": 0.1, "path": [[16, 20], [16, 80]]},
+            {"net": "USB_DP", "layer": 1, "width": 0.1, "path": [[2, 60], [12, 60]]},
+            {"net": "USB_DN", "layer": 1, "width": 0.1, "path": [[2, 61], [12.5, 61]]},
+        ],
+    }
+
+
+class FlexRuleTest(unittest.TestCase):
+    def test_bend_zones_come_from_hatched_bands_beside_a_solid_plane(self):
+        self.assertEqual(M.bend_zones(_flex()), [{"extents_mm": [0.0, 40.0, 20.0, 50.0], "marked_by": ["hatched_plane"]}])
+        self.assertEqual(M.bend_zones({**_flex(), "planes": [{"net": "GND", "layer": 2, "hatch": "diagonal",
+                                                                "extents_mm": [0, 0, 20, 100]}]}), [])  # all hatched: no zone
+
+    def test_a_placement_keepout_across_a_stiffened_board_marks_a_bend_zone_too(self):
+        board = _flex()
+        board["planes"] = [{"net": "GND", "layer": 2, "hatch": "solid", "extents_mm": [1, 1, 19, 99]},
+                           {"net": "GND", "layer": 2, "hatch": "diagonal", "extents_mm": [1, 40, 19, 50]}]
+        board["keepouts"] = board["keepouts"] + [
+            {"kind": "placement", "height_mm": None, "extents_mm": [1, 70, 19, 72]},  # across the board: a bend
+            {"kind": "placement", "height_mm": None, "extents_mm": [2, 42, 18, 44]},  # inside the hatched band
+            {"kind": "placement", "height_mm": None, "extents_mm": [1, 20, 4, 21]},  # a small keepout
+        ]
+        self.assertEqual(M.bend_zones(board), [
+            {"extents_mm": [0.0, 40.0, 20.0, 50.0], "marked_by": ["hatched_plane", "placement_keepout"]},
+            {"extents_mm": [0.0, 70.0, 20.0, 72.0], "marked_by": ["placement_keepout"]}])
+        rigid = {**board, "keepouts": [k for k in board["keepouts"] if not k["height_mm"]]}
+        self.assertEqual([z["marked_by"] for z in M.bend_zones(rigid)], [["hatched_plane"]])  # no stiffener: no keepout band
+        self.assertEqual(M.stiffeners(_flex()), [(0.0, 0.0, 20.0, 10.0), (0.0, 90.0, 20.0, 100.0)])
+
+    def test_what_a_bend_zone_and_the_stiffeners_forbid(self):
+        found = {(row["rule"], row.get("net")) for row in M.flex_rules(_flex())}
+        self.assertEqual(found, {("bend_via", "GND"), ("bend_turn", "C"), ("bend_angle", "C"), ("bend_width", "D"),
+                                 ("bend_stacked", "A"), ("layer_change_outside_stiffener", "SIG")})
+        self.assertEqual(M.flex_rules({**_flex(), "planes": []}), [])  # no bend zone known: no flex rule
+
+    def test_a_pair_recognised_by_name_reports_its_skew(self):
+        model = _flex()
+        rules = M.board_rules(model)
+        skew = next(row for row in rules if row["rule"] == "pair_skew")
+        self.assertEqual((skew["net"], skew["other"]), ("USB_DP", "USB_DN"))
+        self.assertIn("differ by 0.5 mm, 10.0 and 10.5 mm", skew["finding"])
+        self.assertEqual(M.measure(model)["summary"]["pair_skew_max_mm"], 0.5)
+        unrouted = M.measure({**model, "unrouted": [{"net": "USB_DP", "opens": 1}]})
+        self.assertEqual(unrouted["routing"]["pairs"], [])  # a pair not routed yet has no skew

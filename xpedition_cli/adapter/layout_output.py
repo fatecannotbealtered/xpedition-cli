@@ -338,7 +338,7 @@ def plane_groups(rows: list[dict[str, Any]], generated: set[tuple[str, int]] | N
     """The plane shapes grouped by net, layer and fill, each group with how many shapes it holds and
     the extents they cover together: a board of many small power shapes stays whole in one response.
     With ``generated``, each group says whether Layout made copper for its net on its layer: a shape
-    inside another net's plane on that layer can get none."""
+    that touches no pad, trace or via of its net there gets none."""
     groups: dict[tuple[Any, ...], dict[str, Any]] = {}
     for row in rows:
         fill = {k: row[k] for k in ("hatch", "hatch_width_mm", "hatch_distance_mm") if row.get(k) is not None}
@@ -389,7 +389,7 @@ def metrics_summary(model: dict[str, Any]) -> dict[str, Any]:
     measured = board_metrics.measure(model)
     return {"available": True, "board": measured["board"], "summary": measured["summary"],
             "unplaced": measured["parts"]["unplaced"][:LISTED], "supply_nets": measured["ratsnest"]["supply_nets"][:LISTED],
-            "trace_mm_by_layer": measured["routing"]["by_layer"]}
+            "trace_mm_by_layer": measured["routing"]["by_layer"], "pairs": measured["routing"]["pairs"][:LISTED]}
 
 
 def board_facts(doc: Any, path: str) -> dict[str, Any]:
@@ -404,15 +404,19 @@ def board_facts(doc: Any, path: str) -> dict[str, Any]:
     model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
     scale = L.geometry_scale(doc)
     unavailable = {"available": False, "reason": UNIT_NOTE if scale is None else "The geometry could not be read."}
+    blocked = _quietly(lambda: keepouts(doc, scale), [])
+    shapes = _quietly(lambda: plane_shapes(doc), [])
     return {
         "path": path, "layers": layer_count,
         "components": {"total": len(components), "placed": placed, "unplaced": len(components) - placed},
         "nets": nets, "traces": L.count(doc, "Traces"), "vias": L.count(doc, "Vias"),
         "outline": _quietly(lambda: L.outline_values(doc)), "stackup": _quietly(lambda: board_stackup(doc)),
         "net_classes": _quietly(lambda: net_classes(doc, layer_count)), "keepouts": _quietly(lambda: keepout_count(doc)),
-        "keepout_kinds": _quietly(lambda: keepout_summary(keepouts(doc, scale))),
+        "keepout_kinds": _quietly(lambda: keepout_summary(blocked)),
+        "bend_zones": _quietly(lambda: board_metrics.bend_zones({"planes": shapes, "keepouts": blocked,
+                                                                 "outline": model["outline"] if model else []})[:LISTED]),
         "cutouts": _quietly(lambda: len(cutouts(doc, None))),
-        "planes": _quietly(lambda: plane_groups(plane_shapes(doc), _quietly(lambda: generated_planes(doc)))[:LISTED]),
+        "planes": _quietly(lambda: plane_groups(shapes, _quietly(lambda: generated_planes(doc)))[:LISTED]),
         "via_padstacks": _quietly(lambda: via_padstacks(doc, scale)),
         "geometry": geometry_summary(model) if model is not None else unavailable,
         "metrics": _quietly(lambda: metrics_summary(model), unavailable) if model is not None else unavailable,

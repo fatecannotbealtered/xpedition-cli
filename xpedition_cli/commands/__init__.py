@@ -943,7 +943,8 @@ COMMANDS: list[dict[str, Any]] = [
         output=obj(path=STR, layers=INT, components=OBJ, nets=OBJ, traces=INT, vias=INT,
                    outline=obj(width_mm=NUM, height_mm=NUM, radius_mm=NUM, extents_mm=arr(NUM)), stackup=arr(OBJ),
                    net_classes=arr(obj(name=STR, nets=INT, widths=OBJ, vias=OBJ)), keepouts=INT,
-                   keepout_kinds=obj(by_kind=OBJ, height_limits=arr(obj(side=STR, height_mm=NUM, extents_mm=arr(NUM)))), cutouts=INT,
+                   keepout_kinds=obj(by_kind=OBJ, height_limits=arr(obj(side=STR, height_mm=NUM, extents_mm=arr(NUM)))),
+                   bend_zones=arr(obj(extents_mm=arr(NUM), marked_by=arr(STR))), cutouts=INT,
                    planes=arr(obj(net=STR, layer=INT, hatch=STR, hatch_width_mm=NUM, hatch_distance_mm=NUM, generated=BOOL, shapes=INT,
                                   extents_mm=arr(NUM))),
                    via_padstacks=arr(obj(name=STR, vias=INT, pad_mm=NUM)),
@@ -964,7 +965,7 @@ COMMANDS: list[dict[str, Any]] = [
         untrusted=["hazards", "rules"],
         coordinates=BOARD_COORDINATES,
         examples=["xpedition-cli pcb check --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb"],
-        knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad'],
+        knowledge=['layout-fine-pitch-clearance', 'layout-via-near-pad', 'layout-flex-bend-and-stiffener'],
     ),
     command(
         "pcb export", "Write the fabrication package: ODB++, Gerber, drill, centroid, BOM and manifest.",

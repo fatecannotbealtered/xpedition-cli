@@ -10,11 +10,14 @@ states of the same board:
 - parts whose extents overlap, stick out of the board, or are not placed;
 - each decoupling capacitor's distance to the nearest IC pin on its supply net;
 - each connector's distance to the nearest board edge, and the placement density;
-- the routing: trace length per layer, vias, and corners sharper than 90 degrees.
+- the routing: trace length per layer, vias, and corners sharper than 90 degrees;
+- each differential pair's two routed lengths, the pairs recognised by name (`USB_DP` and
+  `USB_DN`, `TX1_P` and `TX1_N`, `CLK+` and `CLK-`) and listed, so a wrong guess is visible.
 
 `board_rules` turns them into findings, with the silkscreen's own: designators over
 pads or holes, on each other, across silkscreen lines, under other parts, past the
-board's edge or too small to print, and silkscreen lines over pads.
+board's edge or too small to print, and silkscreen lines over pads; and on a flex board,
+what its bend zones and stiffeners forbid (`flex_rules`).
 
 Pure Python: no Layout. Extents are Layout's component extrema, a proxy for the
 courtyard; supply and ground nets are recognised by name and listed, so a wrong guess
@@ -58,7 +61,13 @@ SUMMARY_KEYS = (
     "trace_mm",
     "vias",
     "acute_corners",
+    "pair_skew_max_mm",
 )
+PAIR_ENDS = (("P", "N"), ("P", "M"), ("+", "-"))  # the last characters that tell a pair's two nets apart
+SKEW_LIMIT_MM = 0.127  # 5 mil between a pair's two lengths
+SQUARE_TOLERANCE = 5.0  # degrees a trace may cross a bend zone off square
+INSIDE_EPSILON = 0.01  # mm a point lies inside a zone's edge to count as in it
+BAND_COVER = 0.8  # a placement keepout across this share of the board's width marks a bend zone
 
 
 def net_kind(name: str) -> str:
@@ -191,14 +200,15 @@ def _decoupling(
 
 def _routing(model: dict[str, Any]) -> dict[str, Any]:
     by_layer: dict[str, float] = {}
+    by_net: dict[str, float] = {}
     acute: list[dict[str, Any]] = []
     for trace in model.get("traces") or []:
-        # an arc's row carries its centre and radius: lengths and corners follow the arc, not its centre
-        points = flatten([(float(row[0]), float(row[1]), float(row[2]) if len(row) > 2 else 0.0) for row in trace.get("path") or []])
+        points = _trace_points(trace)
         layer = str(trace.get("layer") or "")
-        by_layer[layer] = by_layer.get(layer, 0.0) + sum(
-            math.dist(a, b) for a, b in zip(points, points[1:], strict=False)
-        )
+        length = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
+        by_layer[layer] = by_layer.get(layer, 0.0) + length
+        net = str(trace.get("net") or "")
+        by_net[net] = by_net.get(net, 0.0) + length
         for before, vertex, after in zip(points, points[1:], points[2:], strict=False):
             ax, ay = before[0] - vertex[0], before[1] - vertex[1]
             bx, by = after[0] - vertex[0], after[1] - vertex[1]
@@ -216,12 +226,40 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
                         "degrees": round(angle, 1),
                     }
                 )
+    unrouted = {str(row.get("net")) for row in model.get("unrouted") or []}
+    pairs = []
+    for first, second in _pairs(sorted(name for name in by_net if name)):
+        if first in unrouted or second in unrouted:
+            continue
+        a, b = by_net[first], by_net[second]
+        pairs.append({"nets": [first, second], "mm": [round(a, 3), round(b, 3)], "skew_mm": round(abs(a - b), 3)})
+    pairs.sort(key=lambda row: (-row["skew_mm"], row["nets"]))
     return {
         "trace_mm": round(sum(by_layer.values()), 3),
         "by_layer": {layer: round(length, 3) for layer, length in sorted(by_layer.items())},
         "vias": len(model.get("vias") or []),
         "acute_corners": acute,
+        "pairs": pairs,
     }
+
+
+def _trace_points(trace: dict[str, Any]) -> list[Point]:
+    # an arc's row carries its centre and radius: lengths and corners follow the arc, not its centre
+    rows = trace.get("path") or []
+    return flatten([(float(row[0]), float(row[1]), float(row[2]) if len(row) > 2 else 0.0) for row in rows])
+
+
+def _pairs(names: list[str]) -> list[tuple[str, str]]:
+    """The differential pairs among the routed nets, by name: two nets whose names differ only in a
+    last character of ``PAIR_ENDS``."""
+    by_upper = {name.upper(): name for name in names}
+    pairs = []
+    for upper, name in sorted(by_upper.items()):
+        for plus, minus in PAIR_ENDS:
+            other = by_upper.get(upper[:-1] + minus) if len(upper) > 2 and upper.endswith(plus) else None
+            if other is not None:
+                pairs.append((name, other))
+    return pairs
 
 
 DECOUPLING_LIMIT_MM = 5.0  # a capacitor farther than this from its IC's supply pin
@@ -521,7 +559,7 @@ def board_rules(
             _rule(
                 "acute_corner",
                 "low",
-                f"trace corner of {row['degrees']} degrees",
+                f"trace corner of {row['degrees']} degrees at {_at(row['at'])} on layer {row['layer']}",
                 net=row["net"],
                 at=row["at"],
                 layer=row["layer"],
@@ -536,11 +574,223 @@ def board_rules(
                 net=row["net"],
             )
         )
+    for row in metrics["routing"]["pairs"]:
+        if row["skew_mm"] > SKEW_LIMIT_MM:
+            findings.append(_rule("pair_skew", "medium", f"the pair's lengths differ by {row['skew_mm']} mm, {row['mm'][0]} and "
+                                  f"{row['mm'][1]} mm (limit {SKEW_LIMIT_MM:g} mm; a pair recognised by name)",
+                                  net=row["nets"][0], other=row["nets"][1]))
     findings += label_rules(model, min_text_height)
     findings += silk_rules(model)
+    findings += flex_rules(model)
     order = {"high": 0, "medium": 1, "low": 2}
     findings.sort(key=lambda row: (order.get(row["severity"], 3), row["rule"]))
     return findings
+
+
+# -- flex boards ---------------------------------------------------------------------------
+
+
+def _at(point: Any) -> str:
+    return f"({point[0]:g}, {point[1]:g}) mm"
+
+
+def _zone_text(zone: Rect) -> str:
+    return f"x {zone[0]:g} to {zone[2]:g}, y {zone[1]:g} to {zone[3]:g} mm"
+
+
+def _outline_points(model: dict[str, Any]) -> list[Point]:
+    for record in model.get("outline") or []:
+        rows = record.get("path") or []
+        if rows:
+            return flatten([(float(r[0]), float(r[1]), float(r[2]) if len(r) > 2 else 0.0) for r in rows])
+    return []
+
+
+def _chord(outline: list[Point], along_x: bool, at: float, centre: float) -> tuple[float, float] | None:
+    """The board's span through a point: along x at y ``at`` (or along y at x ``at``), the part of
+    the line inside the outline that holds ``centre``; None off the board."""
+    hits = []
+    for (x1, y1), (x2, y2) in zip(outline, outline[1:] + outline[:1], strict=True):
+        a1, a2, b1, b2 = (y1, y2, x1, x2) if along_x else (x1, x2, y1, y2)
+        if (a1 > at) != (a2 > at):
+            hits.append(b1 + (at - a1) * (b2 - b1) / (a2 - a1))
+    hits.sort()
+    return next(((low, high) for low, high in zip(hits[0::2], hits[1::2], strict=False) if low <= centre <= high), None)
+
+
+def _across(box: Rect, outline: list[Point]) -> tuple[Rect, float] | None:
+    """A band widened to the board's edges along its length, and the share of that width it covered."""
+    along_x = box[2] - box[0] >= box[3] - box[1]
+    if along_x:
+        chord = _chord(outline, True, (box[1] + box[3]) / 2, (box[0] + box[2]) / 2)
+        return ((chord[0], box[1], chord[1], box[3]), (box[2] - box[0]) / (chord[1] - chord[0])) if chord else None
+    chord = _chord(outline, False, (box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+    return ((box[0], chord[0], box[2], chord[1]), (box[3] - box[1]) / (chord[1] - chord[0])) if chord else None
+
+
+def bend_zones(model: dict[str, Any]) -> list[dict[str, Any]]:
+    """The bend zones, each a band across the board with what marks it: ``hatched_plane``, a
+    hatched plane shape of a net that is solid elsewhere on the same layer; ``placement_keepout``,
+    on a board with stiffeners, a placement keepout of no height at least twice as long as wide
+    that spans most of the board's width. Each band reaches the board's edges along its length;
+    bands that overlap are one zone."""
+    outline = _outline_points(model)
+    found: list[tuple[Rect, str]] = []
+    planes = [p for p in model.get("planes") or [] if p.get("extents_mm")]
+    solid = {(p.get("net"), p.get("layer")) for p in planes if p.get("hatch") == "solid"}
+    for plane in planes:
+        if plane.get("hatch") not in (None, "solid") and (plane.get("net"), plane.get("layer")) in solid:
+            x0, y0, x1, y1 = (float(v) for v in plane["extents_mm"])
+            found.append(((x0, y0, x1, y1), "hatched_plane"))
+    if outline and stiffeners(model):
+        for keepout in model.get("keepouts") or []:
+            if keepout.get("kind") != "placement" or keepout.get("height_mm") or not keepout.get("extents_mm"):
+                continue
+            x0, y0, x1, y1 = (float(v) for v in keepout["extents_mm"])
+            long, short = max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
+            band = _across((x0, y0, x1, y1), outline) if short > 0 and long >= 2 * short else None
+            if band is not None and band[1] >= BAND_COVER:
+                found.append(((x0, y0, x1, y1), "placement_keepout"))
+    zones: list[tuple[Rect, set[str]]] = []
+    for box, mark in found:
+        band = _across(box, outline) if outline else None
+        box = band[0] if band else box
+        marks = {mark}
+        for other in [z for z in zones if overlap(z[0], box) > 0]:
+            zones.remove(other)
+            box = (min(box[0], other[0][0]), min(box[1], other[0][1]), max(box[2], other[0][2]), max(box[3], other[0][3]))
+            marks |= other[1]
+        zones.append((box, marks))
+    return [{"extents_mm": [round(v, 3) for v in box], "marked_by": sorted(marks)} for box, marks in sorted(zones)]
+
+
+def stiffeners(model: dict[str, Any]) -> list[Rect]:
+    """The extents of the placement keepouts that limit height, a flex board's stiffeners."""
+    boxes: list[Rect] = []
+    for keepout in model.get("keepouts") or []:
+        if keepout.get("kind") == "placement" and keepout.get("height_mm") and keepout.get("extents_mm"):
+            x0, y0, x1, y1 = (float(v) for v in keepout["extents_mm"])
+            boxes.append((x0, y0, x1, y1))
+    return boxes
+
+
+def _inside(point: Point, zone: Rect, epsilon: float = INSIDE_EPSILON) -> bool:
+    return zone[0] + epsilon < point[0] < zone[2] - epsilon and zone[1] + epsilon < point[1] < zone[3] - epsilon
+
+
+def _clipped(a: Point, b: Point, zone: Rect) -> tuple[Point, Point] | None:
+    """The part of segment a-b inside the zone (Liang-Barsky), or None."""
+    t0, t1 = 0.0, 1.0
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    for p, q in ((-dx, a[0] - zone[0]), (dx, zone[2] - a[0]), (-dy, a[1] - zone[1]), (dy, zone[3] - a[1])):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        t = q / p
+        if p < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+    if t1 - t0 <= 1e-9:
+        return None
+    return (a[0] + dx * t0, a[1] + dy * t0), (a[0] + dx * t1, a[1] + dy * t1)
+
+
+def _turn(before: Point, vertex: Point, after: Point) -> float:
+    """How many degrees a path turns at a vertex; 0 when it runs straight on."""
+    first = math.atan2(vertex[1] - before[1], vertex[0] - before[0])
+    second = math.atan2(after[1] - vertex[1], after[0] - vertex[0])
+    return abs(math.degrees((second - first + math.pi) % (2 * math.pi) - math.pi))
+
+
+def _via_at(via: dict[str, Any]) -> Point:
+    return float(via["circle"][0]), float(via["circle"][1])
+
+
+def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
+    """What a flex board's bend zones and stiffeners forbid (knowledge
+    ``layout-flex-bend-and-stiffener``): a via in a bend zone; a trace that turns, changes width or
+    crosses off square inside one; traces of two layers straight above each other across one; and,
+    where the board has stiffeners, a via of a net without plane shapes, a layer change, outside them."""
+    zones: list[Rect] = []
+    for zone in bend_zones(model):
+        x0, y0, x1, y1 = zone["extents_mm"]
+        zones.append((x0, y0, x1, y1))
+    if not zones:
+        return []
+    findings: list[dict[str, Any]] = []
+    for via in model.get("vias") or []:
+        at = _via_at(via)
+        for zone in zones:
+            if _inside(at, zone, 0.0):
+                findings.append(_rule("bend_via", "high", f"via at {_at(at)} in the bend zone {_zone_text(zone)}, which takes no vias",
+                                      net=via.get("net"), at=list(at)))
+    crossing: dict[Rect, list[tuple[int, str, float, float]]] = {zone: [] for zone in zones}
+    ends: dict[tuple[Rect, str, int, Point], set[float]] = {}
+    turns: dict[tuple[Rect, str, int], Point] = {}
+    angles: dict[tuple[Rect, str, int], float] = {}
+    for trace in model.get("traces") or []:
+        points = _trace_points(trace)
+        net, layer, width = str(trace.get("net") or ""), int(trace.get("layer") or 0), float(trace.get("width") or 0.0)
+        for zone in zones:
+            turned, off = _crossing(points, net, layer, width, zone, crossing[zone])
+            if turned is not None:
+                turns.setdefault((zone, net, layer), turned)
+            if off > SQUARE_TOLERANCE:
+                angles[(zone, net, layer)] = max(off, angles.get((zone, net, layer), 0.0))
+            for end in (points[0], points[-1]) if points else ():
+                if _inside(end, zone):
+                    ends.setdefault((zone, net, layer, (round(end[0], 3), round(end[1], 3))), set()).add(round(width, 4))
+    for (zone, net, layer), at in turns.items():
+        findings.append(_rule("bend_turn", "medium", f"trace turns at {_at(at)} on layer {layer} inside the bend zone {_zone_text(zone)}",
+                              net=net, at=list(at)))
+    for (zone, net, layer), off in angles.items():
+        findings.append(_rule("bend_angle", "medium", f"trace crosses the bend zone {_zone_text(zone)} {off:.1f} degrees off square "
+                              f"on layer {layer}", net=net))
+    for (zone, net, layer, at), widths in sorted(ends.items(), key=lambda item: (item[0][1], item[0][2], item[0][3])):
+        if len(widths) > 1:
+            text = " and ".join(f"{w:g}" for w in sorted(widths))
+            findings.append(_rule("bend_width", "medium", f"trace width changes, {text} mm, at {_at(at)} on layer {layer} inside the "
+                                  f"bend zone {_zone_text(zone)}", net=net, at=list(at)))
+    for zone, rows in crossing.items():
+        stacked = sorted({(la, na, lb, nb) for (la, na, ca, wa), (lb, nb, cb, wb) in combinations(sorted(rows), 2)
+                          if la != lb and abs(ca - cb) < (wa + wb) / 2})
+        if stacked:
+            la, na, lb, nb = stacked[0]
+            findings.append(_rule("bend_stacked", "low", f"{len(stacked)} pairs of traces on two layers lie straight above each other "
+                                  f"across the bend zone {_zone_text(zone)}, such as {na} on layer {la} and {nb} on layer {lb}; "
+                                  "stagger them where the widths allow", net=na, other=nb))
+    rigid = stiffeners(model)
+    if rigid:
+        plane_nets = {p.get("net") for p in model.get("planes") or []}
+        for via in model.get("vias") or []:
+            at = _via_at(via)
+            if via.get("net") not in plane_nets and not any(_inside(at, box, -INSIDE_EPSILON) for box in rigid):
+                findings.append(_rule("layer_change_outside_stiffener", "low", f"via at {_at(at)} changes layers outside the stiffeners",
+                                      net=via.get("net"), at=list(at)))
+    return findings
+
+
+def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect,
+              rows: list[tuple[int, str, float, float]]) -> tuple[Point | None, float]:
+    """Where one trace first turns inside one bend zone, or None, and how many degrees off square
+    it runs across it at most; each square run is added to ``rows`` as (layer, net, where it
+    crosses, width)."""
+    along_x = zone[2] - zone[0] >= zone[3] - zone[1]  # the band runs along x, so traces cross it in y
+    turned = next((v for b, v, a in zip(points, points[1:], points[2:], strict=False)
+                   if _inside(v, zone) and _turn(b, v, a) > ACUTE_TOLERANCE), None)
+    off = 0.0
+    for a, b in zip(points, points[1:], strict=False):
+        part = _clipped(a, b, zone)
+        if part is None or math.dist(*part) < 0.05:
+            continue
+        dx, dy = abs(part[1][0] - part[0][0]), abs(part[1][1] - part[0][1])
+        degrees = math.degrees(math.atan2(dx, dy) if along_x else math.atan2(dy, dx))
+        off = max(off, degrees)
+        if degrees <= SQUARE_TOLERANCE:
+            rows.append((layer, net, (part[0][0] + part[1][0]) / 2 if along_x else (part[0][1] + part[1][1]) / 2, width))
+    return turned, off
 
 
 def measure(model: dict[str, Any]) -> dict[str, Any]:
@@ -594,6 +844,7 @@ def measure(model: dict[str, Any]) -> dict[str, Any]:
         "trace_mm": routing["trace_mm"],
         "vias": routing["vias"],
         "acute_corners": len(routing["acute_corners"]),
+        "pair_skew_max_mm": routing["pairs"][0]["skew_mm"] if routing["pairs"] else None,
     }
     return {
         "board": board_info,
@@ -603,7 +854,7 @@ def measure(model: dict[str, Any]) -> dict[str, Any]:
         "outside": outside,
         "decoupling": decoupling,
         "edge_parts": edge_parts,
-        "routing": {**routing, "acute_corners": routing["acute_corners"][:LIST_LIMIT]},
+        "routing": {**routing, "acute_corners": routing["acute_corners"][:LIST_LIMIT], "pairs": routing["pairs"][:LIST_LIMIT]},
         "summary": summary,
     }
 
