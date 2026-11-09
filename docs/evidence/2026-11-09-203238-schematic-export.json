@@ -1,0 +1,86 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:32:38Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "schematic export",
+      "arguments": [
+        "--session",
+        "designer-3404-32102bdf5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\pdf3/Demo.pdf"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "fingerprint": "560a31efa2f86bd88d1f4e4025a5aa86457d341bb108a5cda4b5691d9c621da0",
+      "doc_kind": "project"
+    },
+    {
+      "command": "schematic export",
+      "arguments": [
+        "--session",
+        "designer-3404-32102bdf5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\pdf3/Demo.txt"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "560a31efa2f86bd88d1f4e4025a5aa86457d341bb108a5cda4b5691d9c621da0",
+      "doc_kind": "project"
+    },
+    {
+      "command": "schematic export",
+      "arguments": [
+        "--session",
+        "designer-3404-32102bdf5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\pdf3/Missing.prj",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\pdf3/Demo.pdf"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "560a31efa2f86bd88d1f4e4025a5aa86457d341bb108a5cda4b5691d9c621da0",
+      "doc_kind": "project"
+    },
+    {
+      "command": "schematic export",
+      "arguments": [
+        "--session",
+        "designer-3404-32102bdf5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\pdf3/Demo.pdf"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session",
+      "fingerprint": "560a31efa2f86bd88d1f4e4025a5aa86457d341bb108a5cda4b5691d9c621da0",
+      "doc_kind": "project"
+    }
+  ]
+}

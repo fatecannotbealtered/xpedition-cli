@@ -1,0 +1,33 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T19:59:36Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "plane create",
+      "arguments": [
+        "--net",
+        "GND",
+        "--layer",
+        "2"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "ambiguous",
+      "mode": "session",
+      "fingerprint": "5395be82a2a7491aa7787896d5df1bf3374b53ee4db1c93cb2744e664ac80e6d",
+      "doc_kind": "board"
+    }
+  ]
+}

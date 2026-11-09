@@ -1,0 +1,35 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:01:38Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "via update",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--net-classes",
+        "USB_SS",
+        "--padstack",
+        "VIA_D0.2_P0.4"
+      ],
+      "exit": 7,
+      "result": "pass",
+      "matrix_row": "busy",
+      "mode": "session",
+      "fingerprint": "ac627b9ecfa8e7040dc591d87997411b44908c661f042ce5ee9f7e240e24e49a",
+      "doc_kind": "board"
+    }
+  ]
+}

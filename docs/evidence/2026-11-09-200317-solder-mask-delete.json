@@ -1,0 +1,35 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:03:17Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "solder-mask delete",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--x",
+        "45mm",
+        "--y",
+        "7mm"
+      ],
+      "exit": 9,
+      "result": "pass",
+      "matrix_row": "dialog",
+      "mode": "session",
+      "fingerprint": "fcda0d14535aab01c32fc725a51b205b44f453e914cc5fa786ec7201631faf00",
+      "doc_kind": "board"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:14:28Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "schematic check",
+      "arguments": [
+        "--session",
+        "designer-16236-32102ba4c",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "session",
+      "fingerprint": "1e8118756e7d08e2983be2dfece19ae4e8eeb0f2d376539b2a616ab03b36410d",
+      "doc_kind": "project",
+      "notes": "job job-045b7ae5ce ended completed"
+    },
+    {
+      "command": "schematic check",
+      "arguments": [
+        "--session",
+        "designer-16236-32102ba4c",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--rules",
+        "all"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "1e8118756e7d08e2983be2dfece19ae4e8eeb0f2d376539b2a616ab03b36410d",
+      "doc_kind": "project"
+    },
+    {
+      "command": "schematic check",
+      "arguments": [
+        "--session",
+        "designer-16236-32102ba4c",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Missing.prj"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "1e8118756e7d08e2983be2dfece19ae4e8eeb0f2d376539b2a616ab03b36410d",
+      "doc_kind": "project"
+    }
+  ]
+}

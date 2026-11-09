@@ -17,12 +17,15 @@ NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\
                 r"|" + READ_BACK + r"[^.;。\n]{0,20}\bfail(s|ed)?\b"
                 r"|\bread[- ]?back mismatch|(回读|读回)[^。；\n]{0,20}不一致")
 # Said without the word: "read-back matched", "read the file back and the check passed", "each delete
-# checked itself by reading the board back", "every change checked out".
+# checked itself by reading the board back", "every change checked out", "the tool confirmed the file
+# after writing it".
 READ_BACK_AGREES = (READ_BACK + r"[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed|pass|passes|passed)\b"
                     r"|\b(each|every|all)\b[^.;。\n]{0,30}?\b(changes?|steps?|deletions?|deletes?|edits?|writes?)\b[^.;。\n]{0,40}?"
                     r"(\b(checked|re-?read)\b|" + READ_BACK + ")"
                     r"|\bchecked against the (board|design|document|project|library|files?)\b"
-                    r"|(回读|读回)[^。；\n]{0,20}(一致|相符|吻合|确认)")
+                    r"|\b(confirmed|checked|re-?read)\b[^.;。\n]{0,30}?\bafter (writing|saving|exporting|it wrote|it was written)\b"
+                    r"|(回读|读回)[^。；\n]{0,20}(一致|相符|吻合|确认)"
+                    r"|(写入|写完|导出)后[^。；\n]{0,10}(确认|核对|检查)")
 CLOSED = r"\b(closed|quit|quitted|exited|shut down|stopped)\b|关闭|已关|退出"
 CANCELLED = r"\bcancel(l)?ed\b|\bcancel(l)?ation\b|已取消|取消了|已经取消"
 OPEN_NETS = r"\bopen\b|\bunrouted\b|\bnot routed\b|未布通|未布线|没布通|开路"

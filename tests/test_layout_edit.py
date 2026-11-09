@@ -40,7 +40,7 @@ def board() -> FakeDoc:
     for net, layer in (("A", 1), ("A", 1), ("A", 2), ("B", 1)):
         doc.traces.append(Item(doc.traces, Net=SimpleNamespace(Name=net), Layer=layer))
     for net in ("A", "GND", "GND"):
-        doc.vias.append(Item(doc.vias, Net=SimpleNamespace(Name=net)))
+        doc.vias.append(Item(doc.vias, Net=SimpleNamespace(Name=net), Name="026VIA"))
     doc.shapes.append(Item(doc.shapes, Net=SimpleNamespace(Name="GND"), Layer=2))
     return doc
 
@@ -191,6 +191,16 @@ class ViaCreateTest(unittest.TestCase):
         self.assertTrue(all(x <= 4.0 for x, _y, _name, _net in self.doc.placed_vias))
         self.assertIn("within x up to 4 mm", preview["action"])
         self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
+
+    def test_a_new_padstack_is_one_of_the_changes_a_save_reads_back(self):
+        with world(FakeApp(self.doc)):
+            other = E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "VIA_D0.2_P0.4"}))
+            self.doc.vias[:] = [via for via in self.doc.vias if via.Net.Name != "GND"]
+            first = E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0}))
+        stacks = {c["field"]: (c["before"], c["after"]) for c in other["changes"]}
+        self.assertEqual(stacks["padstack"], ("026VIA", "mixed: 026VIA, VIA_D0.2_P0.4"))
+        stacks = {c["field"]: (c["before"], c["after"]) for c in first["changes"]}
+        self.assertEqual(stacks, {"count": (0, 1), "padstack": (None, "026VIA")})  # the vias a via delete took all of come back
 
     def test_one_via_and_one_that_cannot_stand(self):
         with world(FakeApp(self.doc)):

@@ -1,0 +1,39 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:49:13Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "solder-mask delete",
+      "arguments": [
+        "--session",
+        "layout-13272-32102bf9f",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--x",
+        "45mm",
+        "--y",
+        "7mm"
+      ],
+      "exit": 1,
+      "result": "pass",
+      "matrix_row": "read_back_mismatch",
+      "mode": "session",
+      "fingerprint": "fcda0d14535aab01c32fc725a51b205b44f453e914cc5fa786ec7201631faf00",
+      "doc_kind": "board",
+      "tampered": true,
+      "notes": "--tamper exited 0"
+    }
+  ]
+}

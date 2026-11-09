@@ -1,0 +1,35 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.3.0",
+  "date": "2026-11-09",
+  "agent": "Claude Code 2.1.318",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/evals/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "bom-against-earlier",
+      "passed": true,
+      "notes": "Check the bill of materials, write it to a file and say what changed since an earlier BOM.",
+      "sha256": "c8733fdfdc4718122ddd8707ce256837a4a0beff64fb41e3631d8be65945ba02",
+      "commands": [
+        "bom check",
+        "bom export"
+      ],
+      "ran": [
+        "bom check",
+        "bom export",
+        "component list",
+        "doctor",
+        "knowledge list",
+        "reference",
+        "session list"
+      ],
+      "fingerprint": "81784ef0e73053f698e26668cb75e38fd6b0e9090844ac69a0b4fe923e7a9f3b"
+    }
+  ]
+}

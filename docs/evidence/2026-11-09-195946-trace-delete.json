@@ -1,0 +1,31 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T19:59:46Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "trace delete",
+      "arguments": [
+        "--nets",
+        "SS_TX1_P,SS_TX1_N"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "ambiguous",
+      "mode": "session",
+      "fingerprint": "be84348f1837e507891596288685a1fbaf85c8fc70991afdc9597a1743098718",
+      "doc_kind": "board"
+    }
+  ]
+}

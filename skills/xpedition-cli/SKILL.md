@@ -10,7 +10,7 @@ description: >-
   建工程、建库和过孔、画和读原理图、查和导出 BOM、打包、建板、正向标注、布局和挪元件、放安装孔、挪丝印位号、设布线规则、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
   Not for editing schematic symbols or wires, or Xpedition versions other than 2604; 不负责改原理图里的元件和导线。
 metadata:
-  version: 1.2.1
+  version: 1.3.0
 ---
 
 # xpedition-cli

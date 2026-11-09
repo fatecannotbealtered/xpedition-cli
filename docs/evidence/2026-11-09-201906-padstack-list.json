@@ -1,0 +1,33 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:19:06Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "padstack list",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--type",
+        "via"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "unsaved",
+      "mode": "file",
+      "fingerprint": "65603219a771fdfb8d419fe566079f01d9ec3f6be61d2df57a1ba63e2062be4a",
+      "doc_kind": "project"
+    }
+  ]
+}

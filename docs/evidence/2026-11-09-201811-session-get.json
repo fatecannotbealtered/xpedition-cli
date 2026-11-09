@@ -1,0 +1,53 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:18:11Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "session get",
+      "arguments": [
+        "--session",
+        "designer-16108-32102bb5f"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "fingerprint": "f15e11f5aaf03723f603c42d15a4e9952f49341b4749062554a3bbde0e82d53f"
+    },
+    {
+      "command": "session get",
+      "arguments": [
+        "--session"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "f15e11f5aaf03723f603c42d15a4e9952f49341b4749062554a3bbde0e82d53f"
+    },
+    {
+      "command": "session get",
+      "arguments": [
+        "--session",
+        "designer-1-0"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "f15e11f5aaf03723f603c42d15a4e9952f49341b4749062554a3bbde0e82d53f"
+    }
+  ]
+}

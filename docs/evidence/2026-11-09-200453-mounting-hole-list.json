@@ -1,0 +1,65 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:04:53Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "mounting-hole list",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "session",
+      "fingerprint": "d5357ecccb6ad70138dc2c9ae4579744255b387639fe220709dd88c068c180c2",
+      "doc_kind": "board"
+    },
+    {
+      "command": "mounting-hole list",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--sheet",
+        "1"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "d5357ecccb6ad70138dc2c9ae4579744255b387639fe220709dd88c068c180c2",
+      "doc_kind": "board"
+    },
+    {
+      "command": "mounting-hole list",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\rd/Missing.pcb"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "d5357ecccb6ad70138dc2c9ae4579744255b387639fe220709dd88c068c180c2",
+      "doc_kind": "board"
+    }
+  ]
+}

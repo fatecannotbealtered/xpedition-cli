@@ -556,7 +556,13 @@ def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
             reasons = ", ".join(f"{count} {why}" for why, count in sorted(dropped.items())) or "no grid point inside the outline"
             blocked.append(f"no point of the {inputs['pitch']:g} mm grid is free ({reasons})")
     return {**inputs, "padstack": padstack, "points": points, "dropped": dropped, "blocked": blocked,
-            "before": L.via_count(doc, net), "radius": radius, "clearances": clear}
+            "before": L.via_count(doc, net), "stack_before": L.via_padstack_name(doc, net), "radius": radius, "clearances": clear}
+
+
+def stack_after(before: str | None, added: str) -> str:
+    """The padstack a net's vias report once vias of ``added`` join those of ``before``."""
+    names = {added} | (set(before.removeprefix("mixed: ").split(", ")) if before else set())
+    return added if len(names) == 1 else "mixed: " + ", ".join(sorted(names))
 
 
 class ViaCreate(L.ReadsBack):
@@ -580,9 +586,13 @@ class ViaCreate(L.ReadsBack):
         within = f" within {L.region_text(plan['region'])}" if plan.get("region") else ""
         where = (f"at ({plan['points'][0][0]:g}, {plan['points'][0][1]:g}) mm" if plan["pitch"] is None
                  else f"on a {plan['pitch']:g} mm grid inside its copper on two layers{within}" + (f" ({dropped})" if dropped else ""))
+        key = base.key(path, via_key(net))
+        changes = [base.change(key, "count", plan["before"], plan["before"] + count)]
+        after = stack_after(plan["stack_before"], plan["padstack"])
+        if count and after != plan["stack_before"]:  # a later read-back, such as a save's, expects the new padstack
+            changes.append(base.change(key, "padstack", plan["stack_before"], after))
         return base.preview(f"Place {count} {plan['padstack']} via(s) of {net} {where}, clear of other copper by the board's default "
-                            "clearance rule. Run pcb check after. The board is not saved.", target,
-                            [base.change(base.key(path, via_key(net)), "count", plan["before"], plan["before"] + count)])
+                            "clearance rule. Run pcb check after. The board is not saved.", target, changes)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         return self.apply(ctx)

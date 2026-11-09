@@ -1,0 +1,35 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:16:33Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "part create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts-rounded.json"
+      ],
+      "exit": 1,
+      "result": "pass",
+      "matrix_row": "read_back_mismatch",
+      "mode": "file",
+      "fingerprint": "c7fb2b4c2d2820f16cb785bcc1937ae1ae28713a3d5a9dcbb8f379d494a9313c",
+      "doc_kind": "project",
+      "tampered": true,
+      "notes": "job job-6cf8718c28 ended completed"
+    }
+  ]
+}

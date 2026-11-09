@@ -15,7 +15,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-212843-session-get.json#normal"
+      "evidence": "live:docs/evidence/2026-11-09-201811-session-get.json#normal"
     },
     {
       "row": "empty",
@@ -37,7 +37,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212843-session-get.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-09-201811-session-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -55,7 +55,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212843-session-get.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-09-201811-session-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -70,7 +70,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-08-223308-session-get.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-09-195911-session-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -96,7 +96,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-213104-session-get.json#busy"
+      "evidence": "live:docs/evidence/2026-11-09-203009-session-get.json#busy"
     },
     {
       "row": "dialog",
@@ -112,7 +112,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-214510-session-get.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-09-203355-session-get.json#dialog"
     },
     {
       "row": "disconnect",

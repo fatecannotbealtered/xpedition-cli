@@ -4,6 +4,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-09
+
 ### Added
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.
@@ -22,10 +24,14 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Changed
 
-- Built on tool-driver-cli-spec 1.1.0: a live run counts as evidence until the command's registration or the adapter's code changes, and an evaluation result until its question, a command it lists or the Skills and knowledge change, whatever the version number.
+- Built on tool-driver-cli-spec 1.1.0: a live run counts as evidence until the command's registration or the adapter's code changes, and an evaluation result until its question, a command it lists or the Skills and knowledge change, whatever the version number. A long job that ends with `ok: false`, a write or a read, carries the error the call would have returned, in `code`, `message` and `details`; a command it names to run again is the write's first call, never a spent token. A final job's `action`, `resume`, `title` and `knowledge` are in `details`; only a `blocked` job keeps `action` and `knowledge` at the top. `doc save` compares each field with the tolerance of the command whose write left the value, and a `doc undo` record keeps the undone command's tolerances. The Skill handles a failed job as the error it carries.
+- `via update` and `doc list` are verified, not stable: in this release's evaluation the Agents reached the same results without them, a via given to the net class before routing and the documents read from `session list`.
 
 ### Fixed
 
+- `trace create` joins a trace end that lies on a pad to the pin's origin, and one that lies on a via to the via's centre, before it draws: Layout connects a trace to a pin or a via only at that exact point, and the coordinates the tool reports are rounded, so a plan that ended inside a pad drew copper that stayed unconnected, with every net reported open.
+- `via create`, `via update` and `trace create` take a via padstack from the design's own padstack library when no via of the board uses it and the central library cannot be read, as on a copy of a project whose central library is on another machine's drive; they refused such a via as one whose size is not known.
+- `doc create` in file mode refuses a template whose folder holds a file another program keeps from being read, such as a project database Designer, Layout, the packager or the iCDB server is working on, with `E_CONFLICT` naming the files, before anything is copied. A copy that still fails part way names the new project file as asked and lists the files it could not copy; it kept the template's file name before.
 - `pcb check` keeps the values of a hazard's description when Layout runs in a language other than English, which hands the labels over COM as question marks: `CC1; Pad Part; J1; Unrouted Pin` instead of `???? : CC1 ...`; a label that ends in a number keeps it, `1: SMD Pad`.
 - `trace create`, `trace delete` and `via delete` count a board's traces and vias in one pass instead of one pass per net and layer, so the preview and the read-back of a plan on a board of a few hundred traces finish within the call's budget; the read-back ran out of time there and reported the change as not verified.
 - `trace create` reads its traces back by their geometry: each net and layer of the plan reads back `plan_drawn`, true when every point along its planned traces lies on a trace of that net and layer. Layout keeps one planned trace as several objects, split at its arcs and elsewhere, so the count it read back before failed a plan that was drawn.
@@ -35,18 +41,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `trace create` and `via create` follow the board's existing traces along their arcs, within 2 micrometres: an arc's centre was taken as a corner of the trace, so a stitching via could be placed on an arc and a plan drawn across one. The plan's own clearances hold within a micrometre, as concentric arcs checked as chords come that much closer than their copper.
 - `trace create` moves a trace end that lies a few nanometres off a pin's origin or a via's centre onto it, instead of adding a segment, and leaves a corner that turns by a few microradians sharp: Layout kept each such sliver as a trace of its own, dozens on a board, which DRC reported as loops and hangers.
 - `schematic export` and `bom export` try replacing the file again for two seconds when Windows refuses it, as a virus scanner or the search indexer holding a file it has just seen written does for a moment; such a run failed.
-
-## [1.2.1] - 2026-11-09
-
-### Changed
-
-- Built on tool-driver-cli-spec 1.0.10. A long job that ends with `ok: false`, a write or a read, carries the error the call would have returned, in `code`, `message` and `details`; a command it names to run again is the write's first call, never a spent token. A final job's `action`, `resume`, `title` and `knowledge` are in `details`; only a `blocked` job keeps `action` and `knowledge` at the top. `doc save` compares each field with the tolerance of the command whose write left the value, and a `doc undo` record keeps the undone command's tolerances. The Skill handles a failed job as the error it carries.
-
-### Fixed
-
-- `trace create` joins a trace end that lies on a pad to the pin's origin, and one that lies on a via to the via's centre, before it draws: Layout connects a trace to a pin or a via only at that exact point, and the coordinates the tool reports are rounded, so a plan that ended inside a pad drew copper that stayed unconnected, with every net reported open.
-- `via create`, `via update` and `trace create` take a via padstack from the design's own padstack library when no via of the board uses it and the central library cannot be read, as on a copy of a project whose central library is on another machine's drive; they refused such a via as one whose size is not known.
-- `doc create` in file mode refuses a template whose folder holds a file another program keeps from being read, such as a project database Designer, Layout, the packager or the iCDB server is working on, with `E_CONFLICT` naming the files, before anything is copied. A copy that still fails part way names the new project file as asked and lists the files it could not copy; it kept the template's file name before.
+- `doc save` of a schematic reports it saved while Layout has the project's board open. Layout keeps Xpedition's database server running, so closing the project in Designer writes nothing and the save was reported as not reaching the disk; the tool now also looks after opening the project again, when the server writes it.
+- `via create` records the padstack of the net's vias when it changes, as `via delete` does when the last via goes, so a later `doc save` no longer reports a mismatch after all of a net's vias were deleted and placed again.
 
 ## [1.2.0] - 2026-11-08
 

@@ -170,6 +170,21 @@ class DocumentStateTest(unittest.TestCase):
         app.open_document.assert_called_once_with(1, doc)
         self.assertEqual(out["observed"][base.key(doc)], {"saved": True})
 
+    def test_with_layout_holding_the_project_the_designer_save_is_seen_once_it_opens_again(self):
+        app = self._fake_app()
+        app.save_document.side_effect = None
+        app.close_document.side_effect = None  # the database server, kept by Layout, writes nothing on close
+        app.open_document.side_effect = lambda pid, path: Path(path).write_text("written on open", encoding="utf-8")
+        sid, doc = "designer-1-1", os.path.abspath(self.doc)
+        os.utime(doc, ns=(1_000_000_000, 1_000_000_000))
+        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})), \
+                mock.patch.object(sessions, "_app", return_value=app), \
+                mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
+            sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
+            out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
+                                                        "fields": ["saved"]})
+        self.assertEqual(out["observed"][base.key(doc)], {"saved": True})
+
     def test_a_save_is_seen_in_the_design_data_not_in_the_files_an_open_rewrites(self):
         board_dir = Path(self.tmp.name) / "PCB"
         (board_dir / "Layout").mkdir(parents=True)

@@ -1,0 +1,31 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:00:55Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "constraint get",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b"
+      ],
+      "exit": 7,
+      "result": "pass",
+      "matrix_row": "busy",
+      "mode": "session",
+      "fingerprint": "07d4b998618a8fd05a5c05a941d6716a971ef8c70742b16ea53daeaa64acba4b",
+      "doc_kind": "board"
+    }
+  ]
+}

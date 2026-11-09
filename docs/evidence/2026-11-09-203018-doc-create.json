@@ -1,0 +1,34 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:30:18Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "doc create",
+      "arguments": [
+        "--session",
+        "designer-3404-32102bdf5",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Busy/Busy.prj"
+      ],
+      "exit": 7,
+      "result": "pass",
+      "matrix_row": "busy",
+      "mode": "session",
+      "fingerprint": "69cc0f75d6691573bf941d89438dc23cd2db34fd7e3ecd6f8c66e07ab32636d7"
+    }
+  ]
+}

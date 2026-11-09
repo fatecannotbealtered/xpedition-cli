@@ -1,0 +1,37 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:03:25Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "mounting-hole create",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--padstack",
+        "MC240D320N_SSM345_OBS370",
+        "--x",
+        "20mm",
+        "--y",
+        "15mm"
+      ],
+      "exit": 9,
+      "result": "pass",
+      "matrix_row": "dialog",
+      "mode": "session",
+      "fingerprint": "05c970b1bc31060c2435757612481bd62bb85a89f7ea9bf2627f868b24d53bb6",
+      "doc_kind": "board"
+    }
+  ]
+}

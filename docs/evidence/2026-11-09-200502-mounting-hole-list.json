@@ -1,0 +1,48 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:05:02Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "mounting-hole list",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "fingerprint": "d5357ecccb6ad70138dc2c9ae4579744255b387639fe220709dd88c068c180c2",
+      "doc_kind": "board"
+    },
+    {
+      "command": "mounting-hole list",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "unsaved",
+      "mode": "session",
+      "fingerprint": "d5357ecccb6ad70138dc2c9ae4579744255b387639fe220709dd88c068c180c2",
+      "doc_kind": "board"
+    }
+  ]
+}

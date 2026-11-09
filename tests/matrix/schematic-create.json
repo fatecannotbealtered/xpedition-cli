@@ -19,7 +19,10 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-212929-schematic-create.json#normal"
+      "evidence": "live:docs/evidence/2026-11-09-201843-schematic-create.json#normal",
+      "kind_evidence": {
+        "project": "live:docs/evidence/2026-11-09-201843-schematic-create.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -46,7 +49,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212855-schematic-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-09-201820-schematic-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -68,7 +71,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212855-schematic-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-09-201820-schematic-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -86,7 +89,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-08-223302-schematic-create.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-09-195906-schematic-create.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -108,7 +111,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214552-schematic-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-09-203418-schematic-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -130,7 +133,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212855-schematic-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-09-201820-schematic-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -150,7 +153,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-08-213106-schematic-create.json#busy"
+      "evidence": "live:docs/evidence/2026-11-09-202950-schematic-create.json#busy"
     },
     {
       "row": "dialog",
@@ -170,7 +173,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214506-schematic-create.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-09-203351-schematic-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -207,7 +210,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-213020-schematic-create.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-09-201920-schematic-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -229,7 +232,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-212917-schematic-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-09-201833-schematic-create.json#read_back_mismatch"
     }
   ]
 }

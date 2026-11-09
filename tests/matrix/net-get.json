@@ -19,7 +19,10 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-214355-net-get.json#normal"
+      "evidence": "live:docs/evidence/2026-11-09-203253-net-get.json#normal",
+      "kind_evidence": {
+        "project": "live:docs/evidence/2026-11-09-203253-net-get.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -44,7 +47,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214355-net-get.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-09-203253-net-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -66,7 +69,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214355-net-get.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-09-203253-net-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -84,7 +87,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-08-223257-net-get.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-09-195902-net-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -114,7 +117,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214132-net-get.json#busy"
+      "evidence": "live:docs/evidence/2026-11-09-203053-net-get.json#busy"
     },
     {
       "row": "dialog",
@@ -134,7 +137,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-214521-net-get.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-09-203403-net-get.json#dialog"
     },
     {
       "row": "disconnect",
@@ -172,7 +175,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-212946-net-get.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-09-201857-net-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

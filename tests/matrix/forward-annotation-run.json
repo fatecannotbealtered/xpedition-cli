@@ -17,7 +17,10 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-215643-forward-annotation-run.json#normal"
+      "evidence": "live:docs/evidence/2026-11-09-203632-forward-annotation-run.json#normal",
+      "kind_evidence": {
+        "board": "live:docs/evidence/2026-11-09-203632-forward-annotation-run.json#normal"
+      }
     },
     {
       "row": "empty",
@@ -35,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-215646-forward-annotation-run.json#empty"
+      "evidence": "live:docs/evidence/2026-11-09-203635-forward-annotation-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -57,7 +60,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-08-215324-forward-annotation-run.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-09-203619-forward-annotation-run.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -77,7 +80,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-08-215324-forward-annotation-run.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-09-203619-forward-annotation-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -92,7 +95,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-08-223320-forward-annotation-run.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-09-195922-forward-annotation-run.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -112,7 +115,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-08-220350-forward-annotation-run.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-09-204030-forward-annotation-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -132,7 +135,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-08-215324-forward-annotation-run.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-09-203619-forward-annotation-run.json#no_scope"
     },
     {
       "row": "busy",
@@ -150,7 +153,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-08-222908-forward-annotation-run.json#busy"
+      "evidence": "live:docs/evidence/2026-11-09-200003-forward-annotation-run.json#busy"
     },
     {
       "row": "dialog",
@@ -168,7 +171,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-222314-forward-annotation-run.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-09-200251-forward-annotation-run.json#dialog"
     },
     {
       "row": "disconnect",
@@ -201,7 +204,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-220827-forward-annotation-run.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-09-204419-forward-annotation-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -221,7 +224,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-220118-forward-annotation-run.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-09-203917-forward-annotation-run.json#read_back_mismatch"
     }
   ]
 }

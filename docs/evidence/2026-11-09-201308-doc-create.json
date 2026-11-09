@@ -1,0 +1,67 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:13:08Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "doc create",
+      "arguments": [
+        "--session",
+        "designer-16236-32102ba4c",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Demo/Demo.txt"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "69cc0f75d6691573bf941d89438dc23cd2db34fd7e3ecd6f8c66e07ab32636d7",
+      "notes": "job job-269180d5da ended failed"
+    },
+    {
+      "command": "doc create",
+      "arguments": [
+        "--session",
+        "designer-1-0",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Copy/Copy.prj"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "69cc0f75d6691573bf941d89438dc23cd2db34fd7e3ecd6f8c66e07ab32636d7"
+    },
+    {
+      "command": "doc create",
+      "arguments": [
+        "--session",
+        "designer-16236-32102ba4c",
+        "--kind",
+        "project",
+        "--path",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Demo/Demo.prj"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session",
+      "fingerprint": "69cc0f75d6691573bf941d89438dc23cd2db34fd7e3ecd6f8c66e07ab32636d7"
+    }
+  ]
+}

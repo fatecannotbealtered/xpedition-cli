@@ -1,0 +1,33 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "commit": "b1cecca2b1a5",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T20:00:52Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "pcb render",
+      "arguments": [
+        "--session",
+        "layout-43604-32102ad2b",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\busy/board.png"
+      ],
+      "exit": 7,
+      "result": "pass",
+      "matrix_row": "busy",
+      "mode": "session",
+      "fingerprint": "40b72a692cf7138c9d6a5e270604526fea917c15db21c89bd1ffc1e7807e2c65",
+      "doc_kind": "board"
+    }
+  ]
+}

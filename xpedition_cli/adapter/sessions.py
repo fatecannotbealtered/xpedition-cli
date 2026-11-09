@@ -406,6 +406,11 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
             if ref.kind == DESIGNER:
                 after = disk_stamp(path)
             app.open_document(ref.pid, path)
+            if ref.kind == DESIGNER and after == before:
+                # Another program with the project open, such as Layout with its board, keeps the
+                # database server running, so closing writes nothing; the server writes the
+                # project when Designer opens it again (seen live).
+                after = disk_stamp(path)
     pending = doc_state(store, ref.id, path).get("changes", [])
     note_saved(store, ref.id, path)
     # The read-back says `saved` only when the save was seen to write the files (DCLI-057).
