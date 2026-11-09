@@ -115,6 +115,10 @@ if __name__ == "__main__":
 
 
 class CornerTest(unittest.TestCase):
+    def test_a_corner_that_barely_turns_gets_no_arc(self):
+        rows = TP.drawn([(0.0, 0.0), (0.0, 40.0), (0.0002, 80.0)], [0.0, 0.5, 0.0])
+        self.assertEqual(rows, [(0.0, 0.0, 0.0), (0.0, 40.0, 0.0), (0.0002, 80.0, 0.0)])  # no arc a micrometre long
+
     def test_a_rounded_corner_is_drawn_as_an_arc_tangent_to_both_segments(self):
         plan = TP.parse({"traces": [trace([[0, 0], [10, 0, 2.0], [10, 10]])]})
         rows = TP.drawn(plan.traces[0].points, plan.traces[0].radii)

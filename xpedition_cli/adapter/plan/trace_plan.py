@@ -105,6 +105,9 @@ def _corner(value: Any, what: str) -> tuple[Point, float]:
 
 
 ARC_STEP = math.radians(5)  # the chord step of an arc in the check
+MIN_ARC_MM = 1e-3  # a rounded corner whose arc would start closer than this to the corner stays sharp
+CLEARANCE_TOLERANCE = 1e-3  # mm a distance may fall short of a rule: arcs are checked as chords, which bring two concentric
+# arcs a thousandth of their distance closer than the copper is
 
 
 def _corners(points: list[Point], radii: list[float]) -> list[tuple[Point, Point, Point, float, bool] | None]:
@@ -128,6 +131,8 @@ def _corners(points: list[Point], radii: list[float]) -> list[tuple[Point, Point
         if theta < 1e-6:
             raise _error(f"the trace turns back on itself at point {i + 1}")
         tangent = r / math.tan(theta / 2)
+        if tangent < MIN_ARC_MM:
+            continue  # a corner that turns by a few microradians: no arc Layout could hold
         cut[i] = tangent
         bisector = (u1[0] + u2[0], u1[1] + u2[1])
         norm = math.hypot(*bisector)
@@ -290,25 +295,25 @@ def check(plan: Plan, copper: Copper, rules: Rules) -> list[str]:
             for layer, net, poly in copper.pads:
                 if layer == trace.layer and net != trace.net:
                     need = rules.clearance(trace.net, net, layer, "trace_to_pad") + trace.width / 2
-                    if _segment_polygon(a, b, poly) < need - 1e-6:
+                    if _segment_polygon(a, b, poly) < need - CLEARANCE_TOLERANCE:
                         blocked.append(f"{name}: closer to a pad of {net or 'no net'} than {need - trace.width / 2:g} mm on layer {layer}")
                         break
             for layer, net, width, points in copper.traces:
                 if layer == trace.layer and net != trace.net:
                     need = rules.clearance(trace.net, net, layer, "trace_to_trace") + (trace.width + width) / 2
-                    if any(_segment_distance(a, b, c, d) < need - 1e-6 for c, d in _segments(points)):
+                    if any(_segment_distance(a, b, c, d) < need - CLEARANCE_TOLERANCE for c, d in _segments(points)):
                         blocked.append(f"{name}: closer to a trace of {net} than the clearance on layer {layer}")
                         break
             for net, x, y, radius in copper.vias:
                 if net != trace.net:
                     need = rules.clearance(trace.net, net, trace.layer, "trace_to_via") + trace.width / 2 + radius
-                    if point_segment((x, y), a, b) < need - 1e-6:
+                    if point_segment((x, y), a, b) < need - CLEARANCE_TOLERANCE:
                         blocked.append(f"{name}: closer to a via of {net} than the clearance on layer {trace.layer}")
                         break
         for other_index, other in enumerate(plan.traces):
             if other_index > index and other.net != trace.net and other.layer == trace.layer:
                 need = rules.clearance(trace.net, other.net, trace.layer, "trace_to_trace") + (trace.width + other.width) / 2
-                if any(_segment_distance(a, b, c, d) < need - 1e-6 for a, b in _segments(path) for c, d in _segments(other.path)):
+                if any(_segment_distance(a, b, c, d) < need - CLEARANCE_TOLERANCE for a, b in _segments(path) for c, d in _segments(other.path)):
                     blocked.append(f"{name}: closer to trace {other_index + 1} of {other.net} in the plan than the clearance")
     for index, via in enumerate(plan.vias):
         name = f"via {index + 1} of {via.net}"
@@ -317,18 +322,18 @@ def check(plan: Plan, copper: Copper, rules: Rules) -> list[str]:
             continue
         for layer, net, poly in copper.pads:
             need = rules.clearance(via.net, net, layer, "pad_to_via") + via.radius
-            if _polygon_distance(via.at, poly) < need - 1e-6:  # Layout refuses a via close to a pad of its own net too
+            if _polygon_distance(via.at, poly) < need - CLEARANCE_TOLERANCE:  # Layout refuses a via close to a pad of its own net too
                 blocked.append(f"{name}: closer to a pad of {net or 'no net'} than {need - via.radius:g} mm on layer {layer}")
                 break
         for layer, net, width, points in copper.traces:
             if net != via.net:
                 need = rules.clearance(via.net, net, layer, "trace_to_via") + via.radius + width / 2
-                if any(point_segment(via.at, a, b) < need - 1e-6 for a, b in _segments(points)):
+                if any(point_segment(via.at, a, b) < need - CLEARANCE_TOLERANCE for a, b in _segments(points)):
                     blocked.append(f"{name}: closer to a trace of {net} than the clearance on layer {layer}")
                     break
         for net, x, y, radius in copper.vias:
             need = rules.clearance(via.net, net, 1, "via_to_via") + via.radius + radius
-            if math.hypot(via.at[0] - x, via.at[1] - y) < need - 1e-6:
+            if math.hypot(via.at[0] - x, via.at[1] - y) < need - CLEARANCE_TOLERANCE:
                 blocked.append(f"{name}: closer to a via of {net} than the clearance")
                 break
     return blocked

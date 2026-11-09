@@ -9,6 +9,7 @@ through automation, so these deletes are how an Agent takes back a routing attem
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -108,40 +109,57 @@ class TraceDelete(L.ReadsBack):
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the traces")
 
 
+def _via_point(via: Any) -> tuple[float, float]:
+    return float(via.GetPositionX(L.UNIT_MM)), float(via.GetPositionY(L.UNIT_MM))
+
+
 class ViaDelete(L.ReadsBack):
-    """Delete the vias of the nets named: routing vias and stitching vias alike."""
+    """Delete the vias of the nets named, routing vias and stitching vias alike; with the region
+    flags, only those inside the rectangle."""
 
     command = "via delete"
 
-    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int], dict[str, str | None]]:
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int], dict[str, int], dict[str, str | None]]:
+        """The nets, each one's vias now, how many of them go, and its padstack."""
         nets = _nets(ctx)
         _known(doc, nets)
         vias = L.via_summary(doc)
-        return (nets, {net: vias.get(net, {}).get("count", 0) for net in nets},
-                {net: vias.get(net, {}).get("padstack") for net in nets})
+        region = L.region_inputs(ctx.inputs)
+        going = {net: 0 for net in nets}
+        for via in L.collection(doc, "Vias") if region is not None else ():
+            net = L.net_name(via)
+            if net in going and L.in_region(_via_point(via), region):
+                going[net] += 1
+        counts = {net: vias.get(net, {}).get("count", 0) for net in nets}
+        return nets, counts, going if region is not None else counts, {net: vias.get(net, {}).get("padstack") for net in nets}
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        nets, counts, stacks = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
-                                           what="reading the vias")
-        live = {k: v for k, v in counts.items() if v}
+        region = L.region_inputs(ctx.inputs)
+        nets, counts, going, stacks = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                                  what="reading the vias")
+        live = {k: v for k, v in going.items() if v}
+        within = f" within {L.region_text(region)}" if region is not None else ""
         if not live:
-            return base.preview(f"The nets {', '.join(nets)} have no vias; nothing to delete.", [], [])
+            return base.preview(f"The nets {', '.join(nets)} have no vias{within}; nothing to delete.", [], [])
         targets = [base.target(path, "via", via_key(net), label=net) for net in live]
         changes = []
         for net, count in live.items():
             key = base.key(path, via_key(net))
-            # the padstack goes with the vias, so a later read-back, such as a save's, expects none
-            changes += [base.change(key, "count", count, 0), base.change(key, "padstack", stacks[net], None)]
-        return base.preview(f"Delete {sum(live.values())} vias of {len(live)} nets. The board is not saved.", targets, changes)
+            changes.append(base.change(key, "count", counts[net], counts[net] - count))
+            if count == counts[net]:  # the padstack goes with the last via, so a later read-back, such as a save's, expects none
+                changes.append(base.change(key, "padstack", stacks[net], None))
+        return base.preview(f"Delete {sum(live.values())} vias of {len(live)} nets{within}. The board is not saved.", targets, changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
+        region = L.region_inputs(ctx.inputs)
+
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            nets, _counts, _stacks = self._look(ctx, doc)
+            nets, _counts, _going, _stacks = self._look(ctx, doc)
             wanted = set(nets)
             deleted = 0
             for via in L.collection(doc, "Vias"):
-                if L.net_name(via) in wanted:
+                if L.net_name(via) in wanted and (region is None or L.in_region(_via_point(via), region)):
                     try:
                         via.Delete()
                         deleted += 1
@@ -428,6 +446,31 @@ def _clearances(path: str) -> ST.Clearances:
                          via_to_via=rule.get("via_to_via_mm", 0.254))
 
 
+CHORD_MM = 0.002  # an arc's chords stay this close to it, so a clearance checked on them holds on the arc
+
+
+def _centre_line(path: list[list[float]]) -> list[tuple[float, float]]:
+    """A trace's centre line from its (x, y, r) rows, each arc as chords within ``CHORD_MM`` of it:
+    an arc's row is its centre, which the trace does not pass."""
+    rows = [(float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 else 0.0) for p in path]
+    points: list[tuple[float, float]] = []
+    for index, (x, y, r) in enumerate(rows):
+        if r and 0 < index < len(rows) - 1:
+            (px, py, _), (nx, ny, _) = rows[index - 1], rows[index + 1]
+            radius = math.hypot(px - x, py - y) or abs(r)
+            start, end = math.atan2(py - y, px - x), math.atan2(ny - y, nx - x)
+            sweep = (end - start) % (2 * math.pi)
+            if r > 0:
+                sweep -= 2 * math.pi  # a positive radius runs clockwise
+            step = 2 * math.acos(max(-1.0, 1 - CHORD_MM / radius)) if radius > CHORD_MM else math.pi / 2
+            count = max(2, math.ceil(abs(sweep) / step))
+            points += [(x + radius * math.cos(start + sweep * k / count), y + radius * math.sin(start + sweep * k / count))
+                       for k in range(1, count)]
+            continue
+        points.append((x, y))
+    return points
+
+
 def _stitch_board(doc: Any, net: str) -> ST.Board:
     from .layout_output import board_model, geometry_record
 
@@ -438,7 +481,7 @@ def _stitch_board(doc: Any, net: str) -> ST.Board:
                            "board's unit to mils in Layout, or set the outline with pcb update.", dispatch_state="not_started")
     board = ST.Board(outline=ST.polygon(model["outline"][0].get("path"), model["outline"][0].get("circle")))
     board.pads = [ST.polygon(pad.get("path"), pad.get("circle")) for pad in model["pads"]]
-    board.traces = [([(p[0], p[1]) for p in trace["path"]], float(trace.get("width") or 0.0), str(trace.get("net") or ""))
+    board.traces = [(_centre_line(trace["path"]), float(trace.get("width") or 0.0), str(trace.get("net") or ""))
                     for trace in model["traces"] if trace.get("path")]
     board.vias = [(via["circle"][0], via["circle"][1]) for via in model["vias"]]
     board.holes = [(x, y, d) for x, y, d in model["holes"]]
@@ -501,17 +544,12 @@ def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
         dropped: dict[str, int] = {}
     else:
         try:
-            result = ST.stitch(net, radius, board, clear, float(inputs["pitch"]), inputs["margin"])
+            result = ST.stitch(net, radius, board, clear, float(inputs["pitch"]), inputs["margin"], inputs["region"])
         except PlanError as exc:
             if exc.code == "E_CONFLICT":
                 raise base.blocked(exc.message) from None
             raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
         points, dropped = result.points, result.dropped
-        if inputs["region"] is not None:
-            outside = [p for p in points if not L.in_region(p, inputs["region"])]
-            points = [p for p in points if L.in_region(p, inputs["region"])]
-            if outside:
-                dropped = {**dropped, "outside the region": len(outside)}
         if not points:
             reasons = ", ".join(f"{count} {why}" for why, count in sorted(dropped.items())) or "no grid point inside the outline"
             blocked.append(f"no point of the {inputs['pitch']:g} mm grid is free ({reasons})")
@@ -766,8 +804,11 @@ class SolderMaskDelete(L.ReadsBack):
 
 def _clearance_lookup(current: Any) -> Any:
     """``clearance(net_a, net_b, layer, kind)`` in mm from the board's rules: the rule of the two
-    nets' class pair, else of one class against (All), else (All) against (All)."""
+    nets' class pair, else of one class against (All), else (All) against (All); between the two
+    traces of a differential pair, the spacing their class sets for the pair on that layer."""
     from .plan import rules as R
+
+    pairs = {frozenset(pair) for pair in current.differential_pairs if len(pair) == 2}
 
     def rule_for(a: str, b: str) -> str:
         pairs = current.class_clearances
@@ -779,6 +820,10 @@ def _clearance_lookup(current: Any) -> Any:
     def clearance(net_a: str, net_b: str, layer: int, kind: str) -> float:
         a = current.net_class_of.get(net_a, R.DEFAULT_CLASS)
         b = current.net_class_of.get(net_b, R.DEFAULT_CLASS)
+        if kind == "trace_to_trace" and a == b and frozenset((net_a, net_b)) in pairs:
+            spacing = current.net_classes.get(a, {}).get(str(layer), {}).get("differential_spacing_mm")
+            if spacing:
+                return float(spacing)
         layers = current.clearances.get(rule_for(a, b)) or current.clearances.get(R.DEFAULT_RULE, {})
         return float(layers.get(str(layer), {}).get(f"{kind}_mm", 0.254))
 
@@ -810,7 +855,7 @@ def _copper(doc: Any) -> TP.Copper:
                            "board's unit to mils in Layout, or set the outline with pcb update.", dispatch_state="not_started")
     copper = TP.Copper(layer_count=int(doc.LayerCount), nets={L.name_of(net) for net in L.collection(doc, "Nets")})
     copper.pads = [(int(p.get("layer") or 1), str(p.get("net") or ""), ST.polygon(p.get("path"), p.get("circle"))) for p in model["pads"]]
-    copper.traces = [(int(t.get("layer") or 1), str(t.get("net") or ""), float(t.get("width") or 0.0), [(q[0], q[1]) for q in t["path"]])
+    copper.traces = [(int(t.get("layer") or 1), str(t.get("net") or ""), float(t.get("width") or 0.0), _centre_line(t["path"]))
                      for t in model["traces"] if t.get("path")]
     for via in L.collection(doc, "Vias"):
         x0, y0, x1, y1 = L.extrema_mm(via)
@@ -929,6 +974,9 @@ def _connection_points(doc: Any, plan: TP.Plan) -> dict[tuple[str, int], list[tu
     return points
 
 
+SNAP_MM = 0.01  # an end this close to a pin's origin or a via's centre is moved onto it
+
+
 def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]]) -> list[tuple[float, float, float]]:
     """The (x, y, r) rows Layout draws for the trace: an end that lies on a pin's pad or on a via
     extended to the pin's origin or the via's centre, and each rounded corner as its arc."""
@@ -944,11 +992,17 @@ def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[floa
 
     first, last = target(pts[0]), target(pts[-1])
     if first is not None and first != pts[0]:
-        pts.insert(0, first)
-        radii.insert(0, 0.0)
+        if math.dist(first, pts[0]) < SNAP_MM:
+            pts[0] = first  # a few nanometres off: moved, not extended by a segment Layout would keep as a trace of its own
+        else:
+            pts.insert(0, first)
+            radii.insert(0, 0.0)
     if last is not None and last != pts[-1]:
-        pts.append(last)
-        radii.append(0.0)
+        if math.dist(last, pts[-1]) < SNAP_MM:
+            pts[-1] = last
+        else:
+            pts.append(last)
+            radii.append(0.0)
     return TP.drawn(pts, radii)
 
 

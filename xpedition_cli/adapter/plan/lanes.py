@@ -27,6 +27,7 @@ ARC_PART = math.radians(120)  # an outline arc is taken in parts of at most this
 STRAIGHT = 1e-4  # sine of the angle under which three outline points count as one straight run
 TAB_MM = 5.0  # a lane runs straight past a part of the outline that sticks out over a base this long or shorter
 TAB_ALIGN = math.cos(math.radians(10))  # and only where the edge runs on in line on both sides of it
+ON_LINE_MM = 1e-3  # a point this close to a lane's line is on it: a real outline's straight edge is straight to a few tenths of a micrometre
 KEYS = ("net", "layer", "width_mm", "from_mm", "to_mm", "edge_mm", "offset_mm")
 
 
@@ -346,7 +347,7 @@ def expand(lane: Lane, ring: list[Corner], what: str) -> TP.Trace:
         a, b = path[i], path[i + step]
         u = _unit(a, b)
         beyond = (point[0] - a[0]) * u[0] + (point[1] - a[1]) * u[1] < -1e-6
-        if beyond and abs(_cross(u, (point[0] - a[0], point[1] - a[1]))) > 1e-6:
+        if beyond and abs(_cross(u, (point[0] - a[0], point[1] - a[1]))) > ON_LINE_MM:
             raise TP._error(f"{what} leaves for its lane or returns from it beyond the ends of its edge, off the lane's line; put the "
                             "points of edge_mm at or beyond where the lane joins and leaves the edge, or the point on the lane's line")
     corners: list[tuple[Point, float, bool]] = [(p, r, False) for p, r in lane.start]

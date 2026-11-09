@@ -31,6 +31,7 @@ class Board:
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     planes: dict[int, list[list[Point]]] = field(default_factory=dict)  # the net's plane shapes by layer
     cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts
+    boxes: list[tuple[float, float, float, float]] = field(default_factory=list)  # each trace's extents, filled by ``free``
 
 
 @dataclass
@@ -67,9 +68,10 @@ def distance_to_polygon(point: Point, poly: list[Point]) -> float:
     return edge_distance(point, poly)
 
 
-def grid(outline: list[Point], pitch: float, margin: float) -> list[Point]:
+def grid(outline: list[Point], pitch: float, margin: float, region: tuple[float | None, ...] | None = None) -> list[Point]:
     """Grid points ``pitch`` apart inside the outline, at least ``margin`` from its edges, the grid
-    centred on the outline's extents."""
+    centred on the outline's extents; with ``region`` (x0, y0, x1, y1, a side None for open), only
+    the points inside it, so a small region on a large board stays a small grid."""
     if pitch <= 0:
         raise PlanError("E_VALIDATION", "--pitch is a length of more than 0.")
     xs, ys = [p[0] for p in outline], [p[1] for p in outline]
@@ -77,12 +79,19 @@ def grid(outline: list[Point], pitch: float, margin: float) -> list[Point]:
     nx, ny = int((x1 - x0 - 2 * margin) // pitch) + 1, int((y1 - y0 - 2 * margin) // pitch) + 1
     if nx < 1 or ny < 1:
         return []
-    if nx * ny > MAX_POINTS * 4:
-        raise PlanError("E_VALIDATION", f"A {pitch:g} mm pitch makes about {nx * ny} grid points; use a pitch that gives at most "
-                        f"{MAX_POINTS} vias.")
     ox = x0 + (x1 - x0 - (nx - 1) * pitch) / 2
     oy = y0 + (y1 - y0 - (ny - 1) * pitch) / 2
-    points = [(round(ox + i * pitch, 4), round(oy + j * pitch, 4)) for j in range(ny) for i in range(nx)]
+    rx0, ry0, rx1, ry1 = region if region is not None else (None, None, None, None)
+    i0 = 0 if rx0 is None else max(0, math.ceil((rx0 - ox) / pitch - 1e-9))
+    i1 = nx - 1 if rx1 is None else min(nx - 1, math.floor((rx1 - ox) / pitch + 1e-9))
+    j0 = 0 if ry0 is None else max(0, math.ceil((ry0 - oy) / pitch - 1e-9))
+    j1 = ny - 1 if ry1 is None else min(ny - 1, math.floor((ry1 - oy) / pitch + 1e-9))
+    if i1 < i0 or j1 < j0:
+        return []
+    if (i1 - i0 + 1) * (j1 - j0 + 1) > MAX_POINTS * 4:
+        raise PlanError("E_VALIDATION", f"A {pitch:g} mm pitch makes about {(i1 - i0 + 1) * (j1 - j0 + 1)} grid points; use a pitch "
+                        f"that gives at most {MAX_POINTS} vias.")
+    points = [(round(ox + i * pitch, 4), round(oy + j * pitch, 4)) for j in range(j0, j1 + 1) for i in range(i0, i1 + 1)]
     return [p for p in points if inside(p, outline) and edge_distance(p, outline) >= margin - 1e-9]
 
 
@@ -91,10 +100,15 @@ def free(point: Point, net: str, radius: float, board: Board, clear: Clearances)
     for pad in board.pads:
         if distance_to_polygon(point, pad) < radius + clear.via_to_pad - 1e-9:
             return "too close to a pad"
-    for points, width, owner in board.traces:
+    if len(board.boxes) != len(board.traces):
+        board.boxes = [(min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+                       for pts, _width, _owner in board.traces]
+    for (points, width, owner), (x0, y0, x1, y1) in zip(board.traces, board.boxes, strict=True):
         if owner == net:
             continue
         reach = radius + width / 2 + clear.via_to_trace
+        if point[0] < x0 - reach or point[0] > x1 + reach or point[1] < y0 - reach or point[1] > y1 + reach:
+            continue
         if any(point_segment(point, points[i], points[i + 1]) < reach - 1e-9 for i in range(len(points) - 1)):
             return "too close to a trace of another net"
     for x, y in board.vias:
@@ -109,7 +123,8 @@ def free(point: Point, net: str, radius: float, board: Board, clear: Clearances)
     return None
 
 
-def stitch(net: str, radius: float, board: Board, clear: Clearances, pitch: float, margin: float) -> Plan:
+def stitch(net: str, radius: float, board: Board, clear: Clearances, pitch: float, margin: float,
+           region: tuple[float | None, ...] | None = None) -> Plan:
     """The grid points where a stitching via of ``net`` can stand, and how many were dropped why."""
     layers_with_planes = [layer for layer, shapes in board.planes.items() if shapes]
     if len(layers_with_planes) < 2:
@@ -117,7 +132,7 @@ def stitch(net: str, radius: float, board: Board, clear: Clearances, pitch: floa
                         "copper on at least two layers together, so pour it with plane create on two layers first.")
     kept: list[Point] = []
     dropped: dict[str, int] = {}
-    for point in grid(board.outline, pitch, margin + radius):
+    for point in grid(board.outline, pitch, margin + radius, region):
         covered = sum(1 for layer in layers_with_planes
                       if any(len(shape) >= 3 and inside(point, shape) for shape in board.planes[layer]))
         reason = "outside the net's copper on two layers" if covered < 2 else free(point, net, radius, board, clear)

@@ -1792,6 +1792,34 @@
           "required": true
         },
         {
+          "name": "--from-x",
+          "type": "quantity",
+          "summary": "The left side of the rectangle whose vias go; with the other region flags, only the vias inside it, such as stitching vias placed where they should not stand.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--from-y",
+          "type": "quantity",
+          "summary": "The bottom side of the rectangle; a side left out runs to the board's edge.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-x",
+          "type": "quantity",
+          "summary": "The right side of the rectangle.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-y",
+          "type": "quantity",
+          "summary": "The top side of the rectangle.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."

@@ -1000,9 +1000,20 @@ COMMANDS: list[dict[str, Any]] = [
     command(
         "via delete", "Delete the vias of the nets named.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="via",
-        flags=[{"name": "--nets", "type": "string", "required": True, "summary": "The nets whose vias go, such as GND."}],
+        flags=[{"name": "--nets", "type": "string", "required": True, "summary": "The nets whose vias go, such as GND."},
+               {"name": "--from-x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The left side of the rectangle whose vias go; with the other region flags, only the vias inside it, such "
+                           "as stitching vias placed where they should not stand."},
+               {"name": "--from-y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The bottom side of the rectangle; a side left out runs to the board's edge."},
+               {"name": "--to-x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The right side of the rectangle."},
+               {"name": "--to-y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The top side of the rectangle."}],
         output=obj(deleted=INT),
-        examples=["xpedition-cli via delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --nets GND"],
+        examples=["xpedition-cli via delete --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --nets GND",
+                  "xpedition-cli via delete --session layout-6312 --doc D:/work/flex/PCB/Flex.pcb --nets GND --from-y 30mm --to-y 45mm"],
+        coordinates=BOARD_COORDINATES,
     ),
     command(
         "plane delete", "Delete one net's plane shapes on one layer.",

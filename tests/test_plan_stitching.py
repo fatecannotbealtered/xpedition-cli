@@ -15,6 +15,13 @@ def board(**extra) -> S.Board:
 
 
 class GridTest(unittest.TestCase):
+    def test_a_small_region_of_a_large_board_is_a_small_grid(self):
+        board = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)]
+        with self.assertRaises(PlanError):
+            S.grid(board, 0.25, 0.5)  # the whole board at this pitch
+        points = S.grid(board, 0.25, 0.5, (90.0, 10.0, None, 12.0))
+        self.assertTrue(points and all(x >= 90.0 and 10.0 <= y <= 12.0 for x, y in points))
+
     def test_the_grid_is_centred_and_keeps_the_margin(self):
         points = S.grid(OUTLINE, 1.0, 0.5)
         xs, ys = sorted({x for x, _ in points}), sorted({y for _, y in points})

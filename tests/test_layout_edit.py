@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import tempfile
@@ -90,6 +91,22 @@ class ViaDeleteTest(unittest.TestCase):
         self.assertEqual([v.Net.Name for v in doc.vias], ["A"])
 
 
+    def test_with_a_region_only_the_vias_inside_it_go(self):
+        doc = board()
+        for via, x in zip(doc.vias, (1.0, 2.0, 30.0), strict=True):  # A at 1, GND at 2 and 30
+            via.Name = "026VIA"
+            via.GetPositionX = lambda unit, x=x: x
+            via.GetPositionY = lambda unit: 5.0
+        inputs = {"nets": "GND", "from_x_mm": 10.0}
+        with world(FakeApp(doc)):
+            out = E.ViaDelete().preview(context("via delete", inputs))
+            facts = E.ViaDelete().apply(context("via delete", inputs))
+        self.assertEqual([(c["field"], c["before"], c["after"]) for c in out["changes"]], [("count", 2, 1)])  # the padstack stays
+        self.assertIn("within x from 10 mm", out["action"])
+        self.assertEqual(facts["result"]["deleted"], 1)
+        self.assertEqual([(v.Net.Name, v.GetPositionX(0)) for v in doc.vias], [("A", 1.0), ("GND", 2.0)])
+
+
 class PlaneDeleteTest(unittest.TestCase):
     def test_a_plane_shape_goes_and_a_missing_one_is_not_found(self):
         doc = board()
@@ -173,7 +190,6 @@ class ViaCreateTest(unittest.TestCase):
         self.assertGreater(facts["result"]["placed"], 0)
         self.assertTrue(all(x <= 4.0 for x, _y, _name, _net in self.doc.placed_vias))
         self.assertIn("within x up to 4 mm", preview["action"])
-        self.assertIn("outside the region", preview["action"])
         self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
 
     def test_one_via_and_one_that_cannot_stand(self):
@@ -390,6 +406,9 @@ class TraceCreateTest(unittest.TestCase):
         with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net", lambda doc, name: net_a if name == "A" else real(doc, name)):
             facts = E.TraceCreate().run(context("trace create", {"file": self.plan_file(plan)}), None)
         self.assertEqual(self.doc.drawn[0][3], [(0.00004, -0.00003), (0.05, 0.02), (3.0, 0.0)])  # joined to the pin's origin
+        near = TP.Trace("A", 1, 0.1, [(0.0, 0.0), (3.0, 0.0)])
+        self.assertEqual([row[:2] for row in E._joined(near, {("A", 1): [((0.00004, -0.00003), (-0.2, -0.2, 0.2, 0.2))]})],
+                         [(0.00004, -0.00003), (3.0, 0.0)])  # nanometres off: moved onto the origin, no extra segment
         self.assertEqual(self.doc.drawn[1][3], [(3.0, 0.0), (3.1, 0.05), (10.0, 0.0)])  # joined to the via's centre
         self.assertEqual(facts["result"]["nets"], [{"net": "A", "routed": True, "opens": 0}])
 
@@ -449,3 +468,24 @@ class TraceCreateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClearanceLookupTest(unittest.TestCase):
+    def test_the_two_traces_of_a_differential_pair_keep_the_pair_spacing_not_the_clearance(self):
+        from xpedition_cli.adapter.plan import rules as R
+        current = R.Current(layers=["1"], nets=["DP", "DN", "SIG"], net_class_of={"DP": "90ohm", "DN": "90ohm", "SIG": "90ohm"},
+                            net_classes={"90ohm": {"1": {"differential_spacing_mm": 0.1}}}, differential_pairs=[["DN", "DP"]],
+                            clearances={"wide": {"1": {"trace_to_trace_mm": 0.15, "trace_to_via_mm": 0.12}}},
+                            class_clearances={("90ohm", R.ALL_CLASSES): "wide"})
+        clearance = E._clearance_lookup(current)
+        self.assertEqual(clearance("DP", "DN", 1, "trace_to_trace"), 0.1)  # the pair's own spacing
+        self.assertEqual(clearance("DP", "SIG", 1, "trace_to_trace"), 0.15)  # another net of the class
+        self.assertEqual(clearance("DP", "DN", 1, "trace_to_via"), 0.12)  # a via keeps the rule
+
+
+class CentreLineTest(unittest.TestCase):
+    def test_an_arc_trace_is_followed_along_its_arc_not_through_its_centre(self):
+        # a quarter arc of radius 2 about (0, 0) from (2, 0) to (0, 2): its row in the middle is the centre
+        line = E._centre_line([[2.0, 0.0, 0.0], [0.0, 0.0, -2.0], [0.0, 2.0, 0.0]])
+        self.assertTrue(all(abs(math.hypot(x, y) - 2.0) < 1e-9 for x, y in line))
+        self.assertNotIn((0.0, 0.0), line)
