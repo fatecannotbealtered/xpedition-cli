@@ -25,6 +25,6 @@ Power:
 
 What to do:
 
-- Read the board with `pcb get` and the pins with `component get` first, then write the routing plan for `trace create`, one lane per net, with the layer changes at the connectors only.
+- Read the board with `pcb get` and the pins with `component get` first, then write the routing plan for `trace create`, one entry of `lanes` per net with its distance from the edge it follows, and the layer changes at the connectors only.
 - Pour the planes after the traces, then stitch ground with `via create` outside the bend zones (knowledge `layout-flex-bend-and-stiffener`).
 - Check with `pcb check`, and compare each pair's lengths in the plan.

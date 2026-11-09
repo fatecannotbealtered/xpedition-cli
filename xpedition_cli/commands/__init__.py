@@ -982,8 +982,8 @@ COMMANDS: list[dict[str, Any]] = [
         "trace create", "Draw the traces and vias of a routing plan, checked against the board's rules first.",
         effects=["change"], modes=["session"], kinds=["board"], target_kind="trace", long=True,
         flags=[{"name": "--file", "type": "path", "required": True,
-                "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, and vias with net, at_mm and padstack, "
-                           "in board coordinates."}],
+                "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, "
+                           "and lanes, traces that follow an edge of the board outline at offset_mm, in board coordinates."}],
         output=obj(traces=INT, vias=INT, nets=arr(obj(net=STR, routed=BOOL, opens=INT))),
         coordinates=BOARD_COORDINATES,
         examples=["xpedition-cli trace create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --file D:/work/demo/route.json"],

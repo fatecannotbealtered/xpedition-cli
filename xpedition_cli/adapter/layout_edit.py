@@ -15,8 +15,10 @@ from typing import Any
 from .._driver import AdapterError
 from . import base
 from . import layout as L
+from . import layout_output as O
 from .base import Context
-from .plan import PlanError
+from .plan import PlanError, board_metrics
+from .plan import lanes as LN
 from .plan import routing as plan_routing
 from .plan import stitching as ST
 from .plan import trace_plan as TP
@@ -816,7 +818,8 @@ def _copper(doc: Any) -> TP.Copper:
     return copper
 
 
-def _routing_plan(ctx: Context) -> TP.Plan:
+def _routing_plan(ctx: Context) -> tuple[TP.Plan, list[LN.Lane]]:
+    """The plan's traces and vias, and its lanes, which become traces on the board's outline (``_laid``)."""
     source = str(base.need_input(ctx, "file"))
     try:
         data = json.loads(Path(source).read_text(encoding="utf-8"))
@@ -825,9 +828,55 @@ def _routing_plan(ctx: Context) -> TP.Plan:
     except ValueError as exc:
         raise AdapterError("E_VALIDATION", f"The routing plan {source} is not JSON: {exc}.", dispatch_state="not_started") from None
     try:
-        return TP.parse(data)
+        lanes = LN.parse(data.pop("lanes")) if isinstance(data, dict) and "lanes" in data else []
+        return (TP.parse(data) if data or not lanes else TP.Plan()), lanes
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+
+
+def _outline_rows(doc: Any) -> list[tuple[float, float, float]]:
+    """The board outline's (x, y, r) rows in mm."""
+    scale = L.geometry_scale(doc)
+    outline = doc.BoardOutline
+    if scale is None or outline is None:
+        raise AdapterError("E_UNSUPPORTED", "Lanes follow the board outline, which can be measured only on a board in mils or mm with "
+                           "an outline; switch the board's unit in Layout or draw the outline first.", dispatch_state="not_started")
+    rows = outline.Geometry.PointsArray
+    return [(float(x) * scale, float(y) * scale, float(r) * scale) for x, y, r in zip(*rows[:3], strict=False)]
+
+
+def _laid(doc: Any, plan: TP.Plan, lanes: list[LN.Lane]) -> TP.Plan:
+    """The plan with each lane as a trace along the board outline."""
+    if not lanes:
+        return plan
+    ring = LN.outline_corners(_outline_rows(doc))
+    try:
+        laid = [LN.expand(lane, ring, f"lanes[{index}]") for index, lane in enumerate(lanes)]
+    except PlanError as exc:
+        raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+    if len(plan.traces) + len(plan.vias) + len(laid) > TP.MAX_ITEMS:
+        raise AdapterError("E_VALIDATION", f"The routing plan is not valid: it names more than {TP.MAX_ITEMS} items.",
+                           dispatch_state="not_started")
+    return TP.Plan(traces=plan.traces + laid, vias=plan.vias)
+
+
+def _plan_notes(doc: Any, plan: TP.Plan) -> list[str]:
+    """What the plan's own copper shows before it is drawn: each pair's two lengths, the pairs
+    recognised by name, and what the board's bend zones forbid of it."""
+    lengths: dict[str, float] = {}
+    for trace in plan.traces:
+        lengths[trace.net] = lengths.get(trace.net, 0.0) + TP.length(trace)
+    notes = [f"{a} and {b} are {lengths[a]:.3f} and {lengths[b]:.3f} mm long, {abs(lengths[a] - lengths[b]):.3f} mm apart"
+             for a, b in board_metrics._pairs(sorted(lengths))]
+    scale = L.geometry_scale(doc)
+    model = {"planes": O._quietly(lambda: O.plane_shapes(doc), []), "keepouts": O._quietly(lambda: O.keepouts(doc, scale), []),
+             "outline": [{"path": O._quietly(lambda: _outline_rows(doc), [])}],
+             "traces": [{"net": t.net, "layer": t.layer, "width": t.width, "path": TP.drawn(t.points, t.radii)} for t in plan.traces],
+             "vias": [{"net": v.net, "circle": [v.at[0], v.at[1], 0.0]} for v in plan.vias]}
+    flex = [row for row in board_metrics.flex_rules(model) if row["rule"] != "layer_change_outside_stiffener" or
+            any(v.net == row.get("net") for v in plan.vias)]
+    notes += [f"{row['net']}: {row['finding']}" for row in flex]
+    return notes
 
 
 def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[tuple[str, int], int], dict[str, int]]:
@@ -949,6 +998,10 @@ def _net_states(doc: Any, plan: TP.Plan) -> list[dict[str, Any]]:
     return rows
 
 
+NOTES_SHOWN = 8  # the preview names this many notes on the plan's own copper, and counts the rest
+BLOCKED_SHOWN = 20  # and this many reasons the plan is refused, so that the preview fits one response
+
+
 class TraceCreate(L.ReadsBack):
     """The traces and vias of a routing plan (``plan.trace_plan``), checked offline against the
     board's copper and rules before Layout is touched, then placed with ``PutTrace`` and ``PutVia``
@@ -960,9 +1013,13 @@ class TraceCreate(L.ReadsBack):
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        plan = _routing_plan(ctx)
-        blocked, traces, vias = L.in_layout(ctx, lambda app, doc: _trace_look(ctx, doc, plan), budget_s=L.READ_BUDGET_S,
-                                            what="checking the routing plan")
+        given, lanes = _routing_plan(ctx)
+
+        def look(app: Any, doc: Any) -> tuple[TP.Plan, list[str], dict[tuple[str, int], int], dict[str, int], list[str]]:
+            plan = _laid(doc, given, lanes)
+            return plan, *_trace_look(ctx, doc, plan), _plan_notes(doc, plan)
+
+        plan, blocked, traces, vias, notes = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="checking the routing plan")
         added_vias: dict[str, int] = {}
         for v in plan.vias:
             added_vias[v.net] = added_vias.get(v.net, 0) + 1
@@ -970,22 +1027,26 @@ class TraceCreate(L.ReadsBack):
                    for (net, layer), drawn in sorted(traces.items())]
         changes += [base.change(base.key(path, via_key(net)), "count", vias.get(net, 0), vias.get(net, 0) + n) for net, n in added_vias.items()]
         targets = [base.target(path, "trace", "/traces", label="the routing plan's traces and vias")]
-        return base.preview(f"Draw {len(plan.traces)} traces and place {len(plan.vias)} vias of the routing plan, checked against the "
-                            "board's copper and clearance rules. Run pcb check after. The board is not saved.", targets, changes,
-                            blocked_by=blocked or None)
+        laid = f", {len(lanes)} of them lanes along the board outline," if lanes else ""
+        shown = "; ".join(notes[:NOTES_SHOWN]) + (f"; and {len(notes) - NOTES_SHOWN} more" if len(notes) > NOTES_SHOWN else "")
+        return base.preview(f"Draw {len(plan.traces)} traces{laid} and place {len(plan.vias)} vias of the routing plan, checked against "
+                            "the board's copper and clearance rules. Run pcb check after. The board is not saved."
+                            + (f" The plan's own copper: {shown}." if notes else ""), targets, changes,
+                            blocked_by=(blocked[:BLOCKED_SHOWN] + ([f"and {len(blocked) - BLOCKED_SHOWN} more reasons of the same kinds"]
+                                                                   if len(blocked) > BLOCKED_SHOWN else [])) or None)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         return self.apply(ctx)
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
         """``plan_drawn`` of each net and layer, matched against the plan's geometry; the vias by count."""
-        plan = _routing_plan(ctx)
+        given, lanes = _routing_plan(ctx)
         path = ctx.document_path()
         targets = list(ctx.request.get("targets") or [])
         fields = list(ctx.request.get("fields") or [])
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            drawn = _drawn(doc, plan)
+            drawn = _drawn(doc, _laid(doc, given, lanes))
             via_targets = [target for target in targets if "/vias/" in target]
             result = L.read_keys(doc, path, via_targets, [f for f in fields if f != "plan_drawn"]) if via_targets else \
                 {"observed": {}, "unreadable": []}
@@ -998,9 +1059,10 @@ class TraceCreate(L.ReadsBack):
         return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the board back")
 
     def apply(self, ctx: Context) -> dict[str, Any]:
-        plan = _routing_plan(ctx)
+        given, lanes = _routing_plan(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
+            plan = _laid(doc, given, lanes)
             blocked, _traces, _vias = _trace_look(ctx, doc, plan)
             if blocked:
                 raise base.blocked("; ".join(blocked[:20]))

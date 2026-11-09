@@ -183,10 +183,10 @@ def length(trace: Trace) -> float:
 
 def parse(data: Any) -> Plan:
     if not isinstance(data, dict) or not data:
-        raise _error("the file holds one JSON object with traces and vias")
+        raise _error("the file holds one JSON object with traces, vias and lanes")
     unknown = [k for k in data if k not in ("traces", "vias")]
     if unknown:
-        raise _error(f"unknown key {unknown[0]!r}; the keys are traces and vias")
+        raise _error(f"unknown key {unknown[0]!r}; the keys are traces, vias and lanes")
     plan = Plan()
     for index, item in enumerate(data.get("traces", [])):
         what = f"traces[{index}]"

@@ -402,6 +402,26 @@ class TraceCreateTest(unittest.TestCase):
         self.assertEqual([tuple(round(v, 6) for v in p) for p in self.doc.drawn[0][3]], [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (3.0, 1.0), (3.0, 3.0)])
         self.assertEqual(self.doc.radii[0], [0.0, 0.0, -1.0, 0.0, 0.0])  # the centre row carries the radius, counter-clockwise
 
+    def test_a_lane_follows_the_board_outline_at_its_distance(self):
+        # the board is 50 x 40 mm: the lane runs 5 mm inside the top edge between two vias
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}]}
+        inputs = {"file": self.plan_file(plan)}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            E.TraceCreate().run(context("trace create", inputs), None)
+            back = E.TraceCreate().read_back(context("trace create", inputs, targets=[key("/traces/A/3")], fields=["plan_drawn"]))
+        self.assertTrue(preview["can_apply"])
+        self.assertIn("Draw 1 traces, 1 of them lanes along the board outline,", preview["action"])
+        rows = [tuple(round(v, 6) for v in p) for p in self.doc.drawn[0][3]]
+        self.assertEqual((rows[0], rows[-1]), ((20.0, 20.0), (30.0, 20.0)))
+        self.assertEqual(rows, [(20.0, 20.0), (20.0, 34.5), (20.5, 34.5), (20.5, 35.0), (29.5, 35.0), (29.5, 34.5), (30.0, 34.5),
+                                (30.0, 20.0)])  # 5 mm inside the edge, the turns rounded with 0.5 mm arcs
+        self.assertEqual(back["observed"], {key("/traces/A/3"): {"plan_drawn": True}})
+
     def test_a_plan_that_breaks_the_rules_is_blocked_and_never_drawn(self):
         bad = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.3, "points_mm": [[0, 0], [5, 0], [6, 0]]}],
                "vias": [{"net": "A", "at_mm": [6, 0], "padstack": "NOPE"}]}
