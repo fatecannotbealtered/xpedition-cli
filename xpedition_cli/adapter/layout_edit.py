@@ -230,10 +230,48 @@ def board_padstack(doc: Any, name: str) -> Any | None:
     return next((item for item in L.collection(doc, "Padstacks") if L.name_of(item) == name), None)
 
 
+def local_padstack(doc: Any, name: str) -> Any | None:
+    """The padstack ``name`` from the design's own padstack library, when ``Document.PadstackNames``
+    lists it there (``Document.PutPadstack`` with bFromCentralLib False). A copy of a project whose
+    central library is on another machine's drive still holds the padstacks its design uses."""
+    if name not in _local_names(doc):
+        return None
+    try:
+        return doc.PutPadstack(1, int(doc.LayerCount), name, False, False)
+    except Exception:  # noqa: BLE001 - the design's library cannot give it
+        return None
+
+
+def _local_names(doc: Any) -> tuple[str, ...]:
+    try:
+        return tuple(str(name) for name in (doc.PadstackNames or ()))
+    except Exception:  # noqa: BLE001 - the design's library cannot be read
+        return ()
+
+
+def _padstack_pad_radius(stack: Any, scale: float) -> float | None:
+    """The radius in mm of a padstack's first pad: a circle's radius, or half a shape's width."""
+    from .layout_output import geometry_record
+
+    try:
+        for pad in L.collection(stack, "Pads"):
+            for geometry in L.collection(pad, "Geometries"):
+                record = geometry_record(geometry, scale)
+                if record and record.get("circle"):
+                    return float(record["circle"][2])
+                if record and record.get("path"):
+                    xs = [p[0] for p in record["path"]]
+                    return (max(xs) - min(xs)) / 2
+    except Exception:  # noqa: BLE001 - the pads cannot be read
+        pass
+    return None
+
+
 def check_via_padstack(doc: Any, path: str, name: str) -> bool:
-    """Whether the board has the via padstack ``name`` already; otherwise the central library must
-    hold it as a via, or the call is refused before anything changes."""
-    if board_padstack(doc, name) is not None:
+    """Whether the board, or the design's own padstack library, has the via padstack ``name``
+    already; otherwise the central library must hold it as a via, or the call is refused before
+    anything changes."""
+    if board_padstack(doc, name) is not None or name in _local_names(doc):
         return True
     held = _library_via(path, name)
     if held is None:
@@ -250,7 +288,7 @@ def via_padstack(doc: Any, name: str) -> Any:
     found = board_padstack(doc, name)
     if found is not None:
         return found
-    return doc.PutPadstack(1, int(doc.LayerCount), name, False, True)
+    return local_padstack(doc, name) or doc.PutPadstack(1, int(doc.LayerCount), name, False, True)
 
 
 def _via_update_inputs(ctx: Context) -> tuple[list[str], list[str], str]:
@@ -340,8 +378,9 @@ def _via_row(path: str, name: str) -> dict[str, Any] | None:
 
 def via_pad_radius(doc: Any, path: str, name: str) -> tuple[float | None, str]:
     """The pad radius in mm of the via padstack ``name``, measured on a via of the board that uses
-    it, else from the central library's row; with None, the reason. A project often names a
-    central library on another machine's drive, so a via the board has needs no library."""
+    it, else on the padstack of the design's own library, else from the central library's row;
+    with None, the reason. A project often names a central library on another machine's drive,
+    so a via the board has, or one its own library holds, needs no central library."""
     from .layout_output import _via_radius
 
     scale = L.geometry_scale(doc)
@@ -349,14 +388,19 @@ def via_pad_radius(doc: Any, path: str, name: str) -> tuple[float | None, str]:
         for via in L.collection(doc, "Vias"):
             if L.name_of(via) == name:
                 return _via_radius(via, scale), ""
+        local = local_padstack(doc, name)
+        radius = _padstack_pad_radius(local, scale) if local is not None else None
+        if radius:
+            return radius, ""
+    missing = f"no via of the board uses {name}, the design's own library has no padstack {name}"
     try:
         row = _via_row(path, name)
     except AdapterError as exc:
         reason = str(exc.data.get("message") or exc).rstrip(".")
-        return None, f"no via of the board uses {name}, and {reason[:1].lower()}{reason[1:]}"
+        return None, f"{missing}, and {reason[:1].lower()}{reason[1:]}"
     if row is None or row.get("type") != "via" or not row.get("pad_mm"):
-        return None, (f"no via of the board uses {name}, and the central library holds no via padstack {name}; padstack list "
-                      "--type via lists its vias, and padstack create adds one")
+        return None, (f"{missing}, and the central library holds no via padstack {name}; padstack list --type via lists its "
+                      "vias, and padstack create adds one")
     return float(row["pad_mm"]) / 2, ""
 
 
@@ -792,6 +836,58 @@ def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[
     return blocked, traces, vias
 
 
+def _connection_points(doc: Any, plan: TP.Plan) -> dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]]:
+    """Where Layout joins a trace to a pin or a via of the plan's nets, per net and layer: each pin's
+    origin with its pad's extents, and each via's centre with its extents. Layout connects a trace
+    only at those exact points, not anywhere on the pad or via, and the coordinates Agents read are
+    rounded, so ends are joined to them here."""
+    points: dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]] = {}
+    layers = range(1, int(doc.LayerCount) + 1)
+    for name in sorted({t.net for t in plan.traces}):
+        net = L.find_net(doc, name)
+        if net is None:
+            continue
+        for pin in L.collection(net, "Pins"):
+            try:
+                origin = (float(pin.GetPositionX(L.UNIT_MM)), float(pin.GetPositionY(L.UNIT_MM)))
+                for pad in L.collection(pin, "Pads"):
+                    points.setdefault((name, int(pad.Layer)), []).append((origin, L.extrema_mm(pad)))
+            except Exception:  # noqa: BLE001 - a pin Layout cannot report keeps the plan's ends
+                continue
+        for via in L.collection(net, "Vias"):
+            try:
+                x0, y0, x1, y1 = L.extrema_mm(via)
+            except Exception:  # noqa: BLE001
+                continue
+            for layer in layers:
+                points.setdefault((name, layer), []).append((((x0 + x1) / 2, (y0 + y1) / 2), (x0, y0, x1, y1)))
+    for via in plan.vias:
+        box = (via.at[0] - via.radius, via.at[1] - via.radius, via.at[0] + via.radius, via.at[1] + via.radius)
+        for layer in layers:
+            points.setdefault((via.net, layer), []).append(((via.at[0], via.at[1]), box))
+    return points
+
+
+def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]]) -> list[tuple[float, float]]:
+    """The trace's points, an end that lies on a pin's pad or on a via extended to the pin's origin or
+    the via's centre."""
+    found = points.get((trace.net, trace.layer), [])
+    pts = [(float(p[0]), float(p[1])) for p in trace.points]
+
+    def target(end: tuple[float, float]) -> tuple[float, float] | None:
+        for origin, (x0, y0, x1, y1) in found:
+            if x0 - 1e-6 <= end[0] <= x1 + 1e-6 and y0 - 1e-6 <= end[1] <= y1 + 1e-6:
+                return origin
+        return None
+
+    first, last = target(pts[0]), target(pts[-1])
+    if first is not None and first != pts[0]:
+        pts.insert(0, first)
+    if last is not None and last != pts[-1]:
+        pts.append(last)
+    return pts
+
+
 def _net_states(doc: Any, plan: TP.Plan) -> list[dict[str, Any]]:
     """Whether each net of the plan is routed now, and its open connections."""
     rows = []
@@ -844,10 +940,12 @@ class TraceCreate(L.ReadsBack):
             if blocked:
                 raise base.blocked("; ".join(blocked[:20]))
             drawn = placed = 0
+            points = _connection_points(doc, plan)
             doc.TransactionStart(0)
             try:
                 for trace in plan.traces:
-                    xs, ys = [p[0] for p in trace.points], [p[1] for p in trace.points]
+                    joined = _joined(trace, points)
+                    xs, ys = [p[0] for p in joined], [p[1] for p in joined]
                     doc.PutTrace(trace.layer, L.find_net(doc, trace.net), trace.width, len(xs), [xs, ys, [0.0] * len(xs)], None, 0,
                                  L.UNIT_MM)
                     drawn += 1

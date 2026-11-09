@@ -12,7 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from test_layout_fakes import BOARD, FakeApp, FakeDoc, context, world  # noqa: E402
+from test_layout_fakes import BOARD, Collection, FakeApp, FakeDoc, context, world  # noqa: E402
 
 from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base  # noqa: E402
@@ -176,7 +176,7 @@ class ViaCreateTest(unittest.TestCase):
         from xpedition_cli.adapter import layout_output as O
 
         def unreadable(path, name):
-            raise AdapterError("E_NOT_FOUND", "The central library Y:\Library.lmc that the project names does not exist.")
+            raise AdapterError("E_NOT_FOUND", "The central library Y:\\Library.lmc that the project names does not exist.")
 
         self.doc.vias.append(Item(self.doc.vias, Net=SimpleNamespace(Name="GND"), Name="026VIA"))
         with world(FakeApp(self.doc)), mock.patch.object(E, "_via_row", unreadable), mock.patch.object(O, "_via_radius", lambda via, scale: 0.2):
@@ -185,7 +185,26 @@ class ViaCreateTest(unittest.TestCase):
                 E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "VIA_NEW"}))
         self.assertEqual(facts["result"]["placed"], 1)
         self.assertEqual(caught.exception.data["code"], "E_NOT_FOUND")
-        self.assertIn("no via of the board uses VIA_NEW, and the central library Y:", str(caught.exception))
+        self.assertIn("no via of the board uses VIA_NEW, the design's own library has no padstack VIA_NEW, and the central "
+                      "library Y:", str(caught.exception))
+
+    def test_a_via_only_the_designs_own_library_holds_needs_no_central_library(self):
+        def unreadable(path, name):
+            raise AdapterError("E_NOT_FOUND", "The central library Y:\\Library.lmc that the project names does not exist.")
+
+        pulled = []
+
+        def put_padstack(first, last, name, mirrored, central):
+            pulled.append((name, central))
+            return SimpleNamespace(Name=name)
+
+        self.doc.PadstackNames = ("026VIA", "LOCAL_VIA")
+        self.doc.PutPadstack = put_padstack
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_via_row", unreadable),                 mock.patch.object(E, "_padstack_pad_radius", lambda stack, scale: 0.2):
+            facts = E.ViaCreate().run(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "LOCAL_VIA"}), None)
+        self.assertEqual((facts["result"]["placed"], self.doc.placed_vias[-1][2]), (1, "LOCAL_VIA"))
+        self.assertTrue(pulled)
+        self.assertTrue(all(central is False for _name, central in pulled))  # from the design's library, not the central one
 
     def test_inputs_must_name_one_way_to_place(self):
         with world(FakeApp(self.doc)):
@@ -322,6 +341,37 @@ class TraceCreateTest(unittest.TestCase):
                                           ("via", 3.0, 0.0, "VIA_D0.2_P0.4", "A")])
         self.assertEqual(self.doc.calls[:1], [("TransactionStart", 0)])  # online DRC off: the check kept the rules
         self.assertEqual(back["observed"], {key("/traces/A/2"): {"count": 2}, key("/vias/A"): {"count": 2}})
+
+    def test_an_end_on_a_pad_or_a_via_is_joined_to_the_pin_origin_or_the_via_centre(self):
+        class Box:
+            def __init__(self, *corners):
+                self.corners = corners
+
+            def GetMinX(self, unit):  # noqa: N802
+                return self.corners[0]
+
+            def GetMinY(self, unit):  # noqa: N802
+                return self.corners[1]
+
+            def GetMaxX(self, unit):  # noqa: N802
+                return self.corners[2]
+
+            def GetMaxY(self, unit):  # noqa: N802
+                return self.corners[3]
+
+        # Layout keeps the pin at a few nanometres off the rounded position an Agent reads
+        pin = SimpleNamespace(GetPositionX=lambda unit: 0.00004, GetPositionY=lambda unit: -0.00003,
+                              Pads=Collection([SimpleNamespace(Layer=1, Extrema=Box(-0.2, -0.2, 0.2, 0.2))]))
+        net_a = SimpleNamespace(Name="A", Pins=Collection([pin]), NumberOfOpens=0, IsRouted=True)
+        plan = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.1, "points_mm": [[0.05, 0.02], [3, 0]]},
+                           {"net": "A", "layer": 2, "width_mm": 0.1, "points_mm": [[3.1, 0.05], [10, 0]]}],
+                "vias": [{"net": "A", "at_mm": [3, 0], "padstack": "VIA_D0.2_P0.4"}]}
+        real = E.L.find_net
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net", lambda doc, name: net_a if name == "A" else real(doc, name)):
+            facts = E.TraceCreate().run(context("trace create", {"file": self.plan_file(plan)}), None)
+        self.assertEqual(self.doc.drawn[0][3], [(0.00004, -0.00003), (0.05, 0.02), (3.0, 0.0)])  # joined to the pin's origin
+        self.assertEqual(self.doc.drawn[1][3], [(3.0, 0.0), (3.1, 0.05), (10.0, 0.0)])  # joined to the via's centre
+        self.assertEqual(facts["result"]["nets"], [{"net": "A", "routed": True, "opens": 0}])
 
     def test_a_plan_that_breaks_the_rules_is_blocked_and_never_drawn(self):
         bad = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.3, "points_mm": [[0, 0], [5, 0], [6, 0]]}],

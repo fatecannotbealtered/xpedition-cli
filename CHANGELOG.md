@@ -12,6 +12,8 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Fixed
 
+- `trace create` joins a trace end that lies on a pad to the pin's origin, and one that lies on a via to the via's centre, before it draws: Layout connects a trace to a pin or a via only at that exact point, and the coordinates the tool reports are rounded, so a plan that ended inside a pad drew copper that stayed unconnected, with every net reported open.
+- `via create`, `via update` and `trace create` take a via padstack from the design's own padstack library when no via of the board uses it and the central library cannot be read, as on a copy of a project whose central library is on another machine's drive; they refused such a via as one whose size is not known.
 - `doc create` in file mode refuses a template whose folder holds a file another program keeps from being read, such as a project database Designer, Layout, the packager or the iCDB server is working on, with `E_CONFLICT` naming the files, before anything is copied. A copy that still fails part way names the new project file as asked and lists the files it could not copy; it kept the template's file name before.
 
 ## [1.2.0] - 2026-11-08
