@@ -171,8 +171,54 @@ def segment(name: str) -> str:
     return quote(str(name), safe="+-_.~$!()*,;=:@")
 
 
-def plane_key(net: str, layer: int) -> str:
-    return f"{PLANES_KEY}/{segment(net)}/{int(layer)}"
+Region = tuple[float | None, float | None, float | None, float | None]  # x0, y0, x1, y1 in mm; None leaves a side open
+
+
+def region_text(region: Region) -> str:
+    """``x 1 to 9, y 4.07 to 7.25 mm``, an open side left out."""
+    parts = []
+    for axis, low, high in (("x", region[0], region[2]), ("y", region[1], region[3])):
+        if low is not None and high is not None:
+            parts.append(f"{axis} {low:g} to {high:g}")
+        elif low is not None:
+            parts.append(f"{axis} from {low:g}")
+        elif high is not None:
+            parts.append(f"{axis} up to {high:g}")
+    return ", ".join(parts) + " mm"
+
+
+def region_segment(region: Region) -> str:
+    return ",".join("" if v is None else f"{v:g}" for v in region)
+
+
+def parse_region(text: str) -> Region:
+    values = [v.strip() for v in text.split(",")]
+    if len(values) != 4:
+        raise ValueError(text)
+    x0, y0, x1, y1 = (None if v == "" else float(v) for v in values)
+    return (x0, y0, x1, y1)
+
+
+def plane_key(net: str, layer: int, region: Region | None = None) -> str:
+    key = f"{PLANES_KEY}/{segment(net)}/{int(layer)}"
+    return key if region is None else f"{key}/{region_segment(region)}"
+
+
+def plane_shapes_in(doc: Any, net: str, layer: int, region: Region, overlapping: bool = False) -> list[Any]:
+    """The net's plane shapes on the layer that lie in the region (with ``overlapping``, that reach
+    into it), by their extents."""
+    x0, y0, x1, y1 = (v if v is not None else default for v, default in zip(region, (-1e9, -1e9, 1e9, 1e9), strict=True))
+    found = []
+    for shape in collection(doc, "PlaneShapes"):
+        if net_name(shape) != net or int(shape.Layer) != int(layer):
+            continue
+        sx0, sy0, sx1, sy1 = extrema_mm(shape)
+        if overlapping:
+            if min(sx1, x1) - max(sx0, x0) > 1e-3 and min(sy1, y1) - max(sy0, y0) > 1e-3:
+                found.append(shape)
+        elif sx0 >= x0 - 0.05 and sy0 >= y0 - 0.05 and sx1 <= x1 + 0.05 and sy1 <= y1 + 0.05:
+            found.append(shape)
+    return found
 
 
 def plan_error(exc: PlanError) -> AdapterError:
@@ -920,8 +966,11 @@ def plane_state(value: Any) -> str:
 HATCH_NAMES = {0: "solid", 5: "orthogonal", 6: "diagonal"}  # EPcbHatchType: default, crosshatch, crosshatch diagonal
 
 
-def plane_values(doc: Any, net: str, layer: int) -> dict[str, Any]:
-    shapes = [shape for shape in collection(doc, "PlaneShapes") if net_name(shape) == net and int(shape.Layer) == int(layer)]
+def plane_values(doc: Any, net: str, layer: int, region: Region | None = None) -> dict[str, Any]:
+    if region is None:
+        shapes = [shape for shape in collection(doc, "PlaneShapes") if net_name(shape) == net and int(shape.Layer) == int(layer)]
+    else:
+        shapes = plane_shapes_in(doc, net, layer, region)
     exists = bool(shapes)
     hatch = None
     fill: dict[str, Any] = {}
@@ -1032,7 +1081,7 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "outline": lambda parts: {k: v for k, v in outline_values(doc).items() if not (k == "radius_mm" and v is None)},
         "routing": lambda parts: routing_values(doc),
         "components": lambda parts: component_values(find_component(doc, parts[1])),
-        "planes": lambda parts: plane_values(doc, parts[1], int(parts[2])),
+        "planes": lambda parts: plane_values(doc, parts[1], int(parts[2]), parse_region(parts[3]) if len(parts) > 3 else None),
         "traces": lambda parts: {"count": trace_count(doc, parts[1], int(parts[2]) if len(parts) > 2 else None)},
         "vias": lambda parts: {"count": via_count(doc, parts[1]), "padstack": via_padstack_name(doc, parts[1])},
         "solder-mask": lambda parts: {"exists": _opening(doc, "solder-mask", parts)},
@@ -1041,7 +1090,7 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "mounting-holes": lambda parts: _hole_at(doc, parts[1]),
         "refdes": lambda parts: _refdes_at(doc, parts[1]),
     }
-    sizes = {"components": 2, "planes": 3, "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
+    sizes = {"components": 2, "planes": (3, 4), "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
              "mounting-holes": 2, "refdes": 2}
     for target in targets:
         parts = fragment(target, path)

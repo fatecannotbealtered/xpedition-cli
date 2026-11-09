@@ -1395,6 +1395,34 @@
           "quantity": "length"
         },
         {
+          "name": "--from-x",
+          "type": "quantity",
+          "summary": "The left side of the rectangle the shape is cut to; with the other region flags, a shape beside the net's others on the layer, such as a hatched band over a flex board's bend.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--from-y",
+          "type": "quantity",
+          "summary": "The bottom side of the rectangle the shape is cut to; a side left out runs to the board's edge, so --from-y and --to-y alone cut a band across the board.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-x",
+          "type": "quantity",
+          "summary": "The right side of the rectangle the shape is cut to.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-y",
+          "type": "quantity",
+          "summary": "The top side of the rectangle the shape is cut to.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."

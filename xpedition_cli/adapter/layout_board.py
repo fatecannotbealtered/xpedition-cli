@@ -762,6 +762,42 @@ def _plane_inputs(ctx: Context) -> tuple[str, int, float | None]:
     return net, layer, None if margin is None else float(margin)
 
 
+def _region_inputs(ctx: Context) -> L.Region | None:
+    """The rectangle ``--from-x``, ``--from-y``, ``--to-x`` and ``--to-y`` cut the plane to, a side
+    left out open; None without any of them."""
+    values = [ctx.inputs.get(name) for name in ("from_x_mm", "from_y_mm", "to_x_mm", "to_y_mm")]
+    if all(v is None for v in values):
+        return None
+    if any(v is not None and (type(v) not in (int, float) or not math.isfinite(v)) for v in values):
+        raise AdapterError("E_VALIDATION", "--from-x, --from-y, --to-x and --to-y are board coordinates.", dispatch_state="not_started")
+    x0, y0, x1, y1 = (None if v is None else float(v) for v in values)
+    for low, high, axis in ((x0, x1, "x"), (y0, y1, "y")):
+        if low is not None and high is not None and low >= high:
+            raise AdapterError("E_VALIDATION", f"--from-{axis} must be less than --to-{axis}.", dispatch_state="not_started")
+    return (x0, y0, x1, y1)
+
+
+def _clip(polygon: list[tuple[float, float]], region: L.Region) -> list[tuple[float, float]]:
+    """The polygon cut to the region's rectangle (Sutherland-Hodgman, one side at a time)."""
+    x0, y0, x1, y1 = region
+    sides = [(0, x0, 1), (1, y0, 1), (0, x1, -1), (1, y1, -1)]  # axis, bound, keep the side at or above (1) or below (-1)
+    out = polygon
+    for axis, bound, keep in sides:
+        if bound is None or not out:
+            continue
+        inside = [keep * (point[axis] - bound) >= 0 for point in out]
+        cut: list[tuple[float, float]] = []
+        for i, point in enumerate(out):
+            prev, prev_in = out[i - 1], inside[i - 1]
+            if inside[i] != prev_in:
+                t = (bound - prev[axis]) / (point[axis] - prev[axis])
+                cut.append((prev[0] + (point[0] - prev[0]) * t, prev[1] + (point[1] - prev[1]) * t))
+            if inside[i]:
+                cut.append(point)
+        out = cut
+    return out
+
+
 def _scaled(doc: Any, item: Any) -> list[list[float]] | None:
     """The (x, y, r) rows of a graphic's points in mm, or None when the board's unit cannot be measured."""
     scale = L.geometry_scale(doc)
@@ -808,10 +844,11 @@ def _plane_points(doc: Any, margin: float | None) -> tuple[tuple[tuple[float, ..
     return _rows(plan_outline.rounded(*rect, max(radius - margin, 0.0))), f"{margin:g} mm inside the board outline"
 
 
-def _plane_target(doc: Any, net: str, layer: int, margin: float | None) -> tuple[Any, tuple[tuple[float, ...], ...], str, dict[str, Any]]:
+def _plane_target(doc: Any, net: str, layer: int, margin: float | None,
+                  region: L.Region | None = None) -> tuple[Any, tuple[tuple[float, ...], ...], str, dict[str, Any]]:
     """The net object, the shape's points, where the shape lies, and the plane as it is now (with
     the board's ``layers``); refuses an unknown net or layer, and a net that has a plane shape on that layer
-    already."""
+    already, or with ``region`` one that reaches into the region."""
     found = L.find_net(doc, net)
     if found is None:
         raise AdapterError("E_NOT_FOUND", f"The board has no net {net}.", dispatch_state="not_started")
@@ -819,10 +856,24 @@ def _plane_target(doc: Any, net: str, layer: int, margin: float | None) -> tuple
     if not 1 <= layer <= layers:
         raise AdapterError("E_VALIDATION", f"The board has conductor layers 1 to {layers}; there is no layer {layer}.",
                            dispatch_state="not_started")
-    now = L.plane_values(doc, net, layer)
-    if now["exists"]:
-        raise base.blocked(f"{net} has a plane shape on layer {layer} already; plane create adds none beside it.")
+    if region is None:
+        now = L.plane_values(doc, net, layer)
+        if now["exists"]:
+            raise base.blocked(f"{net} has a plane shape on layer {layer} already; plane create adds none beside it.")
+    else:
+        now = L.plane_values(doc, net, layer, region)
+        if L.plane_shapes_in(doc, net, layer, region, overlapping=True):
+            raise base.blocked(f"{net} has a plane shape on layer {layer} that reaches into the region already; plane create "
+                               "adds a shape only beside the ones there.")
     points, where = _plane_points(doc, margin)
+    if region is not None:
+        polygon = _clip(flatten(list(zip(*points, strict=False))), region)
+        if len(polygon) < 3 or _area([[p[0] for p in polygon], [p[1] for p in polygon], [0.0] * len(polygon)]) < 1e-6:
+            raise AdapterError("E_VALIDATION", "The region does not overlap the board where the plane would lie.",
+                               dispatch_state="not_started")
+        polygon.append(polygon[0])
+        points = _rows([[p[0] for p in polygon], [p[1] for p in polygon], [0.0] * len(polygon)])
+        where = f"{where}, cut to {L.region_text(region)}"
     return found, points, where, {**now, "layers": layers}
 
 
@@ -842,11 +893,12 @@ class PlaneCreate(L.ReadsBack):
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         net, layer, margin = _plane_inputs(ctx)
+        region = _region_inputs(ctx)
         hatch, width, distance = _hatch_inputs(ctx)
         path = ctx.document_path()
-        _found, _points, where, now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin),
+        _found, _points, where, now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin, region),
                                                   budget_s=L.READ_BUDGET_S, what="reading the planes")
-        domain = L.plane_key(net, layer)
+        domain = L.plane_key(net, layer, region)
         key = base.key(path, domain)
         outer = (" An outer-layer plane is best poured after routing (knowledge layout-pour-after-routing)."
                  if layer in (1, now["layers"]) else "")
@@ -861,10 +913,11 @@ class PlaneCreate(L.ReadsBack):
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         net, layer, margin = _plane_inputs(ctx)
+        region = _region_inputs(ctx)
         hatch, width, distance = _hatch_inputs(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            found, points, where, _now = _plane_target(doc, net, layer, margin)
+            found, points, where, _now = _plane_target(doc, net, layer, margin, region)
             try:
                 # route obstruct false: an obstructing shape blocks the router on that layer, and laid
                 # over routed traces it is refused as a DRC violation; the copper flows around them

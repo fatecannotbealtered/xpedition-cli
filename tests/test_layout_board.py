@@ -558,6 +558,28 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual(facts["result"]["hatch"], "orthogonal")
         self.assertEqual(back["observed"][key("/planes/GND/2")], {"exists": True, "state": "dynamic", "hatch": "orthogonal"})
 
+    def test_a_band_beside_a_plane_is_cut_to_its_region_and_reads_back_by_it(self):
+        doc = FakeDoc(nets=["GND"])
+        band = {"net": "GND", "layer": 2, "hatch": "diagonal", "hatch_width_mm": 0.1, "hatch_distance_mm": 0.3,
+                "from_y_mm": 10.0, "to_y_mm": 20.0}
+        target = key("/planes/GND/2/,10,,20")
+        with world(FakeApp(doc)):
+            B.PlaneCreate().apply(context("plane create", {"net": "GND", "layer": 2, "to_y_mm": 10.0}))
+            preview = B.PlaneCreate().preview(context("plane create", band))
+            B.PlaneCreate().apply(context("plane create", band))
+            back = B.PlaneCreate().read_back(context("plane create", targets=[target], fields=["exists", "hatch"]))
+            with self.assertRaises(AdapterError) as caught:  # it would reach into the band
+                B.PlaneCreate().preview(context("plane create", {**band, "from_y_mm": 15.0, "to_y_mm": 25.0}))
+            with self.assertRaises(AdapterError) as wrong:
+                B.PlaneCreate().preview(context("plane create", {**band, "from_y_mm": 20.0, "to_y_mm": 10.0}))
+        self.assertEqual(len(doc.shapes), 2)
+        ys = doc.shapes[1].Extrema
+        self.assertEqual((ys.GetMinY(L.UNIT_MM), ys.GetMaxY(L.UNIT_MM)), (10.0, 20.0))  # cut to the band
+        self.assertEqual(preview["targets"][0]["key"], target)
+        self.assertIn("cut to y 10 to 20 mm", preview["action"])
+        self.assertEqual(back["observed"][target], {"exists": True, "hatch": "diagonal"})
+        self.assertEqual((code(caught), code(wrong)), ("E_CONFLICT", "E_VALIDATION"))
+
     def test_hatch_inputs_must_fit_together(self):
         with world(FakeApp(FakeDoc(nets=["GND"]))):
             for extra in ({"hatch": "zigzag"}, {"hatch": "orthogonal"}, {"hatch": "diagonal", "hatch_width_mm": 0.5, "hatch_distance_mm": 0.4},

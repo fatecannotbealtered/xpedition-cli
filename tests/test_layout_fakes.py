@@ -377,7 +377,8 @@ class FakeDoc(Fake):
         self.calls.append(("PutPlaneShape", layer, n, points, net.Name, obstruct, *rest))
         # the default plane class draws solid copper as hatch lines as wide as their distance (6 mil)
         shape = SimpleNamespace(Layer=layer, Net=SimpleNamespace(Name=net.Name),
-                                PlaneClass=SimpleNamespace(Name="(Default)", HatchPattern=2, HatchWidth=6.0, HatchDistance=6.0))
+                                PlaneClass=SimpleNamespace(Name="(Default)", HatchPattern=2, HatchWidth=6.0, HatchDistance=6.0),
+                                Extrema=Extrema((min(points[0]), min(points[1]), max(points[0]), max(points[1]))))
         self.shapes.append(shape)
         self.assignments.append(FakeAssignment(net.Name, layer, L.PLANE_DRAFT))  # a new shape starts in Draft
         return shape

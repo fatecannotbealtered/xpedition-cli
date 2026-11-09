@@ -887,11 +887,24 @@ COMMANDS: list[dict[str, Any]] = [
                 "summary": "solid (the default), orthogonal or diagonal: a hatched plane, common on flex, is a grid of lines."},
                {"name": "--hatch-width", "type": "quantity", "quantity": "length", "summary": "A hatched plane's line width."},
                {"name": "--hatch-distance", "type": "quantity", "quantity": "length",
-                "summary": "A hatched plane's distance from line to line, larger than the width."}],
+                "summary": "A hatched plane's distance from line to line, larger than the width."},
+               {"name": "--from-x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The left side of the rectangle the shape is cut to; with the other region flags, a shape beside the "
+                           "net's others on the layer, such as a hatched band over a flex board's bend."},
+               {"name": "--from-y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The bottom side of the rectangle the shape is cut to; a side left out runs to the board's edge, so "
+                           "--from-y and --to-y alone cut a band across the board."},
+               {"name": "--to-x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The right side of the rectangle the shape is cut to."},
+               {"name": "--to-y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
+                "summary": "The top side of the rectangle the shape is cut to."}],
         output=obj(net=STR, layer=INT, within=STR, hatch=STR, generated=BOOL),
         examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2",
                   "xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2 --hatch orthogonal "
-                  "--hatch-width 0.15mm --hatch-distance 0.5mm"],
+                  "--hatch-width 0.15mm --hatch-distance 0.5mm",
+                  "xpedition-cli plane create --session layout-6312 --doc D:/work/flex/PCB/Flex.pcb --net GND --layer 2 --hatch diagonal "
+                  "--hatch-width 0.1mm --hatch-distance 0.3mm --from-y 4mm --to-y 7.5mm"],
+        coordinates=BOARD_COORDINATES,
         knowledge=['layout-plane-draft-state', 'layout-pour-after-routing', 'layout-plane-hatch'],
     ),
     command(
