@@ -173,6 +173,19 @@ class BoardGetTest(unittest.TestCase):
         self.assertIsNotNone(out["net_classes"])
 
 
+class PlaneGroupTest(unittest.TestCase):
+    def test_shapes_of_one_net_layer_and_fill_are_counted_together(self):
+        rows = [{"net": "VBUS", "layer": 1, "hatch": "solid", "extents_mm": [0.0, 0.0, 1.0, 2.0]},
+                {"net": "VBUS", "layer": 1, "hatch": "solid", "extents_mm": [3.0, 1.0, 4.0, 5.0]},
+                {"net": "GND", "layer": 2, "hatch": "diagonal", "hatch_width_mm": 0.1, "hatch_distance_mm": 0.3,
+                 "extents_mm": [0.0, 4.0, 12.0, 7.0]},
+                {"net": "GND", "layer": 2, "hatch": "solid", "extents_mm": [0.0, 0.0, 12.0, 98.0]}]
+        groups = O.plane_groups(rows)
+        self.assertEqual([(g["net"], g["layer"], g["hatch"], g["shapes"]) for g in groups],
+                         [("GND", 2, "diagonal", 1), ("GND", 2, "solid", 1), ("VBUS", 1, "solid", 2)])
+        self.assertEqual(groups[2]["extents_mm"], [0.0, 0.0, 4.0, 5.0])
+
+
 class Hazard(Fake):
     def __init__(self, kind: int, description: str, values: dict[int, float], objects: list | None = None) -> None:
         self.Type, self.Description = kind, description
