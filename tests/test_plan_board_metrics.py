@@ -146,6 +146,13 @@ class BoardMetricsTest(unittest.TestCase):
         self.assertEqual(summary["overlaps"], 1)
         self.assertEqual(summary["outside"], 1)
 
+    def test_an_arc_is_measured_along_its_curve_and_is_no_corner(self):
+        # a quarter circle of radius 2 from (0, 0) about (0, 2) to (2, 2), the way Layout reports it
+        model = {"traces": [{"net": "A", "layer": 1, "path": [[0.0, 0.0, 0.0], [0.0, 2.0, -2.0], [2.0, 2.0, 0.0]]}]}
+        routing = M._routing(model)
+        self.assertEqual(routing["acute_corners"], [])
+        self.assertAlmostEqual(routing["by_layer"]["1"], 3.1416, delta=0.01)
+
     def test_supply_and_ground_nets_are_told_from_signals_by_name(self):
         kinds = {
             name: M.net_kind(name)

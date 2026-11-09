@@ -28,7 +28,7 @@ import re
 from itertools import combinations
 from typing import Any
 
-from .shapes import Outline, box_disc, cross, overlap
+from .shapes import Outline, box_disc, cross, flatten, overlap
 
 Point = tuple[float, float]
 Rect = tuple[float, float, float, float]
@@ -193,7 +193,8 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
     by_layer: dict[str, float] = {}
     acute: list[dict[str, Any]] = []
     for trace in model.get("traces") or []:
-        points = [(float(row[0]), float(row[1])) for row in trace.get("path") or []]
+        # an arc's row carries its centre and radius: lengths and corners follow the arc, not its centre
+        points = flatten([(float(row[0]), float(row[1]), float(row[2]) if len(row) > 2 else 0.0) for row in trace.get("path") or []])
         layer = str(trace.get("layer") or "")
         by_layer[layer] = by_layer.get(layer, 0.0) + sum(
             math.dist(a, b) for a, b in zip(points, points[1:], strict=False)
