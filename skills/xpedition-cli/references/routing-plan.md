@@ -31,6 +31,15 @@
 
 The plan is refused, with every reason, when it names a net or layer the board lacks, a width outside the limits of its net's class on that layer, an end that touches no copper of its net, or a trace or via closer to another net's copper than the clearance rule for the two nets' classes. A via also keeps its clearance from pads of its own net. Set the rules first (`constraint import`), so the check uses the widths and clearances the design asks for.
 
+- `fanouts`: the two-row connectors the tool fans out. Each has the connector's `refdes`, the via `padstack`, the `layer` its far row changes to and, if wanted, `plane_nets` (such as `["GND"]`), `skip`, `give_way` and `stub_width_mm` (0.1 mm unless given). The row nearer the board's body leaves on the pad layer; each pin of the other row gets a via between the rows, the vias in two staggered lines, and a stub to it. A pin of the near row shares the via of the far pin below it when both are of one net; a pin of a plane net takes the via of a column whose far pin needs none: a pin without a net, a net in `skip`, or a net in `give_way`, which gives the via to a plane-net pin above it. Consecutive pins of one net in a row are joined pin to pin. The preview names the plane-net pins left without a via, for you to connect.
+- A lane may start at a connector of `fanouts` with `"from": "<refdes>"` in place of `from_mm`, and end at one with `"to"` in place of `to_mm`: it leaves where its net leaves that connector on the lane's layer (a pin of the near row, or the via of a far pin), runs straight towards the board's body until clear of the connector's pads (on the pad layer) or of its vias (on the other layer), and crosses to its line at 45 degrees before its edge begins. Give lanes of one row distances from the edge in the order of their pins, so the crossings run parallel.
+
+```json
+{"fanouts": [{"refdes": "J1", "padstack": "VIA_D0.2_P0.4", "layer": 1, "plane_nets": ["GND"], "give_way": ["VBAT"]},
+             {"refdes": "J2", "padstack": "VIA_D0.2_P0.4", "layer": 1, "plane_nets": ["GND"]}],
+ "lanes": [{"net": "TX_P", "layer": 3, "width_mm": 0.06, "from": "J1", "to": "J2", "edge_mm": [[0.2, 4.5], [18.3, 93.1]], "offset_mm": 7.4}]}
+```
+
 The preview, `trace create --dry-run`, also names what the plan's own copper shows before it is drawn: each pair's two lengths, the pairs recognised by name such as `USB_DP` and `USB_DN`, and what the board's bend zones forbid of it, such as a turn or a width change inside one.
 
 ## Reading the result

@@ -1693,7 +1693,7 @@
         {
           "name": "--file",
           "type": "path",
-          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, and lanes, traces that follow an edge of the board outline at offset_mm, in board coordinates.",
+          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, lanes, traces that follow an edge of the board outline at offset_mm, and fanouts, two-row connectors whose far row the tool takes through vias between the rows, in board coordinates.",
           "required": true
         },
         {

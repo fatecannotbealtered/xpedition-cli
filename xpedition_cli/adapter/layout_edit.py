@@ -8,6 +8,7 @@ through automation, so these deletes are how an Agent takes back a routing attem
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 from pathlib import Path
@@ -19,6 +20,7 @@ from . import layout as L
 from . import layout_output as O
 from .base import Context
 from .plan import PlanError, board_metrics
+from .plan import fanout as FO
 from .plan import lanes as LN
 from .plan import routing as plan_routing
 from .plan import stitching as ST
@@ -874,7 +876,10 @@ def _routing_plan(ctx: Context) -> tuple[TP.Plan, list[LN.Lane]]:
         raise AdapterError("E_VALIDATION", f"The routing plan {source} is not JSON: {exc}.", dispatch_state="not_started") from None
     try:
         lanes = LN.parse(data.pop("lanes")) if isinstance(data, dict) and "lanes" in data else []
-        return TP.parse(data, lanes=bool(lanes)), lanes
+        fanouts = TP.parse_fanouts(data.pop("fanouts")) if isinstance(data, dict) and "fanouts" in data else []
+        plan = TP.parse(data, lanes=bool(lanes or fanouts))
+        plan.fanouts = fanouts
+        return plan, lanes
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
 
@@ -890,19 +895,64 @@ def _outline_rows(doc: Any) -> list[tuple[float, float, float]]:
     return [(float(x) * scale, float(y) * scale, float(r) * scale) for x, y, r in zip(*rows[:3], strict=False)]
 
 
-def _laid(doc: Any, plan: TP.Plan, lanes: list[LN.Lane]) -> TP.Plan:
-    """The plan with each lane as a trace along the board outline."""
+def _fanout_pins(component: Any) -> list[FO.Pin]:
+    pins = []
+    for pin in L.collection(component, "Pins"):
+        pads = L.collection(pin, "Pads")
+        if not pads:
+            continue
+        pins.append(FO.Pin(L.name_of(pin), L.net_name(pin) or None,
+                           (float(pin.GetPositionX(L.UNIT_MM)), float(pin.GetPositionY(L.UNIT_MM))),
+                           L.extrema_mm(pads[0]), int(pads[0].Layer)))
+    return pins
+
+
+def _fanned(doc: Any, path: str, plan: TP.Plan) -> tuple[TP.Plan, dict[str, FO.Fanout]]:
+    """The plan with each fan-out's stubs, joins and vias, and the fan-outs by connector."""
+    from . import layout_parts
+    from .plan.shapes import flatten
+
+    if not plan.fanouts:
+        return plan, {}
+    body = FO.centroid(flatten(_outline_rows(doc)))
+    clear = _clearances(path)
+    traces, vias, notes = list(plan.traces), list(plan.vias), list(plan.notes)
+    fanouts: dict[str, FO.Fanout] = {}
+    for spec in plan.fanouts:
+        component = layout_parts.find(doc, spec["refdes"])
+        radius, why = via_pad_radius(doc, path, spec["padstack"])
+        if radius is None:
+            raise AdapterError("E_VALIDATION", f"The routing plan is not valid: the size of the via {spec['padstack']} is not known: {why}.",
+                               dispatch_state="not_started")
+        try:
+            fanout = FO.plan(_fanout_pins(component), body, radius, clear.via_to_pad, clear.via_to_via, spec["layer"],
+                             set(spec["plane_nets"]), set(spec["skip"]), spec["stub_width"], set(spec["give_way"]))
+        except PlanError as exc:
+            raise AdapterError(exc.code, f"The routing plan is not valid: the fan-out of {spec['refdes']}: {exc.message}.",
+                               dispatch_state="not_started") from None
+        fanouts[spec["refdes"]] = fanout
+        traces += [TP.Trace(net, layer, width, list(points)) for net, layer, width, points in fanout.traces]
+        vias += [TP.Via(net, at, spec["padstack"]) for net, at in fanout.vias]
+        if fanout.loose:
+            notes.append(f"{spec['refdes']} leaves pins {', '.join(fanout.loose)} to connect: no via between the rows is free for them")
+    return TP.Plan(traces=traces, vias=vias, notes=notes), fanouts
+
+
+def _laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane]) -> TP.Plan:
+    """The plan with each fan-out, and each lane as a trace along the board outline."""
+    plan, fanouts = _fanned(doc, path, plan)
     if not lanes:
         return plan
     ring = LN.outline_corners(_outline_rows(doc))
+    clearance = _clearances(path).via_to_pad if fanouts else 0.1
     try:
-        laid = [LN.expand(lane, ring, f"lanes[{index}]") for index, lane in enumerate(lanes)]
+        laid = [LN.expand(copy.copy(lane), ring, f"lanes[{index}]", fanouts, clearance) for index, lane in enumerate(lanes)]
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
     if len(plan.traces) + len(plan.vias) + len(laid) > TP.MAX_ITEMS:
         raise AdapterError("E_VALIDATION", f"The routing plan is not valid: it names more than {TP.MAX_ITEMS} items.",
                            dispatch_state="not_started")
-    return TP.Plan(traces=plan.traces + laid, vias=plan.vias)
+    return TP.Plan(traces=plan.traces + laid, vias=plan.vias, notes=plan.notes)
 
 
 def _plan_notes(doc: Any, plan: TP.Plan) -> list[str]:
@@ -1070,8 +1120,8 @@ class TraceCreate(L.ReadsBack):
         given, lanes = _routing_plan(ctx)
 
         def look(app: Any, doc: Any) -> tuple[TP.Plan, list[str], dict[tuple[str, int], int], dict[str, int], list[str]]:
-            plan = _laid(doc, given, lanes)
-            return plan, *_trace_look(ctx, doc, plan), _plan_notes(doc, plan)
+            plan = _laid(doc, path, given, lanes)
+            return plan, *_trace_look(ctx, doc, plan), plan.notes + _plan_notes(doc, plan)
 
         plan, blocked, traces, vias, notes = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="checking the routing plan")
         added_vias: dict[str, int] = {}
@@ -1100,7 +1150,7 @@ class TraceCreate(L.ReadsBack):
         fields = list(ctx.request.get("fields") or [])
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            drawn = _drawn(doc, _laid(doc, given, lanes))
+            drawn = _drawn(doc, _laid(doc, path, given, lanes))
             via_targets = [target for target in targets if "/vias/" in target]
             result = L.read_keys(doc, path, via_targets, [f for f in fields if f != "plan_drawn"]) if via_targets else \
                 {"observed": {}, "unreadable": []}
@@ -1116,7 +1166,7 @@ class TraceCreate(L.ReadsBack):
         given, lanes = _routing_plan(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            plan = _laid(doc, given, lanes)
+            plan = _laid(doc, ctx.document_path(), given, lanes)
             blocked, _traces, _vias = _trace_look(ctx, doc, plan)
             if blocked:
                 raise base.blocked("; ".join(blocked[:20]))

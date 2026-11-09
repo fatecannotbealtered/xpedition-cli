@@ -18,6 +18,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from . import fanout as FO
 from . import trace_plan as TP
 
 Point = tuple[float, float]
@@ -28,7 +29,8 @@ STRAIGHT = 1e-4  # sine of the angle under which three outline points count as o
 TAB_MM = 5.0  # a lane runs straight past a part of the outline that sticks out over a base this long or shorter
 TAB_ALIGN = math.cos(math.radians(10))  # and only where the edge runs on in line on both sides of it
 ON_LINE_MM = 1e-3  # a point this close to a lane's line is on it: a real outline's straight edge is straight to a few tenths of a micrometre
-KEYS = ("net", "layer", "width_mm", "from_mm", "to_mm", "edge_mm", "offset_mm")
+KEYS = ("net", "layer", "width_mm", "edge_mm", "offset_mm")
+FANOUT_CORNER_MM = 0.2  # the radius of the turn where a fan-out leaves the connector
 
 
 @dataclass
@@ -41,6 +43,9 @@ class Lane:
     edge: tuple[Point, Point]
     offset: float
     radius: float
+    from_ref: str | None = None  # the connector whose fan-out the lane starts from, instead of ``start``
+    to_ref: str | None = None
+
 
 
 def parse(items: Any) -> list[Lane]:
@@ -49,8 +54,9 @@ def parse(items: Any) -> list[Lane]:
     lanes = []
     for index, item in enumerate(items):
         what = f"lanes[{index}]"
-        if not isinstance(item, dict) or set(item) - {*KEYS, "radius_mm"} or set(KEYS) - set(item):
-            raise TP._error(f"{what} has the keys {', '.join(KEYS)} and, if wanted, radius_mm")
+        if (not isinstance(item, dict) or set(item) - {*KEYS, "radius_mm", "from_mm", "to_mm", "from", "to"} or set(KEYS) - set(item)
+                or ("from_mm" in item) == ("from" in item) or ("to_mm" in item) == ("to" in item)):
+            raise TP._error(f"{what} has the keys {', '.join(KEYS)}, from_mm or from, to_mm or to, and, if wanted, radius_mm")
         net, layer, width = item["net"], item["layer"], item["width_mm"]
         if not isinstance(net, str) or not net:
             raise TP._error(f"{what}.net is a net name")
@@ -58,13 +64,21 @@ def parse(items: Any) -> list[Lane]:
             raise TP._error(f"{what}.layer is a conductor layer number, 1 at the top")
         if isinstance(width, bool) or not isinstance(width, (int, float)) or not 0 < width <= 25:
             raise TP._error(f"{what}.width_mm is a width of more than 0 and at most 25 mm")
-        ends = []
-        for key in ("from_mm", "to_mm"):
-            points = item[key]
+        ends: list[list[Corner]] = []
+        refs: list[str | None] = []
+        for key in ("from", "to"):
+            if key in item:
+                if not isinstance(item[key], str) or not item[key]:
+                    raise TP._error(f"{what}.{key} is the reference designator of a connector in fanouts")
+                ends.append([])
+                refs.append(item[key])
+                continue
+            points = item[key + "_mm"]
             if not isinstance(points, list) or not points:
-                raise TP._error(f"{what}.{key} has at least one point")
-            ends.append([TP._corner(p, f"{what}.{key}[{i}]") for i, p in enumerate(points)])
-        if ends[0][0][1] or ends[1][-1][1]:
+                raise TP._error(f"{what}.{key}_mm has at least one point")
+            ends.append([TP._corner(p, f"{what}.{key}_mm[{i}]") for i, p in enumerate(points)])
+            refs.append(None)
+        if (ends[0] and ends[0][0][1]) or (ends[1] and ends[1][-1][1]):
             raise TP._error(f"{what} rounds no corner at its ends, from_mm[0] and the last point of to_mm")
         edge = item["edge_mm"]
         if not isinstance(edge, list) or len(edge) != 2:
@@ -77,7 +91,7 @@ def parse(items: Any) -> list[Lane]:
             raise TP._error(f"{what}.offset_mm is the distance of the lane's centre line from the edge, more than 0")
         lanes.append(Lane(net, layer, round(float(width), 4), ends[0], ends[1],
                           (TP._point(edge[0], f"{what}.edge_mm[0]"), TP._point(edge[1], f"{what}.edge_mm[1]")),
-                          float(offset), float(radius)))
+                          float(offset), float(radius), refs[0], refs[1]))
     return lanes
 
 
@@ -327,14 +341,62 @@ def _fitted(points: list[Point], radii: list[float], free: list[bool]) -> list[f
     return radii
 
 
-def expand(lane: Lane, ring: list[Corner], what: str) -> TP.Trace:
+def _from_fanout(fanout: FO.Fanout, lane: Lane, path: list[Point], what: str, ref: str, clearance: float) -> list[Corner]:
+    """The points from where the lane's net leaves the connector to the lane's line, ``path[0]``
+    being the lane's end at that connector: straight towards the board's body until clear of the
+    connector's pads, then across to the lane's line at no more than 45 degrees, before the lane's
+    edge begins."""
+    exits = [at for at, layer in fanout.exits.get(lane.net, []) if layer == lane.layer]
+    if not exits:
+        on = sorted({layer for _at, layer in fanout.exits.get(lane.net, [])})
+        raise TP._error(f"{what} starts at {ref}, where {lane.net} leaves on layer {on or 'none'}, not on layer {lane.layer}")
+    a, b = path[0], path[1]
+    u = _unit(a, b)
+
+    def off_line(p: Point) -> float:
+        return _cross(u, (p[0] - a[0], p[1] - a[1]))
+
+    start = min(exits, key=lambda p: abs(off_line(p)))
+    clear = FO.leave(fanout, start, lane.layer, lane.width, clearance)
+    reach = (clear[0] - a[0]) * u[0] + (clear[1] - a[1]) * u[1]
+    if reach > 1e-6:
+        raise TP._error(f"{what} leaves {ref} past where its edge begins; begin the edge further along, after the connector")
+    side = off_line(clear)
+    if abs(side) <= ON_LINE_MM:
+        return [(start, 0.0)]  # on the lane's line already: straight on into the lane
+    forward = min(reach + abs(side), 0.0)
+    join = (a[0] + u[0] * forward, a[1] + u[1] * forward)
+    corners: list[Corner] = [(start, 0.0)]
+    if math.dist(start, clear) > 1e-6:
+        corners.append((clear, FANOUT_CORNER_MM))
+    if math.dist(corners[-1][0], join) > 1e-6:
+        corners.append((join, 0.0))
+    return corners
+
+
+def expand(lane: Lane, ring: list[Corner], what: str, fanouts: dict[str, FO.Fanout] | None = None,
+           clearance: float = 0.1) -> TP.Trace:
     """The lane's trace: its first points, the turn onto the edge's offset, the offset with its
-    turns, the turn off it, and its last points."""
+    turns, the turn off it, and its last points; at a connector of ``fanouts``, from where its net
+    leaves the connector."""
     chain, left = edge_chain(ring, lane.edge)
     if len(chain) < 2 or _length([c[0] for c in chain]) < 1e-6:
         raise TP._error(f"{what}.edge_mm names no edge: its two points meet the outline at one place")
     lane_corners = offset_chain(chain, lane.offset, left)
     path = [c[0] for c in lane_corners]
+    for ref, at_start in ((lane.from_ref, True), (lane.to_ref, False)):
+        if ref is None:
+            continue
+        if not fanouts or ref not in fanouts:
+            raise TP._error(f"{what} names {ref}, which fanouts does not list")
+        exits = [at for spots in fanouts[ref].exits.values() for at, _layer in spots]
+        probe = exits[0] if exits else path[0]
+        near_start = math.dist(probe, path[0]) <= math.dist(probe, path[-1])
+        points = _from_fanout(fanouts[ref], lane, path if near_start else path[::-1], what, ref, clearance)
+        if at_start:
+            lane.start = points
+        else:
+            lane.end = points[::-1]
     leave, join = lane.start[-1][0], lane.end[0][0]
     s, ts, on, _ = _project(path, leave, closed=False)
     e, te, off, _ = _project(path, join, closed=False)
