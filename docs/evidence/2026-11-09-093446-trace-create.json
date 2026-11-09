@@ -1,15 +1,15 @@
 {
   "kind": "live",
   "tool": "xpedition-cli",
-  "tool_version": "1.2.0",
-  "commit": "9f8012163f27",
+  "tool_version": "1.2.1",
+  "commit": "c217540a731f",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-08T22:38:56Z",
+  "recorded_at": "2026-11-09T09:34:46Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
@@ -18,7 +18,7 @@
       "command": "trace create",
       "arguments": [
         "--session",
-        "layout-11172-321018030",
+        "layout-42020-321022489",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\v12\\FlexDemo\\PCB\\FlexDemo.pcb",
         "--file",
@@ -34,7 +34,7 @@
       "command": "trace create",
       "arguments": [
         "--session",
-        "layout-11172-321018030",
+        "layout-42020-321022489",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\v12\\fx/Missing.pcb",
         "--file",
@@ -50,7 +50,7 @@
       "command": "trace create",
       "arguments": [
         "--session",
-        "layout-11172-321018030",
+        "layout-42020-321022489",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\v12\\FlexDemo\\PCB\\FlexDemo.pcb",
         "--file",

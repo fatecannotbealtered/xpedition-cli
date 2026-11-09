@@ -40,6 +40,12 @@
 <!-- driver:evidence:start -->
 | 记录 | 运行时间 | 软件 | 平台 | 结果 |
 |---|---|---|---|---|
+| [2026-11-09-093745-trace-create.json](evidence/2026-11-09-093745-trace-create.json) | 2026-11-09T09:37:45Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-09-093728-trace-create.json](evidence/2026-11-09-093728-trace-create.json) | 2026-11-09T09:37:28Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-09-093713-trace-create.json](evidence/2026-11-09-093713-trace-create.json) | 2026-11-09T09:37:13Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-09-093705-trace-create.json](evidence/2026-11-09-093705-trace-create.json) | 2026-11-09T09:37:05Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
+| [2026-11-09-093446-trace-create.json](evidence/2026-11-09-093446-trace-create.json) | 2026-11-09T09:34:46Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
+| [2026-11-09-093441-constraint-import.json](evidence/2026-11-09-093441-constraint-import.json) | 2026-11-09T09:34:41Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-09-040933-refdes-move.json](evidence/2026-11-09-040933-refdes-move.json) | 2026-11-09T04:09:33Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-09-040929-refdes-move.json](evidence/2026-11-09-040929-refdes-move.json) | 2026-11-09T04:09:29Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-09-040924-refdes-move.json](evidence/2026-11-09-040924-refdes-move.json) | 2026-11-09T04:09:24Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
@@ -82,15 +88,9 @@
 | [2026-11-08-224321-via-update.json](evidence/2026-11-08-224321-via-update.json) | 2026-11-08T22:43:21Z | Xpedition 2604 | windows | 3 次运行中 2 次通过 |
 | [2026-11-08-224252-via-delete.json](evidence/2026-11-08-224252-via-delete.json) | 2026-11-08T22:42:52Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-224223-trace-delete.json](evidence/2026-11-08-224223-trace-delete.json) | 2026-11-08T22:42:23Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
-| [2026-11-08-224204-trace-create.json](evidence/2026-11-08-224204-trace-create.json) | 2026-11-08T22:42:04Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-08-224148-trace-create.json](evidence/2026-11-08-224148-trace-create.json) | 2026-11-08T22:41:48Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-08-224135-trace-create.json](evidence/2026-11-08-224135-trace-create.json) | 2026-11-08T22:41:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-08-224131-trace-create.json](evidence/2026-11-08-224131-trace-create.json) | 2026-11-08T22:41:31Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-224120-constraint-import.json](evidence/2026-11-08-224120-constraint-import.json) | 2026-11-08T22:41:20Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-224110-constraint-import.json](evidence/2026-11-08-224110-constraint-import.json) | 2026-11-08T22:41:10Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-08-223856-trace-create.json](evidence/2026-11-08-223856-trace-create.json) | 2026-11-08T22:38:56Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-223835-constraint-import.json](evidence/2026-11-08-223835-constraint-import.json) | 2026-11-08T22:38:35Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
-| [2026-11-08-223829-constraint-import.json](evidence/2026-11-08-223829-constraint-import.json) | 2026-11-08T22:38:29Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-223821-constraint-import.json](evidence/2026-11-08-223821-constraint-import.json) | 2026-11-08T22:38:21Z | Xpedition 2604 | windows | 3 次运行中 3 次通过 |
 | [2026-11-08-223617-mounting-hole-delete.json](evidence/2026-11-08-223617-mounting-hole-delete.json) | 2026-11-08T22:36:17Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |
 | [2026-11-08-223611-mounting-hole-delete.json](evidence/2026-11-08-223611-mounting-hole-delete.json) | 2026-11-08T22:36:11Z | Xpedition 2604 | windows | 1 次运行中 1 次通过 |

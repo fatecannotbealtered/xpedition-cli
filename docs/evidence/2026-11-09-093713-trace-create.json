@@ -1,15 +1,15 @@
 {
   "kind": "live",
   "tool": "xpedition-cli",
-  "tool_version": "1.2.0",
-  "commit": "9f8012163f27",
+  "tool_version": "1.2.1",
+  "commit": "c217540a731f",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-08T22:41:48Z",
+  "recorded_at": "2026-11-09T09:37:13Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
@@ -18,18 +18,17 @@
       "command": "trace create",
       "arguments": [
         "--session",
-        "layout-11172-321018030",
+        "layout-4300-3210224ed",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\v12\\FlexDemo\\PCB\\FlexDemo.pcb",
         "--file",
         "D:\\personalSpace\\xpedition-cli\\tests\\inputs/route-usb2.json"
       ],
-      "exit": 0,
+      "exit": 6,
       "result": "pass",
-      "matrix_row": "unsaved",
+      "matrix_row": "empty",
       "mode": "session",
-      "doc_kind": "board",
-      "notes": "job job-b2ee33126a ended completed"
+      "doc_kind": "board"
     }
   ]
 }
