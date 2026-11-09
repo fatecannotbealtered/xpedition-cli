@@ -200,6 +200,35 @@ class ProjectCreateTest(Case):
         self.assertEqual(self.error(lambda: PR.NewProject().preview(missing))["code"], "E_NOT_FOUND")
         self.assertFalse(self.new.parent.exists())
 
+    def test_a_template_file_another_program_holds_is_refused_before_anything_is_copied(self):
+        win32file = __import__("win32file") if os.name == "nt" else None
+        if win32file is None:
+            self.skipTest("holding a file without sharing needs Windows")
+        held = self.template.parent / "database" / "icdb.dat"
+        handle = win32file.CreateFile(str(held), win32file.GENERIC_READ, 0, None, win32file.OPEN_EXISTING, 0, None)
+        try:
+            error = self.error(lambda: PR.NewProject().preview(self.create()))
+        finally:
+            handle.Close()
+        self.assertEqual((error["code"], error["conflict"], error["dispatch_state"]), ("E_CONFLICT", "application_state", "not_started"))
+        self.assertIn(str(Path("database") / "icdb.dat"), error["message"])
+        self.assertFalse(self.new.parent.exists())
+
+    def test_a_copy_that_fails_part_way_still_names_the_project_and_lists_the_files(self):
+        real = PR.shutil.copytree
+
+        def copy_then_fail(*args: Any, **kwargs: Any) -> Any:
+            with mock.patch.object(PR.shutil, "copytree", real):  # its own recursion copies for real
+                real(*args, **kwargs)
+            raise PR.shutil.Error([(str(self.template.parent / "database" / "icdb.dat"), "x", "held")])
+
+        with mock.patch.object(PR.shutil, "copytree", copy_then_fail):
+            facts = PR.NewProject().apply(self.create(operation_id="op_1"))
+        self.assertEqual((facts["change"], facts["persistence"]), ("partial", "partial"))
+        self.assertTrue(self.new.is_file() and not (self.new.parent / "Tpl.prj").exists())
+        self.assertIn(f"1 files of the template could not be copied, usually because another program holds them: "
+                      f"{Path('database') / 'icdb.dat'}", facts["native_message"])
+
     def test_an_empty_folder_is_used(self):
         self.new.parent.mkdir(parents=True)
         PR.NewProject().apply(self.create(operation_id="op_1"))

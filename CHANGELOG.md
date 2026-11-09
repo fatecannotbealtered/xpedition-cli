@@ -8,6 +8,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 - Built on tool-driver-cli-spec 1.0.10. A long job that ends with `ok: false`, a write or a read, carries the error the call would have returned, in `code`, `message` and `details`; a command it names to run again is the write's first call, never a spent token. A final job's `action`, `resume`, `title` and `knowledge` are in `details`; only a `blocked` job keeps `action` and `knowledge` at the top. `doc save` compares each field with the tolerance of the command whose write left the value, and a `doc undo` record keeps the undone command's tolerances. The Skill handles a failed job as the error it carries.
 
+### Fixed
+
+- `doc create` in file mode refuses a template whose folder holds a file another program keeps from being read, such as a project database Designer, Layout, the packager or the iCDB server is working on, with `E_CONFLICT` naming the files, before anything is copied. A copy that still fails part way names the new project file as asked and lists the files it could not copy; it kept the template's file name before.
+
 ## [1.2.0] - 2026-11-08
 
 ### Added

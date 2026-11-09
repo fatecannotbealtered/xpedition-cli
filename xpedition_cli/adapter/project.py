@@ -129,6 +129,38 @@ def _setup_template(ctx: Context) -> tuple[Path, Path]:
     return template, library
 
 
+def _held_files(source: Path) -> list[str]:
+    """The files of the template's folder that the copy would take but cannot read, because another
+    program holds them without sharing, as the iCDB server holds a project's database; relative paths."""
+    skip = shutil.ignore_patterns(*CLONE_IGNORE)
+    held: list[str] = []
+    for root, dirs, files in os.walk(source):
+        ignored = skip(root, dirs + files)
+        dirs[:] = [d for d in dirs if d not in ignored]
+        for name in files:
+            if name in ignored:
+                continue
+            path = Path(root) / name
+            try:
+                with open(path, "rb"):
+                    pass
+            except PermissionError:
+                held.append(str(path.relative_to(source)))
+            except OSError:
+                continue
+    return sorted(held)
+
+
+def _copy_failures(exc: shutil.Error, source: Path) -> list[str]:
+    """The files ``copytree`` could not copy, relative to the template's folder."""
+    rows = exc.args[0] if exc.args and isinstance(exc.args[0], list) else []
+    names = []
+    for row in rows:
+        src = Path(str(row[0] if isinstance(row, tuple) and row else row))
+        names.append(str(src.relative_to(source)) if source in src.parents else str(src))
+    return names or [str(exc)]
+
+
 def _new_project(ctx: Context) -> tuple[Path, Path]:
     """The template project and the new project's file, checked before anything is copied."""
     template = lib.project_path(ctx)
@@ -152,6 +184,13 @@ def _new_project(ctx: Context) -> tuple[Path, Path]:
     if state["creation_method"] != "template_clone":
         raise refuse(f"The template {template} is a setup template without designs or a project database. This release copies "
                      "only a project Designer has created; make one with it and name that project with --doc.", code="E_UNSUPPORTED")
+    held = _held_files(source)
+    if held:
+        shown = ", ".join(held[:5]) + (f" and {len(held) - 5} more" if len(held) > 5 else "")
+        raise AdapterError("E_CONFLICT", f"Another program holds files of the template's folder {source}, so they cannot be "
+                           f"copied: {shown}. Designer, Layout, the packager and the iCDB server hold a project's database while "
+                           "they work on it; close the project there, or let that work end, and run doc create again.",
+                           dispatch_state="not_started", conflict="application_state")
     return template, target_path
 
 
@@ -274,10 +313,19 @@ class NewProject:
         template, new = _new_project(ctx)
         source, folder = template.parent, new.parent
         try:
-            shutil.copytree(source, folder, ignore=shutil.ignore_patterns(*CLONE_IGNORE), dirs_exist_ok=True)
+            failed: list[str] = []
+            try:
+                shutil.copytree(source, folder, ignore=shutil.ignore_patterns(*CLONE_IGNORE), dirs_exist_ok=True)
+            except shutil.Error as exc:  # it copied every other file: name the project as asked all the same
+                failed = _copy_failures(exc, source)
             copied = folder / template.name
-            if copied != new:
+            if copied != new and copied.is_file():
                 copied.rename(new)
+            if failed:
+                shown = ", ".join(failed[:5]) + (f" and {len(failed) - 5} more" if len(failed) > 5 else "")
+                return facts("partial", "partial", native_message=f"{len(failed)} files of the template could not be copied, "
+                             f"usually because another program holds them: {shown}. {folder} holds the rest. Remove that folder, "
+                             "close the template project in Designer or Layout, and run doc create again.")
             text, rewritten = project_file.relocate_library_references(_text(new), source, folder)
             new.write_text(text, encoding="utf-8", errors="surrogateescape")
             # a partition without a parts database stops Designer's drawing on a dialog: fix it now
