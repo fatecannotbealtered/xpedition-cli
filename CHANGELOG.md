@@ -4,10 +4,6 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
-### Changed
-
-- Built on tool-driver-cli-spec 1.1.0: a live run counts as evidence until the command's registration or the adapter's code changes, and an evaluation result until its question, a command it lists or the Skills and knowledge change, whatever the version number.
-
 ### Added
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.
@@ -22,6 +18,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `pcb get` reports the keepouts by kind, with the placement keepouts that limit height, such as a flex board's stiffeners; the cutouts inside the outline; the plane shapes by net, layer and fill, with how many shapes and the extents they cover; and the via padstacks of the design's own library with how many vias use each and each one's pad size, also of one no via uses yet. `--output` adds each keepout's, cutout's and plane shape's geometry.
 - `trace create` rounds a corner of the routing plan with an arc when the point carries a third value, the arc's radius, tangent to both segments; the check measures along the arc, and a radius too large for the segments beside it is refused.
 - The Skill gains a playbook for routing a flex board between two connectors: read the stiffeners, bend zones and pins, set the rules, plan one lane per net, draw, pour with each bend zone hatched, stitch outside the bends and check. Two knowledge entries back it: `layout-flex-bend-and-stiffener` says how a board marks where it bends and where it is stiffened and what each place allows, and `layout-flex-connector-bus` gives common practice for the fan-out, the lanes and the power of such a board.
+
+### Changed
+
+- Built on tool-driver-cli-spec 1.1.0: a live run counts as evidence until the command's registration or the adapter's code changes, and an evaluation result until its question, a command it lists or the Skills and knowledge change, whatever the version number.
 
 ### Fixed
 
