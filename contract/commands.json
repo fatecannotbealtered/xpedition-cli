@@ -1423,6 +1423,32 @@
           "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
         {
+          "name": "--polygon",
+          "type": "json",
+          "summary": "The shape as a polygon, {\"points_mm\": [[x, y], ...]} in board coordinates, in order around it: a copper area beside the net's other shapes on the layer, such as power copper that joins a power net's traces on two layers at a connector. It lies inside the area a plane may cover and takes no region flags.",
+          "schema": {
+            "type": "object",
+            "required": [
+              "points_mm"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "points_mm": {
+                "type": "array",
+                "minItems": 3,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."

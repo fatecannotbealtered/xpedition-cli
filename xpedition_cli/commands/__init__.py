@@ -45,6 +45,11 @@ RULE_CLEARANCE_FIELDS = ("trace_to_trace_mm", "trace_to_pad_mm", "trace_to_via_m
                          "pad_to_via_mm", "via_to_via_mm", "via_to_plane_mm")
 BOARD_COORDINATES = ("Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update "
                      "draws; x to the right, y up, seen from the top side.")
+POLYGON_SCHEMA: dict[str, Any] = {
+    "type": "object", "required": ["points_mm"], "additionalProperties": False,
+    "properties": {"points_mm": {"type": "array", "minItems": 3,
+                                 "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}}},
+}
 
 # The commands whose behavior matrix passed in full on Xpedition 2604, and the live records of
 # those runs (DVER-040, DVER-041).
@@ -897,13 +902,19 @@ COMMANDS: list[dict[str, Any]] = [
                {"name": "--to-x", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
                 "summary": "The right side of the rectangle the shape is cut to."},
                {"name": "--to-y", "type": "quantity", "quantity": "length", "coordinate_system": BOARD_COORDINATES,
-                "summary": "The top side of the rectangle the shape is cut to."}],
+                "summary": "The top side of the rectangle the shape is cut to."},
+               {"name": "--polygon", "type": "json", "schema": POLYGON_SCHEMA,
+                "summary": "The shape as a polygon, {\"points_mm\": [[x, y], ...]} in board coordinates, in order around it: a "
+                           "copper area beside the net's other shapes on the layer, such as power copper that joins a power net's "
+                           "traces on two layers at a connector. It lies inside the area a plane may cover and takes no region flags."}],
         output=obj(net=STR, layer=INT, within=STR, hatch=STR, generated=BOOL),
         examples=["xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2",
                   "xpedition-cli plane create --session layout-6312 --doc D:/work/demo/PCB/Demo.pcb --net GND --layer 2 --hatch orthogonal "
                   "--hatch-width 0.15mm --hatch-distance 0.5mm",
                   "xpedition-cli plane create --session layout-6312 --doc D:/work/flex/PCB/Flex.pcb --net GND --layer 2 --hatch diagonal "
-                  "--hatch-width 0.1mm --hatch-distance 0.3mm --from-y 4mm --to-y 7.5mm"],
+                  "--hatch-width 0.1mm --hatch-distance 0.3mm --from-y 4mm --to-y 7.5mm",
+                  "xpedition-cli plane create --session layout-6312 --doc D:/work/flex/PCB/Flex.pcb --net VBUS --layer 1 "
+                  "--polygon '{\"points_mm\": [[2, 1], [9, 1], [9, 3.5], [2, 3.5]]}'"],
         coordinates=BOARD_COORDINATES,
         knowledge=['layout-plane-draft-state', 'layout-pour-after-routing', 'layout-plane-hatch'],
     ),
@@ -933,7 +944,7 @@ COMMANDS: list[dict[str, Any]] = [
                    outline=obj(width_mm=NUM, height_mm=NUM, radius_mm=NUM, extents_mm=arr(NUM)), stackup=arr(OBJ),
                    net_classes=arr(obj(name=STR, nets=INT, widths=OBJ, vias=OBJ)), keepouts=INT,
                    keepout_kinds=obj(by_kind=OBJ, height_limits=arr(obj(side=STR, height_mm=NUM, extents_mm=arr(NUM)))), cutouts=INT,
-                   planes=arr(obj(net=STR, layer=INT, hatch=STR, hatch_width_mm=NUM, hatch_distance_mm=NUM, shapes=INT,
+                   planes=arr(obj(net=STR, layer=INT, hatch=STR, hatch_width_mm=NUM, hatch_distance_mm=NUM, generated=BOOL, shapes=INT,
                                   extents_mm=arr(NUM))),
                    via_padstacks=arr(obj(name=STR, vias=INT, pad_mm=NUM)),
                    geometry=obj(available=BOOL, reason=STR, outline_mm=arr(arr(NUM)), counts=OBJ), metrics=OBJ, output=STR),

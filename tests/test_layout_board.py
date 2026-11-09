@@ -580,6 +580,30 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual(back["observed"][target], {"exists": True, "hatch": "diagonal"})
         self.assertEqual((code(caught), code(wrong)), ("E_CONFLICT", "E_VALIDATION"))
 
+    def test_a_polygon_is_poured_as_given_inside_the_board(self):
+        doc = FakeDoc(nets=["GND", "VBUS"])
+        polygon = {"points_mm": [[2.0, 2.0], [9.0, 2.0], [9.0, 4.0], [4.0, 6.0], [2.0, 6.0]]}
+        inputs = {"net": "VBUS", "layer": 1, "polygon": polygon}
+        target = key("/planes/VBUS/1/2,2,9,6")
+        with world(FakeApp(doc)):
+            preview = B.PlaneCreate().preview(context("plane create", inputs))
+            B.PlaneCreate().apply(context("plane create", inputs))
+            back = B.PlaneCreate().read_back(context("plane create", targets=[target], fields=["exists", "hatch"]))
+            refused = []
+            for wrong in ({**inputs, "from_x_mm": 1.0},  # a polygon takes no region
+                          {**inputs, "polygon": {"points_mm": [[20.0, 2.0], [60.0, 2.0], [60.0, 6.0]]}},  # past the outline
+                          {**inputs, "polygon": {"points_mm": [[2.0, 2.0], [6.0, 6.0], [6.0, 2.0], [2.0, 6.0]]}},  # sides cross
+                          {**inputs, "polygon": {"points_mm": [[2.0, 2.0], [4.0, 2.0]]}}):
+                with self.assertRaises(AdapterError) as caught:
+                    B.PlaneCreate().preview(context("plane create", wrong))
+                refused.append(code(caught))
+        rows = next(call[3] for call in doc.calls if call[0] == "PutPlaneShape")
+        self.assertEqual(list(zip(rows[0], rows[1], strict=True)), [(2.0, 2.0), (9.0, 2.0), (9.0, 4.0), (4.0, 6.0), (2.0, 6.0), (2.0, 2.0)])
+        self.assertEqual(preview["targets"][0]["key"], target)
+        self.assertIn("as a polygon of 5 points over x 2 to 9, y 2 to 6 mm, 1 mm inside the board outline", preview["action"])
+        self.assertEqual(back["observed"][target], {"exists": True, "hatch": "solid"})
+        self.assertEqual(refused, ["E_VALIDATION"] * 4)
+
     def test_hatch_inputs_must_fit_together(self):
         with world(FakeApp(FakeDoc(nets=["GND"]))):
             for extra in ({"hatch": "zigzag"}, {"hatch": "orthogonal"}, {"hatch": "diagonal", "hatch_width_mm": 0.5, "hatch_distance_mm": 0.4},

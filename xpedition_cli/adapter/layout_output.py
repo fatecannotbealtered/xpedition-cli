@@ -329,14 +329,22 @@ def plane_shapes(doc: Any) -> list[dict[str, Any]]:
     return rows
 
 
-def plane_groups(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def generated_planes(doc: Any) -> set[tuple[str, int]]:
+    """The nets and layers Layout has generated plane copper for."""
+    return {(L.net_name(item), int(item.Layer)) for item in L.collection(doc, "GeneratedPlanes")}
+
+
+def plane_groups(rows: list[dict[str, Any]], generated: set[tuple[str, int]] | None = None) -> list[dict[str, Any]]:
     """The plane shapes grouped by net, layer and fill, each group with how many shapes it holds and
-    the extents they cover together: a board of many small power shapes stays whole in one response."""
+    the extents they cover together: a board of many small power shapes stays whole in one response.
+    With ``generated``, each group says whether Layout made copper for its net on its layer: a shape
+    inside another net's plane on that layer can get none."""
     groups: dict[tuple[Any, ...], dict[str, Any]] = {}
     for row in rows:
         fill = {k: row[k] for k in ("hatch", "hatch_width_mm", "hatch_distance_mm") if row.get(k) is not None}
+        made = {} if generated is None else {"generated": (row["net"], row["layer"]) in generated}
         group = groups.setdefault((row["net"], row["layer"], tuple(sorted(fill.items()))),
-                                  {"net": row["net"], "layer": row["layer"], **fill, "shapes": 0, "extents_mm": None})
+                                  {"net": row["net"], "layer": row["layer"], **fill, **made, "shapes": 0, "extents_mm": None})
         group["shapes"] += 1
         box = row.get("extents_mm")
         if box:
@@ -404,7 +412,7 @@ def board_facts(doc: Any, path: str) -> dict[str, Any]:
         "net_classes": _quietly(lambda: net_classes(doc, layer_count)), "keepouts": _quietly(lambda: keepout_count(doc)),
         "keepout_kinds": _quietly(lambda: keepout_summary(keepouts(doc, scale))),
         "cutouts": _quietly(lambda: len(cutouts(doc, None))),
-        "planes": _quietly(lambda: plane_groups(plane_shapes(doc))[:LISTED]),
+        "planes": _quietly(lambda: plane_groups(plane_shapes(doc), _quietly(lambda: generated_planes(doc)))[:LISTED]),
         "via_padstacks": _quietly(lambda: via_padstacks(doc, scale)),
         "geometry": geometry_summary(model) if model is not None else unavailable,
         "metrics": _quietly(lambda: metrics_summary(model), unavailable) if model is not None else unavailable,

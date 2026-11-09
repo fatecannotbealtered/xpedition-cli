@@ -184,6 +184,9 @@ class PlaneGroupTest(unittest.TestCase):
         self.assertEqual([(g["net"], g["layer"], g["hatch"], g["shapes"]) for g in groups],
                          [("GND", 2, "diagonal", 1), ("GND", 2, "solid", 1), ("VBUS", 1, "solid", 2)])
         self.assertEqual(groups[2]["extents_mm"], [0.0, 0.0, 4.0, 5.0])
+        made = O.plane_groups(rows, {("GND", 2)})
+        self.assertEqual([g["generated"] for g in made], [True, True, False])  # VBUS on layer 1 got no copper
+        self.assertNotIn("generated", groups[0])  # not reported when it cannot be read
 
 
 class Hazard(Fake):

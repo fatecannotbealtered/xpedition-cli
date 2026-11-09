@@ -21,7 +21,7 @@ Lanes:
 
 Power:
 
-- Size a power conductor for its current with the copper's thickness, not one width for every net. When one layer has no room, carry the current on two layers in parallel and join them with copper areas and vias at both ends; count the vias from the current each via may carry.
+- Size a power conductor for its current with the copper's thickness, not one width for every net. When one layer has no room, carry the current on two layers in parallel and join them with copper areas and vias at both ends; count the vias from the current each via may carry. `plane create --polygon` pours such an area, and `via create` places its vias inside it.
 
 What to do:
 
