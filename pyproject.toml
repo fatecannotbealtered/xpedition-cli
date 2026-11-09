@@ -2,7 +2,7 @@
 # package.json (DREPO-053); check_project compares the version below with it.
 [project]
 name = "xpedition_cli"
-version = "1.2.0"
+version = "1.2.1"
 description = "Lets an AI Agent operate Xpedition safely from the command line."
 requires-python = ">=3.12"
 license = "Apache-2.0"
