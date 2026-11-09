@@ -7,6 +7,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 ### Added
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.
+- `pcb get` reports the keepouts by kind, with the placement keepouts that limit height, such as a flex board's stiffeners; the cutouts inside the outline; each plane shape's net, layer, fill and extents; and the via padstacks of the design's own library with how many vias use each. `--output` adds each keepout's, cutout's and plane shape's geometry.
 
 ### Fixed
 

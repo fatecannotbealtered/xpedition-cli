@@ -86,7 +86,13 @@ def board() -> FakeDoc:
     doc.props = {O.STACKUP_DISPID: lambda insulation: Collection([Layer(0, 1, 1, "Top"), Layer(3, 2, name="Core"),
                                                                   Layer(0, 3, 2, "Bottom", usage=2)]),
                  O.NET_CLASSES_DISPID: lambda pattern: Collection([NetClass("(Default)", ["VCC", "GND"])]),
-                 O.OBSTRUCTS_DISPID: lambda *args: Collection([1, 2]), O.PLACEMENT_OBSTRUCTS_DISPID: lambda *args: Collection([3])}
+                 O.OBSTRUCTS_DISPID: lambda *args: Collection([SimpleNamespace(ObstructType=1, Layer=2, Extrema=Extrema((1.0, 1.0, 2.0, 2.0))),
+                                                               SimpleNamespace(ObstructType=8, Layer=1, Extrema=Extrema((3.0, 1.0, 4.0, 2.0)))]),
+                 O.PLACEMENT_OBSTRUCTS_DISPID: lambda *args: Collection([
+                     SimpleNamespace(Side=512, Height=0.15 / MIL, Extrema=Extrema((0.0, 0.0, 50.0, 4.0)))]),
+                 O.PADSTACK_NAMES_DISPID: lambda kind, pins, pattern, central: ("VIA_D0.2_P0.4", "VIA_SPARE") if kind == 2 else ()}
+    doc.Contours = Collection([SimpleNamespace(ContourType=1, Extrema=Extrema((20.0, 20.0, 22.0, 23.0))),
+                               SimpleNamespace(ContourType=0, Extrema=Extrema((0.0, 0.0, 50.0, 40.0)))])
     doc.LayerCount = 2
     return doc
 
@@ -133,6 +139,11 @@ class BoardGetTest(unittest.TestCase):
         self.assertIn("outline_mm", out["geometry"])
         self.assertEqual(out["geometry"]["counts"]["placed"], 2)
         self.assertEqual(out["metrics"]["summary"]["unplaced"], 1)
+        self.assertEqual(out["keepout_kinds"], {"by_kind": {"plane": 1, "trace": 1, "placement": 1},
+                                                "height_limits": [{"side": "bottom", "height_mm": 0.15, "extents_mm": [0.0, 0.0, 50.0, 4.0]}]})
+        self.assertEqual(out["cutouts"], 1)  # the slot inside the outline, not the outline
+        self.assertEqual([row["name"] for row in out["via_padstacks"]], ["VIA_D0.2_P0.4", "VIA_SPARE"])
+        self.assertEqual(out["planes"], [])
         self.assertLess(len(json.dumps(out)), 8000)
 
     def test_the_unit_of_the_geometry_is_measured_on_the_outline_whatever_the_board_shows(self):

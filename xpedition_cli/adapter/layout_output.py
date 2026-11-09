@@ -193,6 +193,9 @@ def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | Non
                     model["holes"].append([x, y, round(size, 4)])
         if silk:
             _silkscreen(doc, model, scale)
+        model["keepouts"] = _quietly(lambda: keepouts(doc, scale, geometry=True), [])
+        model["cutouts"] = _quietly(lambda: cutouts(doc, scale), [])
+        model["planes"] = _quietly(lambda: plane_shapes(doc), [])
     return model
 
 
@@ -258,6 +261,96 @@ def keepout_count(doc: Any) -> int:
     return int(com.propget(doc, OBSTRUCTS_DISPID, -1, 0, 0).Count) + int(com.propget(doc, PLACEMENT_OBSTRUCTS_DISPID, 0, 0).Count)
 
 
+# EPcbObstructType: what an obstruct keeps out
+OBSTRUCT_KINDS = {1: "plane", 2: "plane_no_connect", 4: "test_point", 8: "trace", 16: "trace_and_via", 32: "via", 64: "panel",
+                  128: "pad", 256: "tuning_pattern"}
+SIDES = {1: "top", 512: "bottom"}
+PADSTACK_VIA = 2  # EPcbPadstackObjectType epcbPadstackObjectVia
+PADSTACK_NAMES_DISPID = 227  # Document.PadstackNames(type, pin class, pattern, from the central library): read bare, its filters are lost
+
+
+def _extents(item: Any) -> list[float] | None:
+    return _quietly(lambda: [round(v, 4) for v in L.extrema_mm(item)])
+
+
+def keepouts(doc: Any, scale: float | None, geometry: bool = False) -> list[dict[str, Any]]:
+    """The board's keepouts: each obstruct with what it keeps out and its layer, and each placement
+    keepout with its side and, where it limits height, the height in mm, as a stiffener's does;
+    with ``geometry``, each one's shape."""
+    rows: list[dict[str, Any]] = []
+    for item in L.items(com.propget(doc, OBSTRUCTS_DISPID, -1, 0, 0)):
+        row = {"kind": OBSTRUCT_KINDS.get(_quietly(lambda item=item: int(item.ObstructType)), "other"),
+               "layer": _quietly(lambda item=item: int(item.Layer)), "extents_mm": _extents(item)}
+        rows.append(row)
+        if geometry and scale:
+            row["shape"] = _quietly(lambda item=item: geometry_record(item.Geometry, scale))
+    for item in L.items(com.propget(doc, PLACEMENT_OBSTRUCTS_DISPID, 0, 0)):
+        height = _quietly(lambda item=item: float(item.Height) * scale) if scale else None
+        row = {"kind": "placement", "side": SIDES.get(_quietly(lambda item=item: int(item.Side))),
+               "height_mm": round(height, 4) if height else None, "extents_mm": _extents(item)}
+        rows.append(row)
+        if geometry and scale:
+            row["shape"] = _quietly(lambda item=item: geometry_record(item.Geometry, scale))
+    return rows
+
+
+def keepout_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """How many keepouts of each kind, and the placement keepouts that limit height."""
+    kinds: dict[str, int] = {}
+    for row in rows:
+        kinds[row["kind"]] = kinds.get(row["kind"], 0) + 1
+    raised = [{k: row[k] for k in ("side", "height_mm", "extents_mm")} for row in rows if row["kind"] == "placement" and row["height_mm"]]
+    return {"by_kind": kinds, "height_limits": raised[:LISTED]}
+
+
+def cutouts(doc: Any, scale: float | None) -> list[dict[str, Any]]:
+    """The cutouts and slots inside the board outline."""
+    from .layout_edit import CONTOUR_INTERNAL
+
+    rows = []
+    for contour in L.collection(doc, "Contours"):
+        if _quietly(lambda contour=contour: int(contour.ContourType)) != CONTOUR_INTERNAL:
+            continue
+        row: dict[str, Any] = {"extents_mm": _extents(contour)}
+        if scale:
+            row["shape"] = _quietly(lambda contour=contour: geometry_record(contour.Geometry, scale))
+        rows.append(row)
+    return rows
+
+
+def plane_shapes(doc: Any) -> list[dict[str, Any]]:
+    """Each plane shape: its net, layer, fill (solid, or the hatch with its line width and distance) and extents."""
+    rows = []
+    for shape in L.collection(doc, "PlaneShapes"):
+        row = {"net": L.net_name(shape), "layer": _quietly(lambda shape=shape: int(shape.Layer))}
+        row.update(_quietly(lambda shape=shape: L.plane_fill(doc, shape), {}))
+        row["extents_mm"] = _extents(shape)
+        rows.append(row)
+    return rows
+
+
+def via_padstacks(doc: Any, scale: float | None) -> list[dict[str, Any]]:
+    """The via padstacks of the design's own library, with how many vias of the board use each and,
+    for one in use, its pad diameter."""
+    names = _quietly(lambda: [str(name) for name in (com.propget(doc, PADSTACK_NAMES_DISPID, PADSTACK_VIA, -1, "*", False) or ())], [])
+    used: dict[str, int] = {}
+    pads: dict[str, float] = {}
+    for via in L.collection(doc, "Vias"):
+        name = L.name_of(via)
+        if not name:
+            continue
+        used[name] = used.get(name, 0) + 1
+        if name not in pads and scale:
+            pads[name] = round(2 * _via_radius(via, scale), 4)
+    rows = []
+    for name in sorted(set(names) | set(used)):
+        row: dict[str, Any] = {"name": name, "vias": used.get(name, 0)}
+        if name in pads:
+            row["pad_mm"] = pads[name]
+        rows.append(row)
+    return rows
+
+
 def geometry_summary(model: dict[str, Any]) -> dict[str, Any]:
     """The geometry in short: the outline and how many objects the model holds. The whole model
     of a real board is far larger than one response may be."""
@@ -284,13 +377,18 @@ def board_facts(doc: Any, path: str) -> dict[str, Any]:
         still_open = sorted(name for name, row in status.items() if not row["routed"])
         nets.update(total=len(status), routed=len(status) - len(still_open), open=len(still_open))
     model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
-    unavailable = {"available": False, "reason": UNIT_NOTE if L.geometry_scale(doc) is None else "The geometry could not be read."}
+    scale = L.geometry_scale(doc)
+    unavailable = {"available": False, "reason": UNIT_NOTE if scale is None else "The geometry could not be read."}
     return {
         "path": path, "layers": layer_count,
         "components": {"total": len(components), "placed": placed, "unplaced": len(components) - placed},
         "nets": nets, "traces": L.count(doc, "Traces"), "vias": L.count(doc, "Vias"),
         "outline": _quietly(lambda: L.outline_values(doc)), "stackup": _quietly(lambda: board_stackup(doc)),
         "net_classes": _quietly(lambda: net_classes(doc, layer_count)), "keepouts": _quietly(lambda: keepout_count(doc)),
+        "keepout_kinds": _quietly(lambda: keepout_summary(keepouts(doc, scale))),
+        "cutouts": _quietly(lambda: len(cutouts(doc, None))),
+        "planes": _quietly(lambda: plane_shapes(doc)[:LISTED]),
+        "via_padstacks": _quietly(lambda: via_padstacks(doc, scale)),
         "geometry": geometry_summary(model) if model is not None else unavailable,
         "metrics": _quietly(lambda: metrics_summary(model), unavailable) if model is not None else unavailable,
     }

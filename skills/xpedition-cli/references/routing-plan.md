@@ -17,7 +17,7 @@
 
 ## Fields
 
-- Coordinates are the board's, in mm: `component get --refdes <part>` on the board gives the position of each pin to join, and `pcb get --output` writes every pad and trace.
+- Coordinates are the board's, in mm: `component get --refdes <part>` on the board gives the position of each pin to join, and `pcb get --output` writes every pad and trace, the keepouts (a placement keepout with a height marks a stiffener), the cutouts and the plane shapes with their fill.
 - `traces`: the `net`, the conductor `layer` (1 at the top), `width_mm`, and at least two `points_mm`. Each end must lie on copper of its own net on its layer: a pad, a trace, a via, or a trace or via of the same plan. Layout connects a trace to a pin only at the pin's origin and to a via only at its centre, so an end on a pad is joined to the pin's origin and an end on a via to its centre; an end that meets another trace connects where it lies on that trace's centre line.
 - `vias`: the `net`, the centre `at_mm` and a via `padstack` of the central library (`padstack list --type via`). A via joins every layer, so a trace that changes layers ends on one.
 
