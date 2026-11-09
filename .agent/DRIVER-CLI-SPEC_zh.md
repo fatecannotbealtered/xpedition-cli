@@ -2,7 +2,7 @@
 
 [English](DRIVER-CLI-SPEC.md) | 中文
 
-> 版本 1.0.10 · 条款 DCLI-001 至 DCLI-281
+> 版本 1.1.0 · 条款 DCLI-001 至 DCLI-281
 
 ## 怎么读
 

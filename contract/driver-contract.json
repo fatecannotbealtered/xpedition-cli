@@ -1,8 +1,8 @@
 {
   "$schema": "schemas/contract.schema.json",
   "name": "tool-driver-cli-spec",
-  "version": "1.0.10",
-  "schema_version": "1.0",
+  "version": "1.1.0",
+  "schema_version": "1.1",
   "spec_documents": [
     {
       "name": "DRIVER-CLI-SPEC",

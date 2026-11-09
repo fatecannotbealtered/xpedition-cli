@@ -13,7 +13,7 @@ Scope files for live runs grant only listed targets and the new documents of the
 ## Authorized Targets
 
 - `file:///D:/driver-work/xpedition-cli/`: the practice folder of the maintainer's machine: practice projects the live runs create from Xpedition's stock templates, their copied central libraries, and the evaluation workspaces. No real project is placed here except the copy listed below.
-- `file:///D:/driver-work/xpedition-cli/V00test/`: a copy of a real FPC project, used only to accept 1.1 by routing it and 1.2 by reading its schematic and its bill of materials; never committed and never used as evidence.
+- `file:///D:/driver-work/xpedition-cli/V00test/`: a copy of a real FPC project, used only to try routing, reading and checking on a real flex board; never committed and never used as evidence.
 
 ## Procedure
 
@@ -32,7 +32,7 @@ To run a behavior matrix on the real Xpedition:
 
 To run the evaluation questions on the real Xpedition, list a folder for the evaluation workspaces under Authorized Targets as Authorization Rules says, together with any other target a question's `SCOPE` names, such as a device. Then run `python scripts/spec.py eval --workspace-root <folder>`. The runner writes each question's scope file and writes the evaluation report to `docs/evidence/`.
 
-A live record counts as evidence only while its tool version has the same major and minor version as xpedition-cli. Records never hold secrets, and arguments that carry secrets show as `***`.
+A run in a live record counts as evidence until the command's registration or the adapter's code changes; a new version number alone changes nothing. Records never hold secrets, and arguments that carry secrets show as `***`.
 
 ## Evidence Records
 

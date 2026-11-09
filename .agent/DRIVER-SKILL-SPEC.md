@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SKILL-SPEC_zh.md)
 
-> Version 1.0.10 · Clauses DSKL-001 to DSKL-127
+> Version 1.1.0 · Clauses DSKL-001 to DSKL-127
 
 ## How to Read
 
@@ -396,17 +396,17 @@ Check: 🤖 `check_project` checks that `tests/eval/` covers every per-tool scen
 
 ### DSKL-043 Evaluation for stable
 
-A command MUST NOT be marked stable unless its `eval:` evidence names an evaluation report that the runner wrote on the real application (DSKL-044), and that report:
+A command MUST NOT be marked stable unless the evaluation on the real application shows that Agents use it correctly:
 
-- is the newest such report for the tool's current minor version (DVER-043);
-- holds a result for every question in `tests/eval/`, run from the question file as it is now;
-- shows that every question passed;
-- holds a question that lists the command in `COMMANDS` and ran it.
+- every question in `tests/eval/` has a result that counts, and the newest such result of each question passed;
+- the command's `eval:` evidence names a report holding a result that counts and passed, of a question that lists the command in `COMMANDS` and ran it.
 
-Other maturity levels do not need evaluation. An evaluation report is a JSON file `docs/evidence/eval-*.json` that `contract/schemas/eval-report.schema.json` validates. It records the tool version, the date, the Agent and model, the platform, whether the fake host stood in for the application, the workspace root and the other scope targets, and for each question its result, the SHA-256 of its file, its `COMMANDS` and the commands the Agent ran. A report with `simulated: true` never supports a maturity level (DVER-021). The targets of every other report MUST be listed under Authorized Targets or lie inside a listed folder (DVER-050). An `eval:` evidence reference points to the report (DVER-041).
+A result counts when the runner wrote it on the real application (DSKL-044) and its `fingerprint` still equals the SHA-256 of the question file, the commands in its `COMMANDS` as an Agent sees them, which is their fingerprints (DVER-043) together with their descriptions, and the tool's handwritten Skills and builtin knowledge: `skills/` and `knowledge/` without the content `check_project` generates. The results of several reports count together, so only a question whose result is missing, stale or failed runs again; `run_eval --stale` runs just those. A result without a fingerprint counts while its question file is unchanged and the tool version of its report has the tool's major and minor version.
 
-Why: Stable promises that Agents use the command correctly. Only a full, current run on the real application shows that, and a report tied to the question files cannot be reused once a question changes.
-Check: 🤖 `check_project` checks the report behind every stable command against these conditions, and the targets of every report.
+Other maturity levels do not need evaluation. An evaluation report is a JSON file `docs/evidence/eval-*.json` that `contract/schemas/eval-report.schema.json` validates. It records the tool version, the date, the Agent and model, the platform, whether the fake host stood in for the application, the workspace root and the other scope targets, and for each question its result, the SHA-256 of its file, its fingerprint, its `COMMANDS` and the commands the Agent ran. A report with `simulated: true` never supports a maturity level (DVER-021). The targets of every other report MUST be listed under Authorized Targets or lie inside a listed folder (DVER-050). An `eval:` evidence reference points to the report (DVER-041).
+
+Why: Stable promises that Agents use the command correctly. Only passing results on the real application, from the questions, commands and guidance as they are now, show that. A result stays good until something it depends on changes, so a change runs again only the questions it touches.
+Check: 🤖 `check_project` checks the results behind every stable command against these conditions, and the targets of every report.
 
 ### DSKL-044 Question files and the runner
 

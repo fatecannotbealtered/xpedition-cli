@@ -81,7 +81,7 @@ python scripts/spec.py check
 
 **真实软件记录。** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` 在真实的 Xpedition 上运行一个矩阵，矩阵用到的每个占位符各给一个 `--set`，占位符名不带花括号，如 `--set doc=<file>`；每个值都必须是授权目标。它把真实软件记录写进 `docs/evidence/`，并填上每一行的实际结果和 `live:` 证据引用。具体步骤见 `docs/E2E_zh.md`。无法按需制造的行，如 `disconnect`，可以标为 `unrunnable` 并写明原因；`normal`、`dialog` 和 `read_back_mismatch` 这三行不可以。`--row read_back_mismatch` 让工具在读回之前等一会儿，其间从外部改掉结果；列出了多种 `doc_kinds` 的命令，用 `--kind` 在每种文档上各运行一次 `normal` 行，只列一种的不用写 `--kind`；对象在不同种类里不一样时，用这一行的 `kind_arguments` 给出该种类的参数。
 
-**评测。** 命令标为 stable 之前，`tests/eval/` 里要为每个适用于 xpedition-cli、需要工具自测的场景各出一题，`docs/evidence/` 里还要有一份在真实 Xpedition 上得到的最新评测报告：它覆盖了现在的每道题，每道题都通过了，并且有一道题在 `COMMANDS` 里列出了这条命令、实际运行了它。每道题是一个以题目 ID 命名的 Python 文件；名为 `_*.py` 的文件放各题共用的辅助代码。
+**评测。** 命令标为 stable 之前，`tests/eval/` 里要为每个适用于 xpedition-cli、需要工具自测的场景各出一题，`docs/evidence/` 里在真实 Xpedition 上得到的评测报告要给每道题都留下当前有效的结果，每道题最新的结果都通过，其中有一道在 `COMMANDS` 里列出这条命令、并实际运行了它的题通过了。几份报告里的结果合在一起算。每道题是一个以题目 ID 命名的 Python 文件；名为 `_*.py` 的文件放各题共用的辅助代码。
 
 ```python
 """Move one footprint inside the scope."""
@@ -116,10 +116,10 @@ def grade(run):
 | 级别 | 需要的证据 |
 |---|---|
 | `draft` | 不需要；但写命令仍要有样例 |
-| `verified` | 一份当前的真实软件记录，矩阵中适用的每一行都通过，标为 `unrunnable` 的行除外 |
-| `stable` | 另加一份当前的评测报告 |
+| `verified` | 当前有效的真实软件记录，矩阵中适用的每一行都通过，标为 `unrunnable` 的行除外 |
+| `stable` | 另加当前有效的评测结果 |
 
-证据只在它记录的工具版本与 xpedition-cli 的主版本和次版本都相同时才算数；出了新的次版本或主版本后，命令要有新证据才能保住原来的级别。证据引用的格式是 `live:docs/evidence/<file>.json#<row>` 或 `eval:docs/evidence/eval-<date>.json`。
+证据在它依赖的东西没变时一直算数，与版本号无关：真实运行在命令登记或适配层代码改动之前有效，评测结果在它的题目、它列出的命令或手写的 Skill 和知识改动之前有效。有了这样的改动，只重跑它涉及的矩阵和评测题：`python scripts/spec.py check` 会列出它们，`python scripts/spec.py eval --workspace-root <folder> --stale` 只跑需要重跑的题。证据引用的格式是 `live:docs/evidence/<file>.json#<row>` 或 `eval:docs/evidence/eval-<date>.json`。
 
 ## 新增或修改命令
 

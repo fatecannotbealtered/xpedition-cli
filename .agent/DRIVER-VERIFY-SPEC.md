@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-VERIFY-SPEC_zh.md)
 
-> Version 1.0.10 · Clauses DVER-001 to DVER-051
+> Version 1.1.0 · Clauses DVER-001 to DVER-051
 
 ## How to Read
 
@@ -261,7 +261,7 @@ A row whose condition does not hold MUST be marked as not applying. A row whose 
 
 The `read_back_mismatch` row checks that the read-back reads the application, not the tool's own expectation. A correct preview predicts what the application stores, so the row is caused from outside: `run_matrix --row read_back_mismatch` makes the tool wait before its read-back (the variable `<PREFIX>_TEST_PAUSE_BEFORE_READ_BACK`, up to `matrix.max_pause_seconds`; the tool writes `pause.json` in its state directory while it waits), and during the wait a person, or a command given with `--tamper`, changes what was just written in the application, or deletes the file a write made. In the `--tamper` command, `{python}` stands for the interpreter `run_matrix` runs on; the command runs without the variable, so it may call the tool. The wait ends early only on a real mismatch: a busy or blocked application keeps the tool waiting. `run_matrix` confirms a two-step or dangerous write with its token, as it does for every row, so the pause falls on the call that dispatches. For a long command it falls in the worker, and the row is decided by how the job ends; for a command registered with `verify_after_save` it falls at the `doc save` that follows the write. The row passes when the tool reports `E_VERIFY_FAILED`; the live record marks the run `tampered`. The row applies to every write whose result can be changed from outside in that wait, artifact writes included. It is not applicable only when it cannot be, such as a delivery to an outside system or a physical action, and the reason MUST say so.
 
-A command that registers `doc_kinds` (DCLI-029) MUST pass its `normal` row on a document of every kind it lists; `run_matrix --kind <kind>` records the kind of each run. When the objects the arguments name differ between kinds, the `normal` row MAY give `kind_arguments`, the arguments for a kind keyed by that kind; `arguments` serve the other kinds. The other rows need one kind. The `normal` row of a command registered with `verify_after_save` runs `doc save` on the same document after the write, and passes only when that save verified the change (DCLI-057).
+A command that registers `doc_kinds` (DCLI-029) MUST pass its `normal` row on a document of every kind it lists; `run_matrix --kind <kind>` records the kind of each run and keeps the `normal` row's evidence of each kind in `kind_evidence`, so the newest run on each kind decides whether the row passed on it. When the objects the arguments name differ between kinds, the `normal` row MAY give `kind_arguments`, the arguments for a kind keyed by that kind; `arguments` serve the other kinds. The other rows need one kind. The `normal` row of a command registered with `verify_after_save` runs `doc save` on the same document after the write, and passes only when that save verified the change (DCLI-057).
 
 The rows run on the real application, on authorized targets (DVER-031, DVER-050). The matrix runner `run_matrix`, which comes with this specification, fills in the placeholders (DVER-002), runs the rows that apply, writes a live record that names each row (DVER-042), and fills in each row's actual result and its `live:` evidence. It writes the scope file of each run itself, granting every effect, `dangerous` included, on the targets listed under Authorized Targets and, when `--set session=` names the instance, on its new documents, `untitled:<session-id>/`; the `no_scope` row runs with no scope file, and a scope file named in the environment is not used. A run that fails without an error code of the contract, such as a crash, gives no actual result: the live record marks it failed, and the row loses its actual result and evidence, so it counts as not run. A row whose write asks for confirmation is confirmed with its token, unless the row expects `E_CONFIRMATION_REQUIRED`; the row of a long command waits for the job to end and takes the job's outcome. A row that applies but has no actual result and evidence has not been run. A row whose actual result differs from its expected result, or whose live run has `result: fail`, has failed. A row that has not been run or has failed MUST NOT count as passed.
 
@@ -288,7 +288,7 @@ Every command MUST declare a maturity level and the evidence references behind i
 |---|---|---|
 | `draft` | Declared; not yet shown on the real application, and the interface may still change | None; a write command still needs its sample (G00) |
 | `verified` | Run on the real application, with the real adapter and a record | Current `live:` evidence that every row of the behavior matrix that applies passed, except rows marked `unrunnable`, and that the `normal` row passed on every kind of document the command lists (DVER-030, DVER-043) |
-| `stable` | Also passed evaluation, with no open severe defect | Plus a current `eval:` report (DSKL-043) |
+| `stable` | Also passed evaluation, with no open severe defect | Plus current evaluation results, named by an `eval:` reference (DSKL-043) |
 
 Only a run that passed counts as evidence (DVER-030). When evidence stops counting, the level MUST drop to the highest level the remaining evidence supports. A severe defect is one that makes a command report success for a wrong result, change something outside its target or scope, or lose the user's data.
 
@@ -322,9 +322,9 @@ Each live run MUST leave one JSON record in `docs/evidence/` that validates agai
 - `os`: the operating system as it reports itself, and `platform`: `windows`, `macos` or `linux`
 - `recorded_at`: the time of the run, in UTC
 - `targets`: the authorized targets the run used (DVER-050)
-- `runs`: one entry per command, with the command path, its arguments as run, with the placeholders filled in (DVER-002), the exit code, `result` and the `mode` it ran in; `doc_kind` when the command lists document kinds, and `tampered: true` for a run whose result was changed from outside during the pause (DVER-030)
+- `runs`: one entry per command, with the command path, its arguments as run, with the placeholders filled in (DVER-002), the exit code, `result` and the `mode` it ran in; `doc_kind` when the command lists document kinds, `fingerprint`, what the run depends on (DVER-043), and `tampered: true` for a run whose result was changed from outside during the pause (DVER-030)
 
-`result` is `pass` when the command behaved as expected, and `fail` otherwise. When an entry names a behavior matrix row in `matrix_row`, the expected result is the one in that row. An entry MAY add the printed envelope (`envelope`) and notes. The envelope is kept as the tool wrote it and is not checked against the current envelope schema, so a record stays valid while its version does (DVER-043). Arguments that carry secrets MUST appear as `***` (DSEC-040). The support matrix of `docs/COMPATIBILITY.md` is generated from these records (DREPO-016).
+`result` is `pass` when the command behaved as expected, and `fail` otherwise. When an entry names a behavior matrix row in `matrix_row`, the expected result is the one in that row. An entry MAY add the printed envelope (`envelope`) and notes. The envelope is kept as the tool wrote it and is not checked against the current envelope schema, so a record stays valid while its runs count (DVER-043). Arguments that carry secrets MUST appear as `***` (DSEC-040). The support matrix of `docs/COMPATIBILITY.md` is generated from these records (DREPO-016).
 
 ```json
 {
@@ -344,7 +344,8 @@ Each live run MUST leave one JSON record in `docs/evidence/` that validates agai
       "exit": 0,
       "result": "pass",
       "mode": "session",
-      "matrix_row": "normal"
+      "matrix_row": "normal",
+      "fingerprint": "4b1f0c9e2d7a6b5c8e3f1a0d9c8b7a6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b"
     },
     {
       "command": "footprint move",
@@ -353,6 +354,7 @@ Each live run MUST leave one JSON record in `docs/evidence/` that validates agai
       "result": "pass",
       "mode": "session",
       "matrix_row": "busy",
+      "fingerprint": "4b1f0c9e2d7a6b5c8e3f1a0d9c8b7a6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b",
       "notes": "Started during a design rule check; E_BUSY with dispatch_state not_started."
     }
   ]
@@ -364,10 +366,10 @@ Check: 🤖 `check_project` validates every record in `docs/evidence/` against t
 
 ### DVER-043 Current evidence
 
-A live record counts as evidence only while its `tool_version` has the same major and minor version as the tool. An eval report counts by the same rule, using the tool version it names. Evidence from another major or minor version MUST NOT support a maturity level. For tool version 1.4.2, a record from 1.4.0 counts and a record from 1.3.9 does not. After a new minor or major version, a command stays `verified` only with a new live record, and `stable` only with a new live record and a new eval report (DVER-040).
+A run in a live record counts as evidence while nothing it depends on has changed: its `fingerprint` (DVER-042) MUST equal the fingerprint of the command as it is now. The fingerprint is the SHA-256 of two parts. The first is the command as the tool registers it and as `reference` reports it, without what cannot change what it does: `summary`, `examples`, `related_knowledge`, `output_schema`, the summaries of its flags and the descriptions in `tier_when`, and `maturity` and `evidence`; a field at its empty default is left out too. The second is the adapter's code: the files of the tool's package that git tracks or would track, except the pinned runtime `<pkg>/_driver/` and the command registrations `<pkg>/commands/`; the same files of the host component in `plugin/`, except its README and its generated manifest, of which only the methods count; and the dependencies in `pyproject.toml`. The runtime is left out because it is the same for every tool and the conformance suites check it at every sync. A new version number alone MUST NOT make evidence stale. An evaluation result counts by DSKL-043. A run or result without a fingerprint counts only while the `tool_version` of its record or report has the same major and minor version as the tool. Evidence that does not count MUST NOT support a maturity level (DVER-040).
 
-Why: A minor version can change behavior. Evidence from an older version says little about the current one.
-Check: 🤖 `check_project` compares the tool version in each record and report with the version in `package.json`.
+Why: Evidence shows how the code that ran behaves. It goes stale when that code changes, not when the version number moves; running everything again for a version that changed nothing costs hours and shows nothing new.
+Check: 🤖 `check_project` computes the fingerprint of each command and compares it with the runs behind its level, and the version of a run without one.
 
 ## Live Acceptance
 

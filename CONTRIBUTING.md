@@ -81,7 +81,7 @@ The pinned copies are `.agent/`, `contract/driver-contract.json`, `xpedition_cli
 
 **Live records.** `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` runs one matrix on the real Xpedition, with one `--set` for each placeholder the matrix uses, named without braces, such as `--set doc=<file>`; each value is an authorized target. It writes a live record to `docs/evidence/` and fills in the actual result and the `live:` evidence reference of each row. `docs/E2E.md` describes the procedure. A row that cannot be caused on demand, such as `disconnect`, may be marked `unrunnable` with the reason; the `normal`, `dialog` and `read_back_mismatch` rows never may. `--row read_back_mismatch` makes the tool wait before its read-back while the result is changed from outside; a command that lists several `doc_kinds` runs its `normal` row on each kind with `--kind`, and one that lists a single kind needs no `--kind`; and when the objects differ between kinds, the row's `kind_arguments` give the arguments for a kind.
 
-**Evaluation.** Before a command is marked stable, `tests/eval/` holds a question for every per-tool scenario that applies to xpedition-cli, and `docs/evidence/` holds the newest evaluation report from the real Xpedition: it covers every question as the files are now, every question passed, and one question lists the command in `COMMANDS` and ran it. Each question is one Python file named after its ID; files named `_*.py` hold helpers the questions share.
+**Evaluation.** Before a command is marked stable, `tests/eval/` holds a question for every per-tool scenario that applies to xpedition-cli, and the evaluation reports from the real Xpedition in `docs/evidence/` hold a current result for every question, the newest of each passed, and a passed one of a question that lists the command in `COMMANDS` and ran it. The results of several reports count together. Each question is one Python file named after its ID; files named `_*.py` hold helpers the questions share.
 
 ```python
 """Move one footprint inside the scope."""
@@ -117,9 +117,9 @@ Optional `right(agent, turn)` and `wrong(agent, turn)` scripted agents use `agen
 |---|---|
 | `draft` | None; a write command still needs its sample |
 | `verified` | A current live record in which every matrix row that applies passed, except rows marked `unrunnable` |
-| `stable` | Also a current evaluation report |
+| `stable` | Also current evaluation results |
 
-Evidence counts only while its tool version has the same major and minor version as xpedition-cli; after a new minor or major version, a command keeps its level only with new evidence. Evidence references have the form `live:docs/evidence/<file>.json#<row>` or `eval:docs/evidence/eval-<date>.json`.
+Evidence counts while what it depends on is unchanged, whatever the version number: a live run until the command's registration or the adapter's code changes, an evaluation result until its question, a command it lists, or the handwritten Skills and knowledge change. After such a change, run again only the matrices and questions it touches; `python scripts/spec.py check` names them, and `python scripts/spec.py eval --workspace-root <folder> --stale` runs just the questions that need it. Evidence references have the form `live:docs/evidence/<file>.json#<row>` or `eval:docs/evidence/eval-<date>.json`.
 
 ## Adding or Changing a Command
 

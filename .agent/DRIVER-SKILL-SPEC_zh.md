@@ -2,7 +2,7 @@
 
 [English](DRIVER-SKILL-SPEC.md) | 中文
 
-> 版本 1.0.10 · 条款 DSKL-001 至 DSKL-127
+> 版本 1.1.0 · 条款 DSKL-001 至 DSKL-127
 
 ## 怎么读
 
@@ -396,17 +396,17 @@ tool-driver-cli-spec 仓库必须维护一套评测，按 DSKL-044 的格式为 
 
 ### DSKL-043 标 stable 需要评测
 
-命令禁止标为 stable，除非它的 `eval:` 证据指向一份由运行器在真实软件上写出的评测报告（DSKL-044），并且这份报告：
+命令禁止标为 stable，除非真实软件上的评测表明 Agent 能正确使用它：
 
-- 是工具当前次版本下最新的一份这样的报告（DVER-043）；
-- 有 `tests/eval/` 里每道题的结果，而且是按题目文件现在的内容跑的；
-- 表明每道题都通过了；
-- 有一道题在 `COMMANDS` 里列出了这条命令，并且实际运行了它。
+- `tests/eval/` 里每道题都有算数的结果，而且每道题最新的那个算数结果是通过的；
+- 命令的 `eval:` 证据指向一份报告，报告里有一个算数且通过的结果，来自一道在 `COMMANDS` 里列出这条命令、并实际运行了它的题。
 
-其他成熟度不要求评测。评测报告是 `docs/evidence/eval-*.json` 文件，由 `contract/schemas/eval-report.schema.json` 校验。它记录工具版本、日期、所用的 Agent 和模型、平台、是否用模拟宿主代替了软件、工作目录的根和其他授权范围目标，以及每道题的结果、题目文件的 SHA-256、它的 `COMMANDS` 和 Agent 实际运行过的命令。`simulated: true` 的报告从不支撑任何成熟度（DVER-021）。其他报告的目标都必须列在 `docs/E2E.md` 的 Authorized Targets 一节里，或者位于列出的文件夹里面（DVER-050）。`eval:` 证据引用指向报告（DVER-041）。
+结果算数的条件是：由运行器在真实软件上写出（DSKL-044），并且它的 `fingerprint` 仍然等于以下内容的 SHA-256：题目文件、`COMMANDS` 里的各条命令在 Agent 眼里的样子，即它们的指纹（DVER-043）连同它们的说明，以及工具手写的 Skill 和内置知识，即 `skills/` 和 `knowledge/` 去掉 `check_project` 生成的内容。几份报告里的结果合在一起算，所以只有结果缺失、过时或没通过的题需要重跑；`run_eval --stale` 只跑这些题。没有指纹的结果，在题目文件没变、而且所在报告的工具版本与工具的主版本和次版本都相同时才算。
 
-为什么：stable 承诺 Agent 能正确使用这条命令。只有在真实软件上完整、当前的一次运行能说明这一点；报告和题目文件绑在一起，题目一改，旧报告就不能再用。
-检查：🤖 `check_project` 按这些条件检查每条 stable 命令背后的报告，并检查每份报告的目标。
+其他成熟度不要求评测。评测报告是 `docs/evidence/eval-*.json` 文件，由 `contract/schemas/eval-report.schema.json` 校验。它记录工具版本、日期、所用的 Agent 和模型、平台、是否用模拟宿主代替了软件、工作目录的根和其他授权范围目标，以及每道题的结果、题目文件的 SHA-256、指纹、它的 `COMMANDS` 和 Agent 实际运行过的命令。`simulated: true` 的报告从不支撑任何成熟度（DVER-021）。其他报告的目标都必须列在 `docs/E2E.md` 的 Authorized Targets 一节里，或者位于列出的文件夹里面（DVER-050）。`eval:` 证据引用指向报告（DVER-041）。
+
+为什么：stable 承诺 Agent 能正确使用这条命令。只有按现在的题目、命令和说明在真实软件上通过的结果能说明这一点。结果在它依赖的东西改变之前一直有效，所以一处改动只需重跑它涉及的题。
+检查：🤖 `check_project` 按这些条件检查每条 stable 命令背后的结果，并检查每份报告的目标。
 
 ### DSKL-044 题目文件与运行器
 

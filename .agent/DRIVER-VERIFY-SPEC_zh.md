@@ -2,7 +2,7 @@
 
 [English](DRIVER-VERIFY-SPEC.md) | 中文
 
-> 版本 1.0.10 · 条款 DVER-001 至 DVER-051
+> 版本 1.1.0 · 条款 DVER-001 至 DVER-051
 
 ## 怎么读
 
@@ -261,7 +261,7 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
 
 `read_back_mismatch` 行检查读回读的是软件，而不是工具自己的预期。正确的预览能预料到软件会存下什么，所以这一行要从外部制造：`run_matrix --row read_back_mismatch` 让工具在读回之前等一会儿（环境变量 `<PREFIX>_TEST_PAUSE_BEFORE_READ_BACK`，最长 `matrix.max_pause_seconds`；等待期间工具在状态目录里写出 `pause.json`），在这段时间里，由人或 `--tamper` 给出的命令改掉软件里刚写入的内容，或者删除写操作生成的文件。`--tamper` 命令里的 `{python}` 代表 `run_matrix` 自己所用的解释器；这条命令运行时不带那个变量，所以可以调用工具。只有真的不一致时等待才提前结束：软件忙或被挡住时，工具继续等。`run_matrix` 和对待每一行一样，用令牌确认两步确认级和危险级的写操作，所以等待落在真正派发的那次调用上。长命令的等待发生在后台进程里，这一行按长任务的结束情况判定；登记了 `verify_after_save` 的命令，等待发生在写操作之后的那次 `doc save`。工具报告 `E_VERIFY_FAILED` 时，这一行通过；真实软件记录把这次运行标为 `tampered`。凡是结果能在这段时间里从外部改掉的写操作，这一行都适用，生成文件的写操作也一样。只有做不到时才不适用，比如交给外部系统的内容或物理动作，原因必须写明。
 
-登记了 `doc_kinds` 的命令（DCLI-029），必须在它列出的每一种文档上通过 `normal` 行；`run_matrix --kind <kind>` 记下每次运行用的文档种类。参数指向的对象在不同种类的文档里不一样时，`normal` 行可以给出 `kind_arguments`，按种类写各自的参数；其余种类用 `arguments`。其余各行用一种文档即可。登记了 `verify_after_save` 的命令，`normal` 行在写操作之后对同一份文档运行 `doc save`，只有这次保存核实了修改，这一行才通过（DCLI-057）。
+登记了 `doc_kinds` 的命令（DCLI-029），必须在它列出的每一种文档上通过 `normal` 行；`run_matrix --kind <kind>` 记下每次运行用的文档种类，并把 `normal` 行在每种文档上的证据分别记在 `kind_evidence` 里，每种文档上以最新一次运行为准。参数指向的对象在不同种类的文档里不一样时，`normal` 行可以给出 `kind_arguments`，按种类写各自的参数；其余种类用 `arguments`。其余各行用一种文档即可。登记了 `verify_after_save` 的命令，`normal` 行在写操作之后对同一份文档运行 `doc save`，只有这次保存核实了修改，这一行才通过（DCLI-057）。
 
 各行在授权目标上用真实软件运行（DVER-031、DVER-050）。矩阵运行器 `run_matrix` 随本规范提供：它填入占位符（DVER-002），运行适用的行，写一份真实软件记录并在其中写明每一行（DVER-042），再给每一行填上实际结果和 `live:` 证据。它自己为每次运行写授权范围文件，授予 Authorized Targets 里的目标上的全部效果，包括 `dangerous`；`--set session=` 指明实例时，也授予它的新文档 `untitled:<session-id>/`；`no_scope` 行在没有授权范围文件的情况下运行，环境变量指定的授权范围文件不用。运行失败却没有契约里的错误码时（比如工具崩溃），这次运行不给出实际结果：真实软件记录把它记为失败，这一行的实际结果和证据都被清掉，算作没运行过。写操作要求确认的行，用令牌确认，除非这一行期望的就是 `E_CONFIRMATION_REQUIRED`；长命令的行等长任务结束，取长任务的结果。适用却没有实际结果和证据的行就是没运行过。实际结果与期望结果不同，或者真实运行的 `result` 为 `fail` 的行，就是失败了。没运行过或失败了的行，禁止算作通过。
 
@@ -288,7 +288,7 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
 |---|---|---|
 | `draft` | 已声明，还没在真实软件上验证，接口还可能变 | 无；写命令仍要有样例（G00） |
 | `verified` | 用真正的适配层在真实软件上运行过，并有记录 | 当前有效的 `live:` 证据，表明行为矩阵里每一个适用的行都已通过，标为 `unrunnable` 的行除外，并且 `normal` 行在命令列出的每一种文档上都已通过（DVER-030、DVER-043） |
-| `stable` | 还通过了评测，没有未关闭的严重缺陷 | 另加当前有效的 `eval:` 报告（DSKL-043） |
+| `stable` | 还通过了评测，没有未关闭的严重缺陷 | 另加当前有效的评测结果，由 `eval:` 引用指明（DSKL-043） |
 
 只有通过的运行才算证据（DVER-030）。证据不再有效时，等级必须降到剩余证据能支撑的最高一级。严重缺陷指让命令对错误的结果报告成功、改动目标或授权范围之外的东西，或者丢失用户数据的缺陷。
 
@@ -322,9 +322,9 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
 - `os`：操作系统的完整名称；`platform`：`windows`、`macos` 或 `linux`
 - `recorded_at`：运行时间，UTC
 - `targets`：这次运行使用的授权目标（DVER-050）
-- `runs`：每条命令一项，包括命令路径、实际运行的参数（占位符已填好，DVER-002）、退出码、`result` 和运行时所用的模式 `mode`；命令列出了文档种类时还有 `doc_kind`；在等待期间从外部改过结果的运行，带 `tampered: true`（DVER-030）
+- `runs`：每条命令一项，包括命令路径、实际运行的参数（占位符已填好，DVER-002）、退出码、`result` 和运行时所用的模式 `mode`；命令列出了文档种类时还有 `doc_kind`；`fingerprint` 是这次运行依赖的东西（DVER-043）；在等待期间从外部改过结果的运行，带 `tampered: true`（DVER-030）
 
-命令的表现符合预期时，`result` 为 `pass`，否则为 `fail`。某一项在 `matrix_row` 里写明了行为矩阵的行时，预期就是那一行的期望结果。每一项可以另加输出的信封（`envelope`）和说明。信封保持工具输出时的原样，不按当前的信封 Schema 校验，所以记录在它的版本有效期间一直有效（DVER-043）。带机密的参数必须写成 `***`（DSEC-040）。`docs/COMPATIBILITY.md` 的支持矩阵由这些记录生成（DREPO-016）。
+命令的表现符合预期时，`result` 为 `pass`，否则为 `fail`。某一项在 `matrix_row` 里写明了行为矩阵的行时，预期就是那一行的期望结果。每一项可以另加输出的信封（`envelope`）和说明。信封保持工具输出时的原样，不按当前的信封 Schema 校验，所以只要记录里的运行还算数，记录就一直有效（DVER-043）。带机密的参数必须写成 `***`（DSEC-040）。`docs/COMPATIBILITY.md` 的支持矩阵由这些记录生成（DREPO-016）。
 
 ```json
 {
@@ -344,7 +344,8 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
       "exit": 0,
       "result": "pass",
       "mode": "session",
-      "matrix_row": "normal"
+      "matrix_row": "normal",
+      "fingerprint": "4b1f0c9e2d7a6b5c8e3f1a0d9c8b7a6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b"
     },
     {
       "command": "footprint move",
@@ -353,6 +354,7 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
       "result": "pass",
       "mode": "session",
       "matrix_row": "busy",
+      "fingerprint": "4b1f0c9e2d7a6b5c8e3f1a0d9c8b7a6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b",
       "notes": "Started during a design rule check; E_BUSY with dispatch_state not_started."
     }
   ]
@@ -364,10 +366,10 @@ tool-driver-cli-spec 仓库必须在每次合并和每次发布时，在 Windows
 
 ### DVER-043 当前有效的证据
 
-真实软件记录只在它的 `tool_version` 与工具的主版本和次版本都相同时才算证据。评测报告按同样的规则，以报告中写明的工具版本为准。主版本或次版本不同的证据禁止用来支撑成熟度等级。例如工具版本为 1.4.2 时，1.4.0 的记录有效，1.3.9 的记录无效。发布新的次版本或主版本之后，命令要有新的真实软件记录才能保持 `verified`，要有新的真实软件记录和新的评测报告才能保持 `stable`（DVER-040）。
+真实软件记录里的一次运行，在它依赖的东西都没有变时才算证据：它的 `fingerprint`（DVER-042）必须等于这条命令现在的指纹。指纹是两部分内容的 SHA-256。第一部分是工具登记的、`reference` 报告的这条命令，去掉不会改变命令行为的内容：`summary`、`examples`、`related_knowledge`、`output_schema`、各参数的说明、`tier_when` 里的说明，以及 `maturity` 和 `evidence`；取空默认值的字段也不算。第二部分是适配层的代码：工具包里 git 已跟踪或会跟踪的文件，固定的运行时 `<pkg>/_driver/` 和命令登记 `<pkg>/commands/` 除外；`plugin/` 里宿主组件的同类文件，它的 README 和生成的清单除外，清单只算其中列出的方法；以及 `pyproject.toml` 里的依赖。运行时不算在内，因为它对所有工具都一样，每次同步都由一致性测试检查。只是版本号变了，禁止让证据失效。评测结果按 DSKL-043 计算。没有指纹的运行或结果，只在所在记录或报告的 `tool_version` 与工具的主版本和次版本都相同时才算。不算数的证据禁止用来支撑成熟度等级（DVER-040）。
 
-为什么：次版本可能改变行为。旧版本的证据说明不了当前版本。
-检查：🤖 `check_project` 把每份记录和报告中的工具版本与 `package.json` 中的版本比较。
+为什么：证据说明的是运行过的那份代码怎么表现。代码变了证据才过时，版本号变了不算；什么都没改的版本把所有东西重跑一遍，要花几个小时，却说明不了任何新东西。
+检查：🤖 `check_project` 计算每条命令的指纹，与支撑它成熟度的那些运行比较；没有指纹的运行比较版本号。
 
 ## 真实软件验收
 

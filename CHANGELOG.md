@@ -4,6 +4,10 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Changed
+
+- Built on tool-driver-cli-spec 1.1.0: a live run counts as evidence until the command's registration or the adapter's code changes, and an evaluation result until its question, a command it lists or the Skills and knowledge change, whatever the version number.
+
 ### Added
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.

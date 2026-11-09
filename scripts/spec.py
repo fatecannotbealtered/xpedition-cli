@@ -26,12 +26,17 @@ import json
 import os
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASES = "https://github.com/fatecannotbealtered/tool-driver-cli-spec/releases/download"
+REPOSITORY = "fatecannotbealtered/tool-driver-cli-spec"
+RELEASES = f"https://github.com/{REPOSITORY}/releases/download"
+API = f"https://api.github.com/repos/{REPOSITORY}/releases/tags"
+WAITS = (2, 4, 8, None)  # a failed read is tried again after 2, 4 and 8 seconds
 NAME = "tool-driver-cli-spec"
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
@@ -68,10 +73,9 @@ def download(version: str, pin: str | None) -> tuple[Path, str]:
     known = (cache / "bundle.sha256").read_text(encoding="utf-8").strip() if (cache / "bundle.sha256").is_file() else None
     if (folder / "VERSION").is_file() and known and (pin is None or pin == known):
         return folder, known
-    base = f"{RELEASES}/v{version}/{NAME}-{version}"
     print(f"Downloading {NAME} {version} ...", file=sys.stderr)
-    data = _get(base + ".zip")
-    expected = pin or _get(base + ".sha256").decode("ascii").split()[0]
+    data = _asset(version, f"{NAME}-{version}.zip")
+    expected = pin or _asset(version, f"{NAME}-{version}.sha256").decode("ascii").split()[0]
     digest = hashlib.sha256(data).hexdigest()
     if digest != expected:
         raise SystemExit(f"{NAME}-{version}.zip has SHA-256 {digest}, not {expected}; nothing was unpacked")
@@ -86,12 +90,33 @@ def download(version: str, pin: str | None) -> tuple[Path, str]:
     return folder, digest
 
 
-def _get(url: str) -> bytes:
+def _asset(version: str, name: str) -> bytes:
+    """A file of the release: from its download link, or, when that keeps failing, through the
+    GitHub API, which serves the same file another way. The caller checks its SHA-256."""
+    url = f"{RELEASES}/v{version}/{name}"
     try:
-        with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310 - a fixed https URL
-            return response.read()
+        return _get(url)
     except OSError as exc:
-        raise SystemExit(f"cannot download {url}: {exc}") from None
+        first = exc
+    try:
+        release = json.loads(_get(f"{API}/v{version}", "application/vnd.github+json"))
+        asset = next(a["url"] for a in release["assets"] if a["name"] == name)
+        return _get(asset, "application/octet-stream")
+    except (OSError, ValueError, KeyError, TypeError, StopIteration) as exc:
+        raise SystemExit(f"cannot download {url}: {first}; nor through the GitHub API: {exc!r}") from None
+
+
+def _get(url: str, accept: str | None = None) -> bytes:
+    request = urllib.request.Request(url, headers={"Accept": accept} if accept else {})
+    for wait in WAITS:
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - a fixed https URL
+                return response.read()
+        except OSError as exc:
+            if wait is None or isinstance(exc, urllib.error.HTTPError) and exc.code == 404:
+                raise
+            time.sleep(wait)
+    return b""
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> int:

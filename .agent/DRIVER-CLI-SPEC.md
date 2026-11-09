@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.0.10 · Clauses DCLI-001 to DCLI-281
+> Version 1.1.0 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
