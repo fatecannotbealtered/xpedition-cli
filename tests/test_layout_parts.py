@@ -39,7 +39,7 @@ class Part(FakeComponent):
         self.calls.append(("Place", x, y, rotation, top))
         if self.refuse:
             raise self.refuse
-        self.Placed, self.x, self.y, self.Orientation, self.Side = True, x, y, rotation, 1 if top else 512
+        self.Placed, self.x, self.y, self.Orientation, self.Side, self.Anchor = True, x, y, rotation, 1 if top else 512, a
 
 
 class Control:
@@ -103,6 +103,14 @@ class ReadTest(BoardCase):
             self.read("component get", refdes="Q9")
         self.assertEqual(caught.exception.data["code"], "E_NOT_FOUND")
 
+    def test_two_names_that_differ_only_in_case_are_ambiguous(self):
+        self.doc.components += [Part("Ab1", placed=True, x=5.0, y=5.0), Part("aB1", placed=True, x=6.0, y=5.0)]
+        with self.assertRaises(AdapterError) as caught:
+            self.read("component get", refdes="AB1")
+        self.assertEqual(caught.exception.data["code"], "E_AMBIGUOUS")
+        self.assertEqual(caught.exception.data["candidates"], [{"refdes": "Ab1"}, {"refdes": "aB1"}])
+        self.assertEqual(self.read("component get", refdes="Ab1")["refdes"], "Ab1")
+
 
 class MoveTest(BoardCase):
     def preview(self, **inputs: Any) -> dict[str, Any]:
@@ -147,6 +155,20 @@ class MoveTest(BoardCase):
             with self.assertRaises(AdapterError) as caught:
                 self.preview(**inputs)
             self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
+
+    def test_a_side_layout_does_not_give_is_never_guessed(self):
+        self.r1.Side = 7
+        with self.assertRaises(AdapterError) as caught:
+            self.apply(refdes="R1", x_mm=15.0)
+        self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
+        self.assertEqual(self.r1.calls, [])
+        self.apply(refdes="R1", x_mm=15.0, side="bottom")
+        self.assertEqual(self.r1.calls[-1], ("Place", 15.0, 10.0, 0.0, False))
+
+    def test_a_semi_fixed_part_stays_semi_fixed_when_it_changes_side(self):
+        self.r1.Anchor = 1
+        self.apply(refdes="R1", side="bottom")
+        self.assertEqual((self.r1.Side, self.r1.Anchor), (512, 1))
 
     def test_an_anchored_part_is_blocked(self):
         self.r1.Anchor = 2
@@ -246,6 +268,34 @@ class HoleTest(BoardCase):
                 self.handler("mounting-hole create").preview(context("mounting-hole create", inputs))
             self.assertEqual(caught.exception.data["code"], "E_VALIDATION", inputs)
 
+    def test_corners_that_meet_or_a_wide_pad_past_the_edge_are_refused(self):
+        create = self.handler("mounting-hole create")
+        with self.assertRaises(AdapterError) as caught:
+            create.preview(context("mounting-hole create", {"padstack": "MH3.2", "corners": True, "inset_mm": 20.0}))
+        self.assertIn("would meet or cross", str(caught.exception))
+        create.preview(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 2.5, "y_mm": 20.0}))  # the drill fits
+        self.row = {**LIBRARY_HOLE, "pad_mm": 6.0}
+        with self.assertRaises(AdapterError) as caught:
+            create.preview(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 2.5, "y_mm": 20.0}))
+        self.assertIn("6 mm wide", str(caught.exception))
+
+    def test_a_rounded_corner_keeps_a_corner_hole_off_its_arc(self):
+        inputs = {"padstack": "MH3.2", "corners": True, "inset_mm": 1.8}
+        self.handler("mounting-hole create").preview(context("mounting-hole create", inputs))  # square corners: inside
+        with mock.patch.object(layout_parts, "_corner_radius", lambda doc: 5.0):
+            with self.assertRaises(AdapterError) as caught:
+                self.handler("mounting-hole create").preview(context("mounting-hole create", inputs))
+            self.assertIn("corners of 5 mm radius", str(caught.exception))
+            self.handler("mounting-hole create").preview(context("mounting-hole create", {**inputs, "inset_mm": 3.0}))
+
+    def test_the_corner_arc_check(self):
+        rect = (0.0, 0.0, 50.0, 40.0)
+        self.assertTrue(layout_parts._off_board((1.8, 1.8), rect, 5.0, 1.6))
+        self.assertFalse(layout_parts._off_board((3.0, 3.0), rect, 5.0, 1.6))
+        self.assertFalse(layout_parts._off_board((1.8, 20.0), rect, 5.0, 1.6))  # along an edge, clear of the corners
+        self.assertTrue(layout_parts._off_board((48.6, 38.6), rect, 5.0, 1.6))
+        self.assertFalse(layout_parts._off_board((1.8, 1.8), rect, 0.0, 1.6))
+
     def test_another_padstack_on_the_spot_blocks(self):
         self.doc.hole_list.append(Hole(self.doc, 10.0, 10.0, "MH2.4"))
         out = self.handler("mounting-hole create").preview(context("mounting-hole create", {"padstack": "MH3.2", "x_mm": 10.0,
@@ -294,10 +344,12 @@ class HoleTest(BoardCase):
 
 
 class Text:
-    """A silkscreen reference designator: centred on its anchor, ``width`` x ``height`` unturned."""
+    """A silkscreen reference designator, ``width`` x ``height`` unturned, its box centred ``offset``
+    from its anchor, an offset that turns with the text."""
 
-    def __init__(self, x: float, y: float, width: float = 1.6, height: float = 0.8, rotation: float = 0.0, kind: int = 2) -> None:
-        self.x, self.y, self.width, self.height = x, y, width, height
+    def __init__(self, x: float, y: float, width: float = 1.6, height: float = 0.8, rotation: float = 0.0, kind: int = 2,
+                 offset: tuple[float, float] = (0.0, 0.0)) -> None:
+        self.x, self.y, self.width, self.height, self.offset = x, y, width, height, offset
         self.Type, self.TextType, self.Side, self.FixLock = kind, 1, 1, 0
         self.Format = type("Format", (), {"Orientation": rotation})()
         self.moves: list[tuple] = []
@@ -312,8 +364,13 @@ class Text:
     def Extrema(self) -> Any:  # noqa: N802 - COM name
         from test_layout_fakes import Extrema
 
-        w, h = (self.height, self.width) if round(self.Format.Orientation) % 180 == 90 else (self.width, self.height)
-        return Extrema((self.x - w / 2, self.y - h / 2, self.x + w / 2, self.y + h / 2))
+        turns = round(self.Format.Orientation / 90) % 4
+        w, h = (self.height, self.width) if turns % 2 else (self.width, self.height)
+        ox, oy = self.offset
+        for _ in range(turns):
+            ox, oy = -oy, ox
+        cx, cy = self.x + ox, self.y + oy
+        return Extrema((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2))
 
     def Move(self, x: float, y: float, unit: int) -> None:  # noqa: N802 - COM name
         self.moves.append((x, y))
@@ -374,10 +431,25 @@ class RefdesTest(BoardCase):
                 self.handler().preview(context("refdes move", inputs))
             self.assertEqual(caught.exception.data["code"], code, inputs)
 
-    def test_a_locked_text_is_blocked_and_the_read_back_reads_it(self):
-        self.text.FixLock = 2
-        out = self.handler().preview(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0}))
-        self.assertIn("locked", out["blocked_by"][0])
+    def test_a_text_turned_about_its_anchor_is_checked_where_it_lands(self):
+        self.text.offset = (0.8, 0.0)  # left-justified: the text runs to the right of its anchor
+        self.assertEqual(tuple(round(v, 4) for v in layout_parts._text_box(self.text, 20.0, 5.0, 90.0)), (19.6, 5.0, 20.4, 6.6))
+        self.handler().apply(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0, "rotation_deg": 90.0}))
+        self.assertEqual(tuple(round(v, 4) for v in layout_parts.L.extrema_mm(self.text)), (19.6, 5.0, 20.4, 6.6))
+
+    def test_without_an_outline_the_move_is_still_reported_as_applied(self):
+        self.doc.BoardOutline = None
+        facts = self.handler().apply(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0}))
+        self.assertEqual((facts["change"], facts["result"]["inside_board"]), ("applied", None))
+        self.assertEqual(self.text.moves, [(20.0, 5.0)])
+
+    def test_a_fixed_or_locked_text_is_blocked_and_the_read_back_reads_it(self):
+        for lock, word in ((2, "fixed"), (3, "locked")):
+            self.text.FixLock = lock
+            out = self.handler().preview(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0}))
+            self.assertIn(word, out["blocked_by"][0])
+        self.text.FixLock = 1  # semi-fixed: a move asked for by name may move it
+        self.assertIsNone(self.handler().preview(context("refdes move", {"refdes": "R1", "x_mm": 20.0, "y_mm": 5.0})).get("blocked_by"))
         self.text.FixLock = 0
         key = base.key(BOARD, "/refdes/R1")
         ctx = context("refdes move", {}, targets=[key], fields=["x_mm", "rotation_deg"])

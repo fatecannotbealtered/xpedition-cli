@@ -17,7 +17,7 @@
 
 ## Fields
 
-- Coordinates are the board's, in mm, the ones `pcb get --output` writes: take the pad positions of the pins to join from there.
+- Coordinates are the board's, in mm: `component get --refdes <part>` on the board gives the position of each pin to join, and `pcb get --output` writes every pad and trace.
 - `traces`: the `net`, the conductor `layer` (1 at the top), `width_mm`, and at least two `points_mm`. Each end must lie on copper of its own net on its layer: a pad, a trace, a via, or a trace or via of the same plan.
 - `vias`: the `net`, the centre `at_mm` and a via `padstack` of the central library (`padstack list --type via`). A via joins every layer, so a trace that changes layers ends on one.
 

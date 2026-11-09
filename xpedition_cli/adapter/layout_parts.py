@@ -7,6 +7,7 @@ places it; its rotation is counter-clockwise in degrees, seen from the top.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -18,6 +19,7 @@ from .base import Context, need_input
 from .platform import com
 
 ANCHORS = {0: "none", 1: "semi_fixed", 2: "fixed", 3: "locked"}  # EPcbAnchorType
+ANCHOR_CODES = {name: code for code, name in ANCHORS.items()}
 SIDES = {1: "top", 512: "bottom"}  # EPcbSide
 HELD = ("fixed", "locked")  # what Layout keeps where it is
 NO_SHOVE = 3  # EditorControl.PartsOnlineDRC epcbECDRCPreventiveNoShovePart: refuse a spot that is taken, move nothing else
@@ -96,13 +98,19 @@ def board_pins(component: Any) -> list[dict[str, Any]]:
 
 
 def find(doc: Any, refdes: str) -> Any:
-    """The component named ``refdes``: the exact name, then in any case; E_NOT_FOUND otherwise."""
+    """The component named ``refdes``: the exact name, then in any case; E_AMBIGUOUS when several
+    differ only in case, E_NOT_FOUND when none matches."""
     found = L.find_component(doc, refdes)
     if found is not None and refdes_of(found):
         return found
     matches = [c for c in L.collection(doc, "Components") if refdes_of(c).casefold() == refdes.casefold()]
     if len(matches) == 1:
         return matches[0]
+    if matches:
+        names = sorted(refdes_of(c) for c in matches)
+        raise AdapterError("E_AMBIGUOUS", f"{refdes} matches the components {', '.join(names)}, which differ only in case; give "
+                           "the reference designator exactly.", dispatch_state="not_started",
+                           candidates=[{"refdes": name} for name in names])
     raise AdapterError("E_NOT_FOUND", f"The board has no component {refdes}; component list lists them.", dispatch_state="not_started")
 
 
@@ -150,6 +158,9 @@ def _destination(component: Any, ctx: Context) -> tuple[dict[str, Any], dict[str
     now = board_row(component)
     if not now["placed"] and (x is None or y is None):
         raise AdapterError("E_VALIDATION", f"{now['refdes']} is not placed: give --x and --y to place it.", dispatch_state="not_started")
+    if now["placed"] and now["side"] is None and side is None:
+        raise AdapterError("E_VALIDATION", f"Layout does not say which side {now['refdes']} is on; give --side to keep it there.",
+                           dispatch_state="not_started")
     goal = {"placed": True, "x_mm": now["x_mm"] if x is None else x, "y_mm": now["y_mm"] if y is None else y,
             "rotation_deg": (now["rotation_deg"] or 0.0) if rotation is None else rotation,
             "side": (now["side"] or "top") if side is None else side}
@@ -230,7 +241,8 @@ class ComponentMove(L.ReadsBack):
                         if abs(goal["rotation_deg"] - (now["rotation_deg"] or 0.0)) >= 0.0005:
                             component.Orientation = goal["rotation_deg"]
                     else:
-                        component.Place(goal["x_mm"], goal["y_mm"], goal["rotation_deg"], goal["side"] == "top", 0, L.UNIT_MM, 0)
+                        keep = ANCHOR_CODES.get(now["anchor"], 0)  # a semi-fixed part stays semi-fixed
+                        component.Place(goal["x_mm"], goal["y_mm"], goal["rotation_deg"], goal["side"] == "top", keep, L.UNIT_MM, 0)
             except Exception as exc:  # noqa: BLE001 - classified
                 if com.excepinfo_codes(exc)[0] == PLACEMENT_REFUSED and board_row(component) == now:
                     raise base.blocked(f"Layout's placement check refuses to put {now['refdes']} there: the spot overlaps another "
@@ -308,8 +320,38 @@ def _library_hole(path: str, name: str) -> dict[str, Any] | None:
     return row
 
 
-def _hole_spots(doc: Any, ctx: Context, drill: float | None) -> list[tuple[float, float]]:
-    """The centres the holes go to, each inside the board outline by at least the hole's radius."""
+def _hole_radius(row: dict[str, Any] | None) -> float:
+    """Half the widest of the padstack's drill and pad, as far as the library tells them."""
+    sizes = [float(v) for v in ((row or {}).get("drill_mm"), (row or {}).get("pad_mm"), (row or {}).get("pad_height_mm"))
+             if isinstance(v, (int, float))]
+    return max(sizes, default=0.0) / 2
+
+
+def _corner_radius(doc: Any) -> float:
+    """The board outline's corner radius in mm; 0 when the corners are square or cannot be measured."""
+    try:
+        return float(L.outline_radius(doc, doc.BoardOutline) or 0.0)
+    except Exception:  # noqa: BLE001 - square corners are assumed
+        return 0.0
+
+
+def _off_board(spot: tuple[float, float], rect: tuple[float, float, float, float], corner: float, radius: float) -> bool:
+    """Whether a hole of ``radius`` at ``spot`` reaches past the outline: its edges, or the arc of a
+    rounded corner when the spot lies in that corner's square."""
+    sx, sy = spot
+    x0, y0, x1, y1 = rect
+    if not (x0 + radius <= sx <= x1 - radius and y0 + radius <= sy <= y1 - radius):
+        return True
+    if corner <= 0:
+        return False
+    cx = x0 + corner if sx < x0 + corner else x1 - corner if sx > x1 - corner else None
+    cy = y0 + corner if sy < y0 + corner else y1 - corner if sy > y1 - corner else None
+    return cx is not None and cy is not None and ((sx - cx) ** 2 + (sy - cy) ** 2) ** 0.5 > corner - radius + 1e-6
+
+
+def _hole_spots(doc: Any, ctx: Context, row: dict[str, Any] | None) -> list[tuple[float, float]]:
+    """The centres the holes go to, each inside the board outline, rounded corners included, by at
+    least half the hole's drill or pad, whichever is wider."""
     corners = bool(ctx.inputs.get("corners"))
     x, y, inset = ctx.inputs.get("x_mm"), ctx.inputs.get("y_mm"), ctx.inputs.get("inset_mm")
     if corners and (x is not None or y is not None):
@@ -321,18 +363,24 @@ def _hole_spots(doc: Any, ctx: Context, drill: float | None) -> list[tuple[float
     if corners and (inset is None or float(inset) <= 0):
         raise AdapterError("E_VALIDATION", "--corners needs --inset: how far each hole's centre lies in from the board's edges.",
                            dispatch_state="not_started")
-    x0, y0, x1, y1 = L.board_rect(doc)
+    rect = L.board_rect(doc)
+    x0, y0, x1, y1 = rect
     if corners:
         d = float(inset)
+        if 2 * d >= min(x1 - x0, y1 - y0):
+            raise AdapterError("E_VALIDATION", f"--inset {d:g}mm is half the board's {min(x1 - x0, y1 - y0):g} mm side or more, so "
+                               "the corner holes would meet or cross; give a smaller --inset.", dispatch_state="not_started")
         spots = [(x0 + d, y0 + d), (x1 - d, y0 + d), (x1 - d, y1 - d), (x0 + d, y1 - d)]
     else:
         spots = [(float(x), float(y))]
     spots = [(round(sx, 4), round(sy, 4)) for sx, sy in spots]
-    radius = (drill or 0.0) / 2
+    radius, corner = _hole_radius(row), _corner_radius(doc)
     for sx, sy in spots:
-        if not (x0 + radius <= sx <= x1 - radius and y0 + radius <= sy <= y1 - radius):
-            raise AdapterError("E_VALIDATION", f"A hole at ({sx:g}, {sy:g}) mm would reach past the board outline ({x0:g}, {y0:g} to "
-                               f"{x1:g}, {y1:g} mm); give a spot, or an --inset, further in.", dispatch_state="not_started")
+        if _off_board((sx, sy), rect, corner, radius):
+            rounded = f" with corners of {corner:g} mm radius" if corner > 0 else ""
+            raise AdapterError("E_VALIDATION", f"A hole {2 * radius:g} mm wide at ({sx:g}, {sy:g}) mm would reach past the board "
+                               f"outline ({x0:g}, {y0:g} to {x1:g}, {y1:g} mm{rounded}); give a spot, or an --inset, further in.",
+                               dispatch_state="not_started")
     return spots
 
 
@@ -348,7 +396,7 @@ def _hole_look(doc: Any, path: str, ctx: Context) -> tuple[str, dict[str, Any] |
                                dispatch_state="not_started")
     holes = board_holes(doc)
     plan = []
-    for sx, sy in _hole_spots(doc, ctx, (row or {}).get("drill_mm")):
+    for sx, sy in _hole_spots(doc, ctx, row):
         there = next((r for _h, r in holes if abs(r["x_mm"] - sx) <= SPOT_TOLERANCE_MM and abs(r["y_mm"] - sy) <= SPOT_TOLERANCE_MM),
                      None)
         plan.append({"x_mm": sx, "y_mm": sy, "there": there})
@@ -499,7 +547,7 @@ class MountingHoleDelete(L.ReadsBack):
 # ------------------------------------------------------------------ refdes move
 
 FAB_SILKSCREEN, TEXT_REFDES = 2, 1  # FabricationLayerText.Type and .TextType of a silkscreen reference designator
-FIX_LOCKS = {0: "none", 1: "fixed", 2: "locked"}  # EPcbFixLockType
+FIX_LOCKS = {0: "none", 1: "semi_fixed", 2: "fixed", 3: "locked"}  # EPcbFixLockType
 GAP_MM = 0.2  # between a part's extents and its reference designator placed beside it
 EDGE_MM = 0.1  # a reference designator keeps this far inside the board outline
 
@@ -565,13 +613,16 @@ def _obstacles(doc: Any, component: Any, side: str) -> list[tuple[str, tuple[flo
 
 
 def _text_box(text: Any, x: float, y: float, rotation: float) -> tuple[float, float, float, float]:
-    """The box the text takes with its anchor at (x, y) and the rotation given."""
+    """The box the text takes with its anchor at (x, y) and the rotation given: the text turns
+    about its anchor, so the box's offset from the anchor turns with it."""
     x0, y0, x1, y1 = L.extrema_mm(text)
     now = text_values(text)
-    width, height = x1 - x0, y1 - y0
-    if round(abs(rotation - now["rotation_deg"])) % 180 == 90:
-        width, height = height, width
-    cx, cy = (x0 + x1) / 2 - now["x_mm"] + x, (y0 + y1) / 2 - now["y_mm"] + y
+    turn = math.radians(rotation - now["rotation_deg"])
+    cos, sin = math.cos(turn), math.sin(turn)
+    width = abs((x1 - x0) * cos) + abs((y1 - y0) * sin)
+    height = abs((x1 - x0) * sin) + abs((y1 - y0) * cos)
+    ox, oy = (x0 + x1) / 2 - now["x_mm"], (y0 + y1) / 2 - now["y_mm"]  # the box centre from the anchor, as it stands
+    cx, cy = x + ox * cos - oy * sin, y + ox * sin + oy * cos
     return (cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2)
 
 
@@ -672,13 +723,26 @@ class RefdesMove(L.ReadsBack):
                     text.Format.Orientation = goal["rotation_deg"]
             except Exception as exc:  # noqa: BLE001 - classified
                 raise L.com_error(exc, f"moving {refdes_of(component)}'s reference designator", com.call_state(exc)) from None
+            # The text has moved: what follows only describes it, and a part of it that cannot be read is left
+            # unknown rather than raised, which would report the move as never sent.
             values = text_values(text)
-            box = L.extrema_mm(text)
-            board = L.board_rect(doc)
             side = values["side"] or "top"
             result = {"refdes": refdes_of(component), **{k: values[k] for k in ("x_mm", "y_mm", "rotation_deg", "side")},
-                      "inside_board": board[0] <= box[0] and box[2] <= board[2] and board[1] <= box[1] and box[3] <= board[3],
-                      "overlaps": [name for name, other in _obstacles(doc, component, side) if _overlap(box, other)]}
+                      "inside_board": None, "overlaps": None}
+            try:
+                box = L.extrema_mm(text)
+            except Exception:  # noqa: BLE001 - no extents to compare
+                box = None
+            if box is not None:
+                try:
+                    board = L.board_rect(doc)
+                    result["inside_board"] = board[0] <= box[0] and box[2] <= board[2] and board[1] <= box[1] and box[3] <= board[3]
+                except Exception:  # noqa: BLE001 - a board without an outline
+                    pass
+                try:
+                    result["overlaps"] = [name for name, other in _obstacles(doc, component, side) if _overlap(box, other)]
+                except Exception:  # noqa: BLE001 - the other objects cannot be read
+                    pass
             return base.facts("applied" if moved or turned else "not_applied", "unchanged", result=result)
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="moving the reference designator")

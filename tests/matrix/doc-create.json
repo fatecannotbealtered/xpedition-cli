@@ -19,7 +19,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-181212-doc-create.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-212142-doc-create.json#normal"
     },
     {
       "row": "empty",
@@ -46,7 +46,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181224-doc-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-08-212019-doc-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -68,7 +68,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181224-doc-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-08-212019-doc-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -93,7 +93,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181226-doc-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-08-212147-doc-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -115,7 +115,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181214-doc-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-08-212019-doc-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -137,7 +137,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-07-182207-doc-create.json#busy"
+      "evidence": "live:docs/evidence/2026-11-08-214207-doc-create.json#busy"
     },
     {
       "row": "dialog",
@@ -159,7 +159,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-182622-doc-create.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-08-214514-doc-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -199,7 +199,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181224-doc-create.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-212145-doc-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -221,7 +221,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-181033-doc-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-08-212353-doc-create.json#read_back_mismatch"
     }
   ]
 }

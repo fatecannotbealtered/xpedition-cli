@@ -19,7 +19,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-221400-constraint-get.json#normal"
     },
     {
       "row": "empty",
@@ -37,7 +37,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#empty"
+      "evidence": "live:docs/evidence/2026-11-08-215321-constraint-get.json#empty"
     },
     {
       "row": "invalid_input",
@@ -59,7 +59,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-08-215321-constraint-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -79,7 +79,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-07-195527-constraint-get.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-08-215321-constraint-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -94,7 +94,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184503-constraint-get.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-08-223311-constraint-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -122,7 +122,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-07-194335-constraint-get.json#busy"
+      "evidence": "live:docs/evidence/2026-11-08-223003-constraint-get.json#busy"
     },
     {
       "row": "dialog",
@@ -140,7 +140,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184728-constraint-get.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-08-222328-constraint-get.json#dialog"
     },
     {
       "row": "disconnect",
@@ -174,7 +174,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-195634-constraint-get.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-221400-constraint-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

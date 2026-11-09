@@ -19,7 +19,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-193422-component-get.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-225140-component-get.json#normal"
     },
     {
       "row": "empty",
@@ -44,7 +44,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-08-184210-component-get.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-08-214350-component-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -66,7 +66,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-08-184210-component-get.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-08-214350-component-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -84,7 +84,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-08-184434-component-get.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-08-223254-component-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -114,7 +114,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-08-184059-component-get.json#busy"
+      "evidence": "live:docs/evidence/2026-11-08-214109-component-get.json#busy"
     },
     {
       "row": "dialog",
@@ -134,7 +134,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-08-184337-component-get.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-08-214517-component-get.json#dialog"
     },
     {
       "row": "disconnect",
@@ -172,7 +172,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-08-184033-component-get.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-212942-component-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

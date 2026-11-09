@@ -1,0 +1,60 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.0",
+  "commit": "9f8012163f27",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T21:24:46Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "part create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts-invalid.json"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "file",
+      "doc_kind": "project"
+    },
+    {
+      "command": "part create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Missing.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts.json"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "file",
+      "doc_kind": "project"
+    },
+    {
+      "command": "part create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts.json"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "file",
+      "doc_kind": "project"
+    }
+  ]
+}

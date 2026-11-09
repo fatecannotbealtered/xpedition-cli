@@ -711,6 +711,39 @@ def placed(refdes: str, sheet: str, pins: list[tuple], attributes: dict[str, str
     return part
 
 
+class KindTest(unittest.TestCase):
+    """Members looked up by name once per kind of object: only a name the kind lacks is remembered."""
+
+    class Raw:
+        def __init__(self) -> None:
+            self.asked: list[str] = []
+            self.busy = True
+
+        def GetIDsOfNames(self, name: str) -> int:  # noqa: N802 - COM name
+            from test_layout_fakes import FakeComError
+
+            self.asked.append(name)
+            if name == "Missing":
+                raise FakeComError(-2147352570, "Unknown name.")
+            if self.busy:
+                self.busy = False
+                raise FakeComError(-2147418111, "Call was rejected by callee.")
+            return 7
+
+        def Invoke(self, dispid: int, lcid: int, flags: int, result: bool, *args: Any) -> str:  # noqa: N802 - COM name
+            return f"member {dispid}"
+
+    def test_a_refusal_is_asked_again_and_a_missing_name_is_remembered(self):
+        from test_layout_fakes import FakeComError
+
+        raw, kind = self.Raw(), designer._Kind()
+        with self.assertRaises(FakeComError):
+            kind.get(raw, "Refdes")
+        self.assertEqual(kind.get(raw, "Refdes"), "member 7")
+        self.assertEqual((kind.try_get(raw, "Missing", "-"), kind.try_get(raw, "Missing", "-")), ("-", "-"))
+        self.assertEqual(raw.asked, ["Refdes", "Refdes", "Missing"])
+
+
 class ComponentNetReadTest(DesignerCase):
     def setUp(self) -> None:
         super().setUp()

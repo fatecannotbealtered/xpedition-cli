@@ -19,7 +19,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-194419-pcb-export.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-222015-pcb-export.json#normal"
     },
     {
       "row": "empty",
@@ -46,7 +46,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-07-194325-pcb-export.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-08-222015-pcb-export.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -68,7 +68,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-07-194325-pcb-export.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-08-222015-pcb-export.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -86,7 +86,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184517-pcb-export.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-08-223329-pcb-export.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -108,7 +108,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-07-194606-pcb-export.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-08-222053-pcb-export.json#conflict"
     },
     {
       "row": "no_scope",
@@ -130,7 +130,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184845-pcb-export.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-08-222107-pcb-export.json#no_scope"
     },
     {
       "row": "busy",
@@ -150,7 +150,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-07-191551-pcb-export.json#busy"
+      "evidence": "live:docs/evidence/2026-11-08-222957-pcb-export.json#busy"
     },
     {
       "row": "dialog",
@@ -170,7 +170,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184746-pcb-export.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-08-222325-pcb-export.json#dialog"
     },
     {
       "row": "disconnect",
@@ -207,7 +207,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-194458-pcb-export.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-222015-pcb-export.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -229,7 +229,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-194528-pcb-export.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-08-222038-pcb-export.json#read_back_mismatch"
     }
   ]
 }

@@ -1,0 +1,74 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.0",
+  "commit": "9f8012163f27",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T22:04:40Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "pcb update",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--width",
+        "70",
+        "--height",
+        "48mm"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "doc_kind": "board"
+    },
+    {
+      "command": "pcb update",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Missing.pcb",
+        "--width",
+        "70mm",
+        "--height",
+        "48mm"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "doc_kind": "board"
+    },
+    {
+      "command": "pcb update",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--width",
+        "70mm",
+        "--height",
+        "48mm",
+        "--radius",
+        "3mm"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session",
+      "doc_kind": "board"
+    }
+  ]
+}

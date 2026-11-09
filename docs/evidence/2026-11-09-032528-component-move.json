@@ -1,0 +1,98 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.0",
+  "commit": "9f8012163f27",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-09T03:25:28Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "component move",
+      "arguments": [
+        "--session",
+        "layout-41488-32101cdf8",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--refdes",
+        "R1",
+        "--side",
+        "left"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "doc_kind": "board"
+    },
+    {
+      "command": "component move",
+      "arguments": [
+        "--session",
+        "layout-41488-32101cdf8",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--refdes",
+        "Q99",
+        "--x",
+        "1mm",
+        "--y",
+        "1mm"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "doc_kind": "board"
+    },
+    {
+      "command": "component move",
+      "arguments": [
+        "--session",
+        "layout-41488-32101cdf8",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--refdes",
+        "R1",
+        "--x",
+        "16mm",
+        "--y",
+        "22.5mm",
+        "--rotation",
+        "0deg"
+      ],
+      "exit": 6,
+      "result": "pass",
+      "matrix_row": "conflict",
+      "mode": "session",
+      "doc_kind": "board"
+    },
+    {
+      "command": "component move",
+      "arguments": [
+        "--session",
+        "layout-41488-32101cdf8",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\ReadDemo\\PCB\\ReadDemo.pcb",
+        "--refdes",
+        "R1",
+        "--x",
+        "24mm",
+        "--y",
+        "12mm"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session",
+      "doc_kind": "board"
+    }
+  ]
+}

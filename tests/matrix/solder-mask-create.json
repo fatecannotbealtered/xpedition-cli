@@ -25,7 +25,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200240-solder-mask-create.json#normal"
+      "evidence": "live:docs/evidence/2026-11-08-221502-solder-mask-create.json#normal"
     },
     {
       "row": "empty",
@@ -51,7 +51,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-08-221505-solder-mask-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -79,7 +79,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-08-221459-solder-mask-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -107,7 +107,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-08-221459-solder-mask-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -131,7 +131,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184545-solder-mask-create.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-08-223344-solder-mask-create.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -159,7 +159,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-07-200920-solder-mask-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-08-222139-solder-mask-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -187,7 +187,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184901-solder-mask-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-08-221459-solder-mask-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -213,7 +213,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-07-191552-solder-mask-create.json#busy"
+      "evidence": "live:docs/evidence/2026-11-08-223050-solder-mask-create.json#busy"
     },
     {
       "row": "dialog",
@@ -239,7 +239,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-184805-solder-mask-create.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-08-222338-solder-mask-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -289,7 +289,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-07-200303-solder-mask-create.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-08-221508-solder-mask-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -300,11 +300,11 @@
         "--doc",
         "{doc}",
         "--x1",
-        "70mm",
+        "30mm",
         "--y1",
         "5mm",
         "--x2",
-        "76mm",
+        "36mm",
         "--y2",
         "9mm"
       ],
@@ -317,7 +317,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-07-200320-solder-mask-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-08-221715-solder-mask-create.json#read_back_mismatch"
     }
   ]
 }

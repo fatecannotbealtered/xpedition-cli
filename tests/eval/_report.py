@@ -9,16 +9,17 @@ import re
 
 NOT_SAVED = (r"\b(not|isn't|hasn't|has not|wasn't|was not|not yet|never|nothing)( been| yet)? saved\b|\bunsaved\b"
              r"|\bsaved\s*[:：-]?\s*(no|not)\b|未保存|没有保存|尚未保存|还没保存|没保存|未存盘")
-SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|\b(is|was|has been|have been|now|got|are|were) saved\b|\bsaved (it|the|board|project|to disk|all)\b"
+SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|\b(is|was|has been|have been|now|got|are|were) saved\b|\bsaved (it|the|board|project|((straight|directly|right) )?to disk|all)\b"
          r"|已保存|已经保存|保存好了|保存成功|已存盘")
 READ_BACK = r"\bread(?:ing)?(?: (?:the \w+|it|them))?[- ]?backs?\b"  # "read-back", "read the board back"
 NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\s*no\b|未验证|没有验证|没验证|未核实|没有核实"
-                r"|" + READ_BACK + r"[^.;。\n]{0,40}\b(did not|didn't|does not|doesn't|failed to|could not|couldn't) (match|confirm)"
+                r"|" + READ_BACK + r"[^.;。\n]{0,40}\b(did not|didn't|does not|doesn't|failed to|could not|couldn't) (match|confirm|pass)"
+                r"|" + READ_BACK + r"[^.;。\n]{0,20}\bfail(s|ed)?\b"
                 r"|\bread[- ]?back mismatch|(回读|读回)[^。；\n]{0,20}不一致")
-# Said without the word: "read-back matched", "read-back confirmed all three changes", "each change was
-# checked against the board after it ran", "every change checked out".
-READ_BACK_AGREES = (READ_BACK + r"[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed)\b"
-                    r"|\b(each|every|all)\b[^.;。\n]{0,30}?\b(changes?|steps?|deletions?|edits?|writes?)\b[^.;。\n]{0,40}?"
+# Said without the word: "read-back matched", "read the file back and the check passed", "each delete
+# checked itself by reading the board back", "every change checked out".
+READ_BACK_AGREES = (READ_BACK + r"[^.;。\n]{0,40}?\b(match|matches|matched|agrees?|agreed|confirms?|confirmed|pass|passes|passed)\b"
+                    r"|\b(each|every|all)\b[^.;。\n]{0,30}?\b(changes?|steps?|deletions?|deletes?|edits?|writes?)\b[^.;。\n]{0,40}?"
                     r"(\b(checked|re-?read)\b|" + READ_BACK + ")"
                     r"|\bchecked against the (board|design|document|project|library|files?)\b"
                     r"|(回读|读回)[^。；\n]{0,20}(一致|相符|吻合|确认)")

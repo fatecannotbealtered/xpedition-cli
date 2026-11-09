@@ -868,6 +868,9 @@ class Snapshot:
 GET_OR_CALL = 3  # DISPATCH_METHOD | DISPATCH_PROPERTYGET: a member that is a property on one release and a method on another
 
 
+NO_MEMBER = (-2147352570, -2147352573)  # DISP_E_UNKNOWNNAME, DISP_E_MEMBERNOTFOUND: the kind has no such member
+
+
 class _Kind:
     """The members of one kind of Designer object, called by DISPID.
 
@@ -887,7 +890,9 @@ class _Kind:
         if name not in self._ids:
             try:
                 self._ids[name] = int(raw.GetIDsOfNames(name))
-            except Exception:  # noqa: BLE001 - this kind has no such member
+            except Exception as exc:  # noqa: BLE001 - classified
+                if com.hresult(exc) not in NO_MEMBER:
+                    raise  # a busy Designer refused this once; the next object asks again
                 self._ids[name] = None
         dispid = self._ids[name]
         if dispid is None:

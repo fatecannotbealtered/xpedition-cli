@@ -1,0 +1,38 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.0",
+  "commit": "9f8012163f27",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T22:30:50Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "solder-mask create",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--x1",
+        "40mm",
+        "--y1",
+        "5mm",
+        "--x2",
+        "50mm",
+        "--y2",
+        "9mm"
+      ],
+      "exit": 7,
+      "result": "pass",
+      "matrix_row": "busy",
+      "mode": "session",
+      "doc_kind": "board"
+    }
+  ]
+}

@@ -150,9 +150,11 @@ def read_baseline(data: bytes) -> dict[str, dict[str, str]]:
 
 
 def designators(cell: str) -> list[str]:
-    """``"R1, R2 R5;R7-R9"`` as R1, R2, R5, R7, R8, R9."""
+    """``"R1, R2 R5;R7-R9"`` as R1, R2, R5, R7, R8, R9. Chinese commas and ``、`` separate as commas
+    do, and a range may be written ``R7~R9`` or ``R7 - R9``."""
     out: list[str] = []
-    for token in re.split(r"[,;\s]+", cell.strip()):
+    cell = re.sub(r"\s*[-~～–—]\s*", "-", cell.strip())
+    for token in re.split(r"[,;，；、\s]+", cell):
         span = re.fullmatch(r"([A-Za-z_]+)(\d+)-(?:\1)?(\d+)", token)
         if span and int(span.group(3)) >= int(span.group(2)) and int(span.group(3)) - int(span.group(2)) <= 1000:
             out += [f"{span.group(1)}{n}" for n in range(int(span.group(2)), int(span.group(3)) + 1)]

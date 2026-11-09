@@ -80,6 +80,8 @@ class BaselineTest(unittest.TestCase):
         self.assertEqual(bom.designators("R1, R2 R5;R7-R9"), ["R1", "R2", "R5", "R7", "R8", "R9"])
         self.assertEqual(bom.designators("C10-C12"), ["C10", "C11", "C12"])
         self.assertEqual(bom.designators("U1-A"), ["U1-A"])
+        self.assertEqual(bom.designators("R1，R2、R3；R4"), ["R1", "R2", "R3", "R4"])
+        self.assertEqual(bom.designators("R1~R3, C1 - C2, D1～D2"), ["R1", "R2", "R3", "C1", "C2", "D1", "D2"])
 
     def test_compare_added_removed_and_changed(self):
         earlier = {"R1": {"part_number": "RES-1K", "value": "10k"}, "R2": {"part_number": "RES-1K", "value": "1k"},

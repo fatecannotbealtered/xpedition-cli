@@ -1,0 +1,72 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.0",
+  "commit": "9f8012163f27",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-08T22:05:36Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "doc save",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "session",
+      "notes": "job job-bb80c4f6bb ended completed"
+    },
+    {
+      "command": "doc save",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--discard"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session"
+    },
+    {
+      "command": "doc save",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Missing.pcb"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session"
+    },
+    {
+      "command": "doc save",
+      "arguments": [
+        "--session",
+        "layout-11172-321018030",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session"
+    }
+  ]
+}
