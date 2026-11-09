@@ -1,0 +1,51 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.2.1",
+  "date": "2026-11-09",
+  "agent": "Claude Code 2.1.318",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/evals/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "route-a-flex",
+      "passed": true,
+      "notes": "Route two differential pairs across a flex board between its two connectors, with two ground",
+      "sha256": "d017a694b594b04ae4937763f6c742fa913e6400bcb389d0cdf713504dea5657",
+      "commands": [
+        "pcb get",
+        "component get",
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "plane create",
+        "trace create",
+        "via create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component get",
+        "constraint import",
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "reference",
+        "session list",
+        "trace create",
+        "via create"
+      ],
+      "fingerprint": "a4859666b3daab8857b82581d650726bc80a626e7a37c3f28efa0bc18d7173f4"
+    }
+  ]
+}
