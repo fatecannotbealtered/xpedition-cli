@@ -6,7 +6,7 @@ applies_to: [pcb get, trace create, via create, plane create, router run, pcb ch
 tags: [layout, flex, bend, stiffener]
 ---
 
-A flex board folds in its bend zones and stays rigid where a stiffener is laminated behind it, usually under each connector. The design rarely names them in words; read them from what the board holds. `pcb get` reports both: the stiffeners under `keepout_kinds.height_limits`, and the bend zones under `bend_zones`, each widened to the board's edges along its length, with what marks it.
+A flex board folds in its bend zones and stays rigid where a stiffener is laminated behind it, usually under each connector. The design rarely names them in words; read them from what the board holds. `pcb get` reports both: the stiffeners under `keepout_kinds.height_limits`, and the bend zones under `bend_zones`, each widened to the board's edges along its length, with the axis it runs along (`along`; traces cross it along the other) and what marks it. A hatched patch that does not span the board, such as one under an antenna, is no bend zone.
 
 - Stiffener: a placement keepout with a height, the stiffener's thickness, such as 0.15 mm, on the side opposite the parts. `pcb get` lists these under `keepout_kinds.height_limits`.
 - Bend zone: a band across the board where the reference plane is hatched instead of solid, often beside each stiffener; `pcb get` lists each plane shape group with its fill under `planes`. Placement keepouts of no height over the same band often mark it too. A text such as BENDING, when the design has one, sits on a user or fabrication layer.

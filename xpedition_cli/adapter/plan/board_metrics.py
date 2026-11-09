@@ -63,7 +63,7 @@ SUMMARY_KEYS = (
     "acute_corners",
     "pair_skew_max_mm",
 )
-PAIR_ENDS = (("P", "N"), ("P", "M"), ("+", "-"))  # the last characters that tell a pair's two nets apart
+PAIR_ENDS = (("P", ("N", "M")), ("+", ("-",)))  # the last character of a pair's first net, and of its second by preference
 SKEW_LIMIT_MM = 0.127  # 5 mil between a pair's two lengths
 SQUARE_TOLERANCE = 5.0  # degrees a trace may cross a bend zone off square
 INSIDE_EPSILON = 0.01  # mm a point lies inside a zone's edge to count as in it
@@ -255,10 +255,11 @@ def _pairs(names: list[str]) -> list[tuple[str, str]]:
     by_upper = {name.upper(): name for name in names}
     pairs = []
     for upper, name in sorted(by_upper.items()):
-        for plus, minus in PAIR_ENDS:
-            other = by_upper.get(upper[:-1] + minus) if len(upper) > 2 and upper.endswith(plus) else None
-            if other is not None:
-                pairs.append((name, other))
+        for plus, minuses in PAIR_ENDS:
+            if len(upper) >= 2 and upper.endswith(plus):
+                other = next((by_upper[upper[:-1] + minus] for minus in minuses if upper[:-1] + minus in by_upper), None)
+                if other is not None:
+                    pairs.append((name, other))
     return pairs
 
 
@@ -618,50 +619,58 @@ def _chord(outline: list[Point], along_x: bool, at: float, centre: float) -> tup
     return next(((low, high) for low, high in zip(hits[0::2], hits[1::2], strict=False) if low <= centre <= high), None)
 
 
-def _across(box: Rect, outline: list[Point]) -> tuple[Rect, float] | None:
-    """A band widened to the board's edges along its length, and the share of that width it covered."""
-    along_x = box[2] - box[0] >= box[3] - box[1]
-    if along_x:
-        chord = _chord(outline, True, (box[1] + box[3]) / 2, (box[0] + box[2]) / 2)
-        return ((chord[0], box[1], chord[1], box[3]), (box[2] - box[0]) / (chord[1] - chord[0])) if chord else None
-    chord = _chord(outline, False, (box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
-    return ((box[0], chord[0], box[2], chord[1]), (box[3] - box[1]) / (chord[1] - chord[0])) if chord else None
+def _across(box: Rect, outline: list[Point]) -> tuple[Rect, bool, float] | None:
+    """The band a box makes across the board: the box widened to the board's edges along the axis
+    where it covers more of the board's width, whether that axis is x, and the share it covers."""
+    best: tuple[Rect, bool, float] | None = None
+    for along_x in (True, False):
+        if along_x:
+            chord = _chord(outline, True, (box[1] + box[3]) / 2, (box[0] + box[2]) / 2)
+            band = ((chord[0], box[1], chord[1], box[3]), True, (box[2] - box[0]) / (chord[1] - chord[0])) if chord else None
+        else:
+            chord = _chord(outline, False, (box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
+            band = ((box[0], chord[0], box[2], chord[1]), False, (box[3] - box[1]) / (chord[1] - chord[0])) if chord else None
+        if band is not None and (best is None or band[2] > best[2]):
+            best = band
+    return best
 
 
 def bend_zones(model: dict[str, Any]) -> list[dict[str, Any]]:
-    """The bend zones, each a band across the board with what marks it: ``hatched_plane``, a
-    hatched plane shape of a net that is solid elsewhere on the same layer; ``placement_keepout``,
-    on a board with stiffeners, a placement keepout of no height at least twice as long as wide
-    that spans most of the board's width. Each band reaches the board's edges along its length;
-    bands that overlap are one zone."""
+    """The bend zones, each a band across the board, with the axis it runs along (traces cross it
+    along the other) and what marks it: ``hatched_plane``, a hatched plane shape of a net that is
+    solid elsewhere on the same layer; ``placement_keepout``, on a board with stiffeners, a
+    placement keepout of no height at least twice as long as wide. Either must span most of the
+    board's width, so a hatched patch on a rigid board is no bend. Each band reaches the board's
+    edges along its length; bands that overlap are one zone."""
     outline = _outline_points(model)
-    found: list[tuple[Rect, str]] = []
+    if not outline:
+        return []
+    found: list[tuple[Rect, bool, str]] = []
     planes = [p for p in model.get("planes") or [] if p.get("extents_mm")]
     solid = {(p.get("net"), p.get("layer")) for p in planes if p.get("hatch") == "solid"}
-    for plane in planes:
-        if plane.get("hatch") not in (None, "solid") and (plane.get("net"), plane.get("layer")) in solid:
-            x0, y0, x1, y1 = (float(v) for v in plane["extents_mm"])
-            found.append(((x0, y0, x1, y1), "hatched_plane"))
-    if outline and stiffeners(model):
-        for keepout in model.get("keepouts") or []:
-            if keepout.get("kind") != "placement" or keepout.get("height_mm") or not keepout.get("extents_mm"):
-                continue
-            x0, y0, x1, y1 = (float(v) for v in keepout["extents_mm"])
-            long, short = max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
-            band = _across((x0, y0, x1, y1), outline) if short > 0 and long >= 2 * short else None
-            if band is not None and band[1] >= BAND_COVER:
-                found.append(((x0, y0, x1, y1), "placement_keepout"))
-    zones: list[tuple[Rect, set[str]]] = []
-    for box, mark in found:
-        band = _across(box, outline) if outline else None
-        box = band[0] if band else box
-        marks = {mark}
+    marks: list[tuple[dict[str, Any], str]] = [(p, "hatched_plane") for p in planes
+                                               if p.get("hatch") not in (None, "solid") and (p.get("net"), p.get("layer")) in solid]
+    if stiffeners(model):
+        marks += [(k, "placement_keepout") for k in model.get("keepouts") or []
+                  if k.get("kind") == "placement" and not k.get("height_mm") and k.get("extents_mm")]
+    for item, mark in marks:
+        x0, y0, x1, y1 = (float(v) for v in item["extents_mm"])
+        long, short = max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
+        if mark == "placement_keepout" and not (short > 0 and long >= 2 * short):
+            continue
+        band = _across((x0, y0, x1, y1), outline)
+        if band is not None and band[2] >= BAND_COVER:
+            found.append((band[0], band[1], mark))
+    zones: list[tuple[Rect, bool, set[str]]] = []
+    for box, along_x, mark in found:
+        named = {mark}
         for other in [z for z in zones if overlap(z[0], box) > 0]:
             zones.remove(other)
             box = (min(box[0], other[0][0]), min(box[1], other[0][1]), max(box[2], other[0][2]), max(box[3], other[0][3]))
-            marks |= other[1]
-        zones.append((box, marks))
-    return [{"extents_mm": [round(v, 3) for v in box], "marked_by": sorted(marks)} for box, marks in sorted(zones)]
+            along_x, named = other[1], named | other[2]
+        zones.append((box, along_x, named))
+    return [{"extents_mm": [round(v, 3) for v in box], "along": "x" if along_x else "y", "marked_by": sorted(named)}
+            for box, along_x, named in sorted(zones, key=lambda z: z[0])]
 
 
 def stiffeners(model: dict[str, Any]) -> list[Rect]:
@@ -714,9 +723,11 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
     crosses off square inside one; traces of two layers straight above each other across one; and,
     where the board has stiffeners, a via of a net without plane shapes, a layer change, outside them."""
     zones: list[Rect] = []
+    along: dict[Rect, bool] = {}
     for zone in bend_zones(model):
         x0, y0, x1, y1 = zone["extents_mm"]
         zones.append((x0, y0, x1, y1))
+        along[(x0, y0, x1, y1)] = zone["along"] == "x"
     if not zones:
         return []
     findings: list[dict[str, Any]] = []
@@ -734,7 +745,7 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
         points = _trace_points(trace)
         net, layer, width = str(trace.get("net") or ""), int(trace.get("layer") or 0), float(trace.get("width") or 0.0)
         for zone in zones:
-            turned, off = _crossing(points, net, layer, width, zone, crossing[zone])
+            turned, off = _crossing(points, net, layer, width, zone, along[zone], crossing[zone])
             if turned is not None:
                 turns.setdefault((zone, net, layer), turned)
             if off > SQUARE_TOLERANCE:
@@ -772,19 +783,18 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
-def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect,
+def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect, along_x: bool,
               rows: list[tuple[int, str, float, float]]) -> tuple[Point | None, float]:
     """Where one trace first turns inside one bend zone, or None, and how many degrees off square
     it runs across it at most; each square run is added to ``rows`` as (layer, net, where it
-    crosses, width)."""
-    along_x = zone[2] - zone[0] >= zone[3] - zone[1]  # the band runs along x, so traces cross it in y
+    crosses, width). A band that runs along x is crossed in y."""
     turned = next((v for b, v, a in zip(points, points[1:], points[2:], strict=False)
                    if _inside(v, zone) and _turn(b, v, a) > ACUTE_TOLERANCE), None)
     off = 0.0
     for a, b in zip(points, points[1:], strict=False):
         part = _clipped(a, b, zone)
-        if part is None or math.dist(*part) < 0.05:
-            continue
+        if part is None or math.dist(*part) < 0.05 or not _inside(((part[0][0] + part[1][0]) / 2, (part[0][1] + part[1][1]) / 2), zone):
+            continue  # a run along the zone's edge, outside it, is not in it
         dx, dy = abs(part[1][0] - part[0][0]), abs(part[1][1] - part[0][1])
         degrees = math.degrees(math.atan2(dx, dy) if along_x else math.atan2(dy, dx))
         off = max(off, degrees)

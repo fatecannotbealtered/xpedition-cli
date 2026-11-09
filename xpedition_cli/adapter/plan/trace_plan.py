@@ -181,8 +181,9 @@ def length(trace: Trace) -> float:
     return sum(math.dist(a, b) for a, b in zip(path, path[1:], strict=False))
 
 
-def parse(data: Any) -> Plan:
-    if not isinstance(data, dict) or not data:
+def parse(data: Any, lanes: bool = False) -> Plan:
+    """The plan's traces and vias; with ``lanes``, the plan has lanes besides, so it may name none."""
+    if not isinstance(data, dict) or not (data or lanes):
         raise _error("the file holds one JSON object with traces, vias and lanes")
     unknown = [k for k in data if k not in ("traces", "vias")]
     if unknown:
@@ -215,7 +216,7 @@ def parse(data: Any) -> Plan:
         if not isinstance(net, str) or not net or not isinstance(padstack, str) or not padstack:
             raise _error(f"{what} needs a net and a padstack")
         plan.vias.append(Via(net, _point(item.get("at_mm"), f"{what}.at_mm"), padstack))
-    if not plan.traces and not plan.vias:
+    if not plan.traces and not plan.vias and not lanes:
         raise _error("it names no trace or via")
     if len(plan.traces) + len(plan.vias) > MAX_ITEMS:
         raise _error(f"it names more than {MAX_ITEMS} items")

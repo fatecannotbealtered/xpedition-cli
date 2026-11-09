@@ -52,7 +52,7 @@ class ExpandTest(unittest.TestCase):
         lengths = []
         for offset in (2.0, 4.0):
             lane = LN.parse([{"net": "A", "layer": 1, "width_mm": 0.1, "from_mm": [[offset, 5]], "to_mm": [[75, 80 - offset]],
-                              "edge_mm": [[0, 10], [70, 80]], "offset_mm": offset, "radius_mm": 0}])[0]
+                              "edge_mm": [[0, 1], [79, 80]], "offset_mm": offset, "radius_mm": 0}])[0]
             trace = LN.expand(lane, ring, "lanes[0]")
             arc = [p for p in trace.path if p[0] < 30 and p[1] > 50]
             radii = {round(math.dist(p, (30, 50)), 6) for p in arc}
@@ -69,6 +69,45 @@ class ExpandTest(unittest.TestCase):
         trace = LN.expand(lane, ring, "lanes[0]")
         xs = {round(x, 6) for x, y in trace.points if 9 < y < 91}
         self.assertEqual(xs, {2.0, 4.0})  # 2 mm from the edge and around the notch, never out into the tab
+
+    def test_a_chamfer_shorter_than_the_offset_leaves_no_knot(self):
+        rows = [(0.0, 0.0, 0.0), (19.5, 0.0, 0.0), (20.0, 0.5, 0.0), (20.0, 100.0, 0.0), (0.0, 100.0, 0.0), (0.0, 0.0, 0.0)]
+        lane = LN.parse([_lane(from_mm=[[10, 5]], to_mm=[[15, 50]], edge_mm=[[10, 0], [20, 50]], radius_mm=0)])[0]
+        trace = LN.expand(lane, LN.outline_corners(rows), "lanes[0]")
+        self.assertEqual([(round(x, 6), round(y, 6)) for x, y in trace.points], [(10, 5), (10, 2), (18, 2), (18, 50), (15, 50)])
+
+    def test_a_long_narrow_tab_is_passed_but_a_corner_or_a_tail_end_is_followed(self):
+        tab = [(0.0, 0.0, 0.0), (20.0, 0.0, 0.0), (20.0, 100.0, 0.0), (0.0, 100.0, 0.0), (0.0, 58.0, 0.0), (-8.0, 58.0, 0.0),
+               (-8.0, 56.0, 0.0), (0.0, 56.0, 0.0), (0.0, 0.0, 0.0)]
+        trace = LN.expand(LN.parse([_lane(radius_mm=0)])[0], LN.outline_corners(tab), "lanes[0]")
+        self.assertEqual({round(x, 6) for x, y in trace.points if 9 < y < 91}, {2.0})  # straight past the 8 mm tab
+        chain, _left = LN.edge_chain(LN.outline_corners(_rows(0, 0, 20, 100, 1)), ((17.0, 0.0), (20.0, 3.0)))
+        self.assertIn((20.0, 0.0), [(round(p[0], 6), round(p[1], 6)) for p, _r in chain])  # the rounded corner stays
+        tail = [(20.0, 0.0, 0.0), (20.0, 4.0, 0.0), (-10.0, 4.0, 0.0), (-10.0, 2.0, -2.0), (-10.0, 0.0, 0.0), (20.0, 0.0, 0.0)]
+        chain, _left = LN.edge_chain(LN.outline_corners(tail), ((-9.5, 4.0), (-9.5, 0.0)))
+        self.assertTrue(any(p[0] < -10 for p, _r in chain))  # around the tail's round end, not across it
+
+    def test_only_the_turn_onto_the_lane_gives_way_to_an_outline_turn(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 2))
+        lane = LN.parse([_lane(from_mm=[[17.8, 1.0]], to_mm=[[15, 50]], edge_mm=[[5, 0], [20, 50]], offset_mm=0.5)])[0]
+        trace = LN.expand(lane, ring, "lanes[0]")
+        radii = {(round(x, 6), round(y, 6)): round(r, 6) for (x, y), r in zip(trace.points, trace.radii, strict=True)}
+        self.assertEqual(radii[(19.5, 0.5)], 1.5)  # concentric with the outline's 2 mm corner
+        self.assertAlmostEqual(radii[(17.8, 0.5)], 0.2, places=5)  # the join made smaller to fit
+        with self.assertRaises(PlanError) as caught:  # it would join the edge inside the corner's turn
+            LN.expand(LN.parse([_lane(from_mm=[[18.8, 1.0]], to_mm=[[15, 50]], edge_mm=[[5, 0], [20, 50]], offset_mm=0.5)])[0],
+                      ring, "lanes[1]")
+        self.assertIn("lanes[1] cannot follow the edge", caught.exception.message)
+
+    def test_a_lane_that_leaves_beyond_its_edge_or_an_outline_without_points_is_refused(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        with self.assertRaises(PlanError) as caught:
+            LN.expand(LN.parse([_lane(edge_mm=[[0, 30], [0, 70]])])[0], ring, "lanes[0]")
+        self.assertIn("beyond the ends of its edge", caught.exception.message)
+        with self.assertRaises(PlanError) as caught:
+            LN.expand(LN.parse([_lane()])[0], LN.outline_corners([]), "lanes[0]")
+        self.assertIn("too few points", caught.exception.message)
+        self.assertEqual(TP.parse({"traces": []}, lanes=True).traces, [])  # a plan of lanes alone
 
     def test_a_lane_is_refused_with_its_name(self):
         for wrong, text in (({"offset_mm": 0}, "offset_mm"), ({"edge_mm": [[0, 1]]}, "edge_mm"), ({"from_mm": [[5, 5, 1]]}, "rounds no corner"),

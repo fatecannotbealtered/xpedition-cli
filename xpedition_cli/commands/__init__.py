@@ -944,7 +944,7 @@ COMMANDS: list[dict[str, Any]] = [
                    outline=obj(width_mm=NUM, height_mm=NUM, radius_mm=NUM, extents_mm=arr(NUM)), stackup=arr(OBJ),
                    net_classes=arr(obj(name=STR, nets=INT, widths=OBJ, vias=OBJ)), keepouts=INT,
                    keepout_kinds=obj(by_kind=OBJ, height_limits=arr(obj(side=STR, height_mm=NUM, extents_mm=arr(NUM)))),
-                   bend_zones=arr(obj(extents_mm=arr(NUM), marked_by=arr(STR))), cutouts=INT,
+                   bend_zones=arr(obj(extents_mm=arr(NUM), along=STR, marked_by=arr(STR))), cutouts=INT,
                    planes=arr(obj(net=STR, layer=INT, hatch=STR, hatch_width_mm=NUM, hatch_distance_mm=NUM, generated=BOOL, shapes=INT,
                                   extents_mm=arr(NUM))),
                    via_padstacks=arr(obj(name=STR, vias=INT, pad_mm=NUM)),

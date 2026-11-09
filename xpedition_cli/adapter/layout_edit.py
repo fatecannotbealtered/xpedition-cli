@@ -829,7 +829,7 @@ def _routing_plan(ctx: Context) -> tuple[TP.Plan, list[LN.Lane]]:
         raise AdapterError("E_VALIDATION", f"The routing plan {source} is not JSON: {exc}.", dispatch_state="not_started") from None
     try:
         lanes = LN.parse(data.pop("lanes")) if isinstance(data, dict) and "lanes" in data else []
-        return (TP.parse(data) if data or not lanes else TP.Plan()), lanes
+        return TP.parse(data, lanes=bool(lanes)), lanes
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
 
