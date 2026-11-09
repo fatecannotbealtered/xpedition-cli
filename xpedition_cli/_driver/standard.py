@@ -306,6 +306,12 @@ def _job_record(run: Run, job_id: str) -> dict[str, Any]:
                       next_action=f"Run `{run.tool.name} job list` to see the jobs.")
 
 
+# What a job_status reply may hold (the adapter schema).
+JOB_STATUS_KEYS = ("state", "progress", "action", "change", "delivery", "persistence", "result", "files", "native_message")
+# The parts of a write job that hold text from the application (DSEC-021).
+JOB_UNTRUSTED = [".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result"]
+
+
 def job_view(record: dict[str, Any], run: Run) -> dict[str, Any]:
     job = record["_job"]
     out: dict[str, Any] = {"id": job["id"], "operation_id": record["operation_id"], "state": job["state"],
@@ -319,16 +325,11 @@ def job_view(record: dict[str, Any], run: Run) -> dict[str, Any]:
         out["result"] = slim_result(run, job.get("result", {}))
         out["ok"] = job.get("ok", False)
         if job.get("code"):
+            # The error the call would have returned, so the Agent handles it the same way (DCLI-220).
+            from .jobs import ended_error
+
             out["code"] = job["code"]
-        human = job.get("human") if job.get("code") == "E_HUMAN_REQUIRED" and job["state"] == "unknown" else None
-        if human:
-            lookup = [("--id", record["operation_id"])]
-            out["action"] = human.get("action", "other")
-            out["resume"] = run.cmd("operation resolve", lookup)
-            if human.get("title"):
-                out["title"] = human["title"]
-            if human.get("knowledge"):
-                out["knowledge"] = human["knowledge"]
+            out["message"], out["details"] = ended_error(job, run.cmd("operation resolve", [("--id", record["operation_id"])]))
     if job["state"] == "blocked":
         out["action"] = job.get("action", "other")
     return out
@@ -350,7 +351,7 @@ def poll_job(run: Run, record: dict[str, Any]) -> dict[str, Any]:
         latest = run.records.load(record["operation_id"]) or latest
         if latest["_job"]["state"] not in FINAL_JOB_STATES:
             latest["_job"]["state"] = "unknown"
-            _settle_job(run, latest, {"state": "unknown", "native_message": "The worker that ran this job ended without a result."})
+            _settle_job(run, latest, {"state": "unknown", "_note": "The worker that ran this job ended without a result."})
             run.records.save(latest)
         return latest
     call_info = record.get("_call") or {}
@@ -358,13 +359,18 @@ def poll_job(run: Run, record: dict[str, Any]) -> dict[str, Any]:
     if call_info.get("session"):
         request["session"] = call_info["session"]
     try:
-        status = run.capability("job_status", request, READ_DEADLINE_MS)
+        reply = run.capability("job_status", request, READ_DEADLINE_MS)
+        # Only what the protocol lets the application report; keys that start with _ are the runtime's.
+        status = {k: v for k, v in reply.items() if k in JOB_STATUS_KEYS} if isinstance(reply, dict) else {}
     except DriverError as exc:
         if exc.code not in ("E_NOT_FOUND", "E_BACKEND_UNAVAILABLE"):
             raise
         # The application no longer knows the job, or its instance is gone: the outcome
-        # is unknown and the operation can be resolved (DCLI-063).
-        status = {"state": "unknown", "native_message": exc.message}
+        # is unknown and the operation can be resolved (DCLI-063). The message may be the
+        # runtime's own, so only the application's words become native_message.
+        status = {"state": "unknown", "_note": f"The job could not be followed: {exc.message}"}
+        if isinstance(exc.details.get("native_message"), str):
+            status["native_message"] = exc.details["native_message"]
     if status.get("state") not in run.contract["jobs"]["states"]:
         status = {**status, "state": "unknown"}
     job["state"] = status["state"]
@@ -419,19 +425,44 @@ def _settle_job(run: Run, record: dict[str, Any], status: dict[str, Any], made: 
         receipt["document"] = {**receipt["document"], "dirty": None}
         record["_document_unread"] = True
     cause = "E_INTERRUPTED" if state == "cancelled" else status.get("code")
-    ok, code = _Engine(run).derive(receipt, cause)
+    engine = _Engine(run)
+    ok, code = engine.derive(receipt, cause)
     record["state"] = record_state(receipt, code)
-    if status.get("human") and code == "E_OUTCOME_UNKNOWN":
+    error: DriverError | None = status.get("_error")
+    human = error if error is not None and error.code == "E_HUMAN_REQUIRED" and code == "E_OUTCOME_UNKNOWN" else None
+    if human is not None:
         # A dialog the change opened: the job ends as the call would, waiting for the person and
         # then operation resolve; the write is never sent again (DCLI-066, DCLI-220).
-        job["human"] = status["human"]
         code = "E_HUMAN_REQUIRED"
     job.update(ok=ok, code=code, finished_at=utc_now(), result=status.get("result", {}))
+    if not ok:
+        job.update(_job_error(engine, record, code, error, human, status))
     record.update(finished_at=job["finished_at"], _finished=time.time_ns())
     if record["state"] == "unknown":
         run.locks.hold_as(record["operation_id"], "unknown", record.get("_keys", []))
     else:
         run.locks.release(record["operation_id"])
+
+
+def _job_error(engine: Engine, record: dict[str, Any], code: str, error: DriverError | None,
+               human: DriverError | None, status: dict[str, Any]) -> dict[str, Any]:
+    """The message and details of the error the write's call would have returned (DCLI-220).
+    When the job changed nothing, running it again starts from the write's first call, because
+    the job has spent its token."""
+    from .jobs import CANCELLED, ended_with
+
+    job, receipt = record["_job"], record["receipt"]
+    cause = error if error is not None and error.code == code else None
+    if cause is None and human is None:
+        native = status.get("native_message") if isinstance(status.get("native_message"), str) else None
+        cause = CANCELLED if code == CANCELLED.code else DriverError(
+            code, f"Long job {job['id']} ended {job['state']}.", native_message=native,
+            untrusted=["details.native_message"] if native else [])
+    made = engine.write_error(None, record, receipt, code, cause, human)
+    if cause is not None and cause is error:
+        made.details["dispatch_state"] = error.details["dispatch_state"]  # the receipt says only failed
+    unchanged = receipt["outcome"]["change"] in ("not_applied", "rolled_back")
+    return ended_with(made, job.get("again") if unchanged else None, "write")
 
 
 def _read_document(run: Run, record: dict[str, Any]) -> dict[str, Any] | None:
@@ -557,8 +588,9 @@ class _BeforeDispatch:
             if not self.reading:
                 return  # the reads ended in time; the hang is the dispatch's own
             self.settled = True
-            status = {"state": "failed", "change": "not_applied", "code": "E_BUSY",
-                      "_note": "The application did not answer a read before the dispatch in time; nothing was sent."}
+            note = "The application did not answer a read before the dispatch in time; nothing was sent."
+            status = {"state": "failed", "change": "not_applied", "code": "E_BUSY", "_note": note,
+                      "_error": DriverError("E_BUSY", note, retry_after_ms=1000)}
             _settle_hung(self.run, self.sub, self.record, status, Verification("not_applicable"))
 
     def __enter__(self) -> None:
@@ -658,10 +690,14 @@ def _job_dispatch_once(run: Run, apply: Any, strict: bool) -> tuple[dict[str, An
     status: dict[str, Any]
     facts: Any = {}
     wait_ms = 500
+    # A failure keeps its error, so the job shows what the call would have (DCLI-220); only the
+    # application's own words become native_message.
     try:
         facts = apply()
     except DriverError as exc:
-        status = {"state": "failed", "change": "not_applied", "code": exc.code, "native_message": exc.message}
+        status = {"state": "failed", "change": "not_applied", "code": exc.code, "_error": exc}
+        if isinstance(exc.details.get("native_message"), str):
+            status["native_message"] = exc.details["native_message"]
         wait_ms = exc.details.get("retry_after_ms", wait_ms)
     except CapabilityError as exc:
         error, ds = run.host_error(exc, exc.dispatch_state, write=True), exc.dispatch_state
@@ -671,19 +707,21 @@ def _job_dispatch_once(run: Run, apply: Any, strict: bool) -> tuple[dict[str, An
         elif ds == "dispatched" and code == "E_NATIVE_FAILURE":
             status = {"state": "failed", "change": "rolled_back", "code": code}
         else:
+            # Sent, then an error: a dialog the change opened keeps what the person must do (DCLI-066).
             status = {"state": "unknown"}
-            if code == "E_HUMAN_REQUIRED":
-                # The change opened a dialog: the job keeps what the person must do (DCLI-066).
-                status["human"] = {k: error.details[k] for k in ("action", "title", "knowledge") if error.details.get(k)}
+        status["_error"] = error
         if isinstance(exc.data.get("native_message"), str):
             status["native_message"] = exc.data["native_message"]
         wait_ms = exc.data.get("retry_after_ms", wait_ms)
     except BadReply as exc:
-        status = {"state": "unknown", "native_message": str(exc)}
+        status = {"state": "unknown", "_note": f"The adapter's reply could not be used: {exc}"}
     except Unanswered as exc:
-        status = {"state": "unknown"} if exc.sent else {"state": "failed", "change": "not_applied", "code": "E_BUSY"}
+        status = {"state": "unknown"} if exc.sent else {
+            "state": "failed", "change": "not_applied", "code": "E_BUSY",
+            "_error": DriverError("E_BUSY", "The application did not take the change in time; nothing was sent.", retry_after_ms=1000)}
     except (Lost, BadProtocol) as exc:
-        status = {"state": "failed", "change": "not_applied", "code": "E_BACKEND_UNAVAILABLE", "native_message": str(exc)}
+        status = {"state": "failed", "change": "not_applied", "code": "E_BACKEND_UNAVAILABLE",
+                  "_error": DriverError("E_BACKEND_UNAVAILABLE", f"The application could not be reached; nothing was sent: {exc}")}
     else:
         if not isinstance(facts, dict) or facts.get("dispatch_state") not in ("not_started", "dispatched", "unknown"):
             status = {"state": "unknown"}
@@ -711,7 +749,7 @@ def job_list(run: Run) -> Result:
                 poll_job(run, record)
             except DriverError:
                 pass  # the job keeps its last known state
-    from .jobs import ReadJobs, read_view, settle_dead_read
+    from .jobs import ERROR_UNTRUSTED, ReadJobs, read_view, settle_dead_read
 
     reads = [settle_dead_read(run, job) for job in ReadJobs(run).all()]
     worker_sessions = [(r.get("_call") or {}).get("session") for r in records
@@ -729,7 +767,7 @@ def job_list(run: Run) -> Result:
         _show_blocked(run, view, blocked.get((job.get("_request") or {}).get("session")))
         views.append(view)
     return _page(run, [v for v in views if state == "all" or v["state"] == state],
-                 [f".items[*]{p}" for p in (".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result", ".message", ".title")])
+                 [f".items[*]{p}" for p in JOB_UNTRUSTED + ERROR_UNTRUSTED])
 
 
 def _blocked_sessions(run: Run) -> dict[str, dict[str, Any]]:
@@ -786,7 +824,7 @@ def _show_blocked(run: Run, view: dict[str, Any], blocker: dict[str, Any] | None
 
 
 def job_get(run: Run) -> Result:
-    from .jobs import FINAL, ReadJobs, read_view, run_read, settle_dead_read, worker_of
+    from .jobs import ERROR_UNTRUSTED, FINAL, ReadJobs, read_view, run_read, settle_dead_read, worker_of
 
     call = run.call
     wait = call.values.get("--wait", 0.0)
@@ -812,7 +850,7 @@ def job_get(run: Run) -> Result:
         run.notices.extend(read_job.get("notices") or [])
         if view["state"] not in FINAL:
             view["poll_after_ms"] = POLL_AFTER_MS
-        return Result(view, [".message"] + [".result" + p for p in read_job.get("_untrusted", [])])
+        return Result(view, ERROR_UNTRUSTED + [".result" + p for p in read_job.get("_untrusted", [])])
     record = _job_record(run, job_id)
     if run.worker and worker_of(run, job_id, (record["_job"].get("worker") or {}).get("nonce")):
         with run.mutex.hold():
@@ -849,7 +887,7 @@ def job_get(run: Run) -> Result:
     run.notices.extend(record["_job"].get("notices") or [])
     if view["state"] not in FINAL_JOB_STATES:
         view["poll_after_ms"] = POLL_AFTER_MS
-    return Result(view, [".receipt.notes", ".receipt.target.label", ".receipt.observed", ".result", ".title"])
+    return Result(view, JOB_UNTRUSTED + ERROR_UNTRUSTED)
 
 
 # ------------------------------------------------------------------ standard writes
@@ -1224,7 +1262,26 @@ class DocSave(_OnDocument):
         request = {"command": "doc save", "inputs": {}, "session": self.where.session["id"], "document": self.where.document["id"],
                    "operation_id": operation_id, "targets": sorted({c["target"] for c in fields}),
                    "fields": sorted({c["field"] for c in fields})}
-        return read_back(self.run, request, fields, {})
+        return read_back(self.run, request, fields, made_tolerances(self.run, self.where.session["id"], self.where.document["id"], fields))
+
+
+def made_tolerances(run: Run, session: str, doc_id: str, fields: list[dict[str, Any]]) -> dict[tuple[str, str], float | None]:
+    """Each field a save reads back, with the tolerance of the command whose write left the value
+    the save expects, so the save compares it as that write did (DCLI-057). That is the newest
+    write on the document that changed the field to that value, else the newest that changed it;
+    a field no write changed is compared exactly. A save's own record lists others' changes."""
+    writes = [r for r in run.records.all() if r.get("command") != "doc save"
+              and ((r.get("receipt") or {}).get("outcome") or {}).get("change") in ("applied", "partial", "unknown")
+              and (r.get("_call") or {}).get("session") == session and (r.get("_call") or {}).get("document") == doc_id]
+    writes.sort(key=lambda r: r.get("_seq", 0), reverse=True)
+    out: dict[tuple[str, str], float | None] = {}
+    for field in fields:
+        key = (field["target"], field["field"])
+        made = [(r, c) for r in writes for c in r.get("_changes", []) if (c.get("target"), c.get("field")) == key]
+        record = next((r for r, c in made if c.get("after") == field.get("after")), made[0][0] if made else None)
+        if record is not None:
+            out[key] = (record.get("_tolerances") or {}).get(key[1])
+    return out
 
 
 def deferred_records(run: Run, session: str, doc_id: str | None) -> list[dict[str, Any]]:
@@ -1356,6 +1413,10 @@ class DocUndo(_OnDocument):
     def stored_request(self, child: int | None = None) -> dict[str, Any] | None:
         return self.last.get("_request") if self.last else None
 
+    def tolerances(self) -> dict[str, float]:
+        """The fields go back as the undone command changed them, within that command's tolerances."""
+        return dict(self.last.get("_tolerances", {})) if self.last else {}
+
     def apply(self, operation_id: str, child: int | None = None) -> dict[str, Any]:
         # Mark the change as being undone before the undo is sent, so a second undo never
         # picks it again, whatever this one's outcome (DCLI-067).
@@ -1368,20 +1429,20 @@ class DocUndo(_OnDocument):
             return Verification("incomplete", notes=["There was no recorded change to compare."])
         request = {**self.last["_request"], "operation_id": operation_id, "targets": sorted({c["target"] for c in changes}),
                    "fields": sorted({c["field"] for c in changes})}
-        return read_back(self.run, request, changes, self.last.get("_tolerances", {}))
+        return read_back(self.run, request, changes, self.tolerances())
 
 
 def job_cancel(run: Run) -> Result:
     """A read job is stopped by ending its worker, which changes nothing; any other job is
     asked to cancel through the application, as a halt command (DCLI-221)."""
-    from .jobs import FINAL, ReadJobs, read_view, stop_read
+    from .jobs import ERROR_UNTRUSTED, FINAL, ReadJobs, read_view, stop_read
 
     job = ReadJobs(run).load(run.call.values["--job"])
     if job is None:
         return Engine(run).execute(JobCancel(run, run.call.command))
     if job["state"] in FINAL:
         raise DriverError("E_VALIDATION", f"Job {job['id']} has already ended ({job['state']}); there is nothing to cancel.")
-    return Result(read_view(stop_read(run, job)), [".message"])
+    return Result(read_view(stop_read(run, job)), ERROR_UNTRUSTED)
 
 
 class JobCancel(_Lifecycle):
@@ -1436,6 +1497,11 @@ class JobCancel(_Lifecycle):
     def facts_result(self, facts: dict[str, Any]) -> Any:
         record = poll_job(self.run, self.run.records.load(self.job_record["operation_id"]) or self.job_record)
         return job_view(record, self.run)
+
+    def untrusted_result(self) -> list[str]:
+        from .jobs import ERROR_UNTRUSTED
+
+        return [".result" + p for p in JOB_UNTRUSTED + ERROR_UNTRUSTED]
 
 
 class PluginInstall(_Lifecycle):

@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-SKILL-SPEC_zh.md)
 
-> Version 1.0.9 · Clauses DSKL-001 to DSKL-127
+> Version 1.0.10 · Clauses DSKL-001 to DSKL-127
 
 ## How to Read
 
@@ -196,7 +196,7 @@ The entry Skill MUST contain the driver playbooks below, in the text the templat
 |---|---|
 | `select_instance_and_document` | List the sessions and documents, then name them with `--session` and `--doc`; never rely on window focus (DCLI-202) |
 | `save` | A change in session mode whose receipt says `persistence: unchanged` is not saved until `doc save`; save only when the person asks for it, since a grant to change a document is not a request to save it; check the save preview, including changes made outside the tool and operations whose outcome is still unknown, before confirming (DCLI-058) |
-| `long_jobs_and_blocking` | Poll a long job with its exact `poll` command; on `E_BUSY`, wait and run the command again, and after 3 retries of the same command ask the person; on `E_HUMAN_REQUIRED`, pass the action to the person and run `resume` afterwards (DCLI-065, DCLI-066) |
+| `long_jobs_and_blocking` | Poll a long job with its exact `poll` command; handle a job that ended with `ok: false` as the error in its `code`, `message` and `details`; on `E_BUSY`, wait and run the command again, and after 3 retries of the same command ask the person; on `E_HUMAN_REQUIRED`, pass the action to the person and run `resume` afterwards (DCLI-065, DCLI-066, DCLI-220) |
 | `physical_effects` | Device mode only: check the device state first, confirm with `--dangerous` within the scope, stop with a halt command at once when needed, and never report simulated results as real (DSEC-018, DSEC-061 and DSEC-062) |
 | `outcome_unknown_and_partial` | After `E_OUTCOME_UNKNOWN`, never send the write again; first run the `details.lookup` command, which resolves the operation. After `E_PARTIAL`, send again only the items that failed (DCLI-063, DCLI-064) |
 | `scope_refused` | On `E_FORBIDDEN`, pass `details.scope.snippet` and what is missing to the person; write a scope file for it only when the person's own message grants it (DSEC-011, DSEC-015) |

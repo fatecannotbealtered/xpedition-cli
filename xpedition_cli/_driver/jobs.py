@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .errors import NEXT_ACTION, DriverError
 from .records import pid_alive, process_start, utc_now
 from .state import read_json, write_json
 
@@ -28,6 +29,50 @@ if TYPE_CHECKING:
 
 WINDOWS = sys.platform == "win32"
 FINAL = ("completed", "failed", "partial", "unknown", "cancelled")
+
+# The parts of a failed job's error that can hold text from outside the tool: the application's
+# words, and the Agent's own arguments in a command to run again (DSEC-021).
+ERROR_UNTRUSTED = [".message", ".details.native_message", ".details.title", ".details.candidates",
+                   ".details.resume", ".details.next_action"]
+# Codes whose next action is not to run the command again.
+NO_RERUN = ("E_UNSUPPORTED", "E_INTEGRITY", "E_PROTOCOL", "E_UNKNOWN", "E_OUTCOME_UNKNOWN")
+RUN_AGAIN = re.compile(r"run the (?:same )?command again")
+
+
+def ended_with(err: DriverError, again: str | None, kind: str) -> dict[str, Any]:
+    """``message`` and ``details`` of the error a job ended with: what the call would have
+    returned (DCLI-220). The worker made the call, so a command to run again is the job's own
+    first call, ``again``, never the worker's or a confirmation with a spent token; the details
+    hold no receipt, which a write job carries itself. ``kind`` is ``write`` or ``read``."""
+    details = {k: v for k, v in err.details.items() if k != "receipt"}
+    if again and "resume" in details:
+        details["resume"] = again
+    elif again and err.code not in NO_RERUN:
+        how = f"run the write again from its first call, `{again}`" if kind == "write" else f"run the read again, `{again}`"
+        text = details["next_action"]
+        details["next_action"] = RUN_AGAIN.sub(lambda _: how, text, count=1) if RUN_AGAIN.search(text) else             f"{text} If it is still wanted, {how}."
+    return {"message": err.message, "details": details}
+
+
+def ended_error(job: dict[str, Any], resolve: str | None = None) -> tuple[str, dict[str, Any]]:
+    """The message and details a failed job shows. A job an older runtime recorded without them
+    gets the defaults of its code, with what its record still tells: the dialog that stopped a
+    write after dispatch, and ``resolve``, the operation resolve command of a write job."""
+    code = job["code"]
+    if job.get("details"):
+        return job.get("message") or code, job["details"]
+    details: dict[str, Any] = {"dispatch_state": "unknown" if job["state"] == "unknown" else "not_started",
+                               "next_action": NEXT_ACTION.get(code, NEXT_ACTION["E_UNKNOWN"])}
+    human = job.get("human") or {}
+    if resolve and code == "E_HUMAN_REQUIRED" and job["state"] == "unknown":
+        details.update(dispatch_state="dispatched", action=human.get("action", "other"), resume=resolve,
+                       **{k: human[k] for k in ("title", "knowledge") if human.get(k)})
+    elif resolve and code == "E_OUTCOME_UNKNOWN":
+        details["lookup"] = resolve
+    return job.get("message") or f"The job ended {job['state']} with {code}.", details
+
+
+CANCELLED = DriverError("E_INTERRUPTED", "The job was cancelled before it finished.")
 
 
 JOB_ID = re.compile(r"job-[0-9a-f]{10}")
@@ -135,15 +180,15 @@ def submit_read(run: Run, request: dict[str, Any], untrusted: list[str]) -> dict
     store = ReadJobs(run)
     job = {"id": new_job_id(), "kind": "read", "command": request["command"], "state": "running",
            "cancel_requested": False, "started_at": utc_now(), "finished_at": None, "_request": request,
-           "_untrusted": untrusted, "worker": {"nonce": new_nonce()}}
+           "_untrusted": untrusted, "worker": {"nonce": new_nonce()}, "again": run.again()}
     store.save(job)  # recorded before the worker starts, so the worker finds itself named
     try:
         started = start_worker(run, job["id"], job["worker"]["nonce"])
     except OSError as exc:
         with run.mutex.hold():
             latest = store.load(job["id"]) or job
-            latest.update(state="failed", ok=False, code="E_UNKNOWN", message=f"The worker could not start: {exc}",
-                          finished_at=utc_now())
+            latest.update(state="failed", ok=False, finished_at=utc_now(),
+                          **_read_failed(latest, DriverError("E_UNKNOWN", f"The worker could not start: {exc}")))
             store.save(latest)
         return latest
     with run.mutex.hold():
@@ -153,10 +198,12 @@ def submit_read(run: Run, request: dict[str, Any], untrusted: list[str]) -> dict
     return latest
 
 
+def _read_failed(job: dict[str, Any], err: DriverError) -> dict[str, Any]:
+    return {"code": err.code, **ended_with(err, job.get("again"), "read")}
+
+
 def run_read(run: Run, job: dict[str, Any]) -> None:
     """In the worker: claim the job, make the read with the long deadline and record what came back."""
-    from .errors import DriverError
-
     store = ReadJobs(run)
     with run.mutex.hold():
         latest = store.load(job["id"]) or job
@@ -172,7 +219,7 @@ def run_read(run: Run, job: dict[str, Any]) -> None:
                                             "a list returns its entries in items.")
         job.update(state="completed", ok=True, code=None, result=result)
     except DriverError as exc:
-        job.update(state="failed", ok=False, code=exc.code, message=exc.message)
+        job.update(state="failed", ok=False, **_read_failed(job, exc))
     kept = [n for n in run.notices if n.get("type") == "application"]
     if kept:
         job["notices"] = kept  # job get shows what the adapter said in the worker (DCLI-260)
@@ -191,10 +238,10 @@ def settle_dead_read(run: Run, job: dict[str, Any]) -> dict[str, Any]:
         if latest["state"] in FINAL:
             return latest
         if latest.get("cancel_requested"):
-            latest.update(state="cancelled", ok=False, code="E_INTERRUPTED", finished_at=utc_now())
+            latest.update(state="cancelled", ok=False, finished_at=utc_now(), **_read_failed(latest, CANCELLED))
         else:
-            latest.update(state="failed", ok=False, code="E_UNKNOWN", finished_at=utc_now(),
-                          message="The worker that ran this job ended without a result.")
+            latest.update(state="failed", ok=False, finished_at=utc_now(), **_read_failed(
+                latest, DriverError("E_UNKNOWN", "The worker that ran this job ended without a result.")))
         ReadJobs(run).save(latest)
         return latest
     return job
@@ -208,8 +255,7 @@ def read_view(job: dict[str, Any]) -> dict[str, Any]:
         out["ok"] = bool(job.get("ok"))
         if job.get("code"):
             out["code"] = job["code"]
-        if job.get("message"):
-            out["message"] = job["message"]
+            out["message"], out["details"] = ended_error(job)
         if job.get("ok"):
             out["result"] = job.get("result")
     return out
@@ -233,7 +279,7 @@ def stop_read(run: Run, job: dict[str, Any]) -> dict[str, Any]:
         latest = ReadJobs(run).load(job["id"]) or job
         latest["cancel_requested"] = True
         if latest["state"] not in FINAL and not worker_alive(latest):
-            latest.update(state="cancelled", ok=False, code="E_INTERRUPTED", finished_at=utc_now())
+            latest.update(state="cancelled", ok=False, finished_at=utc_now(), **_read_failed(latest, CANCELLED))
         ReadJobs(run).save(latest)
     return latest
 

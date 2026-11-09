@@ -2,7 +2,7 @@
 
 [English](DRIVER-SKILL-SPEC.md) | 中文
 
-> 版本 1.0.9 · 条款 DSKL-001 至 DSKL-127
+> 版本 1.0.10 · 条款 DSKL-001 至 DSKL-127
 
 ## 怎么读
 
@@ -196,7 +196,7 @@ Skill 禁止包含错误码表、退出码表和信封规则，这些工具自�
 |---|---|
 | `select_instance_and_document` | 先列出会话和文档，再用 `--session` 和 `--doc` 指明；绝不依赖窗口焦点（DCLI-202） |
 | `save` | 会话模式下回执报告 `persistence: unchanged` 的修改，在 `doc save` 之前都没有保存；只在人要求时保存，授权修改一个文档不等于要求保存它；确认之前核对保存的预览，包括不是本工具做的修改，以及结果仍然未知的操作（DCLI-058） |
-| `long_jobs_and_blocking` | 用长任务给出的确切 `poll` 命令查询；遇到 `E_BUSY` 等一会儿再原样运行，同一条命令重试 3 次后仍是这样就问人；遇到 `E_HUMAN_REQUIRED` 把要做的事转告人，人处理完后运行 `resume`（DCLI-065、DCLI-066） |
+| `long_jobs_and_blocking` | 用长任务给出的确切 `poll` 命令查询；以 `ok: false` 结束的任务，按它的 `code`、`message` 和 `details` 当作那个错误处理；遇到 `E_BUSY` 等一会儿再原样运行，同一条命令重试 3 次后仍是这样就问人；遇到 `E_HUMAN_REQUIRED` 把要做的事转告人，人处理完后运行 `resume`（DCLI-065、DCLI-066、DCLI-220） |
 | `physical_effects` | 仅设备模式：先检查设备状态，在授权范围内加 `--dangerous` 确认，需要时立即用停止命令停下，绝不把模拟结果当作真实结果报告（DSEC-018、DSEC-061 和 DSEC-062） |
 | `outcome_unknown_and_partial` | 遇到 `E_OUTCOME_UNKNOWN`，绝不重发写操作，先运行 `details.lookup` 给出的命令，它会登记这次操作的结果。遇到 `E_PARTIAL`，只重发失败的那几项（DCLI-063、DCLI-064） |
 | `scope_refused` | 遇到 `E_FORBIDDEN`，把 `details.scope.snippet` 和缺什么转告人；只在人自己的消息授权时，才为它写授权范围文件（DSEC-011、DSEC-015） |

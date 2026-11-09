@@ -2,7 +2,7 @@
 
 [English](DRIVER-VERIFY-SPEC.md) | 中文
 
-> 版本 1.0.9 · 条款 DVER-001 至 DVER-051
+> 版本 1.0.10 · 条款 DVER-001 至 DVER-051
 
 ## 怎么读
 
@@ -149,10 +149,10 @@
 | `D05` | `session` | 派发之前弹窗挡住了软件；另外，修改本身在派发之后弹出了弹窗 | 派发之前：`E_HUMAN_REQUIRED`，带 `action` 和重新运行这次调用的 `resume` 命令。派发之后：操作的结果未知，目标保持锁定，`resume` 是查询命令，绝不是再写一次 | DCLI-066, DCLI-204 |
 | `D06` | `session`, `device` | 派发之后连接断开：单次写入，以及批量中的一个对象 | `E_OUTCOME_UNKNOWN`，`lookup` 指向 `operation resolve`；目标保持锁定，直到查明结果。批量时，`lookup` 为 `operation list --state unknown --batch <id>`，该对象保持锁定 | DCLI-014, DCLI-035, DCLI-060, DCLI-063, DCLI-064, DCLI-275 |
 | `D07` | `writes` | 修改已生效，但没能读回 | `E_VERIFY_INCOMPLETE`，附回执 | DCLI-057, DCLI-062 |
-| `D08` | `writes` | 读回的值与预览中 `after` 的差超出登记的容差：每个写命令的样例，以及批量中的一个对象；另外，数值落在容差之内 | `E_VERIFY_FAILED`，列出不符的字段；批量时，该对象的条目为 `E_VERIFY_FAILED`；落在容差内时写入成功 | DCLI-057, DCLI-062, DCLI-064 |
+| `D08` | `writes` | 读回的值与预览中 `after` 的差超出登记的容差：每个写命令的样例，以及批量中的一个对象；另外，数值落在容差之内，写入要等存盘时再 `doc save` 这个文档 | `E_VERIFY_FAILED`，列出不符的字段；批量时，该对象的条目为 `E_VERIFY_FAILED`；落在容差内时写入和存盘都成功 | DCLI-057, DCLI-062, DCLI-064 |
 | `D09` | `session` | 会话模式下做一次修改 | 保存维度为 `unchanged`，`dirty` 为 `true`；`doc save` 之后保存维度为 `saved` | DCLI-058, DCLI-061 |
 | `D10` | `session` | 关闭有未保存修改的文档 | 被拒绝，`E_CONFLICT` `unsaved_changes`；带 `--discard` 时属于危险级，没有 `--dangerous` 也被拒绝 | DCLI-212 |
-| `D11` | `jobs` | 取消长任务，包括实例忙的时候；另外，任务结束时产出读回成功、读不回、或只完成一部分 | 先报告 `cancel_requested`；软件仍报告任务在运行时，`job get` 不报告它已取消；软件确认已停止后，任务的 `state` 才变为 `cancelled`；`job get` 给出由回执推导的 `ok` 和 `code` | DCLI-065, DCLI-220, DCLI-221, DSEC-018 |
+| `D11` | `jobs` | 取消长任务，包括实例忙的时候；另外，任务结束时产出读回成功、读不回、或只完成一部分 | 先报告 `cancel_requested`；软件仍报告任务在运行时，`job get` 不报告它已取消；软件确认已停止后，任务的 `state` 才变为 `cancelled`；`job get` 给出由回执推导的 `ok` 和 `code`，已取消的任务还带 `message` 和含 `next_action` 的 `details` | DCLI-065, DCLI-220, DCLI-221, DSEC-018 |
 | `D12` | `host_component` | 宿主组件的磁盘版本与已加载版本不一致：在调用之前，或在预演和确认之间 | `doctor` 的 `plugin` 检查失败；写命令被拒绝，返回 `E_HUMAN_REQUIRED`，`action` 为 `restart_application` | DCLI-240, DSEC-053 |
 | `D13` | `always` | 给领域命令的物理量参数传不带单位的数；另外，给 `job get --wait` 传不带单位的数 | `E_USAGE`，`problem` 列出可用的单位 | DCLI-026, DCLI-082 |
 | `D14` | `physical` | 物理动作没有带 `--dangerous`，或授权范围没有允许 `physical` | 被拒绝；什么都没派发 | DSEC-014 |
@@ -167,7 +167,7 @@
 | `D23` | `device` | 中止命令以外的命令作用于设备时，设备处于 `emergency_stop` 或 `fault`：在调用之前、在预演和确认之间、或在确认的过程中 | `E_HUMAN_REQUIRED`，`action` 为 `confirm_on_device`；`dispatch_state` 为 `not_started`；什么都没派发；设备恢复后，`resume` 命令可以执行写入 | DCLI-055, DCLI-230, DSEC-061 |
 | `D24` | `writes` | 批量中有一个对象失败；危险级批量中有失败；批量被忙的实例打断；批量中每个对象都失败 | `E_PARTIAL`，带 `details.batch`：失败的那一项写明错误码，其他对象已成功；危险级批量跳过其余对象；实例忙时批量停下，`resume` 只覆盖未完成的对象；全部失败时，错误码取第一个对象的 | DCLI-064 |
 | `D25` | `halt` | 中止命令作用于处于 `busy`、`fault` 或 `emergency_stop` 的设备，或处于 `busy` 或 `blocked` 的实例；授权范围设了 `confirm: always`，覆盖目标但不含 `lifecycle` 效果 | 命令立即执行，不返回 `E_BUSY`，也不需要确认，并返回回执 | DCLI-230, DSEC-018 |
-| `D26` | `long_jobs` | 每个登记了 `long: true` 的命令运行它的样例；长写操作另外在读回不一致的情况下运行一次；长读操作在没有授权范围时运行 | 调用立即返回长任务；`job get` 给出写操作的回执，验证为 `passed`，且只派发一次，读回不一致时为 `E_VERIFY_FAILED`；读操作的长任务返回结果，`operation_id` 为 `null` | DCLI-065, DCLI-220 |
+| `D26` | `long_jobs` | 每个登记了 `long: true` 的命令运行它的样例；长写操作另外在读回不一致的情况下运行一次，在软件以 `E_CONFLICT` 拒绝时再运行一次；长读操作在没有授权范围时运行 | 调用立即返回长任务；`job get` 给出写操作的回执，验证为 `passed`，且只派发一次，读回不一致时为 `E_VERIFY_FAILED`；被拒绝的任务以 `failed` 结束，带软件的消息和 `conflict`，`next_action` 指回写操作的第一次调用；读操作的长任务返回结果，`operation_id` 为 `null` | DCLI-065, DCLI-220 |
 
 为什么：这些是驱动软件特有的失败：同时开着两个工程、把没保存的修改当成已完成、弹窗把调用挂住、写操作之后连接断开、本该叫停工作的命令却排在这项工作后面等。
 检查：🤖 驱动一致性测试 D01 至 D26。

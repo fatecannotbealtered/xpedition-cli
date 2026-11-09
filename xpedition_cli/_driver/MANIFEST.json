@@ -7,20 +7,20 @@
     "contract.py": "c68279c5c0bbe1c86a76983be656015feba753682c3a812acaf17732970837de",
     "errors.py": "b02e5837253165cdde587ed161c9ac25790368bb24a6a3b7c532f3f2b5e78d42",
     "hostproto.py": "bbf66b06c6faddafae9d9d5924d76e45fb6551e9de5bbfef2c6b79abced6a964",
-    "jobs.py": "26f67ba14ba4220dfb1e8e750d839e3962360ec865cfaa8195f7f3a9f9441542",
+    "jobs.py": "82ec1492fc0fef27d0bf117ea2cb35ffc29732b979d1c86078952991bc715ea0",
     "knowledge.py": "64506cfcb9eefaf804f1e2727e8652386e6ec5c6eb49c626f6e0a1f74bc41a9f",
     "output.py": "a940b93f145ae8096e1c3d48e43d8aa8ee4e4d3a9b470a15cecbef44cdadc009",
     "records.py": "62f679756154b8819e3fec4c6b94a24b73b22b595eed0aa3305c3496935f2189",
     "registry.py": "61a5ddd3ea6a03514eedf522f350b5be8246b35e792c079b2d7703a6a402c48a",
     "runtime.py": "71330306f2c62c90b65976c664c59120a0ff57f2373b77facefacc012617b981",
     "scope.py": "e345c2a7e6266c8ad9561627a6e80db60cd078d0bfec997febca40cc0842049b",
-    "standard.py": "e2a2d74cb52b33c127bb486c1db1c029f30483f32beb84cf461201cc83abcf21",
+    "standard.py": "0b5ddec375f43a9525f17d7d7ceb0b992b605f44363c29dd6305c890b2ad846c",
     "state.py": "919fb152cc821e32971a48141882b929f7a24a03b6e87c9eb47f0297a00fb8ae",
     "targets.py": "8418bfccfc59d4e4c427a9941de7db8045fc1480c8f8e11cf13994d3c16ffe0c",
     "tool.py": "154799bdf61d05ef0942bf24df8dea92ca86ba5588d9a3927d6ba51bf5c1f0ca",
     "units.py": "df3f08e7a5b29ea7e8ff147b9eadf8f1c70b09dbaeb2f5f06f2a0011e8cea991",
     "update.py": "63504a826e6ce38b29d2022eee491ac29bc915edbae185fc459bbf152c2134e2",
-    "writes.py": "e4e08570b89c232c490d78c87fa84ad989b08924a76ad38c86318a241c37d8de"
+    "writes.py": "c6c2fe199d02d4e3567fcaec17adbdf0dd6dc4db67901705eb60a767752ce8ec"
   },
-  "spec_version": "1.0.9"
+  "spec_version": "1.0.10"
 }
