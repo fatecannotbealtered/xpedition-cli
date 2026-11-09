@@ -32,7 +32,16 @@ FIXTURES = Path(__file__).resolve().parents[1] / "inputs"
 STAGES = ("project", "parts", "drawn", "board", "placed", "laid_out")
 FINAL_JOB_STATES = {"completed", "failed", "partial", "unknown", "cancelled"}
 START_WAIT_S = 300.0
-OUTLINE = {"width": 70.0, "height": 48.0, "radius": 3.0}
+# The sample projects build makes: its inputs, copied as parts.json and design.json with any other
+# files, the board outline, and the parts moved to a fixed spot after placement run. The flex
+# sample is a 90 x 18 mm strip with a 40-pin board-to-board connector at each end, J2 on the bottom
+# side, so the pins of each row meet in the same order at both ends.
+SAMPLES: dict[str, dict[str, Any]] = {
+    "demo": {"parts": "parts.json", "design": "design.json", "files": [], "outline": ("70mm", "48mm", "3mm"), "spots": []},
+    "flex": {"parts": "flex-parts.json", "design": "flex-design.json", "files": ["rules-flex.json"],
+             "outline": ("90mm", "18mm", "1mm"),
+             "spots": [("J2", "85.5mm", "11mm", "270deg", "bottom"), ("J1", "4.5mm", "11mm", "270deg", "top")]},
+}
 
 
 def _parts() -> dict[str, Any]:
@@ -340,25 +349,28 @@ def create_project(run: Any, output: Path, *, keep_open: bool = False) -> str | 
     return None
 
 
-def copy_inputs(run: Any) -> None:
-    for name in ("parts.json", "design.json"):
+def copy_inputs(run: Any, sample: str = "demo") -> None:
+    chosen = SAMPLES[sample]
+    shutil.copyfile(FIXTURES / chosen["parts"], parts(run))
+    shutil.copyfile(FIXTURES / chosen["design"], design(run))
+    for name in chosen["files"]:
         shutil.copyfile(FIXTURES / name, run.documents / name)
 
 
-def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
-    """Real Xpedition: make the sample project Demo.prj in the documents folder up to a stage of
-    STAGES: ``placed`` has the board's netlist, outline and parts, ``laid_out`` also a GND plane
-    on layer 2 and the routing, both saved. With ``keep_open``, the last instance used stays open
-    with the file (``drawn``: Designer with the project, reopened after the save; ``placed`` and
-    ``laid_out``: Layout with the saved board), and its session is returned. Fake host: copy the
-    input files only."""
+def build(run: Any, upto: str, *, keep_open: bool = False, sample: str = "demo") -> str | None:
+    """Real Xpedition: make a sample project of SAMPLES as Demo.prj in the documents folder up to a
+    stage of STAGES: ``placed`` has the board's netlist, outline and parts, ``laid_out`` also a GND
+    plane on layer 2 and the routing, both saved. With ``keep_open``, the last instance used stays
+    open with the file (``drawn``: Designer with the project, reopened after the save; ``placed``
+    and ``laid_out``: Layout with the saved board), and its session is returned. Fake host: copy
+    the input files only."""
     if fake(run):
-        copy_inputs(run)
+        copy_inputs(run, sample)
         return None
     level = STAGES.index(upto)
     clear(run)
     create_project(run, project(run))
-    copy_inputs(run)
+    copy_inputs(run, sample)
     prj = str(project(run))
     if level >= STAGES.index("parts"):
         need(write(run, "part", "create", "--doc", prj, "--file", str(parts(run))), "part create")
@@ -379,8 +391,12 @@ def build(run: Any, upto: str, *, keep_open: bool = False) -> str | None:
         layout = start(run, board(run))
         pcb = ["--session", layout, "--doc", str(board(run))]
         need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run")
-        need(write(run, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm"), "pcb update")
+        width, height, radius = SAMPLES[sample]["outline"]
+        need(write(run, "pcb", "update", *pcb, "--width", width, "--height", height, "--radius", radius), "pcb update")
         need(write(run, "placement", "run", *pcb, "--design", str(design(run))), "placement run")
+        for refdes, x, y, rotation, side in SAMPLES[sample]["spots"]:
+            need(write(run, "component", "move", *pcb, "--refdes", refdes, "--x", x, "--y", y, "--rotation", rotation, "--side", side),
+                 f"component move of {refdes}")
         if level >= STAGES.index("laid_out"):
             need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
             need(write(run, "router", "run", *pcb), "router run")

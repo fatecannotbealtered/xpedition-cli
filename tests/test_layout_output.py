@@ -236,12 +236,12 @@ class BoardCheckTest(unittest.TestCase):
 
     def test_a_description_whose_labels_layout_lost_keeps_its_values(self):
         doc = board()
-        lost_labels = "\n".join(["???? : CC1", "?? : J2-11", "?? : 1", "??? : (Default)", "??? : (All)", ""])
+        lost_labels = "\n".join(["???? : CC1", "?? : J2-11", "?? : 1", "??? : (Default)", "??? : (All)", "?? 2 : SMD Pad", ""])
         doc.hazards = [Hazard(67, lost_labels, {9: 1.0, 10: 2.0}),
                        Hazard(91, "\n".join(["Net : GND", "Via Name : VIA_D0.2"]), {9: 3.0, 10: 4.0})]
         _app, out = self._run(doc)
         lost, english = out["hazards"]
-        self.assertEqual(lost["description"], "CC1; J2-11; 1; (Default); (All)")
+        self.assertEqual(lost["description"], "CC1; J2-11; 1; (Default); (All); 2: SMD Pad")  # the object's number stays
         self.assertEqual(english["description"], "Net : GND; Via Name : VIA_D0.2")
 
     def test_the_run_waits_for_the_processing_window(self):

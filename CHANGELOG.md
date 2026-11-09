@@ -19,7 +19,7 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ### Fixed
 
-- `pcb check` keeps the values of a hazard's description when Layout runs in a language other than English, which hands the labels over COM as question marks: `CC1; Pad Part; J1; Unrouted Pin` instead of `???? : CC1 ...`.
+- `pcb check` keeps the values of a hazard's description when Layout runs in a language other than English, which hands the labels over COM as question marks: `CC1; Pad Part; J1; Unrouted Pin` instead of `???? : CC1 ...`; a label that ends in a number keeps it, `1: SMD Pad`.
 - `trace create`, `trace delete` and `via delete` count a board's traces and vias in one pass instead of one pass per net and layer, so the preview and the read-back of a plan on a board of a few hundred traces finish within the call's budget; the read-back ran out of time there and reported the change as not verified.
 - `trace create` reads its traces back by their geometry: each net and layer of the plan reads back `plan_drawn`, true when every point along its planned traces lies on a trace of that net and layer. Layout keeps one planned trace as several objects, split at its arcs and elsewhere, so the count it read back before failed a plan that was drawn.
 - The routing metrics of `pcb get` and `pcb check` follow a trace's arcs: an arc's centre counted as a corner, so a rounded corner showed as an acute one, and the arc's length as the way through its centre.

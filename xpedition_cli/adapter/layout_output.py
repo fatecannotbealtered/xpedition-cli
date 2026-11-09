@@ -541,7 +541,7 @@ def _object_name(item: Any) -> str:
     return L.net_name(item) or kind.replace("IMGCPCB", "") or "object"
 
 
-LOST_LABEL = re.compile(r"^\?+\s*:\s*")
+LOST_LABEL = re.compile(r"^\?+\s*(\d*)\s*:\s*")  # a lost label, with the number some labels end in
 
 
 def hazard_text(text: str) -> str:
@@ -553,7 +553,7 @@ def hazard_text(text: str) -> str:
         line = line.strip()
         if not line:
             continue
-        line = LOST_LABEL.sub("", line)
+        line = LOST_LABEL.sub(lambda m: f"{m.group(1)}: " if m.group(1) else "", line)
         if line and set(line) - {"?", " "}:
             values.append(line)
     return "; ".join(values)
