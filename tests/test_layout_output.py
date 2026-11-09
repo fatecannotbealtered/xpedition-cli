@@ -146,6 +146,13 @@ class BoardGetTest(unittest.TestCase):
         self.assertEqual(out["planes"], [])
         self.assertLess(len(json.dumps(out)), 8000)
 
+    def test_an_unused_via_padstack_gives_its_size_from_the_design_library(self):
+        from xpedition_cli.adapter import layout_edit as E
+        with world(FakeApp(board())), mock.patch.object(E, "local_padstack", lambda doc, name: name if name == "VIA_SPARE" else None),                 mock.patch.object(E, "_padstack_pad_radius", lambda stack, scale: 0.33 if stack else None):
+            out = O.BoardGet().read(context("pcb get"))
+        spare = next(row for row in out["via_padstacks"] if row["name"] == "VIA_SPARE")
+        self.assertEqual(spare, {"name": "VIA_SPARE", "vias": 0, "pad_mm": 0.66})
+
     def test_the_unit_of_the_geometry_is_measured_on_the_outline_whatever_the_board_shows(self):
         doc = board()
         doc.CurrentUnit = L.UNIT_MM  # the fake's raw geometry stays in mils: the outline tells

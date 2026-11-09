@@ -344,9 +344,11 @@ def expand(lane: Lane, ring: list[Corner], what: str) -> TP.Trace:
         e, te, off, _ = _project(path, join, closed=False)
     for point, (i, step) in ((leave, (0, 1)), (join, (len(path) - 1, -1))):
         a, b = path[i], path[i + step]
-        if (point[0] - a[0]) * (b[0] - a[0]) + (point[1] - a[1]) * (b[1] - a[1]) < -1e-6:
-            raise TP._error(f"{what} leaves for its lane or returns from it beyond the ends of its edge; put the points of edge_mm "
-                            "at or beyond where the lane joins and leaves the edge")
+        u = _unit(a, b)
+        beyond = (point[0] - a[0]) * u[0] + (point[1] - a[1]) * u[1] < -1e-6
+        if beyond and abs(_cross(u, (point[0] - a[0], point[1] - a[1]))) > 1e-6:
+            raise TP._error(f"{what} leaves for its lane or returns from it beyond the ends of its edge, off the lane's line; put the "
+                            "points of edge_mm at or beyond where the lane joins and leaves the edge, or the point on the lane's line")
     corners: list[tuple[Point, float, bool]] = [(p, r, False) for p, r in lane.start]
     corners.append((on, lane.radius, True))
     corners += [(p, r, False) for p, r in lane_corners[s + 1:e + 1]]

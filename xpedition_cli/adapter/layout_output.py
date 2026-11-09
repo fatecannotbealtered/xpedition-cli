@@ -355,8 +355,10 @@ def plane_groups(rows: list[dict[str, Any]], generated: set[tuple[str, int]] | N
 
 
 def via_padstacks(doc: Any, scale: float | None) -> list[dict[str, Any]]:
-    """The via padstacks of the design's own library, with how many vias of the board use each and,
-    for one in use, its pad diameter."""
+    """The via padstacks of the design's own library, with how many vias of the board use each and
+    its pad diameter: from a via that uses it, or else from the library's padstack."""
+    from .layout_edit import _padstack_pad_radius, local_padstack
+
     names = _quietly(lambda: [str(name) for name in (com.propget(doc, PADSTACK_NAMES_DISPID, PADSTACK_VIA, -1, "*", False) or ())], [])
     used: dict[str, int] = {}
     pads: dict[str, float] = {}
@@ -370,6 +372,10 @@ def via_padstacks(doc: Any, scale: float | None) -> list[dict[str, Any]]:
     rows = []
     for name in sorted(set(names) | set(used)):
         row: dict[str, Any] = {"name": name, "vias": used.get(name, 0)}
+        if name not in pads and scale:
+            radius = _quietly(lambda name=name: _padstack_pad_radius(local_padstack(doc, name), scale))
+            if radius:
+                pads[name] = round(2 * radius, 4)
         if name in pads:
             row["pad_mm"] = pads[name]
         rows.append(row)

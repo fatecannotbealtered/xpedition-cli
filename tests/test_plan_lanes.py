@@ -104,6 +104,8 @@ class ExpandTest(unittest.TestCase):
         with self.assertRaises(PlanError) as caught:
             LN.expand(LN.parse([_lane(edge_mm=[[0, 30], [0, 70]])])[0], ring, "lanes[0]")
         self.assertIn("beyond the ends of its edge", caught.exception.message)
+        straight = LN.expand(LN.parse([_lane(from_mm=[[2, 10]], to_mm=[[2, 90]], edge_mm=[[0, 30], [0, 70]])])[0], ring, "lanes[0]")
+        self.assertEqual({round(x, 6) for x, _y in straight.points}, {2.0})  # on the lane's line, it runs straight into the lane
         with self.assertRaises(PlanError) as caught:
             LN.expand(LN.parse([_lane()])[0], LN.outline_corners([]), "lanes[0]")
         self.assertIn("too few points", caught.exception.message)
