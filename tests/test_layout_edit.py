@@ -163,6 +163,19 @@ class ViaCreateTest(unittest.TestCase):
         self.assertTrue(all(name == "026VIA" for _x, _y, name, _net in self.doc.placed_vias))  # the class's via by default
         self.assertNotIn((5.0, 2.5), [(x, y) for x, y, _n, _net in self.doc.placed_vias])  # never on the pad
 
+    def test_a_grid_keeps_to_its_region_and_one_via_takes_no_region(self):
+        inputs = {"net": "GND", "pitch_mm": 1.0, "to_x_mm": 4.0}
+        with world(FakeApp(self.doc)):
+            preview = E.ViaCreate().preview(context("via create", inputs))
+            facts = E.ViaCreate().run(context("via create", inputs), None)
+            with self.assertRaises(AdapterError) as caught:
+                E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "to_x_mm": 4.0}))
+        self.assertGreater(facts["result"]["placed"], 0)
+        self.assertTrue(all(x <= 4.0 for x, _y, _name, _net in self.doc.placed_vias))
+        self.assertIn("within x up to 4 mm", preview["action"])
+        self.assertIn("outside the region", preview["action"])
+        self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
+
     def test_one_via_and_one_that_cannot_stand(self):
         with world(FakeApp(self.doc)):
             facts = E.ViaCreate().run(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "VIA_D0.2_P0.4"}), None)

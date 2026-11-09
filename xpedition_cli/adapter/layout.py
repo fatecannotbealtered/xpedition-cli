@@ -19,6 +19,7 @@ uses after ``doc save`` has reopened the board.
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import subprocess
@@ -172,6 +173,27 @@ def segment(name: str) -> str:
 
 
 Region = tuple[float | None, float | None, float | None, float | None]  # x0, y0, x1, y1 in mm; None leaves a side open
+
+
+def region_inputs(inputs: dict[str, Any]) -> Region | None:
+    """The rectangle ``--from-x``, ``--from-y``, ``--to-x`` and ``--to-y`` name, a side left out open;
+    None without any of them."""
+    values = [inputs.get(name) for name in ("from_x_mm", "from_y_mm", "to_x_mm", "to_y_mm")]
+    if all(v is None for v in values):
+        return None
+    if any(v is not None and (type(v) not in (int, float) or not math.isfinite(v)) for v in values):
+        raise AdapterError("E_VALIDATION", "--from-x, --from-y, --to-x and --to-y are board coordinates.", dispatch_state="not_started")
+    x0, y0, x1, y1 = (None if v is None else float(v) for v in values)
+    for low, high, axis in ((x0, x1, "x"), (y0, y1, "y")):
+        if low is not None and high is not None and low >= high:
+            raise AdapterError("E_VALIDATION", f"--from-{axis} must be less than --to-{axis}.", dispatch_state="not_started")
+    return (x0, y0, x1, y1)
+
+
+def in_region(point: tuple[float, float], region: Region) -> bool:
+    x0, y0, x1, y1 = region
+    return ((x0 is None or point[0] >= x0) and (x1 is None or point[0] <= x1) and (y0 is None or point[1] >= y0)
+            and (y1 is None or point[1] <= y1))
 
 
 def region_text(region: Region) -> str:

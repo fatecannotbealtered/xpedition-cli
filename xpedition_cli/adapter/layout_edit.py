@@ -465,7 +465,12 @@ def _via_create_inputs(ctx: Context) -> dict[str, Any]:
     margin = 0.5 if margin is None else float(margin)
     if margin < 0:
         raise AdapterError("E_VALIDATION", "--margin is a distance of 0 or more.", dispatch_state="not_started")
-    return {"net": net, "x": x, "y": y, "pitch": pitch, "margin": margin, "padstack": str(ctx.inputs.get("padstack") or "").strip()}
+    region = L.region_inputs(ctx.inputs)
+    if region is not None and single:
+        raise AdapterError("E_VALIDATION", "--from-x, --from-y, --to-x and --to-y limit a stitching grid; one via takes --x and --y "
+                           "alone.", dispatch_state="not_started")
+    return {"net": net, "x": x, "y": y, "pitch": pitch, "margin": margin, "region": region,
+            "padstack": str(ctx.inputs.get("padstack") or "").strip()}
 
 
 def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
@@ -500,6 +505,11 @@ def _via_plan(ctx: Context, doc: Any) -> dict[str, Any]:
                 raise base.blocked(exc.message) from None
             raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
         points, dropped = result.points, result.dropped
+        if inputs["region"] is not None:
+            outside = [p for p in points if not L.in_region(p, inputs["region"])]
+            points = [p for p in points if L.in_region(p, inputs["region"])]
+            if outside:
+                dropped = {**dropped, "outside the region": len(outside)}
         if not points:
             reasons = ", ".join(f"{count} {why}" for why, count in sorted(dropped.items())) or "no grid point inside the outline"
             blocked.append(f"no point of the {inputs['pitch']:g} mm grid is free ({reasons})")
@@ -525,8 +535,9 @@ class ViaCreate(L.ReadsBack):
             return base.preview(f"Place {plan['padstack']} vias of {net}.", target, [], blocked_by=plan["blocked"],
                                 knowledge=["layout-via-near-pad"])
         dropped = "; ".join(f"{n} grid points {why}" for why, n in sorted(plan["dropped"].items()))
+        within = f" within {L.region_text(plan['region'])}" if plan.get("region") else ""
         where = (f"at ({plan['points'][0][0]:g}, {plan['points'][0][1]:g}) mm" if plan["pitch"] is None
-                 else f"on a {plan['pitch']:g} mm grid inside its copper on two layers" + (f" ({dropped})" if dropped else ""))
+                 else f"on a {plan['pitch']:g} mm grid inside its copper on two layers{within}" + (f" ({dropped})" if dropped else ""))
         return base.preview(f"Place {count} {plan['padstack']} via(s) of {net} {where}, clear of other copper by the board's default "
                             "clearance rule. Run pcb check after. The board is not saved.", target,
                             [base.change(base.key(path, via_key(net)), "count", plan["before"], plan["before"] + count)])

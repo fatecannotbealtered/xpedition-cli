@@ -1883,6 +1883,34 @@
           "quantity": "length"
         },
         {
+          "name": "--from-x",
+          "type": "quantity",
+          "summary": "With --pitch, the left side of the rectangle the grid is kept to; a side left out runs to the board's edge, so --from-y and --to-y alone keep it to a band, such as the flex between two bend zones.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--from-y",
+          "type": "quantity",
+          "summary": "With --pitch, the bottom side of the rectangle the grid is kept to.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-x",
+          "type": "quantity",
+          "summary": "With --pitch, the right side of the rectangle the grid is kept to.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-y",
+          "type": "quantity",
+          "summary": "With --pitch, the top side of the rectangle the grid is kept to.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
           "name": "--padstack",
           "type": "string",
           "summary": "The via padstack; the via the net's class is assigned by default (pcb get lists it)."

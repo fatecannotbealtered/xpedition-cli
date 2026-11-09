@@ -763,18 +763,7 @@ def _plane_inputs(ctx: Context) -> tuple[str, int, float | None]:
 
 
 def _region_inputs(ctx: Context) -> L.Region | None:
-    """The rectangle ``--from-x``, ``--from-y``, ``--to-x`` and ``--to-y`` cut the plane to, a side
-    left out open; None without any of them."""
-    values = [ctx.inputs.get(name) for name in ("from_x_mm", "from_y_mm", "to_x_mm", "to_y_mm")]
-    if all(v is None for v in values):
-        return None
-    if any(v is not None and (type(v) not in (int, float) or not math.isfinite(v)) for v in values):
-        raise AdapterError("E_VALIDATION", "--from-x, --from-y, --to-x and --to-y are board coordinates.", dispatch_state="not_started")
-    x0, y0, x1, y1 = (None if v is None else float(v) for v in values)
-    for low, high, axis in ((x0, x1, "x"), (y0, y1, "y")):
-        if low is not None and high is not None and low >= high:
-            raise AdapterError("E_VALIDATION", f"--from-{axis} must be less than --to-{axis}.", dispatch_state="not_started")
-    return (x0, y0, x1, y1)
+    return L.region_inputs(ctx.inputs)
 
 
 def _clip(polygon: list[tuple[float, float]], region: L.Region) -> list[tuple[float, float]]:
