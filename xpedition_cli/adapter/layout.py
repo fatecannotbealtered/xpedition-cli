@@ -1020,6 +1020,30 @@ def via_count(doc: Any, net: str) -> int:
     return sum(1 for via in collection(doc, "Vias") if net_name(via) == net)
 
 
+def trace_counts(doc: Any) -> dict[tuple[str, int | None], int]:
+    """How many traces each net has on each layer, and on every layer under ``None``, from one
+    pass over the board: counting net by net walks every trace once per net, which on a board of a
+    few hundred traces outlasts a call's budget."""
+    counts: dict[tuple[str, int | None], int] = {}
+    for trace in collection(doc, "Traces"):
+        net, layer = net_name(trace), int(trace.Layer)
+        counts[(net, layer)] = counts.get((net, layer), 0) + 1
+        counts[(net, None)] = counts.get((net, None), 0) + 1
+    return counts
+
+
+def via_summary(doc: Any) -> dict[str, dict[str, Any]]:
+    """Each net's via count and padstack (``mixed: a, b`` for several), from one pass over the board."""
+    names: dict[str, set[str]] = {}
+    counts: dict[str, int] = {}
+    for via in collection(doc, "Vias"):
+        net = net_name(via)
+        counts[net] = counts.get(net, 0) + 1
+        names.setdefault(net, set()).add(name_of(via))
+    return {net: {"count": counts[net], "padstack": sorted(found)[0] if len(found) == 1 else "mixed: " + ", ".join(sorted(found))}
+            for net, found in names.items()}
+
+
 def via_padstack_name(doc: Any, net: str) -> str | None:
     """The padstack the vias of ``net`` use: one name, ``mixed: a, b`` for several, None without vias."""
     names = sorted({name_of(via) for via in collection(doc, "Vias") if net_name(via) == net})
@@ -1075,6 +1099,11 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
             cache["routes"] = route_status(doc)
         return cache["routes"]
 
+    def counted(name: str, count: Callable[[Any], Any]) -> Any:
+        if name not in cache:
+            cache[name] = count(doc)
+        return cache[name]
+
     readers: dict[str, Callable[[list[str]], dict[str, Any]]] = {
         "forward-annotation": lambda parts: {"status": annotation_state(doc)["status"]},
         # a radius that cannot be read (a board not in mils) is left out: "not read back", never null
@@ -1082,8 +1111,8 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "routing": lambda parts: routing_values(doc),
         "components": lambda parts: component_values(find_component(doc, parts[1])),
         "planes": lambda parts: plane_values(doc, parts[1], int(parts[2]), parse_region(parts[3]) if len(parts) > 3 else None),
-        "traces": lambda parts: {"count": trace_count(doc, parts[1], int(parts[2]) if len(parts) > 2 else None)},
-        "vias": lambda parts: {"count": via_count(doc, parts[1]), "padstack": via_padstack_name(doc, parts[1])},
+        "traces": lambda parts: {"count": counted("traces", trace_counts).get((parts[1], int(parts[2]) if len(parts) > 2 else None), 0)},
+        "vias": lambda parts: counted("vias", via_summary).get(parts[1], {"count": 0, "padstack": None}),
         "solder-mask": lambda parts: {"exists": _opening(doc, "solder-mask", parts)},
         "cover-layer": lambda parts: {"exists": _opening(doc, "cover-layer", parts)},
         "nets": lambda parts: {"routed": statuses().get(parts[1], {}).get("routed")},

@@ -68,10 +68,8 @@ class TraceDelete(L.ReadsBack):
         nets = _nets(ctx)
         _known(doc, nets)
         layers = _layer_list(ctx, int(doc.LayerCount))
-        counts: dict[tuple[str, int | None], int] = {}
-        for net in nets:
-            for layer in layers or [None]:
-                counts[(net, layer)] = L.trace_count(doc, net, layer)
+        board = L.trace_counts(doc)
+        counts = {(net, layer): board.get((net, layer), 0) for net in nets for layer in layers or [None]}
         return nets, layers, counts
 
     def preview(self, ctx: Context) -> dict[str, Any]:
@@ -116,7 +114,9 @@ class ViaDelete(L.ReadsBack):
     def _look(self, ctx: Context, doc: Any) -> tuple[list[str], dict[str, int], dict[str, str | None]]:
         nets = _nets(ctx)
         _known(doc, nets)
-        return nets, {net: L.via_count(doc, net) for net in nets}, {net: L.via_padstack_name(doc, net) for net in nets}
+        vias = L.via_summary(doc)
+        return (nets, {net: vias.get(net, {}).get("count", 0) for net in nets},
+                {net: vias.get(net, {}).get("padstack") for net in nets})
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
@@ -831,8 +831,9 @@ def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[
             radii[via.padstack] = radius or 0.0
         via.radius = radii[via.padstack]
     blocked += TP.check(plan, _copper(doc), _trace_rules(doc, path))
-    traces = {(t.net, t.layer): L.trace_count(doc, t.net, t.layer) for t in plan.traces}
-    vias = {v.net: L.via_count(doc, v.net) for v in plan.vias}
+    board, via_rows = L.trace_counts(doc), L.via_summary(doc)
+    traces = {(t.net, t.layer): board.get((t.net, t.layer), 0) for t in plan.traces}
+    vias = {v.net: via_rows.get(v.net, {}).get("count", 0) for v in plan.vias}
     return blocked, traces, vias
 
 

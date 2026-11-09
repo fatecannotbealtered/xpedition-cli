@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -413,13 +414,31 @@ def _object_name(item: Any) -> str:
     return L.net_name(item) or kind.replace("IMGCPCB", "") or "object"
 
 
+LOST_LABEL = re.compile(r"^\?+\s*:\s*")
+
+
+def hazard_text(text: str) -> str:
+    """A hazard's description on one line. Layout in a language other than English hands its
+    labels over COM as question marks (``???? : CC1``): those labels are left out and the values
+    kept, ``CC1; J2-11; 1``."""
+    values = []
+    for line in str(text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        line = LOST_LABEL.sub("", line)
+        if line and set(line) - {"?", " "}:
+            values.append(line)
+    return "; ".join(values)
+
+
 def hazard_record(hazard: Any, names: dict[int, str]) -> dict[str, Any]:
     kind = _quietly(lambda: int(hazard.Type))
     name = names.get(kind, f"type {kind}") if kind is not None else "unknown"
     actual, required = _mm(hazard, HAZARD_ACTUAL), _mm(hazard, HAZARD_REQUIRED)
     objects = _quietly(lambda: [_object_name(item) for item in L.items(com.member(hazard, "Objects"))[:HAZARD_OBJECTS]], [])
     return {"type": name, "severity": "warning" if name in WARNING_KINDS else "error",
-            "description": _quietly(lambda: str(hazard.Description or "").strip()[:DESCRIPTION_LIMIT], ""), "x_mm": _mm(hazard, HAZARD_X),
+            "description": _quietly(lambda: hazard_text(hazard.Description)[:DESCRIPTION_LIMIT], ""), "x_mm": _mm(hazard, HAZARD_X),
             "y_mm": _mm(hazard, HAZARD_Y),
             "objects": objects, "actual_mm": actual if actual is None or actual >= 0 else None,
             "required_mm": required if required is None or required >= 0 else None}

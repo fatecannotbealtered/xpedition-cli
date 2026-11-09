@@ -8,6 +8,11 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.
 
+### Fixed
+
+- `pcb check` keeps the values of a hazard's description when Layout runs in a language other than English, which hands the labels over COM as question marks: `CC1; Pad Part; J1; Unrouted Pin` instead of `???? : CC1 ...`.
+- `trace create`, `trace delete` and `via delete` count a board's traces and vias in one pass instead of one pass per net and layer, so the preview and the read-back of a plan on a board of a few hundred traces finish within the call's budget; the read-back ran out of time there and reported the change as not verified.
+
 ## [1.2.1] - 2026-11-09
 
 ### Changed
