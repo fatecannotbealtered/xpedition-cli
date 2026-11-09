@@ -12,7 +12,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from test_layout_fakes import BOARD, Collection, FakeApp, FakeDoc, context, world  # noqa: E402
+from test_layout_fakes import BOARD, Collection, FakeApp, FakeDoc, Geometry, context, world  # noqa: E402
 
 from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base  # noqa: E402
@@ -295,9 +295,13 @@ class TraceCreateTest(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.folder = Path(folder.name)
 
+        self.doc.radii = []
+
         def put_trace(layer, net, width, count, points, component, fixed, unit):
             self.doc.drawn.append((layer, net.Name, width, list(zip(points[0], points[1], strict=True)), unit))
-            self.doc.traces.append(Item(self.doc.traces, Net=SimpleNamespace(Name=net.Name), Layer=layer))
+            self.doc.radii.append(list(points[2]))
+            self.doc.traces.append(Item(self.doc.traces, Net=SimpleNamespace(Name=net.Name), Layer=layer,
+                                        Geometry=Geometry([list(points[0]), list(points[1]), list(points[2])], width_mm=width)))
 
         def put_via(x, y, stack, net, component, fixed, unit):
             self.doc.drawn.append(("via", x, y, stack.Name, net.Name))
@@ -331,16 +335,19 @@ class TraceCreateTest(unittest.TestCase):
         with world(FakeApp(self.doc)):
             preview = E.TraceCreate().preview(context("trace create", inputs))
             facts = E.TraceCreate().run(context("trace create", inputs), None)
-            back = E.TraceCreate().read_back(context("trace create", targets=[key("/traces/A/2"), key("/vias/A")], fields=["count"]))
+            back = E.TraceCreate().read_back(context("trace create", inputs, targets=[key("/traces/A/1"), key("/traces/A/2"), key("/vias/A")],
+                                                     fields=["plan_drawn", "count"]))
         self.assertTrue(preview["can_apply"])
-        self.assertEqual([(c["target"], c["before"], c["after"]) for c in preview["changes"]],
-                         [(key("/traces/A/1"), 2, 3), (key("/traces/A/2"), 1, 2), (key("/vias/A"), 1, 2)])
+        self.assertEqual([(c["target"], c["field"], c["before"], c["after"]) for c in preview["changes"]],
+                         [(key("/traces/A/1"), "plan_drawn", False, True), (key("/traces/A/2"), "plan_drawn", False, True),
+                          (key("/vias/A"), "count", 1, 2)])
         self.assertEqual(facts["result"], {"traces": 2, "vias": 1, "nets": [{"net": "A", "routed": True, "opens": 0}]})
         self.assertEqual(self.doc.drawn, [(1, "A", 0.1, [(0.0, 0.0), (3.0, 0.0)], E.L.UNIT_MM),
                                           (2, "A", 0.1, [(3.0, 0.0), (10.0, 0.0)], E.L.UNIT_MM),
                                           ("via", 3.0, 0.0, "VIA_D0.2_P0.4", "A")])
         self.assertEqual(self.doc.calls[:1], [("TransactionStart", 0)])  # online DRC off: the check kept the rules
-        self.assertEqual(back["observed"], {key("/traces/A/2"): {"count": 2}, key("/vias/A"): {"count": 2}})
+        self.assertEqual(back["observed"], {key("/traces/A/1"): {"plan_drawn": True}, key("/traces/A/2"): {"plan_drawn": True},
+                                            key("/vias/A"): {"count": 2}})
 
     def test_an_end_on_a_pad_or_a_via_is_joined_to_the_pin_origin_or_the_via_centre(self):
         class Box:
@@ -372,6 +379,15 @@ class TraceCreateTest(unittest.TestCase):
         self.assertEqual(self.doc.drawn[0][3], [(0.00004, -0.00003), (0.05, 0.02), (3.0, 0.0)])  # joined to the pin's origin
         self.assertEqual(self.doc.drawn[1][3], [(3.0, 0.0), (3.1, 0.05), (10.0, 0.0)])  # joined to the via's centre
         self.assertEqual(facts["result"]["nets"], [{"net": "A", "routed": True, "opens": 0}])
+
+    def test_a_rounded_corner_reaches_layout_as_an_arc(self):
+        plan = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.1, "points_mm": [[0, 0], [3, 0, 1.0], [3, 3]]}],
+                "vias": [{"net": "A", "at_mm": [3, 3], "padstack": "VIA_D0.2_P0.4"}]}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            E.TraceCreate().run(context("trace create", {"file": self.plan_file(plan)}), None)
+        self.assertEqual([tuple(round(v, 6) for v in p) for p in self.doc.drawn[0][3]], [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (3.0, 1.0), (3.0, 3.0)])
+        self.assertEqual(self.doc.radii[0], [0.0, 0.0, -1.0, 0.0, 0.0])  # the centre row carries the radius, counter-clockwise
 
     def test_a_plan_that_breaks_the_rules_is_blocked_and_never_drawn(self):
         bad = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.3, "points_mm": [[0, 0], [5, 0], [6, 0]]}],

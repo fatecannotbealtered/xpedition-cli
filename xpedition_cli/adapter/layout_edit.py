@@ -831,8 +831,8 @@ def _trace_look(ctx: Context, doc: Any, plan: TP.Plan) -> tuple[list[str], dict[
             radii[via.padstack] = radius or 0.0
         via.radius = radii[via.padstack]
     blocked += TP.check(plan, _copper(doc), _trace_rules(doc, path))
-    board, via_rows = L.trace_counts(doc), L.via_summary(doc)
-    traces = {(t.net, t.layer): board.get((t.net, t.layer), 0) for t in plan.traces}
+    via_rows = L.via_summary(doc)
+    traces = _drawn(doc, plan)
     vias = {v.net: via_rows.get(v.net, {}).get("count", 0) for v in plan.vias}
     return blocked, traces, vias
 
@@ -869,11 +869,12 @@ def _connection_points(doc: Any, plan: TP.Plan) -> dict[tuple[str, int], list[tu
     return points
 
 
-def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]]) -> list[tuple[float, float]]:
-    """The trace's points, an end that lies on a pin's pad or on a via extended to the pin's origin or
-    the via's centre."""
+def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[float, float], tuple[float, ...]]]]) -> list[tuple[float, float, float]]:
+    """The (x, y, r) rows Layout draws for the trace: an end that lies on a pin's pad or on a via
+    extended to the pin's origin or the via's centre, and each rounded corner as its arc."""
     found = points.get((trace.net, trace.layer), [])
     pts = [(float(p[0]), float(p[1])) for p in trace.points]
+    radii = list(trace.radii)
 
     def target(end: tuple[float, float]) -> tuple[float, float] | None:
         for origin, (x0, y0, x1, y1) in found:
@@ -884,9 +885,44 @@ def _joined(trace: TP.Trace, points: dict[tuple[str, int], list[tuple[tuple[floa
     first, last = target(pts[0]), target(pts[-1])
     if first is not None and first != pts[0]:
         pts.insert(0, first)
+        radii.insert(0, 0.0)
     if last is not None and last != pts[-1]:
         pts.append(last)
-    return pts
+        radii.append(0.0)
+    return TP.drawn(pts, radii)
+
+
+COVER_TOLERANCE_MM = 0.01
+
+
+def _drawn(doc: Any, plan: TP.Plan) -> dict[tuple[str, int], bool]:
+    """For each net and layer of the plan, whether every point along its planned traces lies on a
+    trace of that net and layer on the board. Layout keeps one planned trace as several objects, split
+    at its arcs and elsewhere, so the plan is matched by its geometry, not by a count of objects."""
+    from .layout_output import geometry_record
+    from .plan.shapes import flatten
+
+    scale = L.geometry_scale(doc)
+    wanted = {(t.net, t.layer) for t in plan.traces}
+    board: dict[tuple[str, int], list[tuple[list[tuple[float, float]], float]]] = {key: [] for key in wanted}
+    for trace in L.collection(doc, "Traces"):
+        key = (L.net_name(trace), int(trace.Layer))
+        if key not in wanted or scale is None:
+            continue
+        try:
+            geometry = trace.Geometry
+            record = geometry_record(geometry, scale)
+            width = float(geometry.LineWidth or 0.0) * scale
+        except Exception:  # noqa: BLE001 - a trace Layout cannot describe covers nothing
+            continue
+        if record and record.get("path"):
+            board[key].append((flatten([tuple(p) for p in record["path"]]), width))
+    out: dict[tuple[str, int], bool] = {}
+    for key in wanted:
+        segments = [(a, b, width) for points, width in board[key] for a, b in zip(points, points[1:], strict=False)]
+        out[key] = all(any(TP.point_segment(point, a, b) <= COVER_TOLERANCE_MM + width / 2 for a, b, width in segments)
+                       for trace in plan.traces if (trace.net, trace.layer) == key for point in trace.path)
+    return out
 
 
 def _net_states(doc: Any, plan: TP.Plan) -> list[dict[str, Any]]:
@@ -916,14 +952,11 @@ class TraceCreate(L.ReadsBack):
         plan = _routing_plan(ctx)
         blocked, traces, vias = L.in_layout(ctx, lambda app, doc: _trace_look(ctx, doc, plan), budget_s=L.READ_BUDGET_S,
                                             what="checking the routing plan")
-        added_traces: dict[tuple[str, int], int] = {}
-        for t in plan.traces:
-            added_traces[(t.net, t.layer)] = added_traces.get((t.net, t.layer), 0) + 1
         added_vias: dict[str, int] = {}
         for v in plan.vias:
             added_vias[v.net] = added_vias.get(v.net, 0) + 1
-        changes = [base.change(base.key(path, trace_key(net, layer)), "count", traces.get((net, layer), 0), traces.get((net, layer), 0) + n)
-                   for (net, layer), n in added_traces.items()]
+        changes = [base.change(base.key(path, trace_key(net, layer)), "plan_drawn", drawn, True)
+                   for (net, layer), drawn in sorted(traces.items())]
         changes += [base.change(base.key(path, via_key(net)), "count", vias.get(net, 0), vias.get(net, 0) + n) for net, n in added_vias.items()]
         targets = [base.target(path, "trace", "/traces", label="the routing plan's traces and vias")]
         return base.preview(f"Draw {len(plan.traces)} traces and place {len(plan.vias)} vias of the routing plan, checked against the "
@@ -932,6 +965,26 @@ class TraceCreate(L.ReadsBack):
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         return self.apply(ctx)
+
+    def read_back(self, ctx: Context) -> dict[str, Any]:
+        """``plan_drawn`` of each net and layer, matched against the plan's geometry; the vias by count."""
+        plan = _routing_plan(ctx)
+        path = ctx.document_path()
+        targets = list(ctx.request.get("targets") or [])
+        fields = list(ctx.request.get("fields") or [])
+
+        def work(app: Any, doc: Any) -> dict[str, Any]:
+            drawn = _drawn(doc, plan)
+            via_targets = [target for target in targets if "/vias/" in target]
+            result = L.read_keys(doc, path, via_targets, [f for f in fields if f != "plan_drawn"]) if via_targets else \
+                {"observed": {}, "unreadable": []}
+            for (net, layer), covered in drawn.items():
+                key = base.key(path, trace_key(net, layer))
+                if key in targets:
+                    result["observed"][key] = {"plan_drawn": covered}
+            return result
+
+        return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the board back")
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         plan = _routing_plan(ctx)
@@ -945,10 +998,9 @@ class TraceCreate(L.ReadsBack):
             doc.TransactionStart(0)
             try:
                 for trace in plan.traces:
-                    joined = _joined(trace, points)
-                    xs, ys = [p[0] for p in joined], [p[1] for p in joined]
-                    doc.PutTrace(trace.layer, L.find_net(doc, trace.net), trace.width, len(xs), [xs, ys, [0.0] * len(xs)], None, 0,
-                                 L.UNIT_MM)
+                    rows = _joined(trace, points)
+                    xs, ys, rs = [r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows]
+                    doc.PutTrace(trace.layer, L.find_net(doc, trace.net), trace.width, len(xs), [xs, ys, rs], None, 0, L.UNIT_MM)
                     drawn += 1
                 stacks: dict[str, Any] = {}
                 for via in plan.vias:

@@ -112,3 +112,30 @@ class CheckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CornerTest(unittest.TestCase):
+    def test_a_rounded_corner_is_drawn_as_an_arc_tangent_to_both_segments(self):
+        plan = TP.parse({"traces": [trace([[0, 0], [10, 0, 2.0], [10, 10]])]})
+        rows = TP.drawn(plan.traces[0].points, plan.traces[0].radii)
+        # a left turn: start, centre with a negative (counter-clockwise) radius, end
+        self.assertEqual([tuple(round(v, 6) for v in row) for row in rows],
+                         [(0.0, 0.0, 0.0), (8.0, 0.0, 0.0), (8.0, 2.0, -2.0), (10.0, 2.0, 0.0), (10.0, 10.0, 0.0)])
+        right = TP.drawn([(0.0, 0.0), (10.0, 0.0), (10.0, -10.0)], [0.0, 2.0, 0.0])
+        self.assertEqual(round(right[2][2], 6), 2.0)  # a right turn is clockwise
+        self.assertAlmostEqual(TP.length(plan.traces[0]), 8 + 8 + 3.14159 * 2 / 2, places=2)
+
+    def test_the_check_measures_along_the_arc(self):
+        # B's pad sits just outside the corner at (10, 0): the sharp corner comes within 0.08 mm of it, the arc stays clear
+        pads = TP.Copper(layer_count=4, nets={"A", "B"}, pads=[(1, "A", square(0.0, 0.0)), (1, "A", square(10.0, 10.0)),
+                                                                 (1, "B", square(10.12, -0.12, 0.03))])
+        sharp = TP.parse({"traces": [trace([[0, 0], [10, 0], [10, 10]])]})
+        round_ = TP.parse({"traces": [trace([[0, 0], [10, 0, 1.0], [10, 10]])]})
+        self.assertTrue(TP.check(sharp, pads, rules()))
+        self.assertEqual(TP.check(round_, pads, rules()), [])
+
+    def test_a_radius_that_does_not_fit_or_one_on_an_end_is_refused(self):
+        for points in ([[0, 0], [1, 0, 2.0], [1, 1]], [[0, 0, 1.0], [5, 0]], [[0, 0], [5, 0, -1], [5, 5]], [[0, 0], [5, 0, 1, 2], [5, 5]]):
+            with self.subTest(points=points), self.assertRaises(PlanError) as caught:
+                TP.parse({"traces": [trace(points)]})
+            self.assertEqual(caught.exception.code, "E_VALIDATION")

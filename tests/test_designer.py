@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 import tempfile
 import threading
 import unittest
@@ -20,7 +21,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
-from xpedition_cli._driver import AdapterError
+sys.path.insert(0, os.path.dirname(__file__))
+
+from test_layout_fakes import FakeComError  # noqa: E402
+
+from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli._driver.state import AdapterStore, StateDir
 from xpedition_cli._driver.targets import normalize
 from xpedition_cli.adapter import base, designer, sessions
@@ -720,7 +725,6 @@ class KindTest(unittest.TestCase):
             self.busy = True
 
         def GetIDsOfNames(self, name: str) -> int:  # noqa: N802 - COM name
-            from test_layout_fakes import FakeComError
 
             self.asked.append(name)
             if name == "Missing":
@@ -734,7 +738,6 @@ class KindTest(unittest.TestCase):
             return f"member {dispid}"
 
     def test_a_refusal_is_asked_again_and_a_missing_name_is_remembered(self):
-        from test_layout_fakes import FakeComError
 
         raw, kind = self.Raw(), designer._Kind()
         with self.assertRaises(FakeComError):

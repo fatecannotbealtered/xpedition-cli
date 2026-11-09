@@ -1407,7 +1407,7 @@ class BomExport(Handler):
             folder.mkdir(parents=True, exist_ok=True)
             # UTF-8 with a byte order mark, so that Excel shows Chinese text right.
             partial.write_text(bom.csv_text(table, per_component=per_component), encoding="utf-8-sig", newline="")
-            os.replace(partial, out)
+            base.replace_file(partial, out)
         except PermissionError:
             raise _locked(out) or AdapterError("E_IO", f"{out} cannot be written: permission denied.",
                                                dispatch_state="not_started") from None
@@ -2150,7 +2150,7 @@ class SchematicExport(Handler):
         try:
             run = env.run_tool("sch2pdf", ["-project", prj, "-a", str(partial), "-c", str(SCH2PDF_COLOUR)], timeout_s=EXPORT_TIMEOUT_S)
             self._check(run, partial)
-            os.replace(partial, out)
+            base.replace_file(partial, out)
         finally:
             partial.unlink(missing_ok=True)
         found = pdf_pages.pages(Path(out).read_bytes())

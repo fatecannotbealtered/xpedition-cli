@@ -22,6 +22,7 @@ Rules every handler follows (DCLI-260, adapter.schema.json):
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -185,3 +186,21 @@ def need_input(ctx: Context, name: str) -> Any:
     if name not in ctx.inputs:
         raise AdapterError("E_VALIDATION", f"{ctx.command} needs --{name.replace('_', '-')}.", dispatch_state="not_started")
     return ctx.inputs[name]
+
+
+REPLACE_TRIES = 10
+REPLACE_WAIT_S = 0.2
+
+
+def replace_file(source: Any, target: Any) -> None:
+    """``os.replace``, tried again for two seconds while the file is refused: on Windows a virus scanner
+    or the search indexer holds a file it has just seen being written for a moment. A file another
+    program keeps open stays refused, and its PermissionError reaches the caller."""
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt == REPLACE_TRIES - 1:
+                raise
+            time.sleep(REPLACE_WAIT_S)

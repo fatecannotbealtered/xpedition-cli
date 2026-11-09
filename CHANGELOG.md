@@ -8,12 +8,15 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 - `plane create` cuts its shape to a rectangle with `--from-x`, `--from-y`, `--to-x` and `--to-y`, a side left out running to the board's edge, and pours it beside the net's other shapes on the layer: a hatched band over a flex board's bend on a layer that is solid elsewhere. A region that reaches into a shape of the net on that layer is refused, and the read-back finds the shape by its region.
 - `pcb get` reports the keepouts by kind, with the placement keepouts that limit height, such as a flex board's stiffeners; the cutouts inside the outline; the plane shapes by net, layer and fill, with how many shapes and the extents they cover; and the via padstacks of the design's own library with how many vias use each. `--output` adds each keepout's, cutout's and plane shape's geometry.
+- `trace create` rounds a corner of the routing plan with an arc when the point carries a third value, the arc's radius, tangent to both segments; the check measures along the arc, and a radius too large for the segments beside it is refused.
 - The Skill gains a playbook for routing a flex board between two connectors: read the stiffeners, bend zones and pins, set the rules, plan one lane per net, draw, pour with each bend zone hatched, stitch outside the bends and check. Two knowledge entries back it: `layout-flex-bend-and-stiffener` says how a board marks where it bends and where it is stiffened and what each place allows, and `layout-flex-connector-bus` gives common practice for the fan-out, the lanes and the power of such a board.
 
 ### Fixed
 
 - `pcb check` keeps the values of a hazard's description when Layout runs in a language other than English, which hands the labels over COM as question marks: `CC1; Pad Part; J1; Unrouted Pin` instead of `???? : CC1 ...`.
 - `trace create`, `trace delete` and `via delete` count a board's traces and vias in one pass instead of one pass per net and layer, so the preview and the read-back of a plan on a board of a few hundred traces finish within the call's budget; the read-back ran out of time there and reported the change as not verified.
+- `trace create` reads its traces back by their geometry: each net and layer of the plan reads back `plan_drawn`, true when every point along its planned traces lies on a trace of that net and layer. Layout keeps one planned trace as several objects, split at its arcs and elsewhere, so the count it read back before failed a plan that was drawn.
+- `schematic export` and `bom export` try replacing the file again for two seconds when Windows refuses it, as a virus scanner or the search indexer holding a file it has just seen written does for a moment; such a run failed.
 
 ## [1.2.1] - 2026-11-09
 

@@ -2,14 +2,14 @@
   "kind": "live",
   "tool": "xpedition-cli",
   "tool_version": "1.2.1",
-  "commit": "c217540a731f",
+  "commit": "3c3a1988fab0",
   "application": {
     "name": "Xpedition",
     "version": "2604"
   },
   "os": "Windows-11-10.0.26300-SP0",
   "platform": "windows",
-  "recorded_at": "2026-11-09T09:37:28Z",
+  "recorded_at": "2026-11-09T12:53:11Z",
   "targets": [
     "file:///D:/driver-work/xpedition-cli/"
   ],
@@ -18,7 +18,7 @@
       "command": "trace create",
       "arguments": [
         "--session",
-        "layout-4300-3210224ed",
+        "layout-26636-32102518c",
         "--doc",
         "D:\\driver-work\\xpedition-cli\\practice\\v12\\FlexDemo\\PCB\\FlexDemo.pcb",
         "--file",
@@ -29,7 +29,7 @@
       "matrix_row": "unsaved",
       "mode": "session",
       "doc_kind": "board",
-      "notes": "job job-55a46c89ce ended completed"
+      "notes": "job job-0a5ae9ad4e ended completed"
     }
   ]
 }
