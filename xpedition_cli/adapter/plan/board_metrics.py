@@ -249,6 +249,88 @@ def _trace_points(trace: dict[str, Any]) -> list[Point]:
     return flatten([(float(row[0]), float(row[1]), float(row[2]) if len(row) > 2 else 0.0) for row in rows])
 
 
+GUARD_STEP_MM = 0.1  # a trace is looked at in pieces this long for the ground beside it
+GROUP_REACH_MM = 1.0  # a net of the same group, such as a pair's other half, covers a side it runs this near
+
+
+def _segment_cells(traces: list[dict[str, Any]]) -> dict[tuple[int, int, int], list[tuple[Point, Point, float]]]:
+    cells: dict[tuple[int, int, int], list[tuple[Point, Point, float]]] = {}
+    for trace in traces:
+        points = _trace_points(trace)
+        width, layer = float(trace.get("width") or 0.0), int(trace.get("layer") or 0)
+        for a, b in zip(points, points[1:], strict=False):
+            for i in range(math.floor(min(a[0], b[0])), math.floor(max(a[0], b[0])) + 1):
+                for j in range(math.floor(min(a[1], b[1])), math.floor(max(a[1], b[1])) + 1):
+                    cells.setdefault((layer, i, j), []).append((a, b, width))
+    return cells
+
+
+def guard_cover(model: dict[str, Any], groups: list[list[str]], gap: float) -> list[dict[str, Any]]:
+    """For each net named and each layer it runs on: how much of its trace length has a ground
+    trace on its layer within ``gap`` of its copper on the left, on the right and on both sides,
+    in per cent, and how many mm have none on either side. Ground is a net named as ground, such
+    as GND; its planes do not count, only its traces, such as guards beside a signal. Nets named
+    as one group, such as a pair, cover each other: a member's side towards another running within
+    ``GROUP_REACH_MM`` of its copper counts as guarded, however far apart the pair's spacing is set."""
+    traces = model.get("traces") or []
+    cells = _segment_cells([t for t in traces if GROUND_NET.match(str(t.get("net") or ""))])
+    rows: list[dict[str, Any]] = []
+    for group in groups:
+        for net in group:
+            rows += _net_cover(traces, net, [t for t in traces if t.get("net") in group and t.get("net") != net], cells, gap)
+    return rows
+
+
+def _net_cover(traces: list[dict[str, Any]], net: str, partners: list[dict[str, Any]],
+               cells: dict[tuple[int, int, int], list[tuple[Point, Point, float]]], gap: float) -> list[dict[str, Any]]:
+    near = _segment_cells(partners) if partners else {}
+    rows: list[dict[str, Any]] = []
+    mine = [t for t in traces if t.get("net") == net]
+    for layer in sorted({int(t.get("layer") or 0) for t in mine}):
+        total = left = right = both = 0.0
+        for trace in (t for t in mine if int(t.get("layer") or 0) == layer):
+            points, width = _trace_points(trace), float(trace.get("width") or 0.0)
+            for a, b in zip(points, points[1:], strict=False):
+                length = math.dist(a, b)
+                if length <= 0:
+                    continue
+                u = ((b[0] - a[0]) / length, (b[1] - a[1]) / length)
+                count = max(1, math.ceil(length / GUARD_STEP_MM))
+                for k in range(count):
+                    p = (a[0] + u[0] * length * (k + 0.5) / count, a[1] + u[1] * length * (k + 0.5) / count)
+                    sides = _ground_sides(p, u, width, gap, layer, cells) | _ground_sides(p, u, width, GROUP_REACH_MM, layer, near)
+                    piece = length / count
+                    total += piece
+                    left += piece if "left" in sides else 0.0
+                    right += piece if "right" in sides else 0.0
+                    both += piece if len(sides) == 2 else 0.0
+        if total:
+            rows.append({"net": net, "layer": layer, "length_mm": round(total, 3), "both_sides_pct": round(100 * both / total, 1),
+                         "left_pct": round(100 * left / total, 1), "right_pct": round(100 * right / total, 1),
+                         "unguarded_mm": round(total - left - right + both, 3)})
+    return rows
+
+
+def _ground_sides(p: Point, u: Point, width: float, gap: float, layer: int,
+                  cells: dict[tuple[int, int, int], list[tuple[Point, Point, float]]]) -> set[str]:
+    """The sides of a trace at ``p``, running along ``u``, that have a ground trace within ``gap`` of its copper."""
+    reach = width / 2 + gap + 1.0
+    sides: set[str] = set()
+    for i in range(math.floor(p[0] - reach), math.floor(p[0] + reach) + 1):
+        for j in range(math.floor(p[1] - reach), math.floor(p[1] + reach) + 1):
+            for a, b, ground_width in cells.get((layer, i, j), ()):
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                length2 = dx * dx + dy * dy
+                t = 0.0 if not length2 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length2))
+                q = (a[0] + dx * t, a[1] + dy * t)
+                if abs((q[0] - p[0]) * u[0] + (q[1] - p[1]) * u[1]) >= GUARD_STEP_MM / 2 - 1e-9:
+                    continue  # not beside this piece but ahead of or behind it, such as past a guard's end
+                distance = math.dist(p, q)
+                if distance - width / 2 - ground_width / 2 <= gap + 1e-6:
+                    sides.add("left" if u[0] * (q[1] - p[1]) - u[1] * (q[0] - p[0]) > 0 else "right")
+    return sides
+
+
 def _pairs(names: list[str]) -> list[tuple[str, str]]:
     """The differential pairs among the routed nets, by name: two nets whose names differ only in a
     last character of ``PAIR_ENDS``."""

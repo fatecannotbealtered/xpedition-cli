@@ -55,6 +55,11 @@ class FanoutTest(unittest.TestCase):
         self.assertEqual(len([pts for n, _l, _w, pts in fan.traces if n == "P" and pts[0][1] == pts[1][1]]), 2)  # still joined
         self.assertEqual(pins[0].net, "GND")  # the caller's pins are left as they were
 
+    def test_a_skipped_net_is_left_to_the_caller(self):
+        fan = FO.plan(_connector(), (2.0, 50.0), 0.2, 0.1, 0.1, 1, {"GND"}, {"P"}, 0.1)
+        self.assertFalse([at for net, at in fan.vias if net == "P"])
+        self.assertFalse([pts for net, _l, _w, pts in fan.traces if net == "P"])  # no stub and no join pin to pin
+
     def test_rows_too_close_for_a_via_are_refused(self):
         pins = [_pin(i, "A" if i % 2 else "B", i * PITCH, 0.0) for i in range(6)]
         pins += [_pin(i + 10, "C", i * PITCH, 0.8) for i in range(6)]

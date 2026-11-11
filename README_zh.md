@@ -10,8 +10,8 @@
 ![mode](https://img.shields.io/badge/mode-file_%C2%B7_session-0e8a16)
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
-![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.1.0-0969da)
+![maturity](https://img.shields.io/badge/maturity-draft-8957e5)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.2.0-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -24,8 +24,8 @@
 | 模式 | file, session |
 | 系统与 CPU | Windows (x64) |
 | 风险等级 | T1 |
-| 成熟度 | verified：draft 0 个，verified 1 个，stable 41 个 |
-| 规范 | tool-driver-cli-spec 1.1.0 |
+| 成熟度 | draft：draft 1 个，verified 1 个，stable 41 个 |
+| 规范 | tool-driver-cli-spec 1.2.0 |
 | 宿主组件 | 不需要 |
 <!-- driver:info-card:end -->
 
@@ -89,7 +89,7 @@
 - `refdes`: move
 - `plane`: create, delete
 - `router`: run
-- `trace`: create, delete
+- `trace`: create, check, delete
 - `via`: delete, create, update
 - `solder-mask`: create, delete
 - `constraint`: get, import
@@ -121,7 +121,8 @@ xpedition-cli 每次调用都输出一个 JSON 信封。`xpedition-cli reference
 
 ## 授权
 
-xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允许的内容。这个 JSON 文件由人亲手写；没有命令会写它，Agent 也从不创建或修改它。xpedition-cli 从 `XPEDITION_CLI_SCOPE_FILE` 指定的路径读取它；没有设置这个变量时，读取状态目录里的 `scope.json`，不从其他任何地方读取。
+<!-- driver:spec-authorization:start -->
+xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允许的内容。这个 JSON 文件由人来写；或者人在自己的消息里把目标授予 Agent，由 Agent 把这份授权写成一份自己的授权范围文件，并说明写了什么。没有命令会写这个文件，Agent 也不会因为文档里的要求去写。xpedition-cli 从 `XPEDITION_CLI_SCOPE_FILE` 指定的路径读取它；没有设置这个变量时，读取状态目录里的 `scope.json`，不从其他任何地方读取。
 
 ```json
 {
@@ -143,17 +144,9 @@ xpedition-cli 读取不需要许可，但只写入人在授权范围文件里允
 | `confirm` | 可选；设为 `always` 时，除停止工作外的每个写操作都要等人批准预览后才执行 |
 
 授权范围不覆盖的写操作什么都不改，返回 `E_FORBIDDEN`，说明缺什么，并给出一段人可以直接粘贴进文件的片段。`xpedition-cli context` 显示当前生效的授权范围，`SECURITY_zh.md` 完整说明了授权范围。
+<!-- driver:spec-authorization:end -->
 
-各命令需要授权范围准许的效果：
-
-| 效果 | 命令 |
-|---|---|
-| `artifact` | `schematic create`（写符号文件）、`schematic export`、`pcb create`（写板文件）、`pcb export` |
-| `change` | `part create`、`packager run`、`pcb create`、`schematic create`、`forward-annotation run`、`pcb update`、`placement run`、`plane create`、`router run` |
-| `persist` | `schematic create`（写符号文件）、`pcb create`（写工程文件）、`pcb export`（改输出设置文件）、`doc save` |
-| `lifecycle` | `session open`、`session close`、`doc open`、`doc close`、`job cancel` |
-
-`schematic create` 会替换它画的各页，属于危险档，授权范围里要有 `"dangerous": true` 才能运行。在一个工程文件夹里做完一块板，需要对这个文件夹准许 `lifecycle`、`change`、`artifact` 和 `persist`。
+`xpedition-cli reference --command "<path>"` 列出一个命令需要授权范围准许的效果。`schematic create` 会替换它画的各页，属于危险档，授权范围里要有 `"dangerous": true` 才能运行。在一个工程文件夹里做完一块板，需要对这个文件夹准许 `lifecycle`、`change`、`artifact` 和 `persist`。
 
 ## 关于本工具
 
@@ -188,6 +181,7 @@ Xpedition 是 Siemens 的印制电路板设计软件。Designer 画原理图，L
 
 ## 卸载
 
+<!-- driver:spec-uninstall:start -->
 趁 npm 包还在、能列出 Skill 名称时，删除已安装的 Skill。用 bash：
 
 ```bash
@@ -217,9 +211,11 @@ rm -rf ~/.xpedition-cli
 ```powershell
 Remove-Item -Recurse -Force "$HOME\.xpedition-cli"
 ```
+<!-- driver:spec-uninstall:end -->
 
 ## 开发
 
+<!-- driver:spec-development:start -->
 xpedition-cli 用 Python 写成，建立在 `xpedition_cli/_driver/` 里的驱动运行时之上；这是固定副本，从不修改。领域命令在 `xpedition_cli/commands/`，适配层在 `xpedition_cli/adapter/`。
 
 ```bash
@@ -230,10 +226,12 @@ python scripts/spec.py suites
 ```
 
 测试和一致性测试都用模拟宿主，从不需要 Xpedition。工作流程、行为矩阵和真实软件运行见 `CONTRIBUTING_zh.md`。
+<!-- driver:spec-development:end -->
 
 ## 链接
 
-- 规范：[tool-driver-cli-spec 1.0.3](.agent/)，固定副本在 `.agent/`
+<!-- driver:spec-links:start -->
+- 规范：[tool-driver-cli-spec 1.2.0](.agent/)，固定副本在 `.agent/`
 - [CHANGELOG.md](CHANGELOG.md)：每个版本的改动（英文）
 - [SECURITY_zh.md](SECURITY_zh.md)：安全模型，以及怎样报告漏洞
 - [CONTRIBUTING_zh.md](CONTRIBUTING_zh.md)：怎样参与贡献
@@ -241,3 +239,4 @@ python scripts/spec.py suites
 - [docs/COMPATIBILITY_zh.md](docs/COMPATIBILITY_zh.md)：xpedition-cli 在哪里能用
 - [docs/E2E_zh.md](docs/E2E_zh.md)：真实软件验收及其记录
 - 问题跟踪：<https://github.com/fatecannotbealtered/xpedition-cli/issues>
+<!-- driver:spec-links:end -->

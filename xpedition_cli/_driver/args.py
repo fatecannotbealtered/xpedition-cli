@@ -199,11 +199,16 @@ class Parser:
         raise usage(f"Unknown command {path!r}.", None, hint)
 
     def _unknown_flag(self, command: Command, name: str) -> DriverError:
+        flags = f"Run `{self.tool} reference --command {quote(command.path)}` for its flags."
+        mode = {"--session": "session", "--device": "device"}.get(name)
+        if mode and mode not in command.modes:
+            # The flag of a mode the command does not work in: a near name would mislead (DCLI-201).
+            doc = "file" in command.modes and any(f.name == "--doc" for f in command.flags)
+            return usage(f"{command.path} has no flag {name}: it works only in {' and '.join(command.modes)} mode.", name,
+                         ("It works on the file itself: name it with --doc <path>. " if doc else "") + flags)
         known = [f.name for f in command.flags] + list(self.contract.global_flags)
         close = difflib.get_close_matches(name, known, n=1, cutoff=0.6)
-        hint = (f"Did you mean {close[0]}? Run `{self.tool} reference --command {quote(command.path)}` for its flags."
-                if close else f"Run `{self.tool} reference --command {quote(command.path)}` for its flags.")
-        return usage(f"{command.path} has no flag {name}.", name, hint)
+        return usage(f"{command.path} has no flag {name}.", name, f"Did you mean {close[0]}? {flags}" if close else flags)
 
     def _hint(self, path: str) -> str:
         if path in self.commands:

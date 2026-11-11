@@ -1,8 +1,8 @@
 {
   "$schema": "schemas/contract.schema.json",
   "name": "tool-driver-cli-spec",
-  "version": "1.1.0",
-  "schema_version": "1.1",
+  "version": "1.2.0",
+  "schema_version": "1.2",
   "spec_documents": [
     {
       "name": "DRIVER-CLI-SPEC",
@@ -394,9 +394,9 @@
     {"rule": 9, "otherwise": true, "ok": true, "code": null}
   ],
   "batch": {
-    "item_keys": ["target", "operation_id", "ok", "code", "skipped"],
+    "item_keys": ["target", "operation_id", "ok", "code", "skipped", "result"],
     "summary_keys": ["total", "succeeded", "failed", "unknown", "skipped"],
-    "data_keys": ["operation_id", "items", "summary"],
+    "data_keys": ["operation_id", "items", "summary", "more_results"],
     "continue_on_error_default": true,
     "continue_on_error_default_dangerous": false
   },

@@ -1,0 +1,50 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.3.0",
+  "commit": "ca721c63a619",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-11T21:01:13Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "constraint get",
+      "arguments": [
+        "--session",
+        "layout-33380-3210564d5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\rules1/rules.json"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "normal",
+      "mode": "session",
+      "fingerprint": "594be0cc9c637a481017ad90cb92fa09f878816fadfe780f95cc8731ecb00343",
+      "doc_kind": "board"
+    },
+    {
+      "command": "constraint get",
+      "arguments": [
+        "--session",
+        "layout-33380-3210564d5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "unsaved",
+      "mode": "session",
+      "fingerprint": "594be0cc9c637a481017ad90cb92fa09f878816fadfe780f95cc8731ecb00343",
+      "doc_kind": "board"
+    }
+  ]
+}

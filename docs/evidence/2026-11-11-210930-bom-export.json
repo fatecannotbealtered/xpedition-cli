@@ -1,0 +1,31 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.3.0",
+  "commit": "ca721c63a619",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-11T21:09:30Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "bom export",
+      "arguments": [
+        "--output",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\amb/bom.csv"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "ambiguous",
+      "mode": "session",
+      "fingerprint": "723bf09c2cded80f29d75533b2ae6ccbf77d990946fa35f819eb6b7347ca01e2",
+      "doc_kind": "project"
+    }
+  ]
+}

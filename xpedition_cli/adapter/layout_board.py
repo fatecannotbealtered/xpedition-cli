@@ -815,6 +815,57 @@ def _clip(polygon: list[tuple[float, float]], region: L.Region) -> list[tuple[fl
     return out
 
 
+def _untangled(polygon: list[tuple[float, float]]) -> list[list[tuple[float, float]]]:
+    """A clipped polygon as the pieces it holds. Clipping a concave shape, such as a U-shaped board
+    cut across both its arms, joins the pieces by an edge run there and back along the clip line,
+    copper of no width; the edges along each horizontal or vertical line are counted by direction,
+    what is run both ways is dropped, and the rest is walked into closed pieces."""
+    edges: list[tuple[tuple[float, float], tuple[float, float]]] = []
+    runs: dict[tuple[int, float], list[tuple[float, float, int]]] = {}
+    count = len(polygon)
+    for i in range(count):
+        a, b = polygon[i], polygon[(i + 1) % count]
+        if math.dist(a, b) < 1e-9:
+            continue
+        for axis in (1, 0):  # a horizontal edge keeps its y, a vertical one its x
+            if abs(a[axis] - b[axis]) < 1e-7:
+                along = 1 - axis
+                low, high = sorted((a[along], b[along]))
+                runs.setdefault((axis, round(a[axis], 6)), []).append((low, high, 1 if b[along] > a[along] else -1))
+                break
+        else:
+            edges.append((a, b))
+    for (axis, at), pieces in runs.items():
+        cuts = sorted({v for low, high, _sign in pieces for v in (low, high)})
+        for u, w in zip(cuts, cuts[1:], strict=False):
+            net = sum(sign for low, high, sign in pieces if low <= u + 1e-9 and w <= high + 1e-9) if w - u > 1e-9 else 0
+            if net:
+                p, q = ((u, at), (w, at)) if axis == 1 else ((at, u), (at, w))
+                edges.append((p, q) if net > 0 else (q, p))
+
+    def key(point: tuple[float, float]) -> tuple[float, float]:
+        return round(point[0], 6), round(point[1], 6)
+
+    leaving: dict[tuple[float, float], list[tuple[tuple[float, float], tuple[float, float]]]] = {}
+    for a, b in edges:
+        leaving.setdefault(key(a), []).append((a, b))
+    out = []
+    for start in list(leaving):
+        while leaving[start]:
+            a, b = leaving[start].pop()
+            loop, here = [a], b
+            while key(here) != key(a) and leaving.get(key(here)) and len(loop) <= len(edges):
+                loop.append(here)
+                here = leaving[key(here)].pop()[1]
+            if key(here) == key(a):
+                loop = [q for i, q in enumerate(loop)
+                        if abs((q[0] - loop[i - 1][0]) * (loop[(i + 1) % len(loop)][1] - q[1])
+                               - (q[1] - loop[i - 1][1]) * (loop[(i + 1) % len(loop)][0] - q[0])) > 1e-12]  # no point in line
+                if len(loop) >= 3:
+                    out.append(loop)
+    return out
+
+
 def _scaled(doc: Any, item: Any) -> list[list[float]] | None:
     """The (x, y, r) rows of a graphic's points in mm, or None when the board's unit cannot be measured."""
     scale = L.geometry_scale(doc)
@@ -914,10 +965,111 @@ def _generated(doc: Any, net: str, layer: int) -> bool:
         return False
 
 
+PLANE_GAP_MM = 0.2  # a shape cut around another net's plane shape keeps this far from its extents
+PLANE_MIN_PIECE_MM = 0.2  # a piece of a cut shape narrower than this is left out: a sliver holds no useful copper
+
+
+def other_shapes(doc: Any, net: str, layer: int) -> list[tuple[float, float, float, float]]:
+    """The extents of other nets' plane shapes on the layer, such as a power net's copper area."""
+    return [L.extrema_mm(shape) for shape in L.collection(doc, "PlaneShapes")
+            if int(shape.Layer) == int(layer) and L.net_name(shape) != net]
+
+
+def cut_around(points: tuple[tuple[float, ...], ...], boxes: list[tuple[float, float, float, float]]) -> list[tuple[tuple[float, ...], ...]]:
+    """The shape's points cut into pieces that leave out each box, widened by ``PLANE_GAP_MM``:
+    two nets' shapes on one layer must not overlap, and a shape holds no holes. A piece narrower
+    than ``PLANE_MIN_PIECE_MM``, such as the strip left between a box and a band's edge, is left out,
+    and a shape a clip joined across a gap comes as its pieces (``_untangled``)."""
+    polygon = flatten(list(zip(*points, strict=False)))
+    if len(polygon) > 1 and polygon[0] == polygon[-1]:
+        polygon.pop()
+    pieces = _untangled(polygon)
+    for x0, y0, x1, y1 in boxes:
+        x0, y0, x1, y1 = x0 - PLANE_GAP_MM, y0 - PLANE_GAP_MM, x1 + PLANE_GAP_MM, y1 + PLANE_GAP_MM
+        cut: list[list[tuple[float, float]]] = []
+        for piece in pieces:
+            xs, ys = [p[0] for p in piece], [p[1] for p in piece]
+            if max(xs) <= x0 or min(xs) >= x1 or max(ys) <= y0 or min(ys) >= y1:
+                cut.append(piece)
+                continue
+            for region in ((None, None, x0, None), (x1, None, None, None), (x0, None, x1, y0), (x0, y1, x1, None)):
+                for part in _untangled(_clip(piece, region)) if len(piece) >= 3 else []:
+                    if min(max(q[0] for q in part) - min(q[0] for q in part),
+                           max(q[1] for q in part) - min(q[1] for q in part)) >= PLANE_MIN_PIECE_MM:
+                        cut.append(part)
+        pieces = cut
+    return [_rows([[q[0] for q in [*piece, piece[0]]], [q[1] for q in [*piece, piece[0]]], [0.0] * (len(piece) + 1)])
+            for piece in pieces]
+
+
+def _pieces_of(points: tuple[tuple[float, ...], ...]) -> list[tuple[tuple[float, ...], ...]]:
+    """A shape as it is, or, when a clip joined pieces of it across a gap (``_untangled``), each piece."""
+    polygon = flatten(list(zip(*points, strict=False)))
+    if len(polygon) > 1 and polygon[0] == polygon[-1]:
+        polygon.pop()
+    pieces = _untangled(polygon)
+    if len(pieces) <= 1:
+        return [points]
+    return [_rows([[q[0] for q in [*piece, piece[0]]], [q[1] for q in [*piece, piece[0]]], [0.0] * (len(piece) + 1)]) for piece in pieces]
+
+
+def bend_parts(zones: list[dict[str, Any]]) -> list[tuple[L.Region, bool]]:
+    """The bands a layer is poured in on a flex board: each bend zone, hatched, and the stretches
+    before, between and after them, solid; each band runs across the board, open at its sides."""
+    if not zones:
+        raise base.blocked("The board has no bend zones for --bends to hatch: pcb get lists none. Pour the bands with the region "
+                           "flags instead.")
+    axes = {zone["along"] for zone in zones}
+    if len(axes) > 1:
+        raise base.blocked("The board's bend zones run along both axes; pour the parts with the region flags instead.")
+    across = 1 if axes == {"x"} else 0  # the axis the bands are cut along
+    edges = sorted((zone["extents_mm"][across], zone["extents_mm"][across + 2]) for zone in zones)
+
+    def band(low: float | None, high: float | None) -> L.Region:
+        return (None, low, None, high) if across == 1 else (low, None, high, None)
+
+    parts: list[tuple[L.Region, bool]] = []
+    previous: float | None = None
+    for low, high in edges:
+        parts += [(band(previous, low), False), (band(low, high), True)]
+        previous = high
+    parts.append((band(previous, None), False))
+    return parts
+
+
+def _pour_parts(doc: Any, net: str, layer: int, margin: float | None) -> tuple[list[tuple[L.Region, bool, Any, Any, str]], dict[str, Any]]:
+    """For --bends: each band's region, whether it is hatched, the net object, its points and where
+    it lies; a band that misses the board is left out."""
+    from . import layout_output as O
+    from .plan import board_metrics
+
+    parts = []
+    now: dict[str, Any] = {}
+    for region, hatched in bend_parts(board_metrics.bend_zones(O.flex_model(doc))):
+        try:
+            found, points, where, now = _plane_target(doc, net, layer, margin, region)
+        except AdapterError as exc:
+            if "does not overlap the board" in str(exc.data.get("message", "")):
+                continue
+            raise
+        parts.append((region, hatched, found, points, where))
+    return parts, now
+
+
+def _bends_inputs(region: L.Region | None, polygon: Ring | None, hatch: str) -> None:
+    if region is not None or polygon is not None:
+        raise AdapterError("E_VALIDATION", "--bends pours the whole layer in bands; it takes no region flags or --polygon.",
+                           dispatch_state="not_started")
+    if hatch == "solid":
+        raise AdapterError("E_VALIDATION", "--bends hatches the bend zones: give --hatch orthogonal or diagonal with --hatch-width and "
+                           "--hatch-distance.", dispatch_state="not_started")
+
+
 class PlaneCreate(L.ReadsBack):
     """``PutPlaneShape`` for one net on one layer, not obstructing the router, then the net's
     plane assignment to Dynamic (``PlaneDataState = 1``): a new shape starts in Draft, which
-    generates no copper (knowledge ``layout-plane-draft-state``)."""
+    generates no copper (knowledge ``layout-plane-draft-state``). With ``--bends``, one shape per
+    band of a flex board: hatched over each bend zone, solid between them."""
 
     command = "plane create"
 
@@ -926,8 +1078,30 @@ class PlaneCreate(L.ReadsBack):
         region, polygon = _shape_inputs(ctx)
         hatch, width, distance = _hatch_inputs(ctx)
         path = ctx.document_path()
+        if ctx.inputs.get("bends"):
+            _bends_inputs(region, polygon, hatch)
+            parts, now = L.in_layout(ctx, lambda app, doc: _pour_parts(doc, net, layer, margin), budget_s=L.READ_BUDGET_S,
+                                     what="reading the planes and bend zones")
+            targets, changes = [], []
+            for part, hatched, _found, _points, _where in parts:
+                domain = L.plane_key(net, layer, part)
+                key = base.key(path, domain)
+                targets.append(base.target(path, "plane", domain, label=f"{net} on layer {layer}, {L.region_text(part)}"))
+                changes += [base.change(key, "exists", False, True), base.change(key, "state", now.get("state"), "dynamic"),
+                            base.change(key, "hatch", None, hatch if hatched else "solid")]
+                if hatched:
+                    changes += [base.change(key, "hatch_width_mm", None, width), base.change(key, "hatch_distance_mm", None, distance)]
+            zones = sum(1 for part in parts if part[1])
+            others = L.in_layout(ctx, lambda app, doc: other_shapes(doc, net, layer), budget_s=L.READ_BUDGET_S, what="reading the planes")
+            around = f" Each band is cut around {len(others)} plane shape(s) of other nets on the layer." if others else ""
+            return base.preview(f"Pour {net} on layer {layer} in {len(parts)} bands across the board: a {hatch} hatch of "
+                                f"{width:g} mm lines {distance:g} mm apart over the {zones} bend zone(s) and solid between them; switch "
+                                f"the plane to Dynamic so that Layout generates its copper.{around} The board is not saved.", targets, changes)
         _found, _points, where, now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin, region, polygon),
                                                   budget_s=L.READ_BUDGET_S, what="reading the planes")
+        others = L.in_layout(ctx, lambda app, doc: other_shapes(doc, net, layer), budget_s=L.READ_BUDGET_S, what="reading the planes")
+        if others:
+            where += f", cut around {len(others)} plane shape(s) of other nets on the layer"
         domain = L.plane_key(net, layer, region)
         key = base.key(path, domain)
         outer = (" An outer-layer plane is best poured after routing (knowledge layout-pour-after-routing)."
@@ -945,36 +1119,63 @@ class PlaneCreate(L.ReadsBack):
         net, layer, margin = _plane_inputs(ctx)
         region, polygon = _shape_inputs(ctx)
         hatch, width, distance = _hatch_inputs(ctx)
+        bends = bool(ctx.inputs.get("bends"))
+        if bends:
+            _bends_inputs(region, polygon, hatch)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            found, points, where, _now = _plane_target(doc, net, layer, margin, region, polygon)
+            if bends:
+                parts, _now = _pour_parts(doc, net, layer, margin)
+            else:
+                found, points, where, _now = _plane_target(doc, net, layer, margin, region, polygon)
+                parts = [(region, hatch != "solid", found, points, where)]
+            poured: list[dict[str, Any]] = []
+            boxes = other_shapes(doc, net, layer)
+            for part, hatched, part_net, whole, _where in parts:
+                pieces = cut_around(whole, boxes) if boxes else _pieces_of(whole)
+                if not pieces:
+                    continue  # the part lies inside another net's shape
+                for points in pieces:
+                    try:
+                        # route obstruct false: an obstructing shape blocks the router on that layer, and laid
+                        # over routed traces it is refused as a DRC violation; the copper flows around them
+                        shape = doc.PutPlaneShape(layer, len(points[0]), points, part_net, False, 0, 0.0, 0.0, None, L.UNIT_MM)
+                    except Exception as exc:  # noqa: BLE001 - classified
+                        if not poured:
+                            raise L.com_error(exc, "creating the plane shape", com.call_state(exc)) from None
+                        return L.failed_step(exc, "creating a plane shape", [f"the plane shape over {p['region']}" for p in poured])
+                    if not hatched:
+                        continue
+                    # PutPlaneShape's own hatch arguments are ignored: the fill comes from the plane class,
+                    # and only a shape's own override of it can be changed
+                    try:
+                        scale = L.geometry_scale(doc) or 0.0254
+                        plane_class = shape.PlaneClass
+                        plane_class.HatchPattern = HATCHES[hatch]
+                        plane_class.HatchWidth = width / scale
+                        plane_class.HatchDistance = distance / scale
+                        shape.PlaneClass = plane_class
+                    except Exception as exc:  # noqa: BLE001 - classified
+                        return L.failed_step(exc, "setting the plane's hatch", ["the plane shape"])
+                poured.append({"region": L.region_text(part) if part is not None else "the whole layer",
+                               "hatch": hatch if hatched else "solid"})
+            if not poured:
+                raise base.blocked(f"Nothing is left to pour on layer {layer}: the shape lies inside other nets' plane shapes there, or "
+                                   f"within {PLANE_GAP_MM:g} mm of them; delete or shrink those first, or pour another region.")
             try:
-                # route obstruct false: an obstructing shape blocks the router on that layer, and laid
-                # over routed traces it is refused as a DRC violation; the copper flows around them
-                shape = doc.PutPlaneShape(layer, len(points[0]), points, found, False, 0, 0.0, 0.0, None, L.UNIT_MM)
-            except Exception as exc:  # noqa: BLE001 - classified
-                raise L.com_error(exc, "creating the plane shape", com.call_state(exc)) from None
-            if hatch != "solid":
-                # PutPlaneShape's own hatch arguments are ignored: the fill comes from the plane class,
-                # and only a shape's own override of it can be changed
-                try:
-                    scale = L.geometry_scale(doc) or 0.0254
-                    plane_class = shape.PlaneClass
-                    plane_class.HatchPattern = HATCHES[hatch]
-                    plane_class.HatchWidth = width / scale
-                    plane_class.HatchDistance = distance / scale
-                    shape.PlaneClass = plane_class
-                except Exception as exc:  # noqa: BLE001 - classified
-                    return L.failed_step(exc, "setting the plane's hatch", ["the plane shape"])
-            try:
-                assignment = doc.FindPlaneAssignment(layer, found)
+                assignment = doc.FindPlaneAssignment(layer, parts[0][2])
                 if assignment is None:
                     raise AdapterError("E_NATIVE_FAILURE", "Layout made the shape but reports no plane assignment for it.")
                 assignment.PlaneDataState = L.PLANE_DYNAMIC
             except Exception as exc:  # noqa: BLE001 - classified
                 return L.failed_step(exc, "switching the plane to Dynamic", ["the plane shape"])
-            return base.facts("applied", "unchanged", result={"net": net, "layer": layer, "within": where, "hatch": hatch,
-                                                              "generated": _generated(doc, net, layer)})
+            result: dict[str, Any] = {"net": net, "layer": layer, "generated": _generated(doc, net, layer)}
+            if bends:
+                result.update(within=f"in {len(parts)} bands across the board", hatch=f"{hatch} over the bend zones, solid between them",
+                              parts=poured)
+            else:
+                result.update(within=parts[0][4], hatch=hatch)
+            return base.facts("applied", "unchanged", result=result)
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="pouring the plane")
 
@@ -1147,7 +1348,9 @@ class RouterRun(L.ReadsBack):
 
         def look(app: Any, doc: Any) -> dict[str, Any]:
             selection = _selected(doc, nets, classes)
-            return {**_route_look(doc, layers, selection), "selected": selection}
+            found = {**_route_look(doc, layers, selection), "selected": selection}
+            found["existing"] = _trace_counts(doc, selection)
+            return found
 
         found = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the nets")
         if found["unplaced"]:
@@ -1165,8 +1368,17 @@ class RouterRun(L.ReadsBack):
         on = f" on layers {', '.join(map(str, layers))}" if layers else ""
         names = ",".join(f"{p['pass']}:{p['effort'][0]}-{p['effort'][1]}" for p in passes)
         only = f" (only the {len(found['selected'])} selected nets)" if found["selected"] is not None else ""
-        return base.preview(f"Route {len(found['open'])} open nets{only} with the autorouter passes {names}{on}, then regenerate "
-                            "the planes so that the new vias tie in. The board is not saved.", targets, changes)
+        existing = found["existing"]
+        rework = ""
+        if existing:
+            listed = ", ".join(f"{name} ({count})" for name, count in sorted(existing.items(), key=lambda kv: -kv[1])[:REWORK_LISTED])
+            rework = (f" The nets to route already have traces, which the passes may move or replace, such as guards drawn on purpose: "
+                      f"{listed}{' and more' if len(existing) > REWORK_LISTED else ''}; the result lists the nets whose traces changed.")
+        out = base.preview(f"Route {len(found['open'])} open nets{only} with the autorouter passes {names}{on}, then regenerate "
+                           "the planes so that the new vias tie in. The board is not saved." + rework, targets, changes)
+        if existing:
+            out["tier_raises"] = ["reworks_existing"]
+        return out
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
         """In the long-job worker: the autorouter passes take Layout minutes on a large board."""
@@ -1184,6 +1396,7 @@ class RouterRun(L.ReadsBack):
         if not look["open"]:
             return base.facts("not_applied", "unchanged", result=_route_result(doc, [], [], 0, selection))
         nets = _nets_collection(app, doc, selection) if selection is not None else None
+        before = _trace_lines(doc, selection)
         started = time.monotonic()
         done: list[str] = []
         skipped: list[str] = []
@@ -1208,8 +1421,79 @@ class RouterRun(L.ReadsBack):
                 break
         message = (f"Passes {', '.join(skipped)} did not run: the call's time limit was near. Run router run again to route what is "
                    "left.") if skipped else None
-        return base.facts("partial" if skipped else "applied", "unchanged",
-                          result=_route_result(doc, done, skipped, regenerated, selection), native_message=message)
+        result = _route_result(doc, done, skipped, regenerated, selection)
+        reworked = []
+        after = _trace_lines(doc, selection)
+        for name, lines in before.items():
+            gone = _uncovered(lines, after.get(name, []))
+            if gone:
+                reworked.append({"net": name, "traces_before": len(lines), "moved_or_removed": gone})
+        if reworked:
+            reworked.sort(key=lambda row: -row["moved_or_removed"])
+            result["reworked"], result["reworked_count"] = reworked[:REWORK_LISTED], len(reworked)
+        return base.facts("partial" if skipped else "applied", "unchanged", result=result, native_message=message)
+
+
+REWORK_LISTED = 10  # the nets the preview and the result name whose existing traces the passes may change or did
+
+
+def _trace_counts(doc: Any, selection: list[str] | None) -> dict[str, int]:
+    """The nets the passes may touch, every net or those selected, with the traces each has, read
+    in one pass over the board's nets."""
+    wanted = set(selection) if selection is not None else None
+    out = {}
+    for net in L.collection(doc, "Nets"):
+        name = L.name_of(net)
+        if wanted is None or name in wanted:
+            count = L.count(net, "Traces") or 0
+            if count:
+                out[name] = count
+    return out
+
+
+def _trace_lines(doc: Any, selection: list[str] | None) -> dict[str, list[tuple[int, list[tuple[float, float]]]]]:
+    """The traces of the nets the passes may touch: each trace's layer and points, its arcs as chords."""
+    from .layout_output import geometry_record
+
+    scale = L.geometry_scale(doc)
+    wanted = set(selection) if selection is not None else None
+    out: dict[str, list[tuple[int, list[tuple[float, float]]]]] = {}
+    if scale is None:
+        return out
+    for net in L.collection(doc, "Nets"):
+        name = L.name_of(net)
+        if wanted is not None and name not in wanted:
+            continue
+        for trace in L.collection(net, "Traces"):
+            record = geometry_record(trace.Geometry, scale)
+            if record and record.get("path"):
+                out.setdefault(name, []).append((int(trace.Layer), flatten([(r[0], r[1], r[2]) for r in record["path"]])))
+    return out
+
+
+COVER_MM = 0.005  # a point of a trace before the passes still lies on a trace of its net after them within this
+
+
+def _uncovered(before: list[tuple[int, list[tuple[float, float]]]], after: list[tuple[int, list[tuple[float, float]]]]) -> int:
+    """How many traces from before the passes have a point, an end or the middle of a piece, that no
+    trace of the net on the layer covers after them: moved or removed, not only split where a new
+    trace meets them."""
+    cells: dict[tuple[int, int, int], list[tuple[tuple[float, float], tuple[float, float]]]] = {}
+    for layer, points in after:
+        for a, b in zip(points, points[1:], strict=False):
+            for i in range(int(min(a[0], b[0])) - 1, int(max(a[0], b[0])) + 2):
+                for j in range(int(min(a[1], b[1])) - 1, int(max(a[1], b[1])) + 2):
+                    cells.setdefault((layer, i, j), []).append((a, b))
+
+    def covered(layer: int, p: tuple[float, float]) -> bool:
+        return any(shapes.point_segment(p, a, b) <= COVER_MM for a, b in cells.get((layer, int(p[0]), int(p[1])), ()))
+
+    gone = 0
+    for layer, points in before:
+        spots = list(points) + [((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) for a, b in zip(points, points[1:], strict=False)]
+        if not all(covered(layer, p) for p in spots):
+            gone += 1
+    return gone
 
 
 def _route_result(doc: Any, done: list[str], skipped: list[str], regenerated: int,

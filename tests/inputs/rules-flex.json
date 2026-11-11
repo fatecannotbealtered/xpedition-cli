@@ -34,6 +34,19 @@
           "max_width_mm": 0.6
         }
       }
+    },
+    {
+      "name": "GROUND",
+      "nets": [
+        "GND"
+      ],
+      "layers": {
+        "all": {
+          "width_mm": 0.1,
+          "min_width_mm": 0.1,
+          "max_width_mm": 1.0
+        }
+      }
     }
   ],
   "differential_pairs": [
@@ -76,6 +89,22 @@
         [
           "USB_SS",
           "USB_SS"
+        ]
+      ]
+    },
+    {
+      "rule": "GUARD",
+      "layers": {
+        "all": {
+          "trace_to_trace_mm": 0.15,
+          "trace_to_pad_mm": 0.15,
+          "trace_to_via_mm": 0.15
+        }
+      },
+      "classes": [
+        [
+          "USB_SS",
+          "GROUND"
         ]
       ]
     }

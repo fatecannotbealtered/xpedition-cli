@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-REPO-SPEC_zh.md)
 
-> Version 1.1.0 · Clauses DREPO-001 to DREPO-062
+> Version 1.2.0 · Clauses DREPO-001 to DREPO-062
 
 ## How to Read
 
@@ -70,7 +70,7 @@ Command behavior, security, Skills and verification have their own clauses. This
 |---|---|---|
 | Project skeleton | Every required file and directory, with all fixed headings in both languages and the fixed text: How It Works, Bare minimum to obey, the install block, the five fixed SECURITY sections and Authorization Rules of `docs/E2E.md` | Fills in the tool's own sections and removes every placeholder |
 | Pinned copies | `sync_spec` copies the specification, the contract, the runtime, the licenses and the shared scripts, and replaces them as a whole on upgrade | Runs `sync_spec` to upgrade and never edits a pinned copy |
-| Generated content | Scripts that generate `contract/commands.json`, the command map, the badge row, the info card and the support matrix from data | Registers commands and keeps the evidence and the other sections of `docs/COMPATIBILITY.md` true |
+| Generated content | Scripts that generate `contract/commands.json`, the command map, the badge row, the info card and the support matrix from data, and write the text every tool shares from the release (DREPO-036) | Registers commands and keeps the evidence and the other sections of `docs/COMPATIBILITY.md` true |
 | Checks | `check_project`: layout, root files, sections, language pairs, placeholders, hashes, badges, labels and capability tracing | Fixes everything `check_project` reports |
 | CI and release | The workflows `ci.yml` and `release.yml` with the merge gate, platform delivery and publishing with provenance | Keeps both workflows passing and picks the key operation for platform delivery |
 | Distribution | Packaging scripts for the native program, the platform packages and the launcher; `update` and the direct command entry in the runtime (DCLI-070, DCLI-075) | Sets the package name, command name and platform packages in `package.json` |
@@ -421,7 +421,7 @@ The README MUST show these badges, in this order, in one row under the pitch:
 | `platform` | The shipped platforms: Windows, macOS, Linux | The platform packages in `package.json` (DREPO-043) |
 | `risk` | The tool's risk tier, T0 to T2 (DSEC-002) | `reference` |
 | `maturity` | The lowest maturity among the tool's domain commands (DVER-040) | `reference` |
-| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.1.0 | `.agent/SPEC_VERSION` |
+| `spec` | The pinned specification version, such as tool-driver-cli-spec 1.2.0 | `.agent/SPEC_VERSION` |
 | `license` | The tool's license | `package.json` |
 
 A badge row for a tool that drives KiCad 10.0 in file and session mode looks like this; the template defines the exact style:
@@ -435,7 +435,7 @@ A badge row for a tool that drives KiCad 10.0 in file and session mode looks lik
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.1.0-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.2.0-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 
@@ -537,6 +537,13 @@ Check: 🤖 `check_project` checks the hash of every pinned file against the rel
 
 Why: These scripts are the same in every tool; a fix to them reaches a tool only when `sync_spec` replaces them with the rest of the release.
 Check: 🤖 `check_project` compares hashes (DREPO-034).
+
+### DREPO-036 Shared text
+
+The template marks the text that is the same in every tool between `<!-- driver:spec-<name>:start -->` and `<!-- driver:spec-<name>:end -->`: whole sections of the entry Skill and of `CONTRIBUTING.md`, and parts of the README, `SECURITY.md` and `docs/E2E.md`, in both languages. A project MUST keep each marked region of its pinned release, with its markers, in its section. `python scripts/spec.py generate` writes the text of every region from that release, also when `python scripts/spec.py sync` moves the pin, so the author MUST NOT edit it. The tool's own text goes outside the markers.
+
+Why: Text every tool shares changes with the specification. Written by the script, it follows each release in every tool; edited by hand, it falls behind while the checks still pass.
+Check: 🤖 `check_project`: every region of the template is in the project once, with the text of the pinned release.
 
 ## Versions, CI and Release
 
@@ -711,6 +718,7 @@ Check: 👀 Review; `build-driver-cli` lists every clause the tool does not meet
 - [ ] DREPO-033 Licenses
 - [ ] DREPO-034 Sync, never edit
 - [ ] DREPO-035 Script copies
+- [ ] DREPO-036 Shared text
 - [ ] DREPO-040 Versions and tags
 - [ ] DREPO-041 Merge gate
 - [ ] DREPO-042 Platform delivery

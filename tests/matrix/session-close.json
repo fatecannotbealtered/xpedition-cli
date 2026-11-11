@@ -15,7 +15,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-201615-session-close.json#normal"
+      "evidence": "live:docs/evidence/2026-11-11-202938-session-close.json#normal"
     },
     {
       "row": "empty",
@@ -39,7 +39,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-09-201605-session-close.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-11-202925-session-close.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -57,7 +57,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-09-201605-session-close.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-11-202925-session-close.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -72,7 +72,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-09-195913-session-close.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-11-210949-session-close.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -90,7 +90,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-09-201910-session-close.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-11-203326-session-close.json#conflict"
     },
     {
       "row": "no_scope",
@@ -108,7 +108,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204612-session-close.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-11-211056-session-close.json#no_scope"
     },
     {
       "row": "busy",
@@ -127,7 +127,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-09-203120-session-close.json#busy"
+      "evidence": "live:docs/evidence/2026-11-11-203825-session-close.json#busy"
     },
     {
       "row": "dialog",
@@ -146,7 +146,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-09-203408-session-close.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-11-204113-session-close.json#dialog"
     },
     {
       "row": "disconnect",

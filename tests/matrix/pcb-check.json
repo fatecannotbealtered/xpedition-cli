@@ -12,14 +12,14 @@
       ],
       "expected": {
         "exit": 0,
-        "summary": "Layout's Batch DRC and the board rules on the routed board; hazards and findings with counts."
+        "summary": "Layout's Batch DRC and the board rules on the routed board; hazards and findings with counts, and each net in more than one piece with its islands."
       },
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-204825-pcb-check.json#normal",
+      "evidence": "live:docs/evidence/2026-11-11-210108-pcb-check.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-09-204825-pcb-check.json#normal"
+        "board": "live:docs/evidence/2026-11-11-210108-pcb-check.json#normal"
       }
     },
     {
@@ -38,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-203614-pcb-check.json#empty"
+      "evidence": "live:docs/evidence/2026-11-11-204545-pcb-check.json#empty"
     },
     {
       "row": "invalid_input",
@@ -60,7 +60,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-09-203614-pcb-check.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-11-204545-pcb-check.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -80,7 +80,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-09-203614-pcb-check.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-11-204545-pcb-check.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -95,7 +95,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-09-195927-pcb-check.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-11-211011-pcb-check.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -123,7 +123,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-09-200034-pcb-check.json#busy"
+      "evidence": "live:docs/evidence/2026-11-11-211149-pcb-check.json#busy"
     },
     {
       "row": "dialog",
@@ -141,7 +141,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-09-200301-pcb-check.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-11-211502-pcb-check.json#dialog"
     },
     {
       "row": "disconnect",
@@ -175,7 +175,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-204825-pcb-check.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-11-210108-pcb-check.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

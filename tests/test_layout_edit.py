@@ -202,6 +202,15 @@ class ViaCreateTest(unittest.TestCase):
         stacks = {c["field"]: (c["before"], c["after"]) for c in first["changes"]}
         self.assertEqual(stacks, {"count": (0, 1), "padstack": (None, "026VIA")})  # the vias a via delete took all of come back
 
+    def test_a_via_in_a_bend_zone_is_refused(self):
+        outline = [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)]
+        flex = ST.Board(outline=outline, planes={2: [outline], 3: [outline]}, bends=[(4.0, 0.0, 6.0, 5.0)])
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_stitch_board", lambda doc, net: flex):
+            blocked = E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 5.0, "y_mm": 1.0}))
+            grid = E.ViaCreate().preview(context("via create", {"net": "GND", "pitch_mm": 1.0}))
+        self.assertIn("in a bend zone", blocked["blocked_by"][0])
+        self.assertIn("in a bend zone", grid["action"])
+
     def test_one_via_and_one_that_cannot_stand(self):
         with world(FakeApp(self.doc)):
             facts = E.ViaCreate().run(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "VIA_D0.2_P0.4"}), None)
@@ -352,10 +361,26 @@ class TraceCreateTest(unittest.TestCase):
         self.doc.PutPadstack = lambda first, last, name, mirrored, central: SimpleNamespace(Name=name)
         pads = [(1, "A", ST.polygon(circle=[0.0, 0.0, 0.2])), (2, "A", ST.polygon(circle=[10.0, 0.0, 0.2])),
                 (1, "B", ST.polygon(circle=[5.0, 0.3, 0.1]))]
-        copper = TP.Copper(layer_count=4, nets={"A", "B", "GND"}, pads=pads)
+        before = len(self.doc.vias)
+
+        def copper(doc):
+            """The board's copper as the fake board holds it: the pads, its first vias far off, and what was drawn."""
+            out = TP.Copper(layer_count=4, nets={"A", "B", "GND"}, pads=pads)
+            out.vias = [(item.Net.Name, 40.0 + i, 30.0, 0.2) for i, item in enumerate(self.doc.vias[:before])]
+            traces = [row for row in self.doc.drawn if row[0] != "via"]
+            for row in self.doc.drawn:
+                if row[0] == "via":
+                    out.vias.append((row[4], row[1], row[2], 0.2))
+            for row, radii in zip(traces, self.doc.radii, strict=True):  # an arc's row is its centre, as Layout keeps it
+                out.traces.append((row[0], row[1], row[2], E._centre_line([[x, y, r] for (x, y), r in zip(row[3], radii, strict=True)])))
+            out.model = {"traces": [{"net": net, "layer": layer, "width": width, "path": [[x, y, 0.0] for x, y in line]}
+                                    for layer, net, width, line in out.traces],
+                         "vias": [{"net": net, "circle": [x, y, r]} for net, x, y, r in out.vias], "pads": []}
+            return out
+
         rules = TP.Rules(net_class_of={}, widths={"(Default)": {layer: (0.1, 0.2) for layer in range(1, 5)}},
                          clearance=lambda a, b, layer, kind: 0.1)
-        self.patches = [mock.patch.object(E, "_copper", lambda doc: copper),
+        self.patches = [mock.patch.object(E, "_copper", copper),
                         mock.patch.object(E, "_trace_rules", lambda doc, path: rules),
                         mock.patch.object(E, "_via_row", lambda path, name: {"type": "via", "pad_mm": 0.4, "drill_mm": 0.2}
                                           if name == "VIA_D0.2_P0.4" else None)]
@@ -380,7 +405,7 @@ class TraceCreateTest(unittest.TestCase):
         self.assertEqual([(c["target"], c["field"], c["before"], c["after"]) for c in preview["changes"]],
                          [(key("/traces/A/1"), "plan_drawn", False, True), (key("/traces/A/2"), "plan_drawn", False, True),
                           (key("/vias/A"), "count", 1, 2)])
-        self.assertEqual(facts["result"], {"traces": 2, "vias": 1, "nets": [{"net": "A", "routed": True, "opens": 0}]})
+        self.assertEqual(facts["result"], {"traces": 2, "vias": 1, "nets": {"total": 1, "routed": 1}, "open": []})
         self.assertEqual(self.doc.drawn, [(1, "A", 0.1, [(0.0, 0.0), (3.0, 0.0)], E.L.UNIT_MM),
                                           (2, "A", 0.1, [(3.0, 0.0), (10.0, 0.0)], E.L.UNIT_MM),
                                           ("via", 3.0, 0.0, "VIA_D0.2_P0.4", "A")])
@@ -420,7 +445,7 @@ class TraceCreateTest(unittest.TestCase):
         self.assertEqual([row[:2] for row in E._joined(near, {("A", 1): [((0.00004, -0.00003), (-0.2, -0.2, 0.2, 0.2))]})],
                          [(0.00004, -0.00003), (3.0, 0.0)])  # nanometres off: moved onto the origin, no extra segment
         self.assertEqual(self.doc.drawn[1][3], [(3.0, 0.0), (3.1, 0.05), (10.0, 0.0)])  # joined to the via's centre
-        self.assertEqual(facts["result"]["nets"], [{"net": "A", "routed": True, "opens": 0}])
+        self.assertEqual((facts["result"]["nets"], facts["result"]["open"]), ({"total": 1, "routed": 1}, []))
 
     def test_a_rounded_corner_reaches_layout_as_an_arc(self):
         plan = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.1, "points_mm": [[0, 0], [3, 0, 1.0], [3, 3]]}],
@@ -451,6 +476,238 @@ class TraceCreateTest(unittest.TestCase):
                                 (30.0, 20.0)])  # 5 mm inside the edge, the turns rounded with 0.5 mm arcs
         self.assertEqual(back["observed"], {key("/traces/A/3"): {"plan_drawn": True}})
 
+    def test_guards_run_beside_a_lane_and_a_ring_round_the_board_both_clear_of_other_copper(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}],
+                "rings": [{"net": "GND", "layers": [1], "width_mm": 0.2, "offset_mm": 0.5, "via_pitch_mm": 10,
+                           "padstack": "VIA_D0.2_P0.4"}]}
+        inputs = {"file": self.plan_file(plan)}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            E.TraceCreate().run(context("trace create", inputs), None)
+        self.assertTrue(preview["can_apply"], preview.get("blocked_by"))
+        guards = [row for row in self.doc.drawn if row[0] == 3 and row[1] == "GND"]
+        self.assertEqual(sorted({round(y, 4) for row in guards for _x, y in row[3]}), [34.75, 35.25])  # 0.15 mm off A's copper
+        xs = [x for row in guards for x, _y in row[3]]
+        self.assertTrue(20.4 <= min(xs) and max(xs) <= 29.6)  # only where A runs on its line
+        ring = [row for row in self.doc.drawn if row[0] == 1 and row[1] == "GND"]
+        # cut once, by B's pad near the bottom edge, and closed round the rest: two traces that meet at the ring's start,
+        # and the end on one side of the pad joined round it to the via at the end on the other side
+        stretches = sorted(ring, key=lambda row: -sum(math.dist(a, b) for a, b in zip(row[3], row[3][1:])))[:2]
+        starts = {(round(row[3][0][0], 6), round(row[3][0][1], 6)) for row in stretches}
+        finishes = {(round(row[3][-1][0], 6), round(row[3][-1][1], 6)) for row in stretches}
+        self.assertEqual(len(starts & finishes), 1)
+        free = sorted(p[0] for p in (starts ^ finishes))
+        self.assertTrue(free[0] < 5.0 < free[1])  # either side of the pad
+        joins = [row for row in ring if row not in stretches]  # round the pad, and on from a line's end to a via moved off it
+        self.assertTrue(any(min(x for x, _y in row[3]) < 5.0 < max(x for x, _y in row[3]) for row in joins))
+        self.assertTrue(all(sum(math.dist(a, b) for a, b in zip(row[3], row[3][1:])) < 4.5 for row in joins))
+        self.assertIn("guards on layer 3: 2 lines kept in 2 stretches", preview["action"])
+        self.assertIn("rings[0] on layer 1:", preview["action"])
+        ring_vias = [row for row in self.doc.drawn if row[0] == "via" and row[4] == "GND"]
+        self.assertGreaterEqual(len(ring_vias), 10)
+
+    def test_a_guard_nearer_its_lanes_than_the_rules_allow_is_refused_with_the_gap_they_need(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.08}]}  # the rules ask 0.1 mm
+        with world(FakeApp(self.doc)), self.assertRaises(AdapterError) as caught:
+            E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+        self.assertEqual(caught.exception.data["code"], "E_VALIDATION")
+        self.assertIn("guards[0] keeps 0.08 mm from A, but the clearance rules ask 0.1 mm between GND and A on layer 3",
+                      str(caught.exception))
+        self.assertIn("give gap_mm of at least 0.1", str(caught.exception))
+
+    def test_a_guard_between_two_lanes_fills_the_room_only_up_to_its_net_class_widest_trace(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "B", "at_mm": [21, 18], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "B", "at_mm": [29, 18], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5},
+                          {"net": "B", "layer": 3, "width_mm": 0.1, "from_mm": [[21, 18]], "to_mm": [[29, 18]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 6}],
+                "guards": [{"nets": ["A", "B"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.1, "between": True}]}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            inputs = {"file": self.plan_file(plan)}
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            E.TraceCreate().run(context("trace create", inputs), None)
+        self.assertTrue(preview["can_apply"], preview.get("blocked_by"))
+        between = [row for row in self.doc.drawn if row[0] == 3 and row[1] == "GND" and all(34.1 < y < 34.9 for _x, y in row[3])]
+        self.assertTrue(between)
+        self.assertEqual({row[2] for row in between}, {0.2})  # 0.7 mm of room, the class's widest 0.2 mm
+
+    def test_a_guard_hemmed_in_between_two_lanes_would_float_and_is_refused_and_trace_check_says_why(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5},
+                          {"net": "B", "layer": 3, "width_mm": 0.1, "from_mm": [[20.4, 20]], "to_mm": [[29.6, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5.4}],
+                "guards": [{"nets": ["A", "B"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.1, "between": True, "via_pitch_mm": 2,
+                            "padstack": "VIA_D0.2_P0.4"}]}
+        inputs = {"file": self.plan_file(plan)}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", inputs))
+            found = E.TraceCheck().read(context("trace check", inputs))
+        self.assertFalse(preview["can_apply"])
+        self.assertTrue(any("guard between A and B" in reason and "would float" in reason for reason in preview["blocked_by"]))
+        self.assertEqual((found["floating_count"], found["pour_only_count"]), (1, 0))
+        outer = next(note for note in found["notes"] if note.startswith("guards on layer 3"))
+        self.assertNotIn(" 0 vias", outer)  # the outer two take vias moved off their line towards the open board beside them
+        floating = found["floating"][0]
+        self.assertEqual((floating["what"], floating["layer"]), ("guard between A and B", 3))
+        self.assertTrue(set(floating["blocked_by"]) & {"A", "B"})
+        self.assertLess(floating["gap_mm"], floating["needed_mm"])
+        self.assertIn("more room for a via", floating["next"])
+        self.assertEqual(found["blocked_count"], len(found["blocked"]))
+
+    def test_a_guard_end_with_no_via_of_its_own_joins_a_ground_via_nearby(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [18.0, 35.25], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}],
+                "rings": [{"net": "GND", "layers": [1], "width_mm": 0.2, "offset_mm": 0.5, "via_pitch_mm": 10,
+                           "padstack": "VIA_D0.2_P0.4"}]}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+        self.assertTrue(preview["can_apply"], preview.get("blocked_by"))
+        # the guard's end to the ground via in line with it, and an end of the ring to a ground via near it
+        self.assertIn("guards and rings: 2 ends joined to a pin or via of their net nearby", preview["action"])
+
+    def test_an_end_tries_again_once_every_line_has_its_vias(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}],  # no vias of their own
+                "rings": [{"net": "GND", "layers": [1], "width_mm": 0.2, "offset_mm": 2.0, "via_pitch_mm": 2,
+                           "padstack": "VIA_D0.2_P0.4"}]}  # laid after the guards, its vias 3 mm from the upper guard
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            found = E.TraceCheck().read(context("trace check", {"file": self.plan_file(plan)}))
+        self.assertEqual((found["pour_only_count"], found["free_end_count"]), (1, 2))  # the upper guard's ends joined the ring's vias
+        self.assertIn("guards and rings: 2 ends joined to a pin or via of their net nearby", found["notes"])
+        self.assertIn("guards on layer 3: 2 lines kept in 2 stretches, 18.0 mm, 0 vias, 2 ends without a via", found["notes"])
+
+    def test_a_rings_stretch_through_its_start_is_judged_as_one_line(self):
+        plan = {"rings": [{"net": "GND", "layers": [1], "width_mm": 0.2, "offset_mm": 0.5}]}  # no vias asked for
+        real = E.GD.spans
+
+        def halves(chain, net, layer, width, obstacles, min_run, closed=False):  # cut on both sides near the start, at the bottom's middle
+            return [(0.0, 10.0), (chain.length - 10.0, chain.length)] if closed else real(chain, net, layer, width, obstacles, min_run)
+
+        with world(FakeApp(self.doc)), mock.patch.object(E.GD, "spans", halves),                 mock.patch.object(E.L, "find_net", lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            found = E.TraceCheck().read(context("trace check", {"file": self.plan_file(plan)}))
+        lines = found["pour_only"] + found["floating"]
+        self.assertEqual([(row["what"], row["length_mm"]) for row in lines], [("rings[0] on layer 1", 20.0)])  # its two halves, as one
+        self.assertEqual(found["free_end_count"], 2)
+        self.assertIn("rings[0] on layer 1: 20.0 of 176.0 mm in 1 stretches, 0 vias, 2 ends without a via", found["notes"])
+
+    def test_a_guard_end_does_not_join_back_to_a_via_on_its_own_line(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [22.0, 35.45], "padstack": "VIA_D0.2_P0.4"}],  # its pad on the guard, 1.5 mm in from its end
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}]}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+        self.assertNotIn("joined to a pin or via", preview["action"])  # the via already touches the guard: a join would run back over it
+
+    def test_a_guard_end_on_a_via_of_its_net_is_joined_to_it(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [20.55, 35.4], "padstack": "VIA_D0.2_P0.4"}],  # its pad covers the guard's end
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}]}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            preview = E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+        self.assertTrue(preview["can_apply"], preview.get("blocked_by"))  # drawn on to the via's centre, clear of A
+        self.assertIn("guards and rings: 1 ends joined to a pin or via of their net nearby", preview["action"])
+
+    def test_vias_along_a_guard_held_by_a_via_keep_the_pitch_as_drawn(self):
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [20.55, 35.4], "padstack": "VIA_D0.2_P0.4"}],  # the guard's end runs on to it
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15, "via_pitch_mm": 2, "padstack": "VIA_D0.2_P0.4"}]}
+        requirements = self.folder / "requirements.json"
+        requirements.write_text(json.dumps({"requirements": [{"kind": "via_pitch", "net": "GND", "max_mm": 2}]}), encoding="utf-8")
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            found = E.TraceCheck().read(context("trace check", {"file": self.plan_file(plan), "requirements": str(requirements)}))
+        row = found["requirements"][0]
+        self.assertTrue(row["ok"], row)  # measured on the guards as drawn, run on to the via
+
+    def test_an_end_that_joins_nothing_is_named_with_what_blocks_it_and_listed_in_the_result(self):
+        plan = {"traces": [{"net": "B", "layer": 3, "width_mm": 0.1, "points_mm": [[19, 31], [19, 39.5]]}],  # a wall before the via
+                "vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [18.0, 35.25], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "B", "at_mm": [19, 31], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "B", "at_mm": [19, 39.5], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15}]}
+        inputs = {"file": self.plan_file(plan)}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            found = E.TraceCheck().read(context("trace check", inputs))
+            facts = E.TraceCreate().run(context("trace create", inputs), None)
+        walled = next(row for row in found["free_ends"] if row["end_mm"] == [20.5, 35.25])  # the end in line with the ground via
+        self.assertEqual(walled["blocked_by"], ["B"])
+        self.assertLess(walled["gap_mm"], walled["needed_mm"])
+        self.assertEqual(walled["at_mm"][1], 35.25)
+        self.assertTrue(any("no pin or via of GND" in row.get("reason", "") for row in found["free_ends"]))
+        self.assertEqual(found["pour_only_count"], 2)  # no vias asked for: only a pour on layer 3 can ground either guard
+        self.assertTrue(all("pour_at_mm" in row for row in found["pour_only"]))
+        self.assertEqual(facts["result"]["free_end_count"], found["free_end_count"])
+        self.assertEqual(len(facts["result"]["free_ends"]), found["free_end_count"])
+
+    def test_the_read_back_reads_the_plan_as_it_was_drawn(self):
+        class Store(dict):
+            def set(self, key, value):
+                self[key] = value
+
+        store = Store()
+        plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [30, 20], "padstack": "VIA_D0.2_P0.4"}],
+                "lanes": [{"net": "A", "layer": 3, "width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5}],
+                "guards": [{"nets": ["A"], "net": "GND", "width_mm": 0.1, "gap_mm": 0.15, "via_pitch_mm": 2,
+                            "padstack": "VIA_D0.2_P0.4"}]}
+        inputs = {"file": self.plan_file(plan)}
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            apply = context("trace create", inputs, operation_id="op_Ab1")
+            apply.store = store
+            E.TraceCreate().run(apply, None)
+            back = context("trace create", inputs, operation_id="op_Ab1", targets=[key("/traces/GND/3")], fields=["plan_drawn"])
+            back.store = store
+            observed = E.TraceCreate().read_back(back)["observed"]
+        self.assertIn("trace-plan-op_ab1", store)  # the guards and vias as drawn: worked out again, the vias now there would move them
+        self.assertEqual(observed, {key("/traces/GND/3"): {"plan_drawn": True}})
+        with world(FakeApp(self.doc)):  # a save reads the field back from the same kept plan, with no operation of its own
+            saved = E.L.read_keys(self.doc, BOARD, [key("/traces/GND/3"), key("/traces/A/3")], ["count", "plan_drawn"], store)
+        self.assertEqual(saved["observed"][key("/traces/GND/3")]["plan_drawn"], True)
+        self.assertEqual(saved["observed"][key("/traces/A/3")]["plan_drawn"], True)
+        self.assertEqual(saved["unreadable"], [])
+
     def test_a_plan_that_breaks_the_rules_is_blocked_and_never_drawn(self):
         bad = {"traces": [{"net": "A", "layer": 1, "width_mm": 0.3, "points_mm": [[0, 0], [5, 0], [6, 0]]}],
                "vias": [{"net": "A", "at_mm": [6, 0], "padstack": "NOPE"}]}
@@ -466,6 +723,24 @@ class TraceCreateTest(unittest.TestCase):
         self.assertTrue(any("closer to a pad of B" in reason for reason in reasons))
         self.assertEqual(caught.exception.data.get("conflict"), "application_state")
         self.assertEqual(self.doc.drawn, [])
+
+    def test_an_end_on_a_via_is_checked_as_drawn_on_to_the_via_centre(self):
+        plan = {"traces": [{"net": "GND", "layer": 1, "width_mm": 0.5, "points_mm": [[40, 10], [45, 10]]},
+                           {"net": "A", "layer": 1, "width_mm": 0.1, "points_mm": [[44, 12], [44, 10.52], [47, 10.52], [47, 12]]}],
+                "vias": [{"net": "GND", "at_mm": [40, 10], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "GND", "at_mm": [45.15, 10.15], "padstack": "VIA_D0.2_P0.4"},  # its pad covers the end, off its centre
+                         {"net": "A", "at_mm": [44, 12], "padstack": "VIA_D0.2_P0.4"},
+                         {"net": "A", "at_mm": [47, 12], "padstack": "VIA_D0.2_P0.4"}]}
+        rules = TP.Rules(net_class_of={}, widths={}, clearance=lambda *_args: 0.1)
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_trace_rules", lambda doc, path: rules):
+            preview = E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+            plan["traces"].reverse()
+            reversed_preview = E.TraceCreate().preview(context("trace create", {"file": self.plan_file(plan)}))
+        self.assertEqual(len(preview["blocked_by"]), 1, preview["blocked_by"])  # as planned, A clears it by 0.22 mm
+        self.assertIn("trace 1 of GND: closer to trace 2 of A", preview["blocked_by"][0])
+        self.assertIn("where its end runs on to the centre of the pin or via at (45.15, 10.15) mm, at its width", preview["blocked_by"][0])
+        self.assertIn("trace 1 of A: closer to trace 2 of GND in the plan", reversed_preview["blocked_by"][0])
+        self.assertIn("where the trace 2 of GND's end runs on to the centre", reversed_preview["blocked_by"][0])
 
     def test_a_missing_or_malformed_plan_file(self):
         with world(FakeApp(self.doc)):

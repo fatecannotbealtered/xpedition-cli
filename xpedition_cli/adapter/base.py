@@ -116,6 +116,34 @@ def change(target_key: str, field: str, before: Any, after: Any) -> dict[str, An
     return {"target": target_key, "field": field, "before": before, "after": after}
 
 
+RESULT_CHARS = 6000  # what a result may take of the 8000 characters of one response, beside its envelope and receipt
+
+
+def fitted(out: dict[str, Any], keys: list[str], limit: int = RESULT_CHARS) -> dict[str, Any]:
+    """``out`` with the lists under ``keys`` halved, in that order, until its JSON fits ``limit``
+    characters, so that a long result comes back cut instead of refused; a ``<key>_count`` or an
+    ``--output`` file keeps what is cut."""
+    import json
+
+    def size() -> int:
+        return len(json.dumps(out, ensure_ascii=False, default=str))
+
+    for key in keys:
+        while size() > limit and isinstance(out.get(key), list) and out[key]:
+            out[key] = out[key][:len(out[key]) // 2]
+    return out
+
+
+def within(rows: list[str], limit: int) -> list[str]:
+    """The first of ``rows`` that together take no more than ``limit`` characters, at least one."""
+    out: list[str] = []
+    for row in rows:
+        if out and sum(len(r) for r in out) + len(row) > limit:
+            break
+        out.append(row)
+    return out
+
+
 def preview(action: str, targets: list[dict[str, Any]], changes: list[dict[str, Any]],
             blocked_by: list[str] | None = None, knowledge: list[str] | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"action": action, "targets": targets, "changes": changes, "can_apply": not blocked_by}

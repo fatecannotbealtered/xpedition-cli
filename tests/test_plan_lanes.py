@@ -44,6 +44,18 @@ class ExpandTest(unittest.TestCase):
         self.assertEqual([(round(x, 6), round(y, 6)) for x, y in trace.points], [(5, 5), (5, 8), (2, 8), (2, 92), (5, 92), (5, 95)])
         self.assertEqual(trace.radii, [0.0, 0.5, 0.5, 0.5, 0.5, 0.0])
 
+    def test_a_neck_narrows_the_lane_from_its_ends_to_its_line(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        lane = LN.parse([_lane(width_mm=0.15, neck_width_mm=0.1)])[0]
+        pieces = LN.necked(lane, LN.expand(lane, ring, "lanes[0]"))
+        self.assertEqual([p.width for p in pieces], [0.1, 0.15, 0.1])
+        self.assertEqual([(round(x, 6), round(y, 6)) for x, y in pieces[1].points], [(2, 8.5), (2, 91.5)])  # the line, past its turns
+        self.assertEqual(pieces[0].points[-1], pieces[1].points[0])
+        self.assertEqual(pieces[1].points[-1], pieces[2].points[0])
+        self.assertAlmostEqual(sum(TP.length(p) for p in pieces), TP.length(LN.expand(LN.parse([_lane()])[0], ring, "lanes[0]")))
+        with self.assertRaises(PlanError):
+            LN.parse([_lane(neck_width_mm=0.2)])  # no wider than the lane
+
     def test_lanes_follow_an_arc_of_the_outline_about_its_centre(self):
         # a board 20 mm wide that runs up and turns right with an outer radius of 30 mm
         rows = [(0.0, 0.0, 0.0), (20.0, 0.0, 0.0), (20.0, 50.0, 0.0), (30.0, 50.0, 10.0), (30.0, 60.0, 0.0), (80.0, 60.0, 0.0),
@@ -121,6 +133,27 @@ class ExpandTest(unittest.TestCase):
         with self.assertRaises(PlanError) as caught:
             LN.expand(LN.parse([_lane(edge_mm=[[0, 50], [0, 50]])])[0], ring, "lanes[3]")
         self.assertIn("lanes[3].edge_mm names no edge", caught.exception.message)
+
+
+class WidenedTest(unittest.TestCase):
+    def test_a_neck_is_as_wide_as_its_lane_but_where_that_does_not_clear(self):
+        neck = TP.Trace("A", 1, 0.1, [(0.0, 0.0), (2.0, 0.0)])
+
+        def clear(a, b, width):  # something beside x 0.9 to 1.1 leaves room for 0.1 mm only
+            return width <= 0.1 + 1e-9 or max(a[0], b[0]) <= 0.9 or min(a[0], b[0]) >= 1.1
+
+        pieces = LN.widened(neck, 0.15, clear)
+        self.assertEqual([p.width for p in pieces], [0.15, 0.1, 0.15])
+        self.assertEqual([(p.points[0], p.points[-1]) for p in pieces], [((0.0, 0.0), (0.9, 0.0)), ((0.9, 0.0), (1.1, 0.0)),
+                                                                          ((1.1, 0.0), (2.0, 0.0))])
+        self.assertEqual(LN.widened(neck, 0.15, lambda a, b, w: w <= 0.1), [neck])  # nowhere wider: as it was
+
+    def test_a_widened_neck_keeps_its_corner_arc_whole(self):
+        neck = TP.Trace("A", 1, 0.1, [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0)], [0.0, 0.5, 0.0])
+        pieces = LN.widened(neck, 0.15, lambda a, b, w: w <= 0.1 + 1e-9 or max(a[1], b[1]) > 1.6 or max(a[0], b[0]) < 1.0)
+        self.assertEqual([p.width for p in pieces], [0.15, 0.1, 0.15])
+        self.assertAlmostEqual(sum(TP.length(p) for p in pieces), TP.length(neck), places=6)  # the same line, the arc whole
+        self.assertTrue(any(r == 0.5 for p in pieces for r in p.radii))
 
 
 if __name__ == "__main__":

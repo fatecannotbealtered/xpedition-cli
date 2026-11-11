@@ -34,7 +34,7 @@ def commands(tool: Tool) -> list[Command]:
         make(tool, "reference", "Describe the commands: the index, one command, or every command written to a file.",
              [Flag("--command", "string", "The path of one command."), Flag("--all", "boolean", "Every command; needs --output."),
               Flag("--output", "path", "With --all, the file to write.")], reference, kind="builtin",
-             schema="reference.schema.json", capabilities=[], examples=["reference", "reference --command \"session list\""]),
+             schema="reference.schema.json", capabilities=[], examples=["reference", "reference --command context"]),
         make(tool, "context", "Local state: versions, state directory, authorization, application, sessions, knowledge.", [],
              context, kind="builtin", schema="context.schema.json", capabilities=[], examples=["context"]),
         make(tool, "doctor", "Health checks, each with a fix.", [], doctor, kind="builtin", schema="doctor.schema.json",
@@ -102,9 +102,15 @@ def describe(tool: Tool, command: Command, full: bool = False) -> dict[str, Any]
     """One command as ``reference`` shows it (DCLI-031). ``full``: for ``--all``, with the adapter
     capabilities and evidence the project scripts check."""
     flags = []
+    names = {f.name for f in command.flags}
     for flag in command.flags:
         entry: dict[str, Any] = {"name": flag.name, "summary": flag.summary}
-        if flag.required:
+        # A value --input, or for --id also --ids, can give is required only without them (DCLI-064).
+        without = [] if flag.name in ("--session", "--doc", "--device") or flag.runtime else \
+            [n for n in ("--ids", "--input") if n in names and (n == "--input" or flag.name == "--id")]
+        if flag.required and without:
+            entry["required_without"] = without
+        elif flag.required:
             entry["required"] = True
         entry["type"] = "|".join(flag.choices) if flag.choices else flag.type
         if flag.quantity:

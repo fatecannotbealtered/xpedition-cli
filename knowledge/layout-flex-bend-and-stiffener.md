@@ -20,7 +20,8 @@ What each place allows:
 What to do:
 
 - Read `pcb get` before routing a flex board and note each stiffener's and bend zone's extents. When neither is marked, ask the person where the board bends before placing any via between the connectors.
-- Pour a bend zone's hatched band with `plane create --hatch diagonal --from-y --to-y` beside the solid plane of that layer, and the solid parts with the region flags for the rest.
+- Pour a layer of a flex board with `plane create --bends --hatch diagonal --hatch-width --hatch-distance`: solid between the bend zones, hatched over each. One band alone takes `--from-y` and `--to-y` (or `--from-x` and `--to-x`).
+- `via create` places no via in a bend zone, a stitching grid's or a single one, and the vias along a routing plan's guards and rings stay out of them too.
 - Read the team's flex rules in team knowledge, which may set the hatch, the clearances and the via limits.
 - When `bend_zones` is empty, or a zone it lists is not where the person says the board bends, ask the person before you route across it.
 - Check with `pcb check`. On a board with a bend zone it uses the zones of `bend_zones` and lists `bend_via`, `bend_turn`, `bend_angle` (more than 5 degrees off square), `bend_width` and `bend_stacked` (traces of two layers above each other) in each zone, and, where the board has stiffeners, `layer_change_outside_stiffener` for a via of a net without plane shapes outside them.

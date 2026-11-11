@@ -1269,11 +1269,20 @@ class Engine:
                 if child["state"] == "unknown":
                     code = "E_OUTCOME_UNKNOWN"
                     unknown_children.append((child_id, child_keys))
+                elif ok:
+                    # What the change produced, as a call of one object returns it; its record keeps
+                    # it for operation get when the batch's response has no room for it (DCLI-064).
+                    made = self.safe_result(spec, out["facts"], Verification(receipt["outcome"]["verification"],
+                                                                            receipt["observed"]), receipt)
+                    if made not in (None, {}, []):
+                        child["result"] = slim_result(run, made)
             if out.get("human") is not None and human is None:
                 human = out["human"]
             run.records.save(child)
             children.append(child_id)
             item: dict[str, Any] = {"target": target["key"], "operation_id": child_id, "ok": ok}
+            if "result" in child:
+                item["result"] = child["result"]
             if not ok:
                 item["code"] = code
                 if first_error is None:
@@ -1342,8 +1351,16 @@ class Engine:
         run.locks.replace(batch_id, unknown_children)
         run.dispatching = None
         batch = {"operation_id": batch_id, "items": items, "summary": summary}
+        # The items' results take the room the response has left; the rest stay in the records.
+        room = int(run.contract["envelope"]["limits"]["success_chars"]) * 3 // 4
+        with_result = [i for i in items if "result" in i]
+        while with_result and len(json.dumps(batch, ensure_ascii=False)) > room:
+            with_result.pop().pop("result")
+            batch["more_results"] = run.cmd("operation get", [("--id", "<operation_id>")]) + " gives the result of an item that shows none."
+        untrusted = [".items[*]" + p for p in spec.untrusted_result()] + (
+            [".more_results"] if "more_results" in batch else [])
         if summary["succeeded"] == summary["total"]:
-            return Result(batch)
+            return Result(batch, untrusted)
         lookup = run.cmd("operation list", [("--state", "unknown"), ("--batch", batch_id)])
         if summary["unknown"]:
             extra_unknown: dict[str, Any] = {}
@@ -1367,7 +1384,7 @@ class Engine:
             extra["resume"] = self.resume_batch(spec, [spec.selected[i] for i in unfinished])
         if took_effect:
             raise DriverError("E_PARTIAL", f"{summary['succeeded']} of {summary['total']} objects changed; read details.batch.",
-                              dispatch_state="dispatched", batch=batch,
+                              dispatch_state="dispatched", batch=batch, untrusted=["details.batch" + p for p in untrusted],
                               next_action="Read details.batch, then send again only the objects that failed.", **extra)
         cause = stop_error or first_error
         assert cause is not None

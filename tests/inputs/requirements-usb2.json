@@ -1,0 +1,21 @@
+{
+ "requirements": [
+  {
+   "kind": "via_padstack",
+   "padstack": "VIA_D0.2_P0.4",
+   "nets": [
+    "USB_DP",
+    "USB_DN"
+   ],
+   "label": "every via of the pair VIA_D0.2_P0.4"
+  },
+  {
+   "kind": "guard",
+   "nets": [
+    "USB_DP+USB_DN"
+   ],
+   "min_both_pct": 50,
+   "label": "ground beside the pair"
+  }
+ ]
+}

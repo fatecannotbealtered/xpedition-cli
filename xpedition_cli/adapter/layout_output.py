@@ -24,8 +24,10 @@ from .._driver.targets import path_of
 from . import base
 from . import layout as L
 from .base import Context
-from .plan import board_metrics, fab_package
+from .plan import PlanError, board_metrics, fab_package
 from .plan import board_render as PR
+from .plan import guards as GD
+from .plan import requirements as RQ
 from .plan import routing as plan_routing
 from .platform import com, dialogs
 
@@ -86,7 +88,7 @@ def _position(obj: Any) -> tuple[float, float]:
     return round(float(obj.GetPositionX(L.UNIT_MM)), 4), round(float(obj.GetPositionY(L.UNIT_MM)), 4)
 
 
-def _component(component: Any, model: dict[str, Any], scale: float, full: bool) -> dict[str, Any]:
+def _component(component: Any, model: dict[str, Any], scale: float, full: bool, holes: bool = True) -> dict[str, Any]:
     refdes = str(component.RefDes or "")
     placed = bool(component.Placed)
     row: dict[str, Any] = {"refdes": refdes, "placed": placed, "cell": str(component.CellName or ""), "side": _side(component)}
@@ -108,7 +110,7 @@ def _component(component: Any, model: dict[str, Any], scale: float, full: bool) 
                 record = geometry_record(geometry, scale, layer=layer, net=net, refdes=refdes, pin=name, kind="pad")
                 if record:
                     model["pads"].append(record)
-        for hole in L.collection(pin, "Holes"):
+        for hole in L.collection(pin, "Holes") if holes else ():
             size = float(hole.GetDrillSize(L.UNIT_MM))
             if size > 0:
                 model["holes"].append([x, y, round(size, 4)])
@@ -156,10 +158,12 @@ def _silkscreen(doc: Any, model: dict[str, Any], scale: float) -> None:
             continue
 
 
-def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | None = None, silk: bool = True) -> dict[str, Any] | None:
+def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | None = None, silk: bool = True,
+                shapes: bool = True) -> dict[str, Any] | None:
     """The board as ``plan.board_metrics`` takes it, or None on a board that is not in mils.
     ``full`` adds the pads, holes and, unless ``silk`` is false, the silkscreen the board rules
-    need; a reader of the copper alone leaves the silkscreen out, a quarter of the time."""
+    need, and unless ``shapes`` is false the keepouts, cutouts, planes and pins' holes; a reader of
+    the copper alone leaves the silkscreen and the shapes out, half the time."""
     scale = L.geometry_scale(doc)
     if scale is None:
         return None
@@ -174,25 +178,29 @@ def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | Non
     if record:
         model["outline"].append(record)
     for component in L.collection(doc, "Components"):
-        model["components"].append(_component(component, model, scale, full))
+        model["components"].append(_component(component, model, scale, full, holes=shapes))
+    radii: dict[str, float] = {}  # each padstack's pad is read once: reading it via by via takes seconds on a routed board
     for via in L.collection(doc, "Vias"):
         x, y = _position(via)
-        model["vias"].append({"circle": [x, y, 0.0], "net": L.net_name(via), "kind": "via"})
+        name = L.name_of(via)
+        if name not in radii:
+            radii[name] = round(_via_radius(via, scale), 4)
+        model["vias"].append({"circle": [x, y, radii[name]], "net": L.net_name(via), "kind": "via", "padstack": name})
     for trace in L.collection(doc, "Traces"):
         geometry = trace.Geometry
         record = geometry_record(geometry, scale, layer=int(trace.Layer), net=L.net_name(trace),
                                  width=round(float(geometry.LineWidth or 0.0) * scale, 4), kind="trace")
         if record:
             model["traces"].append(record)
-    if full:
+    if full and silk:
+        _silkscreen(doc, model, scale)
+    if full and shapes:
         for hole_owner in L.collection(doc, "MountingHoles"):
             x, y = _position(hole_owner)
             for hole in L.collection(hole_owner, "Holes"):
                 size = float(hole.GetDrillSize(L.UNIT_MM))
                 if size > 0:
                     model["holes"].append([x, y, round(size, 4)])
-        if silk:
-            _silkscreen(doc, model, scale)
         model["keepouts"] = _quietly(lambda: keepouts(doc, scale, geometry=True), [])
         model["cutouts"] = _quietly(lambda: cutouts(doc, scale), [])
         model["planes"] = _quietly(lambda: plane_shapes(doc), [])
@@ -398,7 +406,26 @@ def metrics_summary(model: dict[str, Any]) -> dict[str, Any]:
             "trace_mm_by_layer": measured["routing"]["by_layer"], "pairs": measured["routing"]["pairs"][:LISTED]}
 
 
-def board_facts(doc: Any, path: str) -> dict[str, Any]:
+def flex_model(doc: Any, traces: list[dict[str, Any]] | None = None, vias: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """What the flex rules of ``board_metrics`` read: the planes, keepouts and outline, with the
+    traces and vias given."""
+    scale = L.geometry_scale(doc)
+    outline = doc.BoardOutline
+    record = _quietly(lambda: geometry_record(outline.Geometry, scale, kind="outline")) if outline is not None and scale else None
+    return {"planes": _quietly(lambda: plane_shapes(doc), []), "keepouts": _quietly(lambda: keepouts(doc, scale), []),
+            "outline": [record] if record else [], "traces": traces or [], "vias": vias or []}
+
+
+def bend_boxes(doc: Any, flex: dict[str, Any] | None = None) -> list[tuple[float, float, float, float]]:
+    """The extents of the board's bend zones, as pcb get lists them; none on a rigid board.
+    ``flex`` is a ``flex_model`` already read."""
+    return [(z["extents_mm"][0], z["extents_mm"][1], z["extents_mm"][2], z["extents_mm"][3])
+            for z in board_metrics.bend_zones(flex or flex_model(doc))]
+
+
+def board_facts(doc: Any, path: str, full: bool = False) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The board in numbers, and the model they were measured on: with ``full``, the whole model
+    pcb get --output writes, read once for both."""
     layer_count = int(doc.LayerCount)
     components = L.collection(doc, "Components")
     placed = sum(1 for item in components if bool(item.Placed))
@@ -407,12 +434,15 @@ def board_facts(doc: Any, path: str) -> dict[str, Any]:
     if status is not None:
         still_open = sorted(name for name, row in status.items() if not row["routed"])
         nets.update(total=len(status), routed=len(status) - len(still_open), open=len(still_open))
-    model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
+    if full:
+        model = board_model(doc, full=True, status=status) if L.geometry_scale(doc) is not None else None
+    else:
+        model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
     scale = L.geometry_scale(doc)
     unavailable = {"available": False, "reason": UNIT_NOTE if scale is None else "The geometry could not be read."}
     blocked = _quietly(lambda: keepouts(doc, scale), [])
     shapes = _quietly(lambda: plane_shapes(doc), [])
-    return {
+    return ({
         "path": path, "layers": layer_count,
         "components": {"total": len(components), "placed": placed, "unplaced": len(components) - placed},
         "nets": nets, "traces": L.count(doc, "Traces"), "vias": L.count(doc, "Vias"),
@@ -426,7 +456,7 @@ def board_facts(doc: Any, path: str) -> dict[str, Any]:
         "via_padstacks": _quietly(lambda: via_padstacks(doc, scale)),
         "geometry": geometry_summary(model) if model is not None else unavailable,
         "metrics": _quietly(lambda: metrics_summary(model), unavailable) if model is not None else unavailable,
-    }
+    }, model)
 
 
 class BoardGet(base.Handler):
@@ -440,11 +470,12 @@ class BoardGet(base.Handler):
         output = ctx.inputs.get("output")
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            facts = board_facts(doc, path)
+            facts, model = board_facts(doc, path, full=bool(output))
             if output:
-                model = board_model(doc, full=True) if L.geometry_scale(doc) is not None else None
                 full = {**facts, "model": model, "metrics_full": board_metrics.measure(model) if model else None}
                 facts["output"] = write_output(str(output), full)
+                if isinstance(facts.get("geometry"), dict):  # the file holds the outline's path; a curved one fills the response
+                    facts["geometry"] = {k: v for k, v in facts["geometry"].items() if k != "outline_mm"}
             return facts
 
         return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the board")
@@ -472,6 +503,11 @@ WARNING_KINDS = frozenset({"ViasUnderParts"})  # a via under a part is normal wi
 RULE_SEVERITY = {"high": "error", "medium": "warning", "low": "info"}
 SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2}
 CHECK_LISTED = 10  # hazards and rules each; a longer result would pass the 8000-character response limit
+NETS_LISTED = 5  # nets with connectivity problems, each with its first islands
+ISLANDS_LISTED = 2
+CONNECTIVITY_KINDS = {"Hangers": "hangers", "TraceLoops": "loops", "PlaneIslands": "plane_islands"}
+TIE_STARTS = 8  # the points of an island tried for a path back to the rest of its net
+TIE_WIDTH_MM = 0.1  # a path back is this wide unless the island's traces are narrower
 DESCRIPTION_LIMIT = 160
 
 
@@ -586,9 +622,12 @@ def rule_findings(model: dict[str, Any] | None, reason: str = UNIT_NOTE) -> list
             for index, row in enumerate(rows, 1)]
 
 
-def check_board(app: Any, doc: Any, pid: int | None, output: str | None = None) -> dict[str, Any]:
-    """Run Batch DRC and read its hazards and the board rules. The lists carry the first
-    ``CHECK_LISTED`` entries, errors first, so that the result fits one response; the counts are whole."""
+def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | None = None,
+                requirements: list[RQ.Requirement] | None = None) -> dict[str, Any]:
+    """Run Batch DRC and read its hazards and the board rules; group the connectivity problems by
+    net, with each island Layout's connectivity finds and a path back to the rest of its net; and
+    measure the ``requirements``. The lists carry the first entries, errors first, so that the
+    result fits one response; the counts are whole."""
     drc = run_batch_drc(app, pid)
     try:
         found = L.items(doc.GetHazards(HAZARDS_BATCH))
@@ -597,31 +636,198 @@ def check_board(app: Any, doc: Any, pid: int | None, output: str | None = None) 
     except Exception as exc:  # noqa: BLE001 - a hazard list that cannot be read is not an empty one
         raise L.com_error(exc, "reading the Batch DRC hazards", "not_started") from None
     hazards.sort(key=lambda row: (row["severity"] != "error", row["type"]))
+    model = _quietly(lambda: board_model(doc, full=True)) if L.geometry_scale(doc) is not None else None
     if L.geometry_scale(doc) is None:
         rules = rule_findings(None)
     else:
-        rules = rule_findings(_quietly(lambda: board_model(doc, full=True)), "The board geometry could not be read, so the board "
-                              "rules were not checked; the hazards above stand.")
+        rules = rule_findings(model, "The board geometry could not be read, so the board rules were not checked; the hazards above stand.")
     rules.sort(key=lambda row: SEVERITY_ORDER.get(row["severity"], 3))
     severities = [row["severity"] for row in hazards] + [row["severity"] for row in rules]
-    out = {"hazards": hazards[:CHECK_LISTED], "rules": rules[:CHECK_LISTED], "errors": severities.count("error"),
-           "warnings": severities.count("warning"), "hazard_count": len(hazards), "rule_count": len(rules), "drc": drc}
+    out: dict[str, Any] = {"hazards": hazards[:CHECK_LISTED], "rules": rules[:CHECK_LISTED], "errors": severities.count("error"),
+                           "warnings": severities.count("warning"), "hazard_count": len(hazards), "rule_count": len(rules), "drc": drc}
+    read: list[GD.Obstacles | None] = []
+
+    def board_copper() -> GD.Obstacles | None:  # read once, and only when an island or a via pitch needs it
+        if not read:  # the clearance rules come from Constraint Manager: when it cannot be read, DRC's findings stand alone
+            from .layout_edit import board_obstacles, copper_from_model
+            nets = {L.name_of(net) for net in L.collection(doc, "Nets")}
+            read.append(_quietly(lambda: board_obstacles(doc, path, copper_from_model(model, int(doc.LayerCount), nets))))
+        return read[0]
+
+    problems = connectivity(doc, hazards, board_copper if model is not None else None)
+    out["connectivity"], out["connectivity_count"] = problems[:NETS_LISTED], len(problems)
+    if requirements:
+        if model is None:
+            raise AdapterError("E_UNSUPPORTED", "The board geometry could not be read, so the requirements were not measured; the board "
+                               "must count in mils or mm and have an outline.", dispatch_state="not_started")
+        bends = [tuple(z["extents_mm"]) for z in board_metrics.bend_zones(model)]
+        made = _quietly(lambda: generated_planes(doc), set())
+        model = {**model, "planes": [{**row, "generated": (row.get("net"), row.get("layer")) in made} for row in model.get("planes") or []]}
+        measured = RQ.measure(model, requirements, bends, board_copper())
+        out["requirements"] = RQ.listed(measured)
+        out["requirements_failed"] = sum(1 for row in measured if row.get("ok") is False)
     if output:
-        out["output"] = write_output(output, {**out, "hazards": hazards, "rules": rules})
-    return out
+        whole = {**out, "hazards": hazards, "rules": rules, "connectivity": problems}
+        if requirements:
+            whole["requirements"] = measured
+        out["output"] = write_output(output, whole)
+    return base.fitted(out, ["rules", "hazards", "connectivity", "requirements"])
+
+
+def connectivity(doc: Any, hazards: list[dict[str, Any]], board_copper: Any) -> list[dict[str, Any]]:
+    """Each net with a connectivity problem: DRC's dangling ends, loops and cut-off pour counted, and
+    the islands Layout's connectivity finds (``Subnet``: which connected piece of its net an object
+    belongs to, planes included), each with its pins, traces and vias and, where one clears, a path
+    that joins it to the rest of its net (``board_copper`` gives the copper it must clear)."""
+    rows: dict[str, dict[str, Any]] = {}
+    for hazard in hazards:
+        kind = CONNECTIVITY_KINDS.get(hazard["type"])
+        if kind:
+            net = (hazard.get("description") or "").split(";")[0].strip()
+            row = rows.setdefault(net, {"net": net})
+            row[kind] = row.get(kind, 0) + 1
+    scale = L.geometry_scale(doc)
+    layer_count = int(doc.LayerCount)
+    for net in L.collection(doc, "Nets"):
+        if scale is None or _quietly(lambda net=net: int(net.NumberOfOpens or 0), 0) <= 0:
+            continue
+        name = L.name_of(net)
+        pieces = _quietly(lambda net=net: _pieces(net, scale))
+        if pieces is None:
+            rows.setdefault(name, {"net": name})["reason"] = "its connected pieces could not be read"
+            continue
+        if len(pieces) < 2:
+            continue
+        main = max(pieces, key=lambda piece: (len(piece["pins"]), piece["traces"] + len(piece["vias"])))
+        islands = sorted((piece for piece in pieces if piece is not main), key=lambda piece: (bool(piece["pins"]), -piece["traces"]))
+        row = rows.setdefault(name, {"net": name})
+        row["pieces"] = len(pieces)
+        listed = []
+        for piece in islands[:ISLANDS_LISTED]:
+            item = {"pins": piece["pins"][:5], "traces": piece["traces"], "vias": len(piece["vias"]), "at_mm": piece["at"],
+                    "floating": not piece["pins"]}
+            copper = board_copper() if item["floating"] and board_copper is not None else None  # pins: a connection not routed yet
+            if copper is not None:
+                tie = _quietly(lambda piece=piece, copper=copper: _tie(name, piece, main, copper, layer_count))
+                if tie:
+                    item["tie"] = tie
+            listed.append(item)
+        row["islands"] = listed
+        row["floating"] = sum(1 for piece in islands if not piece["pins"])
+        if len(islands) > ISLANDS_LISTED:
+            row["islands_omitted"] = len(islands) - ISLANDS_LISTED
+    for row in rows.values():
+        row["next"] = _connectivity_next(row)
+    return sorted(rows.values(), key=lambda row: (-row.get("floating", 0), -row.get("pieces", 1), row["net"]))
+
+
+def _pieces(net: Any, scale: float) -> list[dict[str, Any]]:
+    """The connected pieces of a net, by each object's ``Subnet``: their pins, vias, and traces with their ends."""
+    pieces: dict[int, dict[str, Any]] = {}
+
+    def piece(item: Any) -> dict[str, Any]:
+        return pieces.setdefault(int(item.Subnet), {"pins": [], "pin_spots": [], "vias": [], "ends": [], "traces": 0, "widths": [],
+                                                    "at": None})
+
+    for pin in L.collection(net, "Pins"):
+        row = piece(pin)
+        x, y = _position(pin)
+        row["pins"].append(f"{_quietly(lambda pin=pin: str(pin.Component.RefDes), '?')}.{L.name_of(pin)}")
+        row["pin_spots"].append((pin, (x, y)))
+        row["at"] = row["at"] or [x, y]
+    for via in L.collection(net, "Vias"):
+        row = piece(via)
+        x, y = _position(via)
+        row["vias"].append((x, y))
+        row["at"] = row["at"] or [x, y]
+    for trace in L.collection(net, "Traces"):
+        row = piece(trace)
+        row["traces"] += 1
+        record = _quietly(lambda trace=trace: geometry_record(trace.Geometry, scale))
+        points = board_metrics._trace_points(record) if record and record.get("path") else []
+        if len(points) < 2:
+            continue
+        layer = int(trace.Layer)
+        row["widths"].append(float(trace.Geometry.LineWidth or 0.0) * scale)
+        for tip, inner in ((points[0], points[1]), (points[-1], points[-2])):
+            row["ends"].append((layer, tip, _toward(inner, tip)))
+        row["at"] = row["at"] or [round(points[0][0], 4), round(points[0][1], 4)]
+    return list(pieces.values())
+
+
+def _pad_layers(pin: Any) -> list[int]:
+    return sorted({int(pad.Layer) for pad in L.collection(pin, "Pads")})
+
+
+def _tie(net: str, island: dict[str, Any], main: dict[str, Any], obstacles: GD.Obstacles, layer_count: int) -> dict[str, Any] | None:
+    """A path that joins an island to the rest of its net: from one of its trace ends, vias or pins
+    to a via, pin or trace end of the main piece within reach, clear of the other nets' copper."""
+    width = min([TIE_WIDTH_MM, *[w for w in island["widths"] if w > 0]])
+    reach = GD.JOIN_REACH_MM
+    starts: list[tuple[list[int], tuple[float, float], tuple[float, float] | None]] = []
+    starts += [([layer], tip, outward) for layer, tip, outward in island["ends"]]
+    starts += [(list(range(1, layer_count + 1)), at, None) for at in island["vias"]]
+    starts += [(_quietly(lambda pin=pin: _pad_layers(pin), []), at, None) for pin, at in island["pin_spots"]]
+    near_pins = [(spot, _quietly(lambda pin=pin: _pad_layers(pin), [])) for pin, spot in main["pin_spots"]
+                 if any(_close(spot, at, reach) for _layers, at, _o in starts[:TIE_STARTS])]
+    for layers, at, outward in starts[:TIE_STARTS]:
+        for on in layers:
+            targets = list(main["vias"]) + [tip for end_layer, tip, _o in main["ends"] if end_layer == on]
+            targets += [spot for spot, pad_layers in near_pins if on in pad_layers]
+            targets = [t for t in targets if _close(t, at, reach)]
+            if not targets:
+                continue
+            way = outward or _toward(at, min(targets, key=lambda t: (t[0] - at[0]) ** 2 + (t[1] - at[1]) ** 2))
+            path = GD.join(at, way, net, on, width, obstacles, targets, reach)
+            if path:
+                return {"layer": on, "width_mm": round(width, 4), "path_mm": [[round(p[0], 4), round(p[1], 4)] for p in path]}
+    return None
+
+
+def _close(a: tuple[float, float], b: tuple[float, float], reach: float) -> bool:
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 <= reach * reach
+
+
+def _toward(a: tuple[float, float], b: tuple[float, float]) -> tuple[float, float]:
+    length = ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5 or 1.0
+    return (b[0] - a[0]) / length, (b[1] - a[1]) / length
+
+
+def _connectivity_next(row: dict[str, Any]) -> list[str]:
+    net, steps = row["net"], []
+    if row.get("floating"):
+        steps.append(f"{row['floating']} pieces of {net} hold no pin and join the rest of it nowhere: add each one's tie path to the "
+                     f"routing plan as a trace of {net} on its layer, or delete the piece")
+    if row.get("pieces", 1) - 1 - row.get("floating", 0) > 0:
+        steps.append(f"{row['pieces'] - 1 - row.get('floating', 0)} pieces of {net} with pins are not joined to the rest yet: route them")
+    if row.get("loops"):
+        steps.append(f"{net} closes {row['loops']} loops: join each pin and via one way only, as a tree")
+    if row.get("hangers"):
+        steps.append(f"{row['hangers']} trace ends of {net} touch nothing: extend them to copper of {net} or cut them back")
+    if row.get("plane_islands"):
+        steps.append(f"{row['plane_islands']} pieces of {net}'s pour are cut off: tie them to its copper with a via or a trace")
+    return steps
 
 
 class BoardCheck(base.Handler):
-    """Layout's Batch DRC on the open board, its hazards (``GetHazards``), and the board rules
-    DRC does not cover (``plan.board_metrics.board_rules``). Not ``MGCPCBEngines.DRC``: that
-    engine saves and closes the board."""
+    """Layout's Batch DRC on the open board, its hazards (``GetHazards``), the board rules DRC does
+    not cover (``plan.board_metrics.board_rules``), each net's connected pieces, and the
+    requirements of a file (``plan.requirements``). Not ``MGCPCBEngines.DRC``: that engine saves and
+    closes the board."""
 
     command = "pcb check"
     answers = dialogs.DRC_PROMPTS
 
     def read(self, ctx: Context) -> dict[str, Any]:
         ref = ctx.need_session(base.LAYOUT)
-        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid, ctx.inputs.get("output")),
+        requirements = None
+        if ctx.inputs.get("requirements"):
+            try:
+                requirements = RQ.load(str(ctx.inputs["requirements"]))
+            except PlanError as exc:
+                raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+        path = ctx.document_path()
+        return L.in_layout(ctx, lambda app, doc: check_board(app, doc, ref.pid, path, ctx.inputs.get("output"), requirements),
                            budget_s=L.job_budget(L.READ_BUDGET_S), rules=dialogs.DRC_PROMPTS, what="running Batch DRC")
 
 
@@ -905,6 +1111,17 @@ def board_picture(doc: Any) -> PR.Picture:
         record = geometry_record(shape.Geometry, scale)
         if record:
             picture.planes.append((int(shape.Layer), PR.polygon_of(record.get("path"), record.get("circle"))))
+    for piece in L.collection(doc, "GeneratedPlanes"):  # the copper itself, hatching and holes included
+        geometry = piece.Geometry
+        record = geometry_record(geometry, scale)
+        if not record:
+            continue
+        rings = [PR.polygon_of(record.get("path"), record.get("circle"))]
+        for hole in L.collection(geometry, "Cutouts"):
+            cut = geometry_record(hole, scale)
+            if cut:
+                rings.append(PR.polygon_of(cut.get("path"), cut.get("circle")))
+        picture.copper.append((int(piece.Layer), rings))
     for contour in L.collection(doc, "Contours"):
         if int(contour.ContourType) == CONTOUR_INTERNAL:
             record = geometry_record(contour.Geometry, scale)

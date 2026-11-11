@@ -68,8 +68,19 @@ class RenderTest(unittest.TestCase):
         picture = R.Picture(outline=OUTLINE, layer_count=4, pads=[(1, square), (4, square)], planes=[(2, square)],
                             traces=[(1, [(0.0, 0.0), (1.0, 0.0)], 0.2), (3, [(0.0, 0.0), (1.0, 0.0)], 0.2)], vias=[(5.0, 4.0, 0.3)],
                             openings=[("top", (6.0, 2.0, 8.0, 3.0)), ("bottom", (1.0, 1.0, 2.0, 2.0))])
-        self.assertEqual(R.drawn(picture, layers=[1]), {"pads": 1, "traces": 1, "vias": 1, "planes": 0, "openings": 1})
-        self.assertEqual(R.drawn(picture, side="bottom"), {"pads": 2, "traces": 2, "vias": 1, "planes": 1, "openings": 1})
+        self.assertEqual(R.drawn(picture, layers=[1]), {"pads": 1, "traces": 1, "vias": 1, "planes": 0, "plane_copper": 0, "openings": 1})
+        self.assertEqual(R.drawn(picture, side="bottom"), {"pads": 2, "traces": 2, "vias": 1, "planes": 1, "plane_copper": 0, "openings": 1})
+
+    def test_the_plane_copper_layout_made_is_drawn_with_its_holes_instead_of_the_shape(self):
+        shape = (1, [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)])
+        copper = (1, [[(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)], [(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 3.0)]])
+        picture = R.Picture(outline=OUTLINE, layer_count=2, planes=[shape], copper=[copper])
+        png, _w, _h = R.render(picture, scale=10)
+        self.assertNotEqual(at(png, 15, 35), R.BACKGROUND)  # copper at (1, 1.5) mm
+        self.assertEqual(at(png, 30, 30), R.BACKGROUND)  # its hole at (2.5, 2.5) mm
+        self.assertEqual(at(png, 85, 30), R.BACKGROUND)  # the shape alone, past the copper at x 8 mm, is not drawn
+        self.assertEqual(R.drawn(picture)["plane_copper"], 1)
+        self.assertEqual(R.drawn(picture)["planes"], 1)  # the shape is there, drawn as its copper
 
     def test_a_huge_board_is_scaled_down(self):
         _png, width, height = R.render(R.Picture(outline=[(0, 0), (500, 0), (500, 100), (0, 100)], layer_count=2), scale=20)

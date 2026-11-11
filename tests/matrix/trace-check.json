@@ -1,0 +1,205 @@
+{
+  "command": "trace check",
+  "rows": [
+    {
+      "row": "normal",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--file",
+        "{inputs}/route-usb2.json",
+        "--requirements",
+        "{inputs}/requirements-usb2.json"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "On the practice board after padstack create (0.2/0.4 mm) and constraint import of rules-usb2.json, before trace create draws the plan: the plan is worked out without drawing anything; nothing would be refused, no guard or ring line is planned, and the requirements are predicted: every via of the pair uses VIA_D0.2_P0.4 (passes) and no ground runs beside the pair (fails)."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-11-212156-trace-check.json#normal",
+      "kind_evidence": {
+        "board": "live:docs/evidence/2026-11-11-212156-trace-check.json#normal"
+      }
+    },
+    {
+      "row": "empty",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "After trace create drew the plan: the check reports what a second run would refuse, the plan's vias standing on the ones the first run placed; the lists of floating lines, pour-only lines and free ends are empty."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-11-212205-trace-check.json#empty"
+    },
+    {
+      "row": "invalid_input",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--file",
+        "{inputs}/route-invalid.json"
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "A trace width of 0 mm: the routing plan is refused before Layout is asked anything, and the message names the field.",
+        "code": "E_VALIDATION"
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_VALIDATION"
+      },
+      "evidence": "live:docs/evidence/2026-11-11-212151-trace-check.json#invalid_input"
+    },
+    {
+      "row": "not_found",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{dir}/Missing.pcb",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 3,
+        "summary": "The session has no such board open.",
+        "code": "E_NOT_FOUND"
+      },
+      "actual": {
+        "exit": 3,
+        "code": "E_NOT_FOUND"
+      },
+      "evidence": "live:docs/evidence/2026-11-11-212151-trace-check.json#not_found"
+    },
+    {
+      "row": "ambiguous",
+      "applies": true,
+      "arguments": [
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 2,
+        "summary": "A Designer and a Layout are both running (the usual state once the board exists), and the call names neither --session nor --doc: E_AMBIGUOUS lists both instances with their documents.",
+        "code": "E_AMBIGUOUS"
+      },
+      "actual": {
+        "exit": 2,
+        "code": "E_AMBIGUOUS"
+      },
+      "evidence": "live:docs/evidence/2026-11-11-211040-trace-check.json#ambiguous"
+    },
+    {
+      "row": "conflict",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "no_scope",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    },
+    {
+      "row": "busy",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 7,
+        "summary": "While a forward-annotation run or pcb export job of this tool runs in Layout, the session reports busy or unresponsive. Only --session is given: Layout does not say which board it has open while it does not answer, and a --doc it cannot match would be E_NOT_FOUND.",
+        "code": "E_BUSY"
+      },
+      "actual": {
+        "exit": 7,
+        "code": "E_BUSY"
+      },
+      "evidence": "live:docs/evidence/2026-11-11-211245-trace-check.json#busy"
+    },
+    {
+      "row": "dialog",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 9,
+        "summary": "A person leaves a modal dialog open in Layout before the call, such as Setup > Setup Parameters or Help > About; the session is reported blocked with the dialog's title: E_HUMAN_REQUIRED with action dismiss_dialog and a resume command. Only --session is given, since a Layout that stops answering does not say which board it has open.",
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "actual": {
+        "exit": 9,
+        "code": "E_HUMAN_REQUIRED"
+      },
+      "evidence": "live:docs/evidence/2026-11-11-211515-trace-check.json#dialog"
+    },
+    {
+      "row": "disconnect",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 4,
+        "summary": "Layout goes away while the plan is worked out.",
+        "code": "E_BACKEND_UNAVAILABLE"
+      },
+      "unrunnable": "The COM connection to Layout cannot be cut on demand at the moment of a call; driver tests D06 and D21 cover how the runtime handles a lost connection."
+    },
+    {
+      "row": "unsaved",
+      "applies": true,
+      "arguments": [
+        "--session",
+        "{session}",
+        "--doc",
+        "{doc}",
+        "--file",
+        "{inputs}/route-usb2.json"
+      ],
+      "expected": {
+        "exit": 0,
+        "summary": "The board holds unsaved changes: the plan is worked out against the board as Layout holds it."
+      },
+      "actual": {
+        "exit": 0
+      },
+      "evidence": "live:docs/evidence/2026-11-11-212221-trace-check.json#unsaved"
+    },
+    {
+      "row": "read_back_mismatch",
+      "applies": false,
+      "reason": "This row applies only to a command that changes something."
+    }
+  ]
+}

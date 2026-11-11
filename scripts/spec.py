@@ -10,7 +10,9 @@
                                                  run the evaluation questions with Claude Code
     python scripts/spec.py eval --check --fake-host
                                                  check each grader against its scripted agents
-    python scripts/spec.py sync <version>        pin another specification release
+    python scripts/spec.py sync <version> [--since <version>]
+                                                 pin another specification release; --since lists
+                                                 the template changes since that one
 
 The scripts come from the release named in .agent/SPEC_VERSION (for sync, the new one). It is
 downloaded once from GitHub and kept in ~/.cache/tool-driver-cli-spec/. The download must match
@@ -132,11 +134,11 @@ def main(argv: list[str]) -> int:
     action, rest = argv[0], argv[1:]
     python = sys.executable
     if action == "sync":
-        if len(rest) != 1:
-            print("usage: python scripts/spec.py sync <version>", file=sys.stderr)
+        if len(rest) not in (1, 3) or len(rest) == 3 and rest[1] != "--since":
+            print("usage: python scripts/spec.py sync <version> [--since <version>]", file=sys.stderr)
             return 2
         spec, digest = bundle(rest[0])
-        code = run([python, str(spec / "scripts" / "sync_spec.py"), str(ROOT)])
+        code = run([python, str(spec / "scripts" / "sync_spec.py"), str(ROOT), *rest[1:]])
         if code:
             return code
         pin = ROOT / ".agent" / "SPEC_SHA256"

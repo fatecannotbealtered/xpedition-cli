@@ -37,6 +37,12 @@ class GridTest(unittest.TestCase):
 
 
 class StitchTest(unittest.TestCase):
+    def test_no_via_stands_in_a_bend_zone(self):
+        plan = S.stitch("GND", 0.2, board(bends=[(3.0, 0.0, 5.0, 5.0)]), CLEAR, 1.0, 0.0)
+        self.assertTrue(plan.points)
+        self.assertTrue(all(not 2.8 < x < 5.2 for x, _y in plan.points))  # the zone and the via's radius beside it
+        self.assertGreater(plan.dropped.get("in a bend zone", 0), 0)
+
     def test_points_keep_clear_of_pads_other_traces_vias_and_holes(self):
         b = board(pads=[S.polygon(circle=[5.0, 2.5, 0.3])], traces=[([(0.0, 1.0), (10.0, 1.0)], 0.1, "SIG"),
                                                                     ([(0.0, 4.0), (10.0, 4.0)], 0.1, "GND")],

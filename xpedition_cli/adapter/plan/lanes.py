@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from . import fanout as FO
 from . import trace_plan as TP
@@ -45,6 +45,7 @@ class Lane:
     radius: float
     from_ref: str | None = None  # the connector whose fan-out the lane starts from, instead of ``start``
     to_ref: str | None = None
+    neck: float | None = None  # the width from each end to where the lane joins its line, such as between a connector's vias
 
 
 
@@ -54,9 +55,10 @@ def parse(items: Any) -> list[Lane]:
     lanes = []
     for index, item in enumerate(items):
         what = f"lanes[{index}]"
-        if (not isinstance(item, dict) or set(item) - {*KEYS, "radius_mm", "from_mm", "to_mm", "from", "to"} or set(KEYS) - set(item)
-                or ("from_mm" in item) == ("from" in item) or ("to_mm" in item) == ("to" in item)):
-            raise TP._error(f"{what} has the keys {', '.join(KEYS)}, from_mm or from, to_mm or to, and, if wanted, radius_mm")
+        if (not isinstance(item, dict) or set(item) - {*KEYS, "radius_mm", "from_mm", "to_mm", "from", "to", "neck_width_mm"}
+                or set(KEYS) - set(item) or ("from_mm" in item) == ("from" in item) or ("to_mm" in item) == ("to" in item)):
+            raise TP._error(f"{what} has the keys {', '.join(KEYS)}, from_mm or from, to_mm or to, and, if wanted, radius_mm and "
+                            "neck_width_mm")
         net, layer, width = item["net"], item["layer"], item["width_mm"]
         if not isinstance(net, str) or not net:
             raise TP._error(f"{what}.net is a net name")
@@ -89,9 +91,12 @@ def parse(items: Any) -> list[Lane]:
                 raise TP._error(f"{what}.{key} is a distance of 0 to 100 mm")
         if offset <= 0:
             raise TP._error(f"{what}.offset_mm is the distance of the lane's centre line from the edge, more than 0")
+        neck = item.get("neck_width_mm")
+        if neck is not None and (isinstance(neck, bool) or not isinstance(neck, (int, float)) or not 0 < neck < width):
+            raise TP._error(f"{what}.neck_width_mm is a width of more than 0 and less than its width_mm")
         lanes.append(Lane(net, layer, round(float(width), 4), ends[0], ends[1],
                           (TP._point(edge[0], f"{what}.edge_mm[0]"), TP._point(edge[1], f"{what}.edge_mm[1]")),
-                          float(offset), float(radius), refs[0], refs[1]))
+                          float(offset), float(radius), refs[0], refs[1], None if neck is None else round(float(neck), 4)))
     return lanes
 
 
@@ -434,4 +439,106 @@ def expand(lane: Lane, ring: list[Corner], what: str, fanouts: dict[str, FO.Fano
     except Exception as exc:  # noqa: BLE001 - a PlanError, named after the lane
         raise TP._error(f"{what} cannot follow the edge from where it leaves to where it returns, such as where it joins the edge "
                         f"inside one of its turns; join it on a straight part: {getattr(exc, 'message', exc)}") from None
-    return TP.Trace(lane.net, lane.layer, lane.width, points, radii)
+    joins = (next(i for i, c in enumerate(merged) if c[2]), max(i for i, c in enumerate(merged) if c[2]))
+    return TP.Trace(lane.net, lane.layer, lane.width, points, radii, joins=joins)
+
+
+WIDEN_STEP_MM = 0.05  # a neck is tested at the lane's width in pieces this long
+WIDEN_MIN_MM = 0.1  # a stretch at the lane's width shorter than this stays at the neck's: no width changes a hair apart
+
+
+def widened(trace: TP.Trace, width: float, clear: Callable[[Point, Point, float], bool]) -> list[TP.Trace]:
+    """A narrow trace, such as a lane's neck or a fan-out stub, at ``width`` wherever a piece of it
+    at that width clears (``clear``), and as narrow as it is only where it must be, such as between
+    two of a connector's vias; each corner's arc is taken whole. The pieces in order, each a trace."""
+    if width <= trace.width + 1e-9 or len(trace.points) < 2:
+        return [trace]
+    points, radii = trace.points, trace.radii
+    arcs = TP._corners(points, radii)
+    parts: list[tuple[list[Point], list[float], bool]] = []  # each straight piece or arc: its points, their radii, wide
+    here = points[0]
+    for i in range(1, len(points)):
+        arc = arcs[i] if i < len(points) - 1 else None
+        stop = arc[0] if arc else points[i]
+        run = math.dist(here, stop)
+        count = max(1, math.ceil(run / WIDEN_STEP_MM - 1e-9)) if run > 1e-9 else 0
+        for k in range(count):
+            a = (here[0] + (stop[0] - here[0]) * k / count, here[1] + (stop[1] - here[1]) * k / count)
+            b = (here[0] + (stop[0] - here[0]) * (k + 1) / count, here[1] + (stop[1] - here[1]) * (k + 1) / count)
+            parts.append(([a, b], [0.0, 0.0], clear(a, b, width)))
+        if arc:
+            start, _centre, end, radius, _ccw = arc
+            chords = TP.sampled([start, points[i], end], [0.0, radius, 0.0])
+            parts.append(([start, points[i], end], [0.0, radius, 0.0],
+                          all(clear(a, b, width) for a, b in zip(chords, chords[1:], strict=False))))
+            here = end
+        elif i < len(points) - 1:
+            here = points[i]
+    if not parts or not any(wide for _p, _r, wide in parts):
+        return [trace]
+    lengths = [sum(math.dist(a, b) for a, b in zip(pts, pts[1:], strict=False)) for pts, _r, _w in parts]
+    runs: list[list[int]] = []
+    for index, (_pts, _rs, wide) in enumerate(parts):
+        if runs and parts[runs[-1][0]][2] == wide:
+            runs[-1].append(index)
+        else:
+            runs.append([index])
+    for run in runs:  # a wide stretch too short to be worth its two width changes stays narrow
+        if parts[run[0]][2] and sum(lengths[i] for i in run) < WIDEN_MIN_MM:
+            for i in run:
+                parts[i] = (parts[i][0], parts[i][1], False)
+    out: list[TP.Trace] = []
+    for index, (pts, rs, wide) in enumerate(parts):
+        span = (width if wide else trace.width)
+        if out and abs(out[-1].width - span) < 1e-9:
+            last = out[-1]
+            if rs[1:-1] and any(rs[1:-1]):  # an arc: its corner and end follow the run, which ends at the arc's start
+                last.points += pts[1:]
+                last.radii[-1:] = [0.0]
+                last.radii += rs[1:]
+            else:
+                last.points.append(pts[-1])
+                last.radii.append(0.0)
+        else:
+            out.append(TP.Trace(trace.net, trace.layer, span, list(pts), list(rs)))
+        if index == len(parts) - 1:
+            break
+    for piece in out:  # drop the points a straight run was cut into, keeping corners
+        kept_p, kept_r = [piece.points[0]], [0.0]
+        for j in range(1, len(piece.points) - 1):
+            a, q, b = kept_p[-1], piece.points[j], piece.points[j + 1]
+            cross = (q[0] - a[0]) * (b[1] - q[1]) - (q[1] - a[1]) * (b[0] - q[0])
+            if piece.radii[j] or abs(cross) > 1e-12:
+                kept_p.append(q)
+                kept_r.append(piece.radii[j])
+        kept_p.append(piece.points[-1])
+        kept_r.append(0.0)
+        piece.points, piece.radii = kept_p, kept_r
+    return [piece for piece in out if TP.length(piece) > 1e-6]
+
+
+def necked(lane: Lane, trace: TP.Trace) -> list[TP.Trace]:
+    """The lane's trace, its stretches from each end to where it joins its line, its turn onto the
+    line included, as narrow as its neck, and the rest as wide as the lane; or the trace whole."""
+    joins = trace.joins
+    if lane.neck is None or joins is None:
+        return [trace]
+    arcs = TP._corners(trace.points, trace.radii)
+    first, last = joins
+    points, radii = trace.points, trace.radii
+
+    def piece(width: float, pts: list[Point], rs: list[float]) -> TP.Trace:
+        kept_p, kept_r = [pts[0]], [rs[0]]
+        for point, radius in zip(pts[1:], rs[1:], strict=True):
+            if math.dist(point, kept_p[-1]) > 1e-9:
+                kept_p.append(point)
+                kept_r.append(radius)
+        kept_r[0] = kept_r[-1] = 0.0
+        return TP.Trace(lane.net, lane.layer, width, kept_p, kept_r)
+
+    on = arcs[first][2] if arcs[first] else points[first]  # the end of the turn onto the line
+    off = arcs[last][0] if arcs[last] else points[last]  # the start of the turn off it
+    head = piece(lane.neck, [*points[:first + 1], on], [*radii[:first + 1], 0.0])
+    body = piece(lane.width, [on, *points[first + 1:last], off], [0.0, *radii[first + 1:last], 0.0])
+    tail = piece(lane.neck, [off, *points[last:]], [0.0, *radii[last:]])
+    return [part for part in (head, body, tail) if len(part.points) >= 2 and TP.length(part) > 1e-6]

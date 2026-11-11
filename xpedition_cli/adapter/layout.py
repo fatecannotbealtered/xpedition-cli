@@ -238,7 +238,8 @@ def plane_shapes_in(doc: Any, net: str, layer: int, region: Region, overlapping:
         if overlapping:
             if min(sx1, x1) - max(sx0, x0) > 1e-3 and min(sy1, y1) - max(sy0, y0) > 1e-3:
                 found.append(shape)
-        elif sx0 >= x0 - 0.05 and sy0 >= y0 - 0.05 and sx1 <= x1 + 0.05 and sy1 <= y1 + 0.05:
+        elif (sx0 >= x0 - 0.05 and sy0 >= y0 - 0.05 and sx1 <= x1 + 0.05 and sy1 <= y1 + 0.05
+              and min(sx1, x1) - max(sx0, x0) > 1e-3 and min(sy1, y1) - max(sy0, y0) > 1e-3):  # inside it, not along its edge
             found.append(shape)
     return found
 
@@ -907,8 +908,8 @@ def close_document(pid: int, path: str, discard: bool, budget_s: float = LIFECYC
 
 
 
-def read_targets(pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
-    return call(lambda: read_keys(board(attach(pid), path), path, targets, fields), READ_TARGETS_S, pid,
+def read_targets(pid: int, path: str, targets: list[str], fields: list[str], store: Any = None) -> dict[str, Any]:
+    return call(lambda: read_keys(board(attach(pid), path), path, targets, fields, store), job_budget(READ_TARGETS_S), pid,
                 what="reading the board back")
 
 
@@ -1110,8 +1111,10 @@ def fragment(target: str, path: str) -> list[str] | None:
     return [unquote(part) for part in domain.strip("/").split("/")]
 
 
-def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
-    """Read the named fields of the board's target keys, as ``read_back`` returns them."""
+def read_keys(doc: Any, path: str, targets: list[str], fields: list[str], store: Any = None) -> dict[str, Any]:
+    """Read the named fields of the board's target keys, as ``read_back`` returns them. With the
+    adapter's ``store``, a net's traces on a layer also give ``plan_drawn``, matched against the
+    plan trace create kept."""
     observed: dict[str, dict[str, Any]] = {}
     unreadable: set[str] = set()
     cache: dict[str, Any] = {}
@@ -1133,7 +1136,8 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "routing": lambda parts: routing_values(doc),
         "components": lambda parts: component_values(find_component(doc, parts[1])),
         "planes": lambda parts: plane_values(doc, parts[1], int(parts[2]), parse_region(parts[3]) if len(parts) > 3 else None),
-        "traces": lambda parts: {"count": counted("traces", trace_counts).get((parts[1], int(parts[2]) if len(parts) > 2 else None), 0)},
+        "traces": lambda parts: {"count": counted("traces", trace_counts).get((parts[1], int(parts[2]) if len(parts) > 2 else None), 0),
+                                 **_plan_drawn(parts)},
         "vias": lambda parts: counted("vias", via_summary).get(parts[1], {"count": 0, "padstack": None}),
         "solder-mask": lambda parts: {"exists": _opening(doc, "solder-mask", parts)},
         "cover-layer": lambda parts: {"exists": _opening(doc, "cover-layer", parts)},
@@ -1141,6 +1145,15 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str]) -> dic
         "mounting-holes": lambda parts: _hole_at(doc, parts[1]),
         "refdes": lambda parts: _refdes_at(doc, parts[1]),
     }
+    def _plan_drawn(parts: list[str]) -> dict[str, Any]:
+        if store is None or "plan_drawn" not in fields or len(parts) < 3:
+            return {}
+        from .layout_edit import _copper, planned_drawn
+        if "copper" not in cache:
+            cache["copper"] = _copper(doc)
+        drawn = planned_drawn(store, doc, path, parts[1], int(parts[2]), cache["copper"])
+        return {} if drawn is None else {"plan_drawn": drawn}
+
     sizes = {"components": 2, "planes": (3, 4), "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
              "mounting-holes": 2, "refdes": 2}
     for target in targets:

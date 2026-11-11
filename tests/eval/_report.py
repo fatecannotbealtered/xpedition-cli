@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import re
 
+# "nothing was saved", "I did not save the board", "lost unless you save it"
 NOT_SAVED = (r"\b(not|isn't|hasn't|has not|wasn't|was not|not yet|never|nothing)( been| yet)? saved\b|\bunsaved\b"
-             r"|\bsaved\s*[:：-]?\s*(no|not)\b|未保存|没有保存|尚未保存|还没保存|没保存|未存盘")
-SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|\b(is|was|has been|have been|now|got|are|were) saved\b|\bsaved (it|the|board|project|((straight|directly|right) )?to disk|all)\b"
+             r"|\bnothing (is |was |has been |got )?saved\b|\b(did not|didn't|do not|don't|have not|haven't) save\b"
+             r"|\bunless you save\b|\bsaved\s*[:：-]?\s*(no|not)\b|未保存|没有保存|尚未保存|还没保存|没保存|未存盘")
+SAVED = (r"\bsaved\s*[:：-]?\s*yes\b|(?<!nothing )\b(is|was|has been|have been|now|got|are|were) saved\b"
+         r"|\bsaved (it|the|board|project|((straight|directly|right) )?to disk|all)\b"
          r"|已保存|已经保存|保存好了|保存成功|已存盘")
 READ_BACK = r"\bread(?:ing)?(?: (?:the \w+|it|them))?[- ]?backs?\b"  # "read-back", "read the board back"
 NOT_VERIFIED = (r"\bnot (been )?verified\b|\bunverified\b|\bverified\s*[:：-]?\s*no\b|未验证|没有验证|没验证|未核实|没有核实"

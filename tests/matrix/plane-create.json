@@ -21,9 +21,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-204739-plane-create.json#normal",
+      "evidence": "live:docs/evidence/2026-11-11-210004-plane-create.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-09-204739-plane-create.json#normal"
+        "board": "live:docs/evidence/2026-11-11-210004-plane-create.json#normal"
       }
     },
     {
@@ -48,7 +48,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204740-plane-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-11-210006-plane-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -74,7 +74,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204737-plane-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-11-210001-plane-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -98,7 +98,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204737-plane-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-11-210001-plane-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -118,7 +118,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-09-195936-plane-create.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-11-211025-plane-create.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -142,7 +142,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-09-205403-plane-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-11-210811-plane-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -166,7 +166,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204737-plane-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-11-210001-plane-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -188,7 +188,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-09-200009-plane-create.json#busy"
+      "evidence": "live:docs/evidence/2026-11-11-211118-plane-create.json#busy"
     },
     {
       "row": "dialog",
@@ -210,7 +210,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-09-200255-plane-create.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-11-211453-plane-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -252,7 +252,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-09-204742-plane-create.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-11-210009-plane-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -276,7 +276,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-09-204747-plane-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-11-210016-plane-create.json#read_back_mismatch"
     }
   ]
 }

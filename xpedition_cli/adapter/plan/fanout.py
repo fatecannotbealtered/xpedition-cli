@@ -84,9 +84,10 @@ def rows(pins: list[Pin]) -> tuple[int, list[list[Pin]]]:
 
 def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via_to_via: float, layer: int,
          plane_nets: set[str], skip: set[str], stub_width: float, give_way: set[str] | None = None) -> Fanout:
-    """The fan-out of one connector towards ``body``, its far row changing to ``layer``. A far pin
-    of a net in ``skip`` gets no via; one of a net in ``give_way`` gets none where the near pin of
-    its column is of a plane net, which takes the via instead."""
+    """The fan-out of one connector towards ``body``, its far row changing to ``layer``. The pins of
+    a net in ``skip`` are left to the caller: no via, no join pin to pin. A far pin of a net in
+    ``give_way`` gets no via where the near pin of its column is of a plane net, which takes the via
+    instead."""
     give_way = give_way or set()
     along, (first, second) = rows([replace(p) for p in pins])
     across = 1 - along
@@ -149,10 +150,10 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
                 out.loose.append(f"{pin.number} of {pin.net}")
             continue
         out.exits.setdefault(pin.net, []).append((pin.at, pad_layer))
-    # consecutive pins of one net in a row, joined pin to pin
+    # consecutive pins of one net in a row, joined pin to pin; a skipped net's pins are the caller's to join
     for row in (near, far):
         for a, b in zip(row, row[1:], strict=False):
-            if original[a.number] == original[b.number] and not no_connect(original[a.number]):
+            if original[a.number] == original[b.number] and not no_connect(original[a.number]) and original[a.number] not in skip:
                 width = min(a.pad[along + 2] - a.pad[along], b.pad[along + 2] - b.pad[along])
                 out.traces.append((original[a.number], pad_layer, round(width, 4), [a.at, b.at]))
     near_reach = max(p.pad[across + 2] for p in near) if sign > 0 else min(p.pad[across] for p in near)

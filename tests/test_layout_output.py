@@ -21,6 +21,7 @@ from test_layout_fakes import (  # noqa: E402
     FakeComError,
     FakeComponent,
     FakeDoc,
+    FakeNet,
     Collection,
     Extrema,
     Fake,
@@ -35,6 +36,8 @@ from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base  # noqa: E402
 from xpedition_cli.adapter import layout as L  # noqa: E402
 from xpedition_cli.adapter import layout_output as O  # noqa: E402
+from xpedition_cli.adapter.plan import guards as GD  # noqa: E402
+from xpedition_cli.adapter.plan import trace_plan as TP  # noqa: E402
 from xpedition_cli.adapter.platform import dialogs  # noqa: E402
 
 
@@ -113,6 +116,13 @@ class BoardModelTest(unittest.TestCase):
         self.assertEqual(model["unrouted"], [{"net": "VCC", "opens": 1}])
         self.assertEqual(model["silk"][0]["refdes"], "U101")
 
+    def test_the_copper_alone_leaves_the_silkscreen_and_the_shapes_out(self):
+        with world(FakeApp(board())) as _:
+            model = O.board_model(board(), full=True, silk=False, shapes=False)
+        self.assertTrue(model["pads"])
+        self.assertEqual((model["silk"], model["texts"], model["holes"]), ([], [], []))
+        self.assertFalse({"keepouts", "cutouts", "planes"} & set(model))
+
     def test_a_board_whose_unit_cannot_be_measured_has_no_model(self):
         doc = board()
         doc.CurrentUnit = L.UNIT_MM
@@ -145,6 +155,15 @@ class BoardGetTest(unittest.TestCase):
         self.assertEqual([row["name"] for row in out["via_padstacks"]], ["VIA_D0.2_P0.4", "VIA_SPARE"])
         self.assertEqual(out["planes"], [])
         self.assertLess(len(json.dumps(out)), 8000)
+
+    def test_with_output_the_file_holds_the_outline_path_the_response_leaves_out(self):
+        with tempfile.TemporaryDirectory() as folder, world(FakeApp(board())):
+            target = os.path.join(folder, "board.json")
+            out = O.BoardGet().read(context("pcb get", {"output": target}))
+            written = json.loads(Path(target).read_text(encoding="utf-8"))
+        self.assertNotIn("outline_mm", out["geometry"])
+        self.assertIn("outline_mm", written["geometry"])
+        self.assertTrue(written["model"]["outline"])
 
     def test_an_unused_via_padstack_gives_its_size_from_the_design_library(self):
         from xpedition_cli.adapter import layout_edit as E
@@ -250,6 +269,100 @@ class BoardCheckTest(unittest.TestCase):
         lost, english = out["hazards"]
         self.assertEqual(lost["description"], "CC1; J2-11; 1; (Default); (All); 2: SMD Pad")  # the object's number stays
         self.assertEqual(english["description"], "Net : GND; Via Name : VIA_D0.2")
+
+    def test_requirements_are_measured_on_the_board(self):
+        def trace(net, y):
+            return {"net": net, "layer": 1, "width": 0.1, "path": [[0.0, y, 0.0], [10.0, y, 0.0]]}
+
+        model = {"traces": [trace("SIG", 0.0), trace("GND", 0.3)], "components": [], "pads": [], "vias": [], "outline": [],
+                 "holes": [], "layers": 2, "planes": []}
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "requirements.json")
+            Path(path).write_text(json.dumps({"requirements": [{"kind": "guard", "nets": ["SIG"], "min_both_pct": 50, "label": "both"},
+                                                               {"kind": "plane", "net": "GND", "layers": [1]}]}), encoding="utf-8")
+            with mock.patch.object(O, "board_model", lambda doc, full, **kw: model), \
+                    mock.patch.object(O, "rule_findings", lambda m, r="": []), \
+                    mock.patch("xpedition_cli.adapter.layout_edit.board_obstacles", lambda doc, path, copper: None):
+                app = FakeApp(board())
+                with world(app), mock.patch.object(O, "DRC_QUIET_S", 0.0), mock.patch.object(O, "DRC_POLL_S", 0.0):
+                    out = O.BoardCheck().read(context("pcb check", {"requirements": path}))
+                    Path(path).write_text("{}", encoding="utf-8")
+                    with self.assertRaises(AdapterError) as wrong:
+                        O.BoardCheck().read(context("pcb check", {"requirements": path}))
+        guard, plane = out["requirements"]
+        self.assertEqual((guard["label"], guard["ok"], guard["measured_pct"]), ("both", False, 0.0))
+        self.assertEqual(plane["worst"], [{"layer": 1, "problem": "no pour of GND"}])
+        self.assertEqual(out["requirements_failed"], 2)
+        self.assertEqual(code(wrong), "E_VALIDATION")
+
+    def test_each_island_of_a_net_is_listed_with_a_path_back_to_the_rest(self):
+        doc = board()
+        doc.nets.append(FakeNet(doc, "GND", opens=1))
+        for part in doc.components:
+            for pin in part.pin_list:
+                if pin.net_name == "GND":
+                    pin.Subnet = 1  # the board's ground pins and the via below are the main piece
+
+        class Piece:
+            def __init__(self, subnet, x, y, points=None):
+                self.Subnet, self.at, self.Layer = subnet, (x, y), 1
+                if points:
+                    self.Geometry = Geometry([[p[0] for p in points], [p[1] for p in points], [0.0 for _p in points]], width_mm=0.1)
+
+            def GetPositionX(self, unit):  # noqa: N802
+                return self.at[0]
+
+            def GetPositionY(self, unit):  # noqa: N802
+                return self.at[1]
+
+        doc.net_vias = {"GND": [Piece(1, 30.0, 10.0)]}
+        doc.net_traces = {"GND": [Piece(2, 0, 0, [(30.0, 12.0), (30.0, 20.0)]), Piece(1, 0, 0, [(30.0, 10.0), (20.0, 10.0)])]}
+        free = GD.Obstacles(TP.Copper(layer_count=2), TP.Plan(), TP.Rules({}, {}, lambda a, b, layer, kind: 0.1))
+        hangers = [Hazard(91, "GND; 1; (Default); (All)", {9: 30.0, 10: 20.0})]
+        doc.hazards = hangers
+        with mock.patch.object(O, "hazard_names", lambda app: {91: "Hangers"}), \
+                mock.patch("xpedition_cli.adapter.layout_edit.board_obstacles", lambda doc, path, copper: free):
+            _app, out = self._run(doc)
+        gnd = next(row for row in out["connectivity"] if row["net"] == "GND")
+        self.assertEqual((gnd["pieces"], gnd["floating"], gnd["hangers"]), (2, 1, 1))
+        island = gnd["islands"][0]
+        self.assertEqual((island["traces"], island["floating"], island["at_mm"]), (1, True, [30.0, 12.0]))
+        self.assertEqual(island["tie"]["path_mm"][0], [30.0, 12.0])
+        self.assertEqual(island["tie"]["path_mm"][-1], [30.0, 10.0])  # straight down onto the via of the rest of GND
+        self.assertTrue(any("hold no pin" in step for step in gnd["next"]))
+        self.assertTrue(any("touch nothing" in step for step in gnd["next"]))
+
+    def test_unreadable_rules_leave_the_hazards_and_drop_only_the_paths_back(self):
+        doc = board()
+        doc.nets.append(FakeNet(doc, "GND", opens=1))
+        for part in doc.components:
+            for pin in part.pin_list:
+                if pin.net_name == "GND":
+                    pin.Subnet = 1
+
+        class Piece:
+            Subnet, Layer = 2, 1
+            Geometry = Geometry([[30.0, 30.0], [12.0, 20.0], [0.0, 0.0]], width_mm=0.1)
+
+        doc.net_traces = {"GND": [Piece()]}
+        doc.hazards = [Hazard(67, "Pad to pad clearance", {9: 4.23, 10: 29.63, 16: 0.1, 17: 0.2})]
+
+        def unreadable(doc, path, copper):
+            raise RuntimeError("Constraint Manager cannot open the project")
+
+        with mock.patch("xpedition_cli.adapter.layout_edit.board_obstacles", unreadable):
+            _app, out = self._run(doc)
+        self.assertEqual(out["hazard_count"], 1)
+        gnd = next(row for row in out["connectivity"] if row["net"] == "GND")
+        self.assertEqual(gnd["floating"], 1)
+        self.assertNotIn("tie", gnd["islands"][0])
+
+    def test_a_long_result_is_cut_to_fit_one_response(self):
+        from xpedition_cli.adapter import base as B
+        out = {"hazards": [{"description": "x" * 400}] * 30, "hazard_count": 30, "requirements": [{"ok": True}]}
+        B.fitted(out, ["hazards", "requirements"])
+        self.assertLessEqual(len(json.dumps(out)), B.RESULT_CHARS)
+        self.assertEqual((out["hazard_count"], out["requirements"]), (30, [{"ok": True}]))  # cut in order: the hazards first
 
     def test_the_run_waits_for_the_processing_window(self):
         windows = [["Processing..."], ["Processing..."], []]

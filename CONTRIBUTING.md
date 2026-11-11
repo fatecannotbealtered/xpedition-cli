@@ -6,6 +6,7 @@ People and coding Agents contribute through the same workflow. Coding Agents als
 
 ## Development Setup
 
+<!-- driver:spec-development-setup:start -->
 You need:
 
 - Python 3.12 or later
@@ -30,13 +31,15 @@ python scripts/spec.py check
 ```
 
 On Windows, activate the environment with `.venv\Scripts\activate` instead. `requirements-dev.txt` pins every development dependency with its hash, so only the reviewed versions are installed.
+<!-- driver:spec-development-setup:end -->
 
 ## Commands
 
+<!-- driver:spec-commands:start -->
 | Command | What it does |
 |---|---|
 | `python scripts/spec.py check` | Runs the project check: layout, documents and their fixed text, generated content, pinned copies, versions, Skills, knowledge, behavior matrices, evidence and maturity |
-| `python scripts/spec.py generate` | Regenerates `contract/commands.json`, the command maps, the badge row, the info card, the risk block, the support matrix and the evidence index |
+| `python scripts/spec.py generate` | Regenerates `contract/commands.json`, the command maps, the badge row, the info card, the risk block, the support matrix and the evidence index, and writes the text between `driver:spec-` markers from the specification release |
 | `python scripts/spec.py suites` | Runs both conformance suites against xpedition-cli, with the fake host in place of Xpedition |
 | `python scripts/spec.py sync <version>` | Replaces the pinned copies with those of another tool-driver-cli-spec release |
 | `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` | Runs the behavior matrix of one command on the real Xpedition, on authorized targets, and writes a live record |
@@ -47,17 +50,21 @@ On Windows, activate the environment with `.venv\Scripts\activate` instead. `req
 | `python scripts/smoke.py` | Runs the key operation of platform delivery against the built packages |
 
 The pinned copies are `.agent/`, `contract/driver-contract.json`, `xpedition_cli/_driver/`, `licenses/`, and `scripts/spec.py`, `build.py`, `pack.py`, `platforms.py` and `release_gate.py`. Never edit them; `sync` replaces them together, and lists the other template files that changed since the release pinned before, to compare with this project's copies.
+<!-- driver:spec-commands:end -->
 
 ## Branch and Commit Convention
 
+<!-- driver:spec-branch-and-commit-convention:start -->
 - `main` always passes the merge gate. Work on a branch and merge through a pull request.
 - Name a branch `<kind>/<topic>`, where the kind is `feat`, `fix`, `docs`, `test` or `chore`, for example `feat/part-move`.
 - Write commit messages in English: a subject line of at most 72 characters in the imperative mood, such as `Add part move`, then a blank line and a body that says why.
 - Keep each commit to one change, together with its tests, its behavior matrix, its documents in both languages and its CHANGELOG entry.
 - Only a maintainer releases. A release sets the new version in `package.json`, the only source of the version, and moves the `[Unreleased]` entries into a section `[X.Y.Z] - YYYY-MM-DD`. After the merge, the maintainer pushes the annotated tag `vX.Y.Z`, and the release workflow does the rest.
+<!-- driver:spec-branch-and-commit-convention:end -->
 
 ## CI Checks
 
+<!-- driver:spec-ci-checks:start -->
 `.github/workflows/ci.yml` runs the merge gate on every change. Its last job, `merge gate passed`, succeeds only when every check passed on every shipped system; make it the required status check of the main branch, so that a failed check blocks the merge. The release runs the same checks.
 
 | Check | What it covers | Run it locally |
@@ -70,9 +77,11 @@ The pinned copies are `.agent/`, `contract/driver-contract.json`, `xpedition_cli
 | npm package content check | Each package holds only what it may, with no install scripts | `python scripts/pack.py` |
 
 `.github/workflows/release.yml` runs only when a maintainer pushes a version tag. It runs the same checks, then platform delivery: on the operating system and CPU of each platform package, it installs the packages that will be published into a clean environment, starts xpedition-cli and runs one key operation, as `python scripts/smoke.py` does. It publishes to npm, with provenance, only when everything passed for every platform package. A version with a prerelease part, such as `1.2.0-rc.1`, is published under the npm tag `next`, so `update` does not install it by default. Linux packages are built on Debian 11 (glibc 2.31), so they also run on older Linux systems. The workflow publishes through npm trusted publishing when the package has it set up on npmjs.com, otherwise with the `NPM_TOKEN` secret; set up trusted publishing after the first release and then disallow token publishing.
+<!-- driver:spec-ci-checks:end -->
 
 ## Tests and Evidence
 
+<!-- driver:spec-tests-and-evidence:start -->
 **Conformance suites.** `python scripts/spec.py suites` runs the general and the driver conformance suite. They start xpedition-cli as a separate process with `XPEDITION_CLI_FAKE_HOST` set, so the fake host stands in for Xpedition, and judge only the exit codes, the output and what the fake host received. Never skip, weaken or edit a test, and never mark one as an expected failure; a test that applies but did not run counts as failed. Results from the fake host are simulated and never count as evidence.
 
 **Unit tests.** The tool's own tests live in `tests/`. Every test sets `XPEDITION_CLI_STATE_DIR` to a new temporary directory, and either points `XPEDITION_CLI_SCOPE_FILE` at a scope file inside it or removes that variable.
@@ -120,9 +129,11 @@ Optional `right(agent, turn)` and `wrong(agent, turn)` scripted agents use `agen
 | `stable` | Also current evaluation results |
 
 Evidence counts while what it depends on is unchanged, whatever the version number: a live run until the command's registration or the adapter's code changes, an evaluation result until its question, a command it lists, or the handwritten Skills and knowledge change. After such a change, run again only the matrices and questions it touches; `python scripts/spec.py check` names them, and `python scripts/spec.py eval --workspace-root <folder> --stale` runs just the questions that need it. Evidence references have the form `live:docs/evidence/<file>.json#<row>` or `eval:docs/evidence/eval-<date>.json`.
+<!-- driver:spec-tests-and-evidence:end -->
 
 ## Adding or Changing a Command
 
+<!-- driver:spec-adding-or-changing-a-command:start -->
 1. **Survey.** Find the capability in the Capabilities table of `docs/APPLICATION.md`. When it is missing, add a row with a new `CAP-nnn`. Set its disposition to `provided` once a command offers it.
 2. **Name.** Use the form `noun verb`. Take the verb from the fixed list: `list`, `get`, `search`, `check`, `create`, `update`, `delete`, `move`, `import`, `render`, `export`, `run`, `stop`. Take the noun from the terms of Xpedition, written as a full word. A noun never takes the name of a built-in or standard command, such as `session`, `doc` or `job`.
 3. **Register.** Register the command in `xpedition_cli/commands/` with its summary, effects, modes, target type, flags with their types, the unit quantity of every physical value, its secret parameters and its untrusted output fields. Declare every effect. Mark a change Xpedition cannot take back with `irreversible: true`, and a command that only stops work with `halt: true`. Give read-back tolerances where Xpedition rounds or snaps values, and name related knowledge entries in `related_knowledge`.
@@ -132,16 +143,21 @@ Evidence counts while what it depends on is unchanged, whatever the version numb
 7. **Prove it.** The command starts as `draft`. Run its matrix on the real Xpedition, on authorized targets, with `python scripts/spec.py matrix`, and commit the live record; the command can then be `verified`. Rerun the matrix whenever a change affects how the command talks to Xpedition.
 8. **Skills and knowledge.** The command maps update themselves. Add a playbook to the Skill that owns the command when its task takes several steps. When the entry Skill would grow past 150 lines, split it into domain Skills by the tasks users name, each listing its commands in `metadata.commands`. Turn the limits and errors you found into entries in `knowledge/`.
 9. **CHANGELOG.** Add an entry under `[Unreleased]`: `Added` for a new command or flag, `Changed` for new behavior, `Deprecated` before a later removal, `Removed` when it is gone, `Fixed` for a bug fix and `Security` for a vulnerability fix.
+<!-- driver:spec-adding-or-changing-a-command:end -->
 
 ## Pull Requests
 
+<!-- driver:spec-pull-requests:start -->
 - One topic per pull request. The description says what changed and why, names the commands and capability IDs it touches, and links any new live record or evaluation report.
 - Every CI check passes, and generated content is regenerated, never edited by hand.
 - The English and Chinese documents change together and say the same thing.
 - No secrets, license data or files you may not share, in the code, the tests or `docs/evidence/`.
 - The reviewer checks the declared effects and the `irreversible` and `halt` marks against the capability survey, the untrusted fields, the Skill text and the reasons given for matrix rows that do not apply or cannot be run.
 - A maintainer merges. Packages are published only by the release workflow.
+<!-- driver:spec-pull-requests:end -->
 
 ## Security
 
+<!-- driver:spec-security:start -->
 Do not report a vulnerability in a public issue or pull request. Report it privately, as `SECURITY.md` describes, through <https://github.com/fatecannotbealtered/xpedition-cli/security/advisories/new>.
+<!-- driver:spec-security:end -->

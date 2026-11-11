@@ -6,6 +6,7 @@
 
 ## 开发环境
 
+<!-- driver:spec-development-setup:start -->
 需要准备：
 
 - Python 3.12 或更新版本
@@ -30,13 +31,15 @@ python scripts/spec.py check
 ```
 
 在 Windows 上改用 `.venv\Scripts\activate` 激活环境。`requirements-dev.txt` 为每个开发依赖固定了版本和哈希，装上的只会是审过的版本。
+<!-- driver:spec-development-setup:end -->
 
 ## 常用命令
 
+<!-- driver:spec-commands:start -->
 | 命令 | 作用 |
 |---|---|
 | `python scripts/spec.py check` | 运行项目检查：布局、文档及其固定原文、生成的内容、固定副本、版本、Skill、知识、行为矩阵、证据和成熟度 |
-| `python scripts/spec.py generate` | 重新生成 `contract/commands.json`、命令地图、徽章行、信息卡、风险块、支持矩阵和证据索引 |
+| `python scripts/spec.py generate` | 重新生成 `contract/commands.json`、命令地图、徽章行、信息卡、风险块、支持矩阵和证据索引，并按规范发布写入 `driver:spec-` 标记之间的文字 |
 | `python scripts/spec.py suites` | 用模拟宿主代替 Xpedition，对 xpedition-cli 运行两套一致性测试 |
 | `python scripts/spec.py sync <version>` | 用 tool-driver-cli-spec 另一个发布里的副本替换固定副本 |
 | `python scripts/spec.py matrix --command "<path>" --set <placeholder>=<value>` | 在真实的 Xpedition 上、在授权目标上运行一个命令的行为矩阵，并写下真实软件记录 |
@@ -47,17 +50,21 @@ python scripts/spec.py check
 | `python scripts/smoke.py` | 对构建好的包运行平台交付的关键操作 |
 
 固定副本是 `.agent/`、`contract/driver-contract.json`、`xpedition_cli/_driver/`、`licenses/`，以及 `scripts/` 里的 `spec.py`、`build.py`、`pack.py`、`platforms.py` 和 `release_gate.py`。禁止修改它们；`sync` 会把它们一起替换，并列出自上次固定的发布以来模板里改过的其他文件，供对照本项目的副本。
+<!-- driver:spec-commands:end -->
 
 ## 分支与提交约定
 
+<!-- driver:spec-branch-and-commit-convention:start -->
 - `main` 始终能通过合并门槛。在分支上工作，通过合并请求合入。
 - 分支命名为 `<kind>/<topic>`，kind 取 `feat`、`fix`、`docs`、`test` 或 `chore`，例如 `feat/part-move`。
 - 提交信息用英文：先是一行不超过 72 个字符的祈使句标题，如 `Add part move`，空一行，再在正文里说明原因。
 - 每个提交只做一件事，连同它的测试、行为矩阵、两种语言的文档和 CHANGELOG 条目一起提交。
 - 只有维护者才能发布。发布时在 `package.json` 里设新版本（这是版本号的唯一来源），把 `[Unreleased]` 下的条目移进 `[X.Y.Z] - YYYY-MM-DD` 一节。合入后，维护者推送附注标签 `vX.Y.Z`，剩下的由发布工作流完成。
+<!-- driver:spec-branch-and-commit-convention:end -->
 
 ## CI 检查
 
+<!-- driver:spec-ci-checks:start -->
 `.github/workflows/ci.yml` 对每次改动运行合并门槛。它的最后一个作业 `merge gate passed` 只在每个出包系统上的每项检查都通过时才成功；把它设为主分支必须通过的状态检查，任何一项检查失败就会挡住合并。发布运行同样的检查。
 
 | 检查 | 检查什么 | 本地怎样运行 |
@@ -70,9 +77,11 @@ python scripts/spec.py check
 | npm 包内容检查 | 每个包只含允许的内容，没有安装脚本 | `python scripts/pack.py` |
 
 `.github/workflows/release.yml` 只在维护者推送版本标签时运行。它先跑同样的检查，再做平台交付：在每个平台包对应的操作系统和 CPU 上，把将要发布的包装进干净的环境，启动 xpedition-cli，运行一个关键操作，做法与 `python scripts/smoke.py` 相同。只有所有平台包都全部通过，它才带着来源证明发布到 npm。带预发布部分的版本，如 `1.2.0-rc.1`，以 npm 标签 `next` 发布，`update` 默认不会安装它。Linux 包在 Debian 11（glibc 2.31）上构建，所以较老的 Linux 系统也能运行。包在 npmjs.com 上配好可信发布时，工作流用可信发布，否则用 `NPM_TOKEN` 密钥；首次发布后就配好可信发布，并禁止用令牌发布。
+<!-- driver:spec-ci-checks:end -->
 
 ## 测试与证据
 
+<!-- driver:spec-tests-and-evidence:start -->
 **一致性测试。** `python scripts/spec.py suites` 运行通用和驱动两套一致性测试。它们设好 `XPEDITION_CLI_FAKE_HOST`，把 xpedition-cli 作为独立进程启动，由模拟宿主代替 Xpedition，只根据退出码、输出和模拟宿主收到的内容做判断。禁止跳过、削弱或修改测试，也禁止把测试标为预期失败；适用却没有运行的测试算作失败。模拟宿主给出的是模拟结果，从不算作证据。
 
 **单元测试。** 工具自己的测试放在 `tests/`。每个测试都把 `XPEDITION_CLI_STATE_DIR` 设为新建的临时目录，并且要么把 `XPEDITION_CLI_SCOPE_FILE` 指向这个目录里的授权范围文件，要么去掉这个变量。
@@ -120,9 +129,11 @@ def grade(run):
 | `stable` | 另加当前有效的评测结果 |
 
 证据在它依赖的东西没变时一直算数，与版本号无关：真实运行在命令登记或适配层代码改动之前有效，评测结果在它的题目、它列出的命令或手写的 Skill 和知识改动之前有效。有了这样的改动，只重跑它涉及的矩阵和评测题：`python scripts/spec.py check` 会列出它们，`python scripts/spec.py eval --workspace-root <folder> --stale` 只跑需要重跑的题。证据引用的格式是 `live:docs/evidence/<file>.json#<row>` 或 `eval:docs/evidence/eval-<date>.json`。
+<!-- driver:spec-tests-and-evidence:end -->
 
 ## 新增或修改命令
 
+<!-- driver:spec-adding-or-changing-a-command:start -->
 1. **调查。** 在 `docs/APPLICATION_zh.md` 的能力表里找到这项能力。没有时，加一行并给它新的 `CAP-nnn`。有命令提供它之后，把处置改为 `provided`。
 2. **命名。** 用 `noun verb` 的形式。动词从固定列表里选：`list`、`get`、`search`、`check`、`create`、`update`、`delete`、`move`、`import`、`render`、`export`、`run`、`stop`。名词用 Xpedition 自己的术语，写成完整的英文单词。名词不能用内置命令或标准命令的名称，如 `session`、`doc` 或 `job`。
 3. **登记。** 在 `xpedition_cli/commands/` 里登记命令，写明说明、效果、模式、目标类型、参数及其类型、每个物理量的单位量、机密参数和输出中的不可信字段。每个效果都要声明。Xpedition 无法撤回的修改标 `irreversible: true`，只用来停止工作的命令标 `halt: true`。Xpedition 会取整或吸附数值的地方，给出读回容差；相关的知识条目写在 `related_knowledge` 里。
@@ -132,16 +143,21 @@ def grade(run):
 7. **证明。** 命令一开始是 `draft`。用 `python scripts/spec.py matrix` 在真实的 Xpedition 上、在授权目标上运行它的矩阵，并提交真实软件记录，命令就可以标为 `verified`。只要改动影响到命令与 Xpedition 的交互，就重新运行矩阵。
 8. **Skill 与知识。** 命令地图会自动更新。命令对应的任务需要好几步时，在拥有这个命令的 Skill 里加一个剧本。入口 Skill 要超过 150 行时，按用户所说的任务拆成领域 Skill，每个都在 `metadata.commands` 里列出自己的命令。把发现的限制和错误写成 `knowledge/` 里的条目。
 9. **CHANGELOG。** 在 `[Unreleased]` 下加一条：新命令或新参数用 `Added`，行为变化用 `Changed`，以后要删除的用 `Deprecated`，已经删除的用 `Removed`，缺陷修复用 `Fixed`，漏洞修复用 `Security`。
+<!-- driver:spec-adding-or-changing-a-command:end -->
 
 ## 合并请求
 
+<!-- driver:spec-pull-requests:start -->
 - 一个合并请求只做一件事。描述里写明改了什么、为什么改，列出涉及的命令和能力编号，并附上新的真实软件记录或评测报告的链接。
 - 所有 CI 检查都通过，生成的内容重新生成，不手改。
 - 英文和中文文档一起改，内容一致。
 - 代码、测试和 `docs/evidence/` 里都不能有机密、许可证数据或无权分享的文件。
 - 评审者对照能力调查检查声明的效果，以及 `irreversible` 和 `halt` 标记，并检查不可信字段、Skill 文字，以及矩阵中不适用或无法运行的行所给的原因。
 - 由维护者合入。包只由发布工作流发布。
+<!-- driver:spec-pull-requests:end -->
 
 ## 安全
 
+<!-- driver:spec-security:start -->
 不要在公开的 Issue 或合并请求里报告漏洞。请按 `SECURITY_zh.md` 的说明，通过 <https://github.com/fatecannotbealtered/xpedition-cli/security/advisories/new> 私下报告。
+<!-- driver:spec-security:end -->

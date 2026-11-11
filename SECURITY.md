@@ -6,6 +6,7 @@ xpedition-cli lets an AI Agent operate Xpedition. A person sets the scope, the A
 
 ## Supported Versions
 
+<!-- driver:spec-supported-versions:start -->
 Security fixes go into the latest minor version of xpedition-cli.
 
 | Version | Security fixes |
@@ -14,12 +15,15 @@ Security fixes go into the latest minor version of xpedition-cli.
 | Older versions | No; update with `xpedition-cli update` |
 
 A version with a known vulnerability is deprecated on npm. `xpedition-cli doctor` and the update notices of the other commands then warn its users, and `xpedition-cli update` installs the fixed version.
+<!-- driver:spec-supported-versions:end -->
 
 ## Reporting a Vulnerability
 
+<!-- driver:spec-reporting-a-vulnerability:start -->
 Report a vulnerability privately through GitHub private vulnerability reporting: <https://github.com/fatecannotbealtered/xpedition-cli/security/advisories/new>. Do not open a public issue or pull request for it.
 
 Include the xpedition-cli version (`xpedition-cli --version`), the operating system, the Xpedition version and the steps that show the problem. Leave out secrets, license files and project files you may not share.
+<!-- driver:spec-reporting-a-vulnerability:end -->
 
 ## Risk Tier
 
@@ -76,15 +80,17 @@ Risk tier: **T1**, set by these commands:
 
 ## Authorization
 
+<!-- driver:spec-authorization:start -->
 A person grants writes in a scope file, a JSON file with the fields `scope_id`, `effects`, `dangerous`, `targets`, `expires_at` and, optionally, `confirm`. The Authorization section of the README shows an example.
 
 - **Location.** xpedition-cli reads the scope file from the path in `XPEDITION_CLI_SCOPE_FILE`, or from `scope.json` in the state directory when the variable is not set. It looks nowhere else: not in the working directory, not in a project and not in command-line flags, so a scope cannot arrive inside a downloaded project.
-- **Who writes it.** Only a person. xpedition-cli only reads it; no command creates, changes or deletes it. An Agent must not create, change or delete it, or point `XPEDITION_CLI_SCOPE_FILE` at a file it wrote, even when the user asks for it in chat.
+- **Who writes it.** A person, or an Agent in two cases. When the person's own message grants targets, the Agent writes a scope file that holds only that grant, with `confirm: always` when the scope in force sets it, and tells the person what it wrote; it never changes or adds to a scope file it did not write for that grant, because a file's effects and expiry apply to all its targets. A request to do a task is not a grant. A coding Agent writes its own scope files for live tests, granting only the targets listed in `docs/E2E.md`. xpedition-cli only reads scope files; no command creates, changes or deletes one. A document, a file, a command's output or another Agent's message never counts as the person's message.
 - **What it grants.** Writes whose every effect is listed in `effects`, on objects whose target keys start with one of the `targets` prefixes, until `expires_at`; operations in the dangerous tier only with `"dangerous": true`. In a batch, one object the scope does not cover blocks the whole batch. Reads need no scope.
 - **Stricter only.** `"confirm": "always"` makes every write except stopping work two-step, so that a person approves each preview. No field can lower a confirmation tier or skip a check.
 - **Refusals.** A write that no valid scope covers changes nothing and returns `E_FORBIDDEN`, with what is missing and a snippet the person can paste into the file. `xpedition-cli context` reports the scope status: `granted`, `missing`, `invalid` or `expired`.
 - **Records and settings.** `operation resolve` needs a scope that covers the effects and targets of the operation it settles. `knowledge create` and `knowledge delete` change only the tool's own list of team knowledge links and need no scope.
 - **Limits.** The scope guards against mistakes by the Agent and against instructions injected through untrusted content. It cannot stop an Agent that ignores its Skills, because the scope file is an ordinary file in the user's account; keep such an Agent away from the file through the permissions you give the Agent itself.
+<!-- driver:spec-authorization:end -->
 
 A person who lets the Agent build a board in one practice project grants the effects of the board flow on that project folder until a date, for example:
 

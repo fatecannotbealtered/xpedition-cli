@@ -16,7 +16,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from test_layout_fakes import (  # noqa: E402
     BOARD,
+    Geometry,
     Collection,
+    Extrema,
     FakeApp,
     FakeAssignment,
     FakeComError,
@@ -604,6 +606,92 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual(back["observed"][target], {"exists": True, "hatch": "solid"})
         self.assertEqual(refused, ["E_VALIDATION"] * 4)
 
+    def test_bends_pour_hatched_bands_over_the_bend_zones_and_solid_between(self):
+        from xpedition_cli.adapter import layout_output as O
+        from xpedition_cli.adapter.plan import board_metrics
+
+        doc = FakeDoc(nets=["GND"])
+        zones = [{"extents_mm": [0.0, 10.0, 60.0, 14.0], "along": "x", "marked_by": ["placement_keepout"]},
+                 {"extents_mm": [0.0, 30.0, 60.0, 33.0], "along": "x", "marked_by": ["placement_keepout"]}]
+        inputs = {"net": "GND", "layer": 3, "bends": True, "hatch": "diagonal", "hatch_width_mm": 0.1, "hatch_distance_mm": 0.3}
+        with world(FakeApp(doc)), mock.patch.object(O, "flex_model", lambda doc: {}), \
+                mock.patch.object(board_metrics, "bend_zones", lambda model: zones):
+            preview = B.PlaneCreate().preview(context("plane create", inputs))
+            facts = B.PlaneCreate().apply(context("plane create", inputs))
+            band = key("/planes/GND/3/,10,,14")
+            back = B.PlaneCreate().read_back(context("plane create", targets=[band, key("/planes/GND/3/,14,,30")], fields=["exists", "hatch"]))
+            with self.assertRaises(AdapterError) as solid:
+                B.PlaneCreate().preview(context("plane create", {"net": "GND", "layer": 3, "bends": True}))
+        self.assertEqual([t["key"] for t in preview["targets"]],
+                         [key(f"/planes/GND/3/{r}") for r in (",,,10", ",10,,14", ",14,,30", ",30,,33", ",33,,")])
+        self.assertEqual([p["hatch"] for p in facts["result"]["parts"]], ["solid", "diagonal", "solid", "diagonal", "solid"])
+        self.assertEqual(len(doc.shapes), 5)
+        self.assertEqual(doc.shapes[1].PlaneClass.HatchPattern, 6)
+        self.assertEqual(back["observed"][band], {"exists": True, "hatch": "diagonal"})
+        self.assertEqual(back["observed"][key("/planes/GND/3/,14,,30")], {"exists": True, "hatch": "solid"})
+        self.assertEqual(code(solid), "E_VALIDATION")  # the bend zones need a hatch
+        self.assertIn("2 bend zone(s)", preview["action"])
+
+    def test_bend_parts_need_bend_zones_along_one_axis(self):
+        with self.assertRaises(AdapterError) as none:
+            B.bend_parts([])
+        with self.assertRaises(AdapterError) as mixed:
+            B.bend_parts([{"extents_mm": [0, 1, 9, 2], "along": "x"}, {"extents_mm": [3, 0, 4, 9], "along": "y"}])
+        self.assertEqual((code(none), code(mixed)), ("E_CONFLICT", "E_CONFLICT"))
+        self.assertEqual(B.bend_parts([{"extents_mm": [5, 0, 6, 9], "along": "y"}]),
+                         [((None, None, 5, None), False), ((5, None, 6, None), True), ((6, None, None, None), False)])
+
+    def test_a_plane_is_cut_around_another_nets_shape_on_its_layer(self):
+        doc = FakeDoc(nets=["GND", "VBUS"])
+        power = {"net": "VBUS", "layer": 1, "polygon": {"points_mm": [[10.0, 10.0], [20.0, 10.0], [20.0, 20.0], [10.0, 20.0]]}}
+        with world(FakeApp(doc)):
+            B.PlaneCreate().apply(context("plane create", power))
+            preview = B.PlaneCreate().preview(context("plane create", {"net": "GND", "layer": 1}))
+            B.PlaneCreate().apply(context("plane create", {"net": "GND", "layer": 1}))
+        ground = [shape for shape in doc.shapes[1:]]
+        self.assertEqual(len(ground), 4)  # left, right, below and above the copper area
+        for shape in ground:
+            box = shape.Extrema
+            x0, y0, x1, y1 = box.GetMinX(L.UNIT_MM), box.GetMinY(L.UNIT_MM), box.GetMaxX(L.UNIT_MM), box.GetMaxY(L.UNIT_MM)
+            self.assertTrue(x1 <= 9.8 + 1e-6 or x0 >= 20.2 - 1e-6 or y1 <= 9.8 + 1e-6 or y0 >= 20.2 - 1e-6)  # 0.2 mm off it
+        self.assertIn("cut around 1 plane shape(s) of other nets on the layer", preview["action"])
+
+    def test_a_cut_leaves_out_a_sliver_between_the_shape_and_a_band_edge(self):
+        band = ((0.0, 30.0, 30.0, 0.0, 0.0), (0.0, 0.0, 4.463, 4.463, 0.0), (0.0, 0.0, 0.0, 0.0, 0.0))  # x, y, r rows, closed
+        pieces = B.cut_around(band, [(4.0, -0.1, 7.75, 4.25)])  # 0.2 mm off its top leaves 0.013 mm to the band's edge
+        tops = sorted(round(max(row[1]), 3) for row in pieces)
+        self.assertEqual(len(pieces), 2)  # left and right of it, no strip above
+        self.assertEqual(tops, [4.463, 4.463])
+
+    def test_a_cut_across_both_arms_of_a_u_shape_gives_two_pieces(self):
+        u_shape = [(0, 0), (10, 0), (10, 10), (7, 10), (7, 3), (3, 3), (3, 10), (0, 10)]
+        clipped = B._clip(u_shape, (None, 5, None, None))  # joined along y = 5 by an edge run there and back
+        pieces = sorted(sorted(set(piece)) for piece in B._untangled(clipped))
+        self.assertEqual(pieces, [[(0, 5), (0, 10), (3, 5), (3, 10)], [(7, 5), (7, 10), (10, 5), (10, 10)]])
+        self.assertEqual(len(B._untangled(u_shape)), 1)  # a whole shape stays whole
+
+    def test_nothing_left_to_pour_is_refused(self):
+        doc = FakeDoc(nets=["GND", "VBUS"])
+        power = {"net": "VBUS", "layer": 1, "polygon": {"points_mm": [[1.1, 1.1], [48.9, 1.1], [48.9, 38.9], [1.1, 38.9]]}}
+        with world(FakeApp(doc)):
+            B.PlaneCreate().apply(context("plane create", power))
+            with self.assertRaises(AdapterError) as caught:
+                B.PlaneCreate().apply(context("plane create", {"net": "GND", "layer": 1}))
+        self.assertIn("Nothing is left to pour on layer 1", str(caught.exception))
+
+    def test_a_band_reads_back_the_shapes_inside_it_not_one_along_its_edge(self):
+        doc = FakeDoc(nets=["GND"])
+
+        def shape(box: tuple[float, float, float, float], width: float, distance: float) -> SimpleNamespace:
+            return SimpleNamespace(Layer=1, Net=SimpleNamespace(Name="GND"), Extrema=Extrema(box),
+                                   PlaneClass=SimpleNamespace(Name="(Default)", HatchPattern=6, HatchWidth=width, HatchDistance=distance))
+
+        doc.shapes = [shape((3.8, 4.45, 7.95, 4.463), 6.0, 6.0),  # a solid strip along the band's lower edge
+                      shape((0.4, 4.463, 12.1, 6.767), 4.0, 12.0)]  # the band, hatched
+        with world(FakeApp(doc)):
+            values = L.plane_values(doc, "GND", 1, L.parse_region(",4.463,,6.767"))
+        self.assertEqual(values["hatch"], "diagonal")
+
     def test_hatch_inputs_must_fit_together(self):
         with world(FakeApp(FakeDoc(nets=["GND"]))):
             for extra in ({"hatch": "zigzag"}, {"hatch": "orthogonal"}, {"hatch": "diagonal", "hatch_width_mm": 0.5, "hatch_distance_mm": 0.4},
@@ -707,6 +795,37 @@ class RouterTest(unittest.TestCase):
         self.assertTrue(all(("Items", plan_routing.ROUTE_ITEMS_NETS) == p.calls[1][:2] for p in doc.passes))
         self.assertEqual(added, ["A", "B"])
         self.assertEqual(facts["result"]["selected"], {"nets": 2, "routed": 2, "open": []})
+
+    def test_existing_traces_of_the_nets_to_route_raise_the_tier_and_those_the_passes_change_are_reported(self):
+        doc = self._doc()
+
+        def trace(points):
+            return SimpleNamespace(Layer=1, Geometry=Geometry([[p[0] for p in points], [p[1] for p in points], [0.0] * len(points)],
+                                                              width_mm=0.1))
+
+        guard, kept = trace([(0.0, 1.0), (5.0, 1.0)]), trace([(0.0, 2.0), (5.0, 2.0)])
+        doc.net_traces = {"A": [guard, kept]}
+
+        def reroute(route_pass: FakeRoutePass):
+            doc.net_traces["A"] = [kept, trace([(0.0, 1.0), (2.0, 3.0), (5.0, 1.0)])]  # the guard moved
+            for net in doc.nets:
+                net.routed, net.NumberOfOpens = True, 0
+
+        doc.on_go = reroute
+        with world(FakeApp(doc)):
+            out = self.handler.preview(context("router run"))
+            facts = self.handler.run(context("router run"), Progress())
+        self.assertEqual(out["tier_raises"], ["reworks_existing"])
+        self.assertIn("A (2)", out["action"])
+        self.assertEqual(facts["result"]["reworked"], [{"net": "A", "traces_before": 2, "moved_or_removed": 1}])
+
+    def test_a_trace_the_passes_only_split_is_not_reported_as_moved(self):
+        from xpedition_cli.adapter import layout_board as B
+        before = [(1, [(0.0, 1.0), (5.0, 1.0)])]
+        split = [(1, [(0.0, 1.0), (2.0, 1.0)]), (1, [(2.0, 1.0), (5.0, 1.0)]), (1, [(2.0, 1.0), (2.0, 4.0)])]  # a new trace meets it
+        self.assertEqual(B._uncovered(before, split), 0)
+        self.assertEqual(B._uncovered(before, [(1, [(0.0, 1.0), (2.0, 3.0), (5.0, 1.0)])]), 1)
+        self.assertEqual(B._uncovered(before, [(2, [(0.0, 1.0), (5.0, 1.0)])]), 1)  # on another layer
 
     def test_an_unknown_net_class_or_pass_is_refused(self):
         with world(FakeApp(self._doc())):

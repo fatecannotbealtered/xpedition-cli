@@ -62,8 +62,9 @@ class Application(Protocol):
 
     def close_document(self, pid: int, path: str, discard: bool) -> None: ...
 
-    def read_targets(self, pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
-        """Read the named fields of the named target keys: ``{observed, unreadable}``."""
+    def read_targets(self, pid: int, path: str, targets: list[str], fields: list[str], store: Any = None) -> dict[str, Any]:
+        """Read the named fields of the named target keys: ``{observed, unreadable}``; ``store``, the
+        adapter's, holds what earlier writes kept for reading back, such as a routing plan."""
 
 
 def _app(kind: str) -> Application:
@@ -454,7 +455,7 @@ def save_read_back(store: AdapterStore, request: dict[str, Any]) -> dict[str, An
     fields = [f for f in request.get("fields", []) if f != "saved"]
     out: dict[str, Any] = {"observed": {}, "unreadable": []}
     if targets:
-        out = _app(ref.kind).read_targets(ref.pid, path, targets, fields)
+        out = _app(ref.kind).read_targets(ref.pid, path, targets, fields, store)
     if "saved" in request.get("fields", []):
         mark = store.get(_doc_key(ref.id, path) + "-saved", {}) or {}
         observed = out.setdefault("observed", {})

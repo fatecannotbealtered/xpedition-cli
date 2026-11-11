@@ -16,10 +16,11 @@ Point = tuple[float, float]
 Rect = tuple[float, float, float, float]
 CIRCLE_STEPS = 32  # a circle drawn as a line is taken as a polygon of this many sides
 ARC_STEP_DEG = 6.0  # an arc is flattened into a straight segment every this many degrees
+ARC_CHORD_MM = 0.002  # and chords at most this far inside it
 
 
 def flatten(path: list[tuple[float, float, float]]) -> list[tuple[float, float]]:
-    """The path as straight segments, the arcs stepped every few degrees.
+    """The path as straight segments, the arcs stepped every few degrees and within ``ARC_CHORD_MM`` of the arc.
 
     A path is a list of `(x, y, r)` rows where a row with `r != 0` is the centre of an arc
     from the previous row to the next one (`r > 0` clockwise, `r < 0` counter-clockwise, the
@@ -40,7 +41,10 @@ def flatten(path: list[tuple[float, float, float]]) -> list[tuple[float, float]]
             if abs(sweep) < 1e-9:
                 # a full circle described as two half arcs, or a degenerate arc
                 sweep = -2 * math.pi if r > 0 else 2 * math.pi
-            steps = max(2, int(abs(sweep) / math.radians(ARC_STEP_DEG)))
+            step = math.radians(ARC_STEP_DEG)
+            if radius > ARC_CHORD_MM:  # and within ARC_CHORD_MM of the arc: steps of a few degrees lie tens of micrometres off a wide one
+                step = min(step, 2 * math.acos(1 - ARC_CHORD_MM / radius))
+            steps = max(2, math.ceil(abs(sweep) / step - 1e-9))
             for step in range(1, steps):
                 angle = start + sweep * step / steps
                 points.append((x + radius * math.cos(angle), y + radius * math.sin(angle)))

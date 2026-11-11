@@ -1,0 +1,88 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.3.0",
+  "date": "2026-11-11",
+  "agent": "Claude Code 2.1.321",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/evals/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "guard-a-flex-pair",
+      "passed": true,
+      "notes": "Route two differential pairs across a flex board with ground guards beside them, to a reviewer's",
+      "sha256": "d0b598924bf6dbe9c94f25a068382c1066726145e12d03bbd39d2d747f1414e6",
+      "commands": [
+        "pcb get",
+        "component get",
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "plane create",
+        "trace check",
+        "trace create",
+        "via create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component get",
+        "constraint get",
+        "constraint import",
+        "context",
+        "doc get",
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "operation get",
+        "padstack create",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create"
+      ],
+      "fingerprint": "8342d513bb32439302d68c2bdd74d37c1a98d30085a04653d06e5e5d8253110b"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "lay-out-board",
+      "passed": true,
+      "notes": "Lay out the open board: forward annotation, outline, placement, a GND plane and routing, then the",
+      "sha256": "28bb42562b11fb73dd676969a3f67d8266ac72183f9057e7bddd8aeff156ae55",
+      "commands": [
+        "forward-annotation run",
+        "job get",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "pcb check"
+      ],
+      "ran": [
+        "doctor",
+        "forward-annotation run",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "session list"
+      ],
+      "fingerprint": "bbaf2b6655acfca312a641019753c7d9c54701ac6bc54731ac93bdb7f5b478eb"
+    }
+  ]
+}

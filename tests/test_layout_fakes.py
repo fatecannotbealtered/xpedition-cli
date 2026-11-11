@@ -7,6 +7,8 @@ so nothing reaches a real Xpedition.
 """
 from __future__ import annotations
 
+import itertools
+
 import math
 import os
 from contextlib import contextmanager, nullcontext
@@ -138,6 +140,9 @@ def turn(dx: float, dy: float, degrees: float) -> tuple[float, float]:
     return round(dx * math.cos(angle) - dy * math.sin(angle), 9), round(dx * math.sin(angle) + dy * math.cos(angle), 9)
 
 
+SUBNETS = itertools.count(1)
+
+
 class FakePin(Fake):
     type_name = "IMGCPCBPin"
 
@@ -148,6 +153,7 @@ class FakePin(Fake):
         self.net_name = net
         self.Pads = Collection([SimpleNamespace(Layer=1, Geometries=Collection([Geometry(circle_mm=(0.0, 0.0, 0.3))]))])
         self.Holes = Collection()
+        self.Subnet = next(SUBNETS)  # unrouted: each pin its own piece of its net
 
     @property
     def Net(self) -> Any:  # noqa: N802
@@ -231,6 +237,14 @@ class FakeNet:
     @property
     def Pins(self) -> Collection:  # noqa: N802 - only placed parts' pins are listed
         return Collection(pin for part in self.doc.components if part.Placed for pin in part.pin_list if pin.net_name == self.Name)
+
+    @property
+    def Vias(self) -> Collection:  # noqa: N802
+        return Collection(getattr(self.doc, "net_vias", {}).get(self.Name, []))
+
+    @property
+    def Traces(self) -> Collection:  # noqa: N802
+        return Collection(getattr(self.doc, "net_traces", {}).get(self.Name, []))
 
 
 class FakeAssignment:

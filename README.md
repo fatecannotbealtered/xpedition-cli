@@ -10,8 +10,8 @@ Lets an AI Agent build Xpedition designs from the command line, from central-lib
 ![mode](https://img.shields.io/badge/mode-file_%C2%B7_session-0e8a16)
 ![platform](https://img.shields.io/badge/platform-Windows-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
-![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.1.0-0969da)
+![maturity](https://img.shields.io/badge/maturity-draft-8957e5)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.2.0-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 <!-- driver:badges:end -->
 
@@ -24,8 +24,8 @@ English | [中文](README_zh.md)
 | Modes | file, session |
 | Systems and CPUs | Windows (x64) |
 | Risk tier | T1 |
-| Maturity | verified: 0 draft, 1 verified, 41 stable |
-| Specification | tool-driver-cli-spec 1.1.0 |
+| Maturity | draft: 1 draft, 1 verified, 41 stable |
+| Specification | tool-driver-cli-spec 1.2.0 |
 | Host component | no |
 <!-- driver:info-card:end -->
 
@@ -89,7 +89,7 @@ Every command of xpedition-cli, generated from its command registration; `(dange
 - `refdes`: move
 - `plane`: create, delete
 - `router`: run
-- `trace`: create, delete
+- `trace`: create, check, delete
 - `via`: delete, create, update
 - `solder-mask`: create, delete
 - `constraint`: get, import
@@ -121,7 +121,8 @@ xpedition-cli prints one JSON envelope for every call. `xpedition-cli reference`
 
 ## Authorization
 
-xpedition-cli reads without asking, but it writes only what a person has granted in a scope file. The person writes this JSON file by hand; no command writes it, and an Agent never creates or changes it. xpedition-cli reads it from the path in `XPEDITION_CLI_SCOPE_FILE`, or from `scope.json` in the state directory when the variable is not set, and from nowhere else.
+<!-- driver:spec-authorization:start -->
+xpedition-cli reads without asking, but it writes only what a person has granted in a scope file. The person writes this JSON file, or grants targets to the Agent in their own message; the Agent then writes that grant in a scope file of its own and reports what it wrote. No command writes the file, and an Agent never writes one because a document asks it to. xpedition-cli reads it from the path in `XPEDITION_CLI_SCOPE_FILE`, or from `scope.json` in the state directory when the variable is not set, and from nowhere else.
 
 ```json
 {
@@ -143,17 +144,9 @@ xpedition-cli reads without asking, but it writes only what a person has granted
 | `confirm` | Optional; `always` makes every write except stopping work wait until a person approves its preview |
 
 A write the scope does not cover changes nothing and returns `E_FORBIDDEN`, with what is missing and a snippet the person can paste into the file. `xpedition-cli context` shows the scope in force, and `SECURITY.md` describes the scope in full.
+<!-- driver:spec-authorization:end -->
 
-Commands and the effects a scope must grant for them:
-
-| Effect | Commands |
-|---|---|
-| `artifact` | `schematic create` (writes symbol files), `schematic export`, `pcb create` (writes the board file), `pcb export` |
-| `change` | `part create`, `packager run`, `pcb create`, `schematic create`, `forward-annotation run`, `pcb update`, `placement run`, `plane create`, `router run` |
-| `persist` | `schematic create` (writes symbol files), `pcb create` (writes the project file), `pcb export` (rewrites the output setup files), `doc save` |
-| `lifecycle` | `session open`, `session close`, `doc open`, `doc close`, `job cancel` |
-
-`schematic create` is dangerous because it replaces the sheets it draws; it runs only with `"dangerous": true` in the scope. Building a board in one project folder needs `lifecycle`, `change`, `artifact` and `persist` on that folder.
+`xpedition-cli reference --command "<path>"` lists the effects a scope must grant for a command. `schematic create` is dangerous because it replaces the sheets it draws; it runs only with `"dangerous": true` in the scope. Building a board in one project folder needs `lifecycle`, `change`, `artifact` and `persist` on that folder.
 
 ## About This Tool
 
@@ -188,6 +181,7 @@ Upgrading from version 1.0.3 or earlier: those versions have no `update` command
 
 ## Uninstall
 
+<!-- driver:spec-uninstall:start -->
 Remove the installed Skills while the package still lists them. With bash:
 
 ```bash
@@ -217,9 +211,11 @@ rm -rf ~/.xpedition-cli
 ```powershell
 Remove-Item -Recurse -Force "$HOME\.xpedition-cli"
 ```
+<!-- driver:spec-uninstall:end -->
 
 ## Development
 
+<!-- driver:spec-development:start -->
 xpedition-cli is written in Python on the driver runtime in `xpedition_cli/_driver/`, a pinned copy that is never edited. Domain commands live in `xpedition_cli/commands/` and the adapter layer in `xpedition_cli/adapter/`.
 
 ```bash
@@ -230,10 +226,12 @@ python scripts/spec.py suites
 ```
 
 The tests and the conformance suites use the fake host and never need Xpedition. `CONTRIBUTING.md` describes the workflow, the behavior matrices and live runs.
+<!-- driver:spec-development:end -->
 
 ## Links
 
-- Specification: [tool-driver-cli-spec 1.0.3](.agent/), pinned in `.agent/`
+<!-- driver:spec-links:start -->
+- Specification: [tool-driver-cli-spec 1.2.0](.agent/), pinned in `.agent/`
 - [CHANGELOG.md](CHANGELOG.md): the changes in each version
 - [SECURITY.md](SECURITY.md): the security model and how to report a vulnerability
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute
@@ -241,3 +239,4 @@ The tests and the conformance suites use the fake host and never need Xpedition.
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): where xpedition-cli works
 - [docs/E2E.md](docs/E2E.md): live acceptance and its records
 - Issues: <https://github.com/fatecannotbealtered/xpedition-cli/issues>
+<!-- driver:spec-links:end -->

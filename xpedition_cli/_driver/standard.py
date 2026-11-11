@@ -1204,7 +1204,10 @@ class DocSave(_OnDocument):
                 if change.get("field"):
                     expected[(change["target"], change["field"])] = change  # a later write wins
         known = {(c["target"], c["field"]) for c in fields}
-        fields += [c for k, c in expected.items() if k not in known]
+        fields = still_there(fields + [c for k, c in expected.items() if k not in known])
+        kept = {(c["target"], c["field"]) for c in fields}
+        # A deferred field of an object deleted since is never read: its record cannot be verified.
+        expected = {k: c for k, c in expected.items() if k in kept}
         verification = self._verify_fields(operation_id, fields)
         self._settle_deferred(deferred, expected, verification, operation_id)
         return verification
@@ -1218,7 +1221,7 @@ class DocSave(_OnDocument):
                 if change.get("field") and (change["target"], change["field"]) not in known:
                     fields.append(change)
                     known.add((change["target"], change["field"]))
-        return self._verify_fields(operation_id, fields)
+        return self._verify_fields(operation_id, still_there(fields))
 
     def _deferred(self) -> list[dict[str, Any]]:
         """The writes on this document whose verification waits for a save, oldest first."""
@@ -1263,6 +1266,15 @@ class DocSave(_OnDocument):
                    "operation_id": operation_id, "targets": sorted({c["target"] for c in fields}),
                    "fields": sorted({c["field"] for c in fields})}
         return read_back(self.run, request, fields, made_tolerances(self.run, self.where.session["id"], self.where.document["id"], fields))
+
+
+def still_there(fields: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The fields a save reads back. A target whose last change deletes it is read only for being
+    absent: the fields earlier writes gave it, and the targets under it, belong to an object that
+    is gone (DCLI-057)."""
+    gone = {c["target"] for c in fields if c.get("field") == "exists" and c.get("after") is False}
+    return [c for c in fields if not any(c["target"] == t and c["field"] != "exists" or c["target"].startswith(t + "/")
+                                         for t in gone)]
 
 
 def made_tolerances(run: Run, session: str, doc_id: str, fields: list[dict[str, Any]]) -> dict[tuple[str, str], float | None]:

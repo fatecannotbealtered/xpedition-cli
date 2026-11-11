@@ -320,6 +320,45 @@ def _flex() -> dict:
     }
 
 
+class GuardCoverTest(unittest.TestCase):
+    def test_ground_traces_beside_a_net_are_measured_per_side(self):
+        def trace(net, layer, width, points):
+            return {"net": net, "layer": layer, "width": width, "path": [[x, y, 0.0] for x, y in points]}
+
+        model = {"traces": [trace("SIG", 3, 0.1, [(0, 0), (10, 0)]),
+                            trace("GND", 3, 0.1, [(0, 0.3), (10, 0.3)]),  # left, 0.2 mm off the signal's copper
+                            trace("GND", 3, 0.1, [(5, -0.3), (10, -0.3)]),  # right, along its second half
+                            trace("GND", 1, 0.1, [(0, -0.3), (5, -0.3)]),  # another layer
+                            trace("AGND_FAR", 3, 0.1, [(0, -1.0), (5, -1.0)])]}  # too far
+        (row,) = M.guard_cover(model, [["SIG"]], 0.3)
+        self.assertEqual((row["net"], row["layer"], row["length_mm"]), ("SIG", 3, 10.0))
+        self.assertEqual((row["left_pct"], row["right_pct"], row["both_sides_pct"]), (100.0, 50.0, 50.0))
+        self.assertEqual(row["unguarded_mm"], 0.0)
+        (narrow,) = M.guard_cover(model, [["SIG"]], 0.1)  # the guards stand 0.2 mm off: not within 0.1 mm
+        self.assertEqual((narrow["left_pct"], narrow["unguarded_mm"]), (0.0, 10.0))
+
+    def test_the_two_of_a_pair_cover_each_others_inner_side(self):
+        def trace(net, y):
+            return {"net": net, "layer": 3, "width": 0.06, "path": [[0.0, y, 0.0], [10.0, y, 0.0]]}
+
+        model = {"traces": [trace("P", 0.0), trace("N", 0.16), {**trace("GND", -0.25), "width": 0.1}, {**trace("GND", 0.41), "width": 0.1}]}
+        rows = M.guard_cover(model, [["P", "N"]], 0.2)
+        self.assertEqual([(r["net"], r["both_sides_pct"]) for r in rows], [("P", 100.0), ("N", 100.0)])
+        alone = M.guard_cover(model, [["P"], ["N"]], 0.2)
+        self.assertEqual([r["both_sides_pct"] for r in alone], [0.0, 0.0])
+
+    def test_a_pair_set_wider_apart_than_the_ground_gap_still_covers_its_inner_side(self):
+        def trace(net, y, width=0.1):
+            return {"net": net, "layer": 1, "width": width, "path": [[0.0, y, 0.0], [10.0, y, 0.0]]}
+
+        # the halves 0.4 mm apart, a guard 0.15 mm off each outer side, a gap of 0.3 mm asked
+        model = {"traces": [trace("P", 0.0), trace("N", 0.5), trace("GND", -0.25), trace("GND", 0.75)]}
+        rows = M.guard_cover(model, [["P", "N"]], 0.3)
+        self.assertEqual([(r["net"], r["both_sides_pct"]) for r in rows], [("P", 100.0), ("N", 100.0)])
+        far = {"traces": [trace("P", 0.0), trace("N", 1.5), trace("GND", -0.25), trace("GND", 1.75)]}  # 1.4 mm apart
+        self.assertEqual([r["both_sides_pct"] for r in M.guard_cover(far, [["P", "N"]], 0.3)], [0.0, 0.0])
+
+
 class FlexRuleTest(unittest.TestCase):
     def test_bend_zones_come_from_hatched_bands_beside_a_solid_plane(self):
         self.assertEqual(M.bend_zones(_flex()), [{"extents_mm": [0.0, 40.0, 20.0, 50.0], "along": "x", "marked_by": ["hatched_plane"]}])

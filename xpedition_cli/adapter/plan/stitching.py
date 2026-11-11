@@ -4,7 +4,8 @@ A stitching via ties a net's copper on several layers together, so a grid point 
 where the net has a plane shape on at least two layers. It must keep the rules' clearances: to
 every pad (Layout refuses a via close to a pad of its own net too), to the traces of other nets,
 to every via and hole, ``CUTOUT_CLEARANCE_MM`` to every cutout (an internal contour, such as a
-slot for a screw), and the margin to the board outline. The adapter reads the board into the
+slot for a screw), and the margin to the board outline. On a flex board no via stands in a bend
+zone, where bending would crack it. The adapter reads the board into the
 shapes below, in mm; this module only does the geometry.
 """
 from __future__ import annotations
@@ -31,6 +32,7 @@ class Board:
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     planes: dict[int, list[list[Point]]] = field(default_factory=dict)  # the net's plane shapes by layer
     cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts
+    bends: list[tuple[float, float, float, float]] = field(default_factory=list)  # a flex board's bend zones, which take no vias
     boxes: list[tuple[float, float, float, float]] = field(default_factory=list)  # each trace's extents, filled by ``free``
 
 
@@ -95,8 +97,15 @@ def grid(outline: list[Point], pitch: float, margin: float, region: tuple[float 
     return [p for p in points if inside(p, outline) and edge_distance(p, outline) >= margin - 1e-9]
 
 
+def in_bend(point: Point, radius: float, bends: list[tuple[float, float, float, float]]) -> bool:
+    """Whether a via of ``radius`` at ``point`` reaches into a bend zone."""
+    return any(x0 - radius < point[0] < x1 + radius and y0 - radius < point[1] < y1 + radius for x0, y0, x1, y1 in bends)
+
+
 def free(point: Point, net: str, radius: float, board: Board, clear: Clearances) -> str | None:
     """Why a via of ``radius`` cannot stand at ``point``, or None when it can."""
+    if in_bend(point, radius, board.bends):
+        return "in a bend zone"
     for pad in board.pads:
         if distance_to_polygon(point, pad) < radius + clear.via_to_pad - 1e-9:
             return "too close to a pad"

@@ -71,6 +71,16 @@ class CheckTest(unittest.TestCase):
         self.assertIn("width 0.5 mm is outside its class SIG's 0.1 to 0.3 mm on layer 1", blocked[0])
         self.assertIn("its end at (4, 0) mm touches no copper of A on layer 1", blocked[1])
 
+    def test_a_via_of_the_plan_keeps_clear_of_its_other_traces_and_vias(self):
+        plan = TP.parse({"traces": [trace([[0, 0], [10, 0]]), trace([[0.0, 0.0], [0.0, 1.0]], net="B")],
+                         "vias": [{"net": "B", "at_mm": [5, 0.3], "padstack": "V"}, {"net": "B", "at_mm": [5.3, 0.3], "padstack": "V"}]})
+        for via in plan.vias:
+            via.radius = 0.2
+        blocked = TP.check(plan, copper(), rules())
+        self.assertTrue(any("via 1 of B: closer to a trace of A" in reason for reason in blocked))
+        self.assertTrue(any("via 2 of B: closer to a via of B than the clearance" in reason for reason in blocked))
+        self.assertTrue(any("trace 1 of A: closer to a via of B" in reason for reason in blocked))
+
     def test_a_net_or_layer_the_board_lacks(self):
         plan = TP.parse({"traces": [trace([[0, 0], [10, 0]], net="NOPE"), trace([[0, 0], [10, 0]], layer=6)],
                          "vias": [{"net": "NOPE", "at_mm": [3, 0], "padstack": "V"}]})
@@ -115,6 +125,15 @@ if __name__ == "__main__":
 
 
 class CornerTest(unittest.TestCase):
+    def test_a_sampled_line_marks_the_chords_of_its_arcs(self):
+        arcs: list[bool] = []
+        path = TP.sampled([(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)], [0.0, 2.0, 0.0], arcs=arcs)
+        self.assertEqual(len(arcs), len(path) - 1)
+        self.assertEqual((arcs[0], arcs[-1]), (False, False))  # on to the arc and off it
+        self.assertTrue(all(arcs[1:-1]))
+        fine = TP.sampled([(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)], [0.0, 2.0, 0.0], 1e-4)
+        self.assertGreater(len(fine), len(path))
+
     def test_a_corner_that_barely_turns_gets_no_arc(self):
         rows = TP.drawn([(0.0, 0.0), (0.0, 40.0), (0.0002, 80.0)], [0.0, 0.5, 0.0])
         self.assertEqual(rows, [(0.0, 0.0, 0.0), (0.0, 40.0, 0.0), (0.0002, 80.0, 0.0)])  # no arc a micrometre long

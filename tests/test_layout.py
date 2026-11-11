@@ -506,7 +506,7 @@ class ModuleTest(unittest.TestCase):
     def test_the_handlers_of_the_board_commands(self):
         self.assertEqual(sorted(h.command for h in L.HANDLERS), sorted([
             "forward-annotation run", "pcb update", "placement run", "plane create", "router run", "pcb get", "pcb check", "pcb export",
-            "constraint get", "constraint import", "trace create", "trace delete", "via delete", "plane delete", "via update", "via create",
+            "constraint get", "constraint import", "trace check", "trace create", "trace delete", "via delete", "plane delete", "via update", "via create",
             "solder-mask create", "solder-mask delete", "pcb render", "component move", "mounting-hole list",
             "mounting-hole create", "mounting-hole delete", "refdes move"]))
         self.assertEqual([h.command for h in L.HANDLERS if h.long_job],

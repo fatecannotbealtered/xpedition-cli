@@ -2,7 +2,7 @@
 
 English | [中文](DRIVER-CLI-SPEC_zh.md)
 
-> Version 1.1.0 · Clauses DCLI-001 to DCLI-281
+> Version 1.2.0 · Clauses DCLI-001 to DCLI-281
 
 ## How to Read
 
@@ -314,7 +314,7 @@ A domain command MUST take its verb from this table. It MUST NOT use synonyms su
 | `import` | `change` | Imports an external file into the current document |
 | `render` | `artifact` | Produces a picture, a PDF or another preview |
 | `export` | `artifact` | Writes the content to a file in another format |
-| `run` | — | Performs an action, short or long, with the effect the command declares; work longer than 60 seconds becomes a long job (DCLI-065) |
+| `run` | — | Performs an action, short or long, with the effect the command declares, such as an analysis, or a computation that only reads and returns what it worked out, such as a routing plan, declared `observe`; work longer than 60 seconds becomes a long job (DCLI-065) |
 | `stop` | `lifecycle` | Halts work in progress, such as a machine cycle or a running analysis (DSEC-018) |
 
 Why: With a short fixed verb list the Agent never wonders whether to call `show`, `info` or `get`.
@@ -479,6 +479,7 @@ Check: 🤖 General conformance tests R01 and R05.
 - `tier` MUST give the confirmation tier for each mode the command supports. A tier that depends on the call MUST be described in `tier_when`, such as `doc close --discard`, closing an instance the tool did not start, a save-as or export over an existing file, or a condition the command registers itself, with its `description` (DCLI-029).
 - A command that registers `doc_kinds`, `long` or `verify_after_save` MUST show them, and a command registered `jobs` shows `long` too, because it also returns a job, so the Agent knows before the call which documents it takes, that it returns a long job, and that its verification waits for the save.
 - Every parameter and output field that holds a coordinate MUST name its `coordinate_system` (DCLI-084).
+- A required parameter that `--input` can give, or for `--id` also `--ids` (DCLI-064), MUST name those flags in `required_without` in place of `required`, so the Agent never adds it beside them.
 - `reference` without flags MUST return only the index, within 8000 characters: each command with its path and its one-sentence summary. Limits and conditions belong in the command's own description.
 - `reference --command <path>` MUST return one command, within 6000 characters.
 - `reference --all --output <path>` MUST write the description of every command to that file and return only a summary (DCLI-008).
@@ -725,7 +726,7 @@ What the read-back checks depends on the write:
 | `delete` | The object is absent |
 | `import` | The imported objects are present, by count |
 | An `artifact` write, such as `export`, `render` or `doc save-as` | Every produced file exists, and its path, size and SHA-256 are recorded; several files are allowed. A folder an `output` flag names holds a file or folder. When the application writes a file under another name than the call gave, such as the numbered version `part.prt.1` for `part.prt`, the adapter lists it in `files` with the given path as `requested_path`, and that file counts for the given path. The receipt makes no claim about bytes the application wrote itself |
-| `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
+| `doc save` in session mode | The saved file is read again and the changed fields are found in it, and the document's field `saved` is `true`. A target whose last change deletes it is checked only for being absent; the fields earlier writes gave it, and the targets under it, are not read. When the application can read the file only after the document is closed and opened again, the adapter reads the fields from the instance instead and reports `saved: true` only when it saw the file on disk change. When the adapter cannot tell, verification is `incomplete` |
 | A long job | The job's outputs, when it ends, as for a call of the same command (DCLI-065) |
 
 - A write that creates files and also changes a document MUST be verified both ways: the files exist, and the changed fields read back. Verification is `passed` only when both pass. A call with no file in `files`, in its preview or in an `output` flag is verified by its other changes alone.
@@ -844,7 +845,7 @@ Check: 🤖 Driver conformance tests D06 and D21.
   - `--input <file|->` with `{"items": [{...}, ...]}` gives each object its own values, such as 20 parts moved to 20 positions. Each item names its object with `id`; two items for the same object MUST return `E_USAGE`. An item of a `create` command MAY omit `id`: it makes a new object, and the adapter's preview gives it a target key.
 - An empty list MUST return `E_USAGE`. When the preview shows that any object cannot run (`can_apply: false`), the whole batch MUST NOT run. The batch locks all its targets first (DCLI-060).
 - The batch has its own operation ID, and each object is a child operation with its own record and receipt (DCLI-059).
-- A batch that succeeds MUST return `data` = `{operation_id, items, summary}`. Each item is compact, `{target, operation_id, ok, code}`, and a skipped object is `{target, ok: false, skipped: true}`; the full receipt of an item comes from `operation get --id <operation_id>`. `summary` is `{total, succeeded, failed, unknown, skipped}`. When the batch does not fully succeed, `error.details.batch` holds the same object.
+- A batch that succeeds MUST return `data` = `{operation_id, items, summary}`. Each item is compact, `{target, operation_id, ok, code}`, and a skipped object is `{target, ok: false, skipped: true}`; the full receipt of an item comes from `operation get --id <operation_id>`. An item that succeeded MUST also carry its `result`, what a call for that object alone returns (DCLI-068), as far as the response has room; the record of every item keeps its result, and when some do not fit, `more_results` names the `operation get` command that gives them. `summary` is `{total, succeeded, failed, unknown, skipped}`. When the batch does not fully succeed, `error.details.batch` holds the same object.
 - The batch succeeds only when every object succeeds. Otherwise the code MUST be `E_OUTCOME_UNKNOWN` when any object is outcome unknown, with `lookup` set to `operation list --state unknown --batch <operation_id>`; else `E_PARTIAL` when any object took effect; else the code of the first failed object.
 - `--continue-on-error` MUST default to `true`, and to `false` for dangerous commands. When the batch stops, the remaining objects MUST be reported as skipped and counted in `summary.skipped`.
 - When the session becomes `busy`, `unresponsive`, `blocked` or `lost` (DCLI-204), the batch MUST stop whatever `--continue-on-error` says, and the remaining objects are skipped. Unless an object's outcome is unknown, the code is `E_PARTIAL` when an object took effect, and otherwise the one that state gives; `details.resume` gives the command that covers only the unfinished objects.

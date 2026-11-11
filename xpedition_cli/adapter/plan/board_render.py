@@ -39,7 +39,8 @@ class Picture:
     layer_count: int
     pads: list[tuple[int, list[Point]]] = field(default_factory=list)  # (layer, polygon)
     traces: list[tuple[int, list[Point], float]] = field(default_factory=list)  # (layer, points, width)
-    planes: list[tuple[int, list[Point]]] = field(default_factory=list)
+    planes: list[tuple[int, list[Point]]] = field(default_factory=list)  # plane shapes, drawn on a layer with no copper made for it
+    copper: list[tuple[int, list[list[Point]]]] = field(default_factory=list)  # the plane copper Layout made: (layer, [outline, holes...])
     vias: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, pad radius)
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     openings: list[tuple[str, tuple[float, float, float, float]]] = field(default_factory=list)  # (side, box)
@@ -61,11 +62,16 @@ class Canvas:
 
     def polygon(self, points: list[Point], colour: tuple[int, int, int], alpha: float = 1.0) -> None:
         """Fill a polygon given in pixels (even-odd), sampling each pixel at its centre."""
-        if len(points) < 3:
+        self.rings([points], colour, alpha)
+
+    def rings(self, rings: list[list[Point]], colour: tuple[int, int, int], alpha: float = 1.0) -> None:
+        """Fill the area inside the first ring and outside the others, its holes (even-odd), in pixels."""
+        rings = [ring for ring in rings if len(ring) >= 3]
+        if not rings:
             return
-        ys = [p[1] for p in points]
+        ys = [p[1] for ring in rings for p in ring]
         top, bottom = max(0, int(math.floor(min(ys)))), min(self.height - 1, int(math.ceil(max(ys))))
-        edges = [(points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
+        edges = [(ring[i], ring[(i + 1) % len(ring)]) for ring in rings for i in range(len(ring))]
         for row in range(top, bottom + 1):
             y = row + 0.5
             xs = sorted(x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in edges if (y0 > y) != (y1 > y))
@@ -124,12 +130,14 @@ def layer_colour(layer: int, layer_count: int) -> tuple[int, int, int]:
 
 def drawn(picture: Picture, *, side: str = "top", layers: list[int] | None = None) -> dict[str, int]:
     """What ``render`` draws with the same choices: the pads, traces and plane shapes on the layers
-    drawn, every via, and the openings on the side drawn."""
+    drawn (a shape counts whether its copper or its outline is drawn), the pieces of plane copper
+    Layout made on them, every via, and the openings on the side drawn."""
     wanted = set(layers or range(1, picture.layer_count + 1))
     return {"pads": sum(1 for layer, _poly in picture.pads if layer in wanted),
             "traces": sum(1 for layer, _points, _width in picture.traces if layer in wanted),
             "vias": len(picture.vias),
             "planes": sum(1 for layer, _poly in picture.planes if layer in wanted),
+            "plane_copper": sum(1 for layer, _rings in picture.copper if layer in wanted),
             "openings": sum(1 for opening_side, _box in picture.openings if opening_side == side)}
 
 
@@ -152,7 +160,10 @@ def render(picture: Picture, *, side: str = "top", layers: list[int] | None = No
     for layer in order:
         colour = layer_colour(layer, picture.layer_count)
         near = layer == (1 if side == "top" else picture.layer_count)
-        for plane_layer, poly in picture.planes:
+        made = [rings for copper_layer, rings in picture.copper if copper_layer == layer]
+        for rings in made:  # the copper Layout made, with its clearances, hatching and islands
+            canvas.rings([[px(p) for p in ring] for ring in rings], colour, 0.45 if near else 0.25)
+        for plane_layer, poly in picture.planes if not made else ():
             if plane_layer == layer:
                 canvas.polygon([px(p) for p in poly], colour, 0.35 if near else 0.2)
         for trace_layer, points, trace_width in picture.traces:

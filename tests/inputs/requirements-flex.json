@@ -1,0 +1,28 @@
+{
+ "requirements": [
+  {
+   "kind": "guard",
+   "label": "GND on both sides of each SuperSpeed pair",
+   "nets": ["SS_TX1_P+SS_TX1_N", "SS_RX1_P+SS_RX1_N"],
+   "min_both_pct": 70,
+   "gap_mm": 0.3
+  },
+  {
+   "kind": "via_padstack",
+   "label": "every via VIA_D0.2_P0.4",
+   "padstack": "VIA_D0.2_P0.4"
+  },
+  {
+   "kind": "via_pitch",
+   "label": "a GND via every 2 mm along the guards where there is room",
+   "net": "GND",
+   "max_mm": 2.0
+  },
+  {
+   "kind": "plane",
+   "label": "GND poured on layers 2 and 3",
+   "net": "GND",
+   "layers": [2, 3]
+  }
+ ]
+}

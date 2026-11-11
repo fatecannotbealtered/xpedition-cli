@@ -2,7 +2,7 @@
 
 [English](DRIVER-REPO-SPEC.md) | 中文
 
-> 版本 1.1.0 · 条款 DREPO-001 至 DREPO-062
+> 版本 1.2.0 · 条款 DREPO-001 至 DREPO-062
 
 ## 怎么读
 
@@ -70,7 +70,7 @@
 |---|---|---|
 | 项目骨架 | 所有必需的文件和目录，两种语言的固定标题和固定原文都已写好：工作方式、必须遵守的底线、安装块、SECURITY 的五个固定章节和 `docs/E2E.md` 的授权规则 | 填写工具自己的章节，去掉所有占位符 |
 | 固定副本 | `sync_spec` 复制规范、契约、运行时、许可证和共用脚本，升级时整体替换 | 升级时运行 `sync_spec`，从不手改固定副本 |
-| 生成的内容 | 根据数据生成 `contract/commands.json`、命令地图、徽章行、信息卡和支持矩阵的脚本 | 登记命令，让证据和 `docs/COMPATIBILITY.md` 的其他章节保持真实 |
+| 生成的内容 | 根据数据生成 `contract/commands.json`、命令地图、徽章行、信息卡和支持矩阵，并按发布写入各工具共用文字的脚本（DREPO-036） | 登记命令，让证据和 `docs/COMPATIBILITY.md` 的其他章节保持真实 |
 | 检查 | `check_project`：布局、根目录文件、章节、双语对应、占位符、哈希、徽章、标签和能力对应 | 改正 `check_project` 报出的每个问题 |
 | CI 与发布 | 工作流 `ci.yml` 和 `release.yml`，包含合并门槛、平台交付和带来源证明的发布 | 让两个工作流保持通过，为平台交付选定关键操作 |
 | 分发 | 原生程序、平台包和启动器的打包脚本；运行时里的 `update` 和直接命令入口（DCLI-070、DCLI-075） | 在 `package.json` 里写好包名、命令名和平台包 |
@@ -421,7 +421,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 | `platform` | 出包平台：Windows、macOS、Linux | `package.json` 里的平台包（DREPO-043） |
 | `risk` | 工具的风险等级，T0 至 T2（DSEC-002） | `reference` |
 | `maturity` | 工具各领域命令中最低的成熟度（DVER-040） | `reference` |
-| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.1.0 | `.agent/SPEC_VERSION` |
+| `spec` | 固定的规范版本，如 tool-driver-cli-spec 1.2.0 | `.agent/SPEC_VERSION` |
 | `license` | 工具的许可证 | `package.json` |
 
 驱动 KiCad 10.0、支持文件和会话模式的工具，徽章行大致如下；具体样式由模板定义：
@@ -435,7 +435,7 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 ![platform](https://img.shields.io/badge/platform-Windows_·_macOS_·_Linux-555555)
 ![risk](https://img.shields.io/badge/risk-T1-d29922)
 ![maturity](https://img.shields.io/badge/maturity-verified-8957e5)
-![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.1.0-0969da)
+![spec](https://img.shields.io/badge/spec-tool--driver--cli--spec_1.2.0-0969da)
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 ```
 
@@ -537,6 +537,13 @@ README 必须在一句话定位下面用一行显示下面这些徽章，按此�
 
 为什么：这些脚本在每个工具里都一样；只有 `sync_spec` 把它们和发布的其余部分一起替换，这些脚本的修正才会进到各个工具里。
 检查：🤖 `check_project` 核对哈希（DREPO-034）。
+
+### DREPO-036 共用文字
+
+模板把每个工具都一样的文字放在 `<!-- driver:spec-<name>:start -->` 和 `<!-- driver:spec-<name>:end -->` 之间：入口 Skill 和 `CONTRIBUTING.md` 的若干整节，以及 README、`SECURITY.md` 和 `docs/E2E.md` 的部分内容，两种语言都有。项目必须把固定的那个发布里的每个区块连同标记留在它所在的章节里。`python scripts/spec.py generate` 按那个发布写入每个区块的文字，`python scripts/spec.py sync` 换版本时也会写，所以作者禁止手改。工具自己的文字写在标记外面。
+
+为什么：各工具共用的文字随规范一起变。由脚本写入，它在每个工具里都跟着每个发布更新；靠手改，它会落后，检查却照样通过。
+检查：🤖 `check_project`：模板里的每个区块都在项目里出现一次，文字与固定的发布一致。
 
 ## 版本、CI 与发布
 
@@ -711,6 +718,7 @@ README 的「安装」一节必须按顺序给出下面几步：
 - [ ] DREPO-033 许可证
 - [ ] DREPO-034 只同步，不手改
 - [ ] DREPO-035 脚本副本
+- [ ] DREPO-036 共用文字
 - [ ] DREPO-040 版本与标签
 - [ ] DREPO-041 合并门槛
 - [ ] DREPO-042 平台交付

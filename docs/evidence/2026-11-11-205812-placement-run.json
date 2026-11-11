@@ -1,0 +1,68 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.3.0",
+  "commit": "ca721c63a619",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-11T20:58:12Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "placement run",
+      "arguments": [
+        "--session",
+        "layout-33380-3210564d5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--all=yes"
+      ],
+      "exit": 2,
+      "result": "pass",
+      "matrix_row": "invalid_input",
+      "mode": "session",
+      "fingerprint": "51d07a69c0fd38c6dc887b4a06ac47390e25b256ee2f94aef89811ba3ffd1924",
+      "doc_kind": "board"
+    },
+    {
+      "command": "placement run",
+      "arguments": [
+        "--session",
+        "layout-33380-3210564d5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12/Missing.pcb",
+        "--design",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/design.json"
+      ],
+      "exit": 3,
+      "result": "pass",
+      "matrix_row": "not_found",
+      "mode": "session",
+      "fingerprint": "51d07a69c0fd38c6dc887b4a06ac47390e25b256ee2f94aef89811ba3ffd1924",
+      "doc_kind": "board"
+    },
+    {
+      "command": "placement run",
+      "arguments": [
+        "--session",
+        "layout-33380-3210564d5",
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\PCB\\Demo.pcb",
+        "--design",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/design.json"
+      ],
+      "exit": 4,
+      "result": "pass",
+      "matrix_row": "no_scope",
+      "mode": "session",
+      "fingerprint": "51d07a69c0fd38c6dc887b4a06ac47390e25b256ee2f94aef89811ba3ffd1924",
+      "doc_kind": "board"
+    }
+  ]
+}

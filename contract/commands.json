@@ -1,6 +1,6 @@
 {
   "tool": "xpedition-cli",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "commands": [
     {
       "path": "project get",
@@ -1449,6 +1449,11 @@
           }
         },
         {
+          "name": "--bends",
+          "type": "boolean",
+          "summary": "On a flex board, pour the whole layer in bands across the board: the --hatch pattern over each bend zone pcb get lists, solid between them, one shape per band. Takes no region flags or --polygon."
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."
@@ -1517,7 +1522,8 @@
       ],
       "untrusted_fields": [
         "open",
-        "selected"
+        "selected",
+        "reworked"
       ],
       "irreversible": false,
       "halt": false,
@@ -1527,6 +1533,13 @@
         "layout-fine-pitch-clearance",
         "layout-via-near-pad",
         "layout-trace-widths-through-cm"
+      ],
+      "tier_when": [
+        {
+          "when": "reworks_existing",
+          "tier": "two_step",
+          "description": "The nets to route already have traces, which the passes may move or replace, such as guards drawn on purpose."
+        }
       ],
       "doc_kinds": [
         "board"
@@ -1557,7 +1570,7 @@
         {
           "name": "--output",
           "type": "path",
-          "summary": "Write the whole result to this JSON file; the response keeps the summary.",
+          "summary": "Write the whole result to this JSON file; the response keeps the summary, without the outline's path.",
           "output": true
         }
       ],
@@ -1579,7 +1592,7 @@
     },
     {
       "path": "pcb check",
-      "summary": "Run Batch DRC and the board rules it lacks, and list every hazard.",
+      "summary": "Run Batch DRC and the board rules it lacks, list every hazard, find each net's islands, and measure requirements.",
       "effects": [
         "observe"
       ],
@@ -1603,11 +1616,18 @@
           "type": "path",
           "summary": "Write the whole result to this JSON file; the response keeps the summary.",
           "output": true
+        },
+        {
+          "name": "--requirements",
+          "type": "path",
+          "summary": "Measure the requirements of this file (JSON): ground beside nets, a ring round the board, the via padstack, the via pitch, pours on layers; the Skill's requirements-file reference gives the format."
         }
       ],
       "untrusted_fields": [
         "hazards",
-        "rules"
+        "rules",
+        "connectivity",
+        "requirements"
       ],
       "irreversible": false,
       "halt": false,
@@ -1693,7 +1713,7 @@
         {
           "name": "--file",
           "type": "path",
-          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, lanes, traces that follow an edge of the board outline at offset_mm, and fanouts, two-row connectors whose far row the tool takes through vias between the rows, in board coordinates.",
+          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, lanes, traces that follow an edge of the board outline at offset_mm, fanouts, two-row connectors whose far row the tool takes through vias between the rows, guards, ground traces beside lanes, and rings, ground traces round the outline, both with vias along them, in board coordinates.",
           "required": true
         },
         {
@@ -1710,6 +1730,65 @@
       "related_knowledge": [
         "layout-via-near-pad",
         "layout-trace-widths-through-cm"
+      ],
+      "doc_kinds": [
+        "board"
+      ],
+      "long": true
+    },
+    {
+      "path": "trace check",
+      "summary": "Work a routing plan out against the board without drawing it: what trace create would refuse, the guard and ring lines that would float or only a pour can ground, the ends that join nothing and what blocks each, and the requirements it would meet.",
+      "effects": [
+        "observe"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "trace",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--file",
+          "type": "path",
+          "summary": "The routing plan (JSON), as trace create takes it.",
+          "required": true
+        },
+        {
+          "name": "--requirements",
+          "type": "path",
+          "summary": "Predict the requirements of this file (JSON) from the plan; a pour requirement waits for pcb check."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the whole result to this JSON file; the response keeps the first entries of each list.",
+          "output": true
+        }
+      ],
+      "untrusted_fields": [
+        "blocked",
+        "notes",
+        "floating",
+        "pour_only",
+        "free_ends",
+        "requirements"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-flex-bend-and-stiffener"
       ],
       "doc_kinds": [
         "board"

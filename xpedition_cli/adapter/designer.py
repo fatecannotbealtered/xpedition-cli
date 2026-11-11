@@ -711,7 +711,7 @@ def quit(pid: int, discard: bool) -> None:  # noqa: A001 - the name sessions.App
                        knowledge=[PROMPTS])
 
 
-def read_targets(pid: int, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
+def read_targets(pid: int, path: str, targets: list[str], fields: list[str], store: Any = None) -> dict[str, Any]:
     """Read the fields of the targets ``schematic create`` names from the open project."""
     with com.initialized():
         app = _connect(pid)
