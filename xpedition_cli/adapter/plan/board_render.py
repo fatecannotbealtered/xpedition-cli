@@ -43,7 +43,7 @@ class Picture:
     copper: list[tuple[int, list[list[Point]]]] = field(default_factory=list)  # the plane copper Layout made: (layer, [outline, holes...])
     vias: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, pad radius)
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
-    openings: list[tuple[str, tuple[float, float, float, float]]] = field(default_factory=list)  # (side, box)
+    openings: list[tuple[str, list[Point]]] = field(default_factory=list)  # (side, its shape)
     cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts through the board
 
 
@@ -138,7 +138,7 @@ def drawn(picture: Picture, *, side: str = "top", layers: list[int] | None = Non
             "vias": len(picture.vias),
             "planes": sum(1 for layer, _poly in picture.planes if layer in wanted),
             "plane_copper": sum(1 for layer, _rings in picture.copper if layer in wanted),
-            "openings": sum(1 for opening_side, _box in picture.openings if opening_side == side)}
+            "openings": sum(1 for opening_side, _shape in picture.openings if opening_side == side)}
 
 
 def render(picture: Picture, *, side: str = "top", layers: list[int] | None = None, scale: float = 20.0) -> tuple[bytes, int, int]:
@@ -183,10 +183,10 @@ def render(picture: Picture, *, side: str = "top", layers: list[int] | None = No
         corners = [px(p) for p in cutout]
         canvas.polygon(corners, BACKGROUND)
         canvas.stroke(corners + corners[:1], max(1.5, 0.1 * scale), OUTLINE)
-    for opening_side, (bx0, by0, bx1, by1) in picture.openings:
-        if opening_side == side:
-            corners = [px((bx0, by0)), px((bx1, by0)), px((bx1, by1)), px((bx0, by1)), px((bx0, by0))]
-            canvas.stroke(corners, max(1.5, 0.08 * scale), OPENING)
+    for opening_side, shape in picture.openings:
+        if opening_side == side and shape:
+            corners = [px(p) for p in shape]
+            canvas.stroke(corners + corners[:1], max(1.5, 0.08 * scale), OPENING)
     outline = [px(p) for p in picture.outline]
     canvas.stroke(outline + outline[:1], max(1.5, 0.1 * scale), OUTLINE)
     return canvas.png(), width, height

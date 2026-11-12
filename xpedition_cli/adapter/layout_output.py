@@ -339,7 +339,54 @@ def plane_shapes(doc: Any) -> list[dict[str, Any]]:
 
 def generated_planes(doc: Any) -> set[tuple[str, int]]:
     """The nets and layers Layout has generated plane copper for."""
+    pieces = L.raw_items(doc, "GeneratedPlanes")
+    if pieces is not None:
+        try:
+            return {(L.raw_net(piece, "GeneratedPlane"), int(L._raw_get(piece, "GeneratedPlane", "Layer"))) for piece in pieces}
+        except Exception:  # noqa: BLE001 - read them through the wrappers
+            pass
     return {(L.net_name(item), int(item.Layer)) for item in L.collection(doc, "GeneratedPlanes")}
+
+
+def with_copper(doc: Any, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The plane shapes, each with whether Layout made copper in it (``copper``): a piece of its net
+    and layer that lies within its extents. A shape that touches no pad, trace or via of its net on
+    its layer gets none, though the shapes beside it do. Hatched copper comes in hundreds of
+    pieces: once each shape of a net and layer holds one, the rest of them are not read."""
+    waiting: dict[tuple[Any, Any], list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("extents_mm"):
+            row["copper"] = False
+            waiting.setdefault((row.get("net"), row.get("layer")), []).append(row)
+    for layer in sorted({layer for _net, layer in waiting if layer is not None}):
+        fast = L.raw_items(doc, "GeneratedPlanes", 0, layer)
+        for item in fast if fast is not None else L.collection(doc, "GeneratedPlanes"):
+            try:
+                if fast is not None:
+                    left = waiting.get((L.raw_net(item, "GeneratedPlane"), layer))
+                    piece = tuple(L.raw_extents(item, "GeneratedPlane")) if left else None
+                else:
+                    if int(item.Layer) != layer:
+                        continue
+                    left = waiting.get((L.net_name(item), layer))
+                    piece = tuple(L.extrema_mm(item)) if left else None
+                if not left or piece is None:
+                    continue
+            except Exception:  # noqa: BLE001 - a piece that cannot be read is left out
+                continue
+            for row in list(left):
+                if _within_share(piece, row["extents_mm"]) >= 0.9:
+                    row["copper"] = True
+                    left.remove(row)
+    return rows
+
+
+def _within_share(inner: tuple[float, ...], outer: Any) -> float:
+    """How much of ``inner``'s box lies within ``outer``'s."""
+    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
+    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
+    area = max((inner[2] - inner[0]) * (inner[3] - inner[1]), 1e-12)
+    return w * h / area if w > 0 and h > 0 else 0.0
 
 
 def plane_groups(rows: list[dict[str, Any]], generated: set[tuple[str, int]] | None = None) -> list[dict[str, Any]]:
@@ -354,6 +401,9 @@ def plane_groups(rows: list[dict[str, Any]], generated: set[tuple[str, int]] | N
         group = groups.setdefault((row["net"], row["layer"], tuple(sorted(fill.items()))),
                                   {"net": row["net"], "layer": row["layer"], **fill, **made, "shapes": 0, "extents_mm": None})
         group["shapes"] += 1
+        if row.get("copper") is False:  # this shape got none, whatever the others of its net and layer got
+            group["generated"] = False
+            group["without_copper"] = group.get("without_copper", 0) + 1
         box = row.get("extents_mm")
         if box:
             now = group["extents_mm"]
@@ -423,6 +473,32 @@ def bend_boxes(doc: Any, flex: dict[str, Any] | None = None) -> list[tuple[float
             for z in board_metrics.bend_zones(flex or flex_model(doc))]
 
 
+def board_ears(doc: Any) -> list[dict[str, Any]]:
+    """The ears of the board outline, as ``plan.ears`` finds them."""
+    from .layout_edit import _outline_rows
+    from .plan import ears, lanes
+
+    return ears.ears(lanes.outline_corners(_outline_rows(doc)))
+
+
+def board_openings(doc: Any) -> list[dict[str, Any]]:
+    from .layout_edit import listed_openings
+
+    return listed_openings(doc)
+
+
+def board_user_layers(doc: Any) -> list[str]:
+    from .layout_silk import user_layers
+
+    return user_layers(doc)
+
+
+def silkscreen_texts(doc: Any) -> list[dict[str, Any]]:
+    from .layout_silk import listed
+
+    return listed(doc)
+
+
 def board_facts(doc: Any, path: str, full: bool = False) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """The board in numbers, and the model they were measured on: with ``full``, the whole model
     pcb get --output writes, read once for both."""
@@ -452,7 +528,11 @@ def board_facts(doc: Any, path: str, full: bool = False) -> tuple[dict[str, Any]
         "bend_zones": _quietly(lambda: board_metrics.bend_zones({"planes": shapes, "keepouts": blocked,
                                                                  "outline": model["outline"] if model else []})[:LISTED]),
         "cutouts": _quietly(lambda: len(cutouts(doc, None))),
-        "planes": _quietly(lambda: plane_groups(shapes, _quietly(lambda: generated_planes(doc)))[:LISTED]),
+        "ears": _quietly(lambda: board_ears(doc)[:LISTED]),
+        "openings": _quietly(lambda: board_openings(doc)[:LISTED]),
+        "user_layers": _quietly(lambda: board_user_layers(doc)),
+        "silkscreen_texts": _quietly(lambda: silkscreen_texts(doc)),
+        "planes": _quietly(lambda: plane_groups(with_copper(doc, shapes), generated_planes(doc))[:LISTED]),
         "via_padstacks": _quietly(lambda: via_padstacks(doc, scale)),
         "geometry": geometry_summary(model) if model is not None else unavailable,
         "metrics": _quietly(lambda: metrics_summary(model), unavailable) if model is not None else unavailable,
@@ -474,11 +554,25 @@ class BoardGet(base.Handler):
             if output:
                 full = {**facts, "model": model, "metrics_full": board_metrics.measure(model) if model else None}
                 facts["output"] = write_output(str(output), full)
-                if isinstance(facts.get("geometry"), dict):  # the file holds the outline's path; a curved one fills the response
-                    facts["geometry"] = {k: v for k, v in facts["geometry"].items() if k != "outline_mm"}
-            return facts
+            if isinstance(facts.get("geometry"), dict):  # a curved outline's path fills the response; --output holds it
+                facts["geometry"] = {k: v for k, v in facts["geometry"].items() if k != "outline_mm"}
+            return fitted_with_counts(facts, CUT_FIRST)
 
         return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the board")
+
+
+CUT_FIRST = ["net_classes", "via_padstacks", "planes", "silkscreen_texts", "openings", "bend_zones", "ears"]  # in this order: constraint get gives the classes whole
+
+
+def fitted_with_counts(out: dict[str, Any], keys: list[str]) -> dict[str, Any]:
+    """``out`` cut to fit one response as ``base.fitted`` cuts it, with ``<key>_count`` beside each
+    list it shortened: --output holds them whole."""
+    whole = {key: len(out[key]) for key in keys if isinstance(out.get(key), list)}
+    out = base.fitted(out, keys)
+    for key, count in whole.items():
+        if len(out.get(key) or []) < count:
+            out[f"{key}_count"] = count
+    return out
 
 
 def write_output(path: str, data: dict[str, Any]) -> str:
@@ -616,10 +710,50 @@ def hazard_record(hazard: Any, names: dict[int, str]) -> dict[str, Any]:
 def rule_findings(model: dict[str, Any] | None, reason: str = UNIT_NOTE) -> list[dict[str, Any]]:
     if model is None:
         return [{"id": "board_rules-1", "severity": "info", "rule": "board_rules_unavailable", "message": reason, "objects": []}]
-    rows = board_metrics.board_rules(model)
+    return finding_rows(board_metrics.board_rules(model))
+
+
+def requirement_facts(doc: Any, requirements: list[RQ.Requirement]) -> dict[str, Any]:
+    """What the opening and text requirements measure beyond the board model: the board's openings
+    with the copper each bares, the outline's ears, and the board's own texts with where they lie."""
+    from .layout_edit import opening_facts
+    from .layout_silk import board_texts
+
+    kinds = {item.kind for item in requirements}
+    facts: dict[str, Any] = {}
+    if "opening" in kinds:
+        clearance = max(item.values["clearance_mm"] for item in requirements if item.kind == "opening")
+        facts["openings"] = opening_facts(doc, clearance)
+        facts["ears"] = _quietly(lambda: board_ears(doc), [])
+    if "text" in kinds:
+        facts["board_texts"] = [{"text": words, "place": place} for _text, words, place in board_texts(doc)]
+    return facts
+
+
+def empty_plane_rows(doc: Any) -> list[dict[str, Any]]:
+    """pcb check's rule for plane shapes that hold no copper while others of their net on their layer
+    do: the shape touches no pad, trace or via of its net there, such as a band hatched over a bend
+    zone on an inner ground layer."""
+    rows = with_copper(doc, plane_shapes(doc))
+    made = {(row.get("net"), row.get("layer")) for row in rows if row.get("copper")}
+    out = []
+    for row in rows:
+        if row.get("copper") is False and (row.get("net"), row.get("layer")) in made:
+            x0, y0, x1, y1 = row["extents_mm"]
+            fill = row.get("hatch") or "solid"
+            out.append({"rule": "plane_without_copper", "severity": "medium", "net": row.get("net"),
+                        "finding": f"the {fill} {row.get('net')} shape on layer {row.get('layer')} at {x0:g},{y0:g} to {x1:g},{y1:g} mm "
+                                   f"holds no copper: it touches no pad, trace or via of {row.get('net')} on its layer. Tie it with a "
+                                   f"trace of {row.get('net')} across it into the copper beside it; plane create --bends does this "
+                                   "for the bands over bend zones"})
+    return out
+
+
+def finding_rows(rows: list[dict[str, Any]], first: int = 1) -> list[dict[str, Any]]:
+    """Board rule rows as pcb check lists them, numbered from ``first``."""
     return [{"id": f"{row['rule']}-{index}", "severity": RULE_SEVERITY.get(row["severity"], "info"), "rule": row["rule"],
              "message": row["finding"], "objects": [str(v) for v in (row.get("refdes"), row.get("other"), row.get("net")) if v]}
-            for index, row in enumerate(rows, 1)]
+            for index, row in enumerate(rows, first)]
 
 
 def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | None = None,
@@ -641,6 +775,9 @@ def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | No
         rules = rule_findings(None)
     else:
         rules = rule_findings(model, "The board geometry could not be read, so the board rules were not checked; the hazards above stand.")
+        from .layout_edit import opening_rows
+        rules += finding_rows(_quietly(lambda: opening_rows(doc), []), len(rules) + 1)
+        rules += finding_rows(_quietly(lambda: empty_plane_rows(doc), []), len(rules) + 1)
     rules.sort(key=lambda row: SEVERITY_ORDER.get(row["severity"], 3))
     severities = [row["severity"] for row in hazards] + [row["severity"] for row in rules]
     out: dict[str, Any] = {"hazards": hazards[:CHECK_LISTED], "rules": rules[:CHECK_LISTED], "errors": severities.count("error"),
@@ -661,8 +798,9 @@ def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | No
             raise AdapterError("E_UNSUPPORTED", "The board geometry could not be read, so the requirements were not measured; the board "
                                "must count in mils or mm and have an outline.", dispatch_state="not_started")
         bends = [tuple(z["extents_mm"]) for z in board_metrics.bend_zones(model)]
-        made = _quietly(lambda: generated_planes(doc), set())
-        model = {**model, "planes": [{**row, "generated": (row.get("net"), row.get("layer")) in made} for row in model.get("planes") or []]}
+        flagged = _quietly(lambda: with_copper(doc, [dict(row) for row in model.get("planes") or []]), [])
+        model = {**model, "planes": [{**row, "generated": row.get("copper")} for row in flagged]}
+        model.update(requirement_facts(doc, requirements))
         measured = RQ.measure(model, requirements, bends, board_copper())
         out["requirements"] = RQ.listed(measured)
         out["requirements_failed"] = sum(1 for row in measured if row.get("ok") is False)
@@ -1130,8 +1268,13 @@ def board_picture(doc: Any) -> PR.Picture:
     for gfx in L.collection(doc, "FabricationLayerGfxs"):
         try:
             if int(gfx.Type) in (FAB_SOLDERMASK, FAB_COVER_LAYER) and gfx.Component is None:
-                box = tuple(L.extrema_mm(gfx))
-                picture.openings.append(("top" if int(gfx.Side) == SIDE_TOP else "bottom", box))
+                record = _quietly(lambda gfx=gfx: geometry_record(gfx.Geometry, scale))
+                if record:
+                    shape = PR.polygon_of(record.get("path"), record.get("circle"))
+                else:  # its shape cannot be read: its box
+                    x0, y0, x1, y1 = L.extrema_mm(gfx)
+                    shape = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+                picture.openings.append(("top" if int(gfx.Side) == SIDE_TOP else "bottom", shape))
         except Exception:  # noqa: BLE001 - a graphic that cannot be read is left out
             continue
     return picture

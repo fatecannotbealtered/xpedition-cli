@@ -12,7 +12,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-211054-doc-list.json#normal"
+      "evidence": "live:docs/evidence/2026-11-12-182510-doc-list.json#normal"
     },
     {
       "row": "empty",
@@ -28,7 +28,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203209-doc-list.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-173457-doc-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -46,7 +46,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203209-doc-list.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-173457-doc-list.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -64,7 +64,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203209-doc-list.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-173457-doc-list.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -92,7 +92,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-214325-doc-list.json#busy"
+      "evidence": "live:docs/evidence/2026-11-12-185930-doc-list.json#busy"
     },
     {
       "row": "dialog",
@@ -105,7 +105,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-204052-doc-list.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-12-174532-doc-list.json#dialog"
     },
     {
       "row": "disconnect",
@@ -131,7 +131,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203259-doc-list.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-12-173610-doc-list.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

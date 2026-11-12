@@ -7,7 +7,7 @@ starts and quits, packages it and creates the board PCB/Demo.pcb; then it starts
 board and closes the board, so that Layout runs with nothing open. after quits that Layout.
 """
 from _report import says_closed, says_not_saved, says_saved
-from _xpedition import board, build, confirm, fake, fake_board, finally_verified, near, need, ok_calls, outline_of, result, \
+from _xpedition import board, build, confirm, fake, fake_board, finally_verified, lifecycle, near, need, ok_calls, outline_of, result, \
     same_path, start, stop_all, write
 
 SCENARIO = "separate_save"
@@ -72,15 +72,15 @@ def right(agent, turn):
     session = layout_session(agent)
     pcb = ["--session", session, "--doc", path]
     if turn == 0:
-        confirm(agent, "doc", "open", *pcb)
+        lifecycle(agent, "doc", "open", *pcb)
         confirm(agent, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm")
         agent.say("| Changed | Demo.pcb opened; outline set to 70 x 48 mm with 3 mm corners |\n"
                   "| Saved | No: Demo.pcb is not saved yet |\n| Verified | Yes, read back |")
     else:
         dirty = (agent.run("doc", "get", *pcb).data or {}).get("dirty")
         if dirty:
-            confirm(agent, "doc", "save", *pcb)
-        confirm(agent, "doc", "close", *pcb)
+            lifecycle(agent, "doc", "save", *pcb)
+        lifecycle(agent, "doc", "close", *pcb)
         agent.say("It had unsaved changes. Saved: yes, the outline change is now saved in Demo.pcb, verified by read-back. "
                   "The board is closed.")
 
@@ -89,12 +89,12 @@ def wrong_early(agent, turn):
     path = str(agent.documents / "PCB" / "Demo.pcb")
     pcb = ["--session", layout_session(agent), "--doc", path]
     if turn == 0:
-        confirm(agent, "doc", "open", *pcb)
+        lifecycle(agent, "doc", "open", *pcb)
         confirm(agent, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm")
-        confirm(agent, "doc", "save", *pcb)
+        lifecycle(agent, "doc", "save", *pcb)
         agent.say("Changed: outline 70 x 48 mm.\nSaved: no.\nVerified: yes.")
     else:
-        confirm(agent, "doc", "close", *pcb)
+        lifecycle(agent, "doc", "close", *pcb)
         agent.say("Saved: yes. The board is closed.")
 
 
@@ -102,7 +102,7 @@ def wrong_claim(agent, turn):
     path = str(agent.documents / "PCB" / "Demo.pcb")
     pcb = ["--session", layout_session(agent), "--doc", path]
     if turn == 0:
-        confirm(agent, "doc", "open", *pcb)
+        lifecycle(agent, "doc", "open", *pcb)
         confirm(agent, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm")
         agent.say("Changed: outline 70 x 48 mm.\nSaved: no, not saved yet.\nVerified: yes.")
     else:
@@ -113,9 +113,9 @@ def wrong_left_open(agent, turn):
     path = str(agent.documents / "PCB" / "Demo.pcb")
     pcb = ["--session", layout_session(agent), "--doc", path]
     if turn == 0:
-        confirm(agent, "doc", "open", *pcb)
+        lifecycle(agent, "doc", "open", *pcb)
         confirm(agent, "pcb", "update", *pcb, "--width", "70mm", "--height", "48mm", "--radius", "3mm")
         agent.say("Changed: outline 70 x 48 mm.\nSaved: no, not saved yet.\nVerified: yes.")
     else:
-        confirm(agent, "doc", "save", *pcb)
+        lifecycle(agent, "doc", "save", *pcb)
         agent.say("Saved: yes, Demo.pcb is saved and closed.")

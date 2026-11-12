@@ -17,9 +17,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203008-part-list.json#normal",
+      "evidence": "live:docs/evidence/2026-11-12-173208-part-list.json#normal",
       "kind_evidence": {
-        "project": "live:docs/evidence/2026-11-11-203008-part-list.json#normal"
+        "project": "live:docs/evidence/2026-11-12-173208-part-list.json#normal"
       }
     },
     {
@@ -38,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203008-part-list.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-173208-part-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -58,7 +58,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203008-part-list.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-173208-part-list.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -76,7 +76,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203008-part-list.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-173208-part-list.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -124,7 +124,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203317-part-list.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-12-173640-part-list.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

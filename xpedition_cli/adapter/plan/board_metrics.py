@@ -847,6 +847,8 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
             findings.append(_rule("bend_width", "medium", f"trace width changes, {text} mm, at {_at(at)} on layer {layer} inside the "
                                   f"bend zone {_zone_text(zone)}", net=net, at=list(at)))
     for zone, rows in crossing.items():
+        meshed = _meshed(model, zone)  # a trace of a net hatched over the zone on its layer is part of that mesh
+        rows = [row for row in rows if (row[1], row[0]) not in meshed]
         stacked = sorted({(la, na, lb, nb) for (la, na, ca, wa), (lb, nb, cb, wb) in combinations(sorted(rows), 2)
                           if la != lb and abs(ca - cb) < (wa + wb) / 2})
         if stacked:
@@ -863,6 +865,19 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
                 findings.append(_rule("layer_change_outside_stiffener", "low", f"via at {_at(at)} changes layers outside the stiffeners",
                                       net=via.get("net"), at=list(at)))
     return findings
+
+
+def _meshed(model: dict[str, Any], zone: Rect) -> set[tuple[str, int]]:
+    """The nets and layers whose hatched plane shapes cover the bend zone."""
+    area = max((zone[2] - zone[0]) * (zone[3] - zone[1]), 1e-9)
+    covered: dict[tuple[str, int], float] = {}
+    for plane in model.get("planes") or []:
+        box = plane.get("extents_mm")
+        if not box or plane.get("hatch") in (None, "solid"):
+            continue
+        key = (str(plane.get("net") or ""), int(plane.get("layer") or 0))
+        covered[key] = covered.get(key, 0.0) + overlap(tuple(box), zone)
+    return {key for key, value in covered.items() if value >= 0.9 * area}
 
 
 def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect, along_x: bool,

@@ -6,7 +6,9 @@ leave on the pad layer straight away; the other row is blocked by it, so each of
 through a via between the rows to another layer. With the pins at a fine pitch, the vias stand in
 two staggered lines, one per column. A pin of the near row whose net is the far pin's below it
 shares that via; a pin of a plane net, such as GND, takes the via of a column whose far pin needs
-none. Consecutive pins of one net in a row are joined pin to pin.
+none. Consecutive pins of one net in a row are joined pin to pin. A near pin whose net runs on
+another layer, such as a lane on the top layer leaving a connector on the bottom, changes layer
+through a via just past the near row, on the body's side, staggered as the vias between the rows.
 
 Coordinates in mm. Pure Python: the adapter reads the pins and pads from Layout.
 """
@@ -83,12 +85,17 @@ def rows(pins: list[Pin]) -> tuple[int, list[list[Pin]]]:
 
 
 def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via_to_via: float, layer: int,
-         plane_nets: set[str], skip: set[str], stub_width: float, give_way: set[str] | None = None) -> Fanout:
+         plane_nets: set[str], skip: set[str], stub_width: float, give_way: set[str] | None = None,
+         only: set[str] | None = None, lift: dict[str, int] | None = None) -> Fanout:
     """The fan-out of one connector towards ``body``, its far row changing to ``layer``. The pins of
-    a net in ``skip`` are left to the caller: no via, no join pin to pin. A far pin of a net in
-    ``give_way`` gets no via where the near pin of its column is of a plane net, which takes the via
-    instead."""
+    a net in ``skip`` are left to the caller: no via, no join pin to pin; with ``only``, so are those
+    of every net neither in it nor a plane net. A far pin of a net in ``give_way`` gets no via where
+    the near pin of its column is of a plane net, which takes the via instead. A near pin of a net
+    in ``lift`` whose layer there is not the pads' changes to it through a via past the near row."""
     give_way = give_way or set()
+    lift = lift or {}
+    if only is not None:
+        skip = set(skip) | {p.net for p in pins if p.net and not no_connect(p.net) and p.net not in only and p.net not in plane_nets}
     along, (first, second) = rows([replace(p) for p in pins])
     across = 1 - along
     level = [sum(p.at[across] for p in row) / len(row) for row in (first, second)]
@@ -141,6 +148,10 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
             partner.net = None
     handled = {p.number for p in near if p.net is None}
     original = {p.number: p.net for p in pins}
+    near_reach = max(p.pad[across + 2] for p in near) if sign > 0 else min(p.pad[across] for p in near)
+    lift_low = near_reach + sign * (via_to_pad + via_radius)
+    lift_levels = (lift_low, lift_low + sign * math.sqrt(max(need * need - pitch * pitch, 0.0)))
+    lifted: list[float] = []
     for index, pin in enumerate(near):
         if no_connect(pin.net):
             continue
@@ -149,6 +160,15 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
             if not any(p.number in handled for p in run):  # no pin of its run of one net reaches a via
                 out.loose.append(f"{pin.number} of {pin.net}")
             continue
+        target = lift.get(pin.net)
+        if target is not None and target != pad_layer and pin.net not in skip:
+            cross = lift_levels[index % 2]
+            at = (pin.at[along], cross) if along == 0 else (cross, pin.at[along])
+            out.vias.append((pin.net, at))
+            out.traces.append((pin.net, pad_layer, stub_width, [pin.at, at]))
+            out.exits.setdefault(pin.net, []).append((at, target))
+            lifted.append(cross)
+            continue
         out.exits.setdefault(pin.net, []).append((pin.at, pad_layer))
     # consecutive pins of one net in a row, joined pin to pin; a skipped net's pins are the caller's to join
     for row in (near, far):
@@ -156,9 +176,10 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
             if original[a.number] == original[b.number] and not no_connect(original[a.number]) and original[a.number] not in skip:
                 width = min(a.pad[along + 2] - a.pad[along], b.pad[along + 2] - b.pad[along])
                 out.traces.append((original[a.number], pad_layer, round(width, 4), [a.at, b.at]))
-    near_reach = max(p.pad[across + 2] for p in near) if sign > 0 else min(p.pad[across] for p in near)
     out.clear_at = near_reach * sign  # measured along ``toward``
-    out.clear_vias_at = max(level * sign for level in levels) + via_radius
+    out.clear_vias_at = max(level * sign for level in (*levels, *lifted)) + via_radius
+    if lifted:  # the pad layer's traces leave past the vias of the near row's lifted pins too
+        out.clear_at = max(out.clear_at, max(level * sign for level in lifted) + via_radius)
     return out
 
 

@@ -1,0 +1,90 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.4.0",
+  "commit": "a836562a1e74",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-12T17:31:50Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "part create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj",
+        "--file",
+        "D:\\personalSpace\\xpedition-cli\\tests\\inputs/parts.json"
+      ],
+      "exit": 0,
+      "result": "pass",
+      "matrix_row": "empty",
+      "mode": "file",
+      "fingerprint": "bd7fb2d8ea164bc1e201b4087981d905290bcb3fea5d1b8f41dd1bca5b94316e",
+      "sources": {
+        "ran": [
+          "xpedition_cli/__init__.py",
+          "xpedition_cli/adapter/__init__.py",
+          "xpedition_cli/adapter/base.py",
+          "xpedition_cli/adapter/designer.py",
+          "xpedition_cli/adapter/jobs.py",
+          "xpedition_cli/adapter/layout.py",
+          "xpedition_cli/adapter/library.py",
+          "xpedition_cli/adapter/plan/ipc7351.py",
+          "xpedition_cli/adapter/plan/library_hkp.py",
+          "xpedition_cli/adapter/plan/library_parts.py",
+          "xpedition_cli/adapter/plan/library_read.py",
+          "xpedition_cli/adapter/plan/project_file.py",
+          "xpedition_cli/adapter/plan/schematic_layout.py",
+          "xpedition_cli/adapter/plan/symbols.py",
+          "xpedition_cli/adapter/platform/com.py",
+          "xpedition_cli/adapter/platform/dialogs.py",
+          "xpedition_cli/adapter/platform/env.py",
+          "xpedition_cli/adapter/platform/processes.py",
+          "xpedition_cli/adapter/sessions.py"
+        ],
+        "imported": [
+          "xpedition_cli/adapter/layout_board.py",
+          "xpedition_cli/adapter/layout_edit.py",
+          "xpedition_cli/adapter/layout_keepout.py",
+          "xpedition_cli/adapter/layout_output.py",
+          "xpedition_cli/adapter/layout_parts.py",
+          "xpedition_cli/adapter/layout_rules.py",
+          "xpedition_cli/adapter/layout_silk.py",
+          "xpedition_cli/adapter/plan/__init__.py",
+          "xpedition_cli/adapter/plan/board_layout.py",
+          "xpedition_cli/adapter/plan/board_metrics.py",
+          "xpedition_cli/adapter/plan/board_render.py",
+          "xpedition_cli/adapter/plan/bom.py",
+          "xpedition_cli/adapter/plan/fab_package.py",
+          "xpedition_cli/adapter/plan/fanout.py",
+          "xpedition_cli/adapter/plan/guards.py",
+          "xpedition_cli/adapter/plan/lanes.py",
+          "xpedition_cli/adapter/plan/logs.py",
+          "xpedition_cli/adapter/plan/openings.py",
+          "xpedition_cli/adapter/plan/outline.py",
+          "xpedition_cli/adapter/plan/padstacks.py",
+          "xpedition_cli/adapter/plan/pdf_pages.py",
+          "xpedition_cli/adapter/plan/requirements.py",
+          "xpedition_cli/adapter/plan/review_engine.py",
+          "xpedition_cli/adapter/plan/routing.py",
+          "xpedition_cli/adapter/plan/rules.py",
+          "xpedition_cli/adapter/plan/shapes.py",
+          "xpedition_cli/adapter/plan/stitching.py",
+          "xpedition_cli/adapter/plan/trace_plan.py",
+          "xpedition_cli/adapter/plan/verification.py",
+          "xpedition_cli/adapter/platform/__init__.py",
+          "xpedition_cli/adapter/project.py"
+        ]
+      },
+      "doc_kind": "project",
+      "notes": "job job-54e705c709 ended completed"
+    }
+  ]
+}

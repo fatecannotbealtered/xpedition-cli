@@ -247,6 +247,52 @@ def _outline_inputs(ctx: Context, current_radius: float | None) -> tuple[float, 
     return float(width), float(height), float(radius)
 
 
+def _polygon_outline(ctx: Context) -> dict[str, dict[str, Any]] | None:
+    """The three contours of ``--outline``, a polygon of corners, or None without it."""
+    value = ctx.inputs.get("outline")
+    if value is None:
+        return None
+    if any(ctx.inputs.get(name) is not None for name in ("width_mm", "height_mm", "radius_mm")):
+        raise AdapterError("E_VALIDATION", "Give either --outline or --width, --height and --radius, not both.", dispatch_state="not_started")
+    points = value.get("points_mm") if isinstance(value, dict) else None
+    try:
+        return plan_outline.polygon_targets(points)
+    except PlanError as exc:
+        raise L.plan_error(exc) from None
+
+
+def _extents(rows: Any) -> tuple[float, float, float, float]:
+    polygon = flatten(list(zip(*rows, strict=False)))
+    xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _outside_shape(doc: Any, border: Any) -> str | None:
+    """Why Layout would refuse a route border of that shape: placed parts, traces or vias that reach
+    outside it. None when everything fits, or when the board has more objects than a preview can
+    look at."""
+    counts = [L.count(doc, name) for name in ("Components", "Traces", "Vias")]
+    if any(c is None for c in counts) or sum(c or 0 for c in counts) > OUTSIDE_LIMIT:
+        return None
+    polygon = flatten(list(zip(*border, strict=False)))
+    sides = shapes.edges(polygon)
+    names: list[str] = []
+    for name in ("Components", "Traces", "Vias"):
+        for item in L.collection(doc, name):
+            if name == "Components" and not item.Placed:
+                continue
+            corners = shapes.corners(L.extrema_mm(item))
+            box_sides = list(zip(corners, corners[1:] + corners[:1], strict=True))
+            if not all(shapes.inside(c, polygon) for c in corners) or any(shapes.cross(b, side) for b in box_sides for side in sides):
+                names.append(str(item.RefDes) if name == "Components" else name[:-1].lower())
+    if not names:
+        return None
+    shown = Counter(names)
+    listed = ", ".join(f"{n} x{k}" if k > 1 else n for n, k in shown.most_common(8))
+    return (f"Placed parts or routing reach outside the route border of the new outline, {plan_outline.INSET_MM:g} mm inside it, "
+            f"which Layout refuses: {listed}. Move or unplace them first, or give an outline that holds them.")
+
+
 def _rows(points: list[list[float]]) -> tuple[tuple[float, ...], ...]:
     return tuple(tuple(round(float(value), 4) for value in row) for row in points)
 
@@ -286,14 +332,32 @@ def _outside(doc: Any, width: float, height: float) -> str | None:
 
 
 class OutlineUpdate(L.ReadsBack):
-    """The board outline as a rectangle from the origin, with rounded corners when asked
-    (``plan.outline``): ``PutBoardOutline``, ``PutRouteBorder`` 0.3 mm inside it and
-    ``PutManufacturingOutline`` equal to it."""
+    """The board outline as a rectangle from the origin, with rounded corners when asked, or as a
+    polygon of corners, some rounded (``plan.outline``): ``PutBoardOutline``, ``PutRouteBorder``
+    0.3 mm inside it and ``PutManufacturingOutline`` equal to it."""
 
     command = "pcb update"
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
+        polygon = _polygon_outline(ctx)
+        if polygon is not None:
+            rows = polygon["board_outline"]["points_mm"]
+            x0, y0, x1, y1 = _extents(rows)
+            current, refused = L.in_layout(ctx, lambda app, doc: (L.outline_values(doc), _outside_shape(doc, polygon["route_border"]
+                                                                                                         ["points_mm"])),
+                                           budget_s=L.READ_BUDGET_S, what="reading the board outline")
+            if refused:
+                raise base.blocked(refused)
+            key = base.key(path, L.OUTLINE_KEY)
+            extents = [round(x0, 4), round(y0, 4), round(x1, 4), round(y1, 4)]
+            changes = [base.change(key, "width_mm", current.get("width_mm"), round(x1 - x0, 4)),
+                       base.change(key, "height_mm", current.get("height_mm"), round(y1 - y0, 4)),
+                       base.change(key, "extents_mm", current.get("extents_mm"), extents)]
+            corners = len(ctx.inputs["outline"]["points_mm"])
+            return base.preview(f"Replace the board outline by the polygon of {corners} corners within {x0:g},{y0:g} to {x1:g},{y1:g} mm; "
+                                f"the route border follows {plan_outline.INSET_MM:g} mm inside it and the manufacturing outline matches "
+                                "it.", [base.target(path, "outline", L.OUTLINE_KEY, label="board outline")], changes)
 
         def look(app: Any, doc: Any) -> tuple[dict[str, Any], tuple[float, float, float], str | None]:
             current = L.outline_values(doc)
@@ -313,10 +377,15 @@ class OutlineUpdate(L.ReadsBack):
                             [base.target(path, "outline", L.OUTLINE_KEY, label="board outline")], changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
+        polygon = _polygon_outline(ctx)
+
         def work(app: Any, doc: Any) -> dict[str, Any]:
             current = L.outline_values(doc)
-            width, height, radius = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
-            contours = plan_outline.targets(width, height, radius)
+            if polygon is not None:
+                contours = polygon
+            else:
+                width, height, radius = _outline_inputs(ctx, current.get("radius_mm") if current.get("width_mm") is not None else 0.0)
+                contours = plan_outline.targets(width, height, radius)
             done: list[str] = []
             for key, setter, label in OUTLINE_SETTERS:
                 rows = _rows(contours[key]["points_mm"])
@@ -329,9 +398,11 @@ class OutlineUpdate(L.ReadsBack):
                     return L.failed_step(exc, f"writing the {label}", done)
                 done.append(f"the {label}")
             stored = L.outline_values(doc)  # the outline as Layout now holds it (DCLI-068)
-            return base.facts("applied", "unchanged", result={"width_mm": stored["width_mm"], "height_mm": stored["height_mm"],
-                                                              "radius_mm": stored["radius_mm"],
-                                                              "route_border_inset_mm": plan_outline.INSET_MM})
+            result = {"width_mm": stored["width_mm"], "height_mm": stored["height_mm"], "radius_mm": stored["radius_mm"],
+                      "route_border_inset_mm": plan_outline.INSET_MM}
+            if polygon is not None:
+                result.update(extents_mm=stored["extents_mm"], corners=len(ctx.inputs["outline"]["points_mm"]))
+            return base.facts("applied", "unchanged", result=result)
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="writing the board outline")
 
@@ -776,6 +847,14 @@ def _shape_inputs(ctx: Context) -> tuple[L.Region | None, Ring | None]:
     if region is not None:
         raise AdapterError("E_VALIDATION", "Give either --polygon or the region flags --from-x, --from-y, --to-x and --to-y, not both.",
                            dispatch_state="not_started")
+    ring = polygon_ring(value)
+    xs, ys = [p[0] for p in ring], [p[1] for p in ring]
+    return (min(xs), min(ys), max(xs), max(ys)), ring
+
+
+def polygon_ring(value: Any) -> Ring:
+    """The points of a ``--polygon`` value, ``{"points_mm": [[x, y], ...]}``, without a closing
+    point: at least three, enclosing an area, with sides that do not cross."""
     points = value.get("points_mm") if isinstance(value, dict) else None
     if not isinstance(points, list) or not all(
             isinstance(p, list) and len(p) == 2 and all(type(v) in (int, float) and math.isfinite(v) for v in p) for p in points):
@@ -790,8 +869,7 @@ def _shape_inputs(ctx: Context) -> tuple[L.Region | None, Ring | None]:
     if any(shapes.cross(a, b) for i, a in enumerate(sides) for b in sides[i + 2:]):
         raise AdapterError("E_VALIDATION", "The sides of --polygon cross each other; give its points in order around it.",
                            dispatch_state="not_started")
-    xs, ys = [p[0] for p in ring], [p[1] for p in ring]
-    return (min(xs), min(ys), max(xs), max(ys)), ring
+    return ring
 
 
 def _clip(polygon: list[tuple[float, float]], region: L.Region) -> list[tuple[float, float]]:
@@ -958,6 +1036,37 @@ def _plane_target(doc: Any, net: str, layer: int, margin: float | None, region: 
     return found, points, where, {**now, "layers": layers}
 
 
+def band_ties(doc: Any, path: str, net: str, layer: int, width: float) -> tuple[list[tuple[tuple[float, ...], list[Any]]], float, int]:
+    """For --bends: the ties each band over a bend zone needs on the layer (none where the band
+    touches the net there already), the width they take (the hatch's, or the net class's least on
+    the layer when that is wider) and how many traces the net has on the layer now."""
+    from . import layout_output as O
+    from .layout_edit import _copper, ruled_obstacles
+    from .plan import bend_ties, board_metrics
+
+    copper = _copper(doc)
+    obstacles = ruled_obstacles(doc, path, copper)
+    net_class = obstacles.rules.net_class_of.get(net)
+    least = (obstacles.rules.widths.get(net_class) or {}).get(layer, (0.0, 0.0))[0] if net_class else 0.0
+    tie_width = max(width, least)
+    out = []
+    for zone in board_metrics.bend_zones(O.flex_model(doc)):
+        box = tuple(zone["extents_mm"])
+        found = bend_ties.ties(box, zone["along"] == "x", net, layer, tie_width, copper,
+                               lambda a, b: obstacles.piece_clear(a, b, net, layer, tie_width))
+        if found is not None:
+            out.append((box, found))
+    traces = sum(1 for lay, name, _w, _p in copper.traces if name == net and lay == layer)
+    return out, tie_width, traces
+
+
+def _shapes_without_copper(doc: Any, net: str, layer: int) -> int:
+    from . import layout_output as O
+
+    rows = O.with_copper(doc, [r for r in O.plane_shapes(doc) if r.get("net") == net and r.get("layer") == layer])
+    return sum(1 for row in rows if row.get("copper") is False)
+
+
 def _generated(doc: Any, net: str, layer: int) -> bool:
     try:
         return any(L.net_name(item) == net and int(item.Layer) == layer for item in L.collection(doc, "GeneratedPlanes"))
@@ -1053,7 +1162,7 @@ def _pour_parts(doc: Any, net: str, layer: int, margin: float | None) -> tuple[l
                 continue
             raise
         parts.append((region, hatched, found, points, where))
-    return parts, now
+    return parts, {**now, "layer_exists": bool(L.plane_values(doc, net, layer)["exists"])}
 
 
 def _bends_inputs(region: L.Region | None, polygon: Ring | None, hatch: str) -> None:
@@ -1082,7 +1191,8 @@ class PlaneCreate(L.ReadsBack):
             _bends_inputs(region, polygon, hatch)
             parts, now = L.in_layout(ctx, lambda app, doc: _pour_parts(doc, net, layer, margin), budget_s=L.READ_BUDGET_S,
                                      what="reading the planes and bend zones")
-            targets, changes = [], []
+            whole = base.key(path, L.plane_key(net, layer, None))  # the net has shapes on the layer again, after a plane delete too
+            targets, changes = [base.target(path, "plane", L.plane_key(net, layer, None), label=f"{net} on layer {layer}")],                 [base.change(whole, "exists", bool(now.get("layer_exists")), True)]
             for part, hatched, _found, _points, _where in parts:
                 domain = L.plane_key(net, layer, part)
                 key = base.key(path, domain)
@@ -1094,9 +1204,26 @@ class PlaneCreate(L.ReadsBack):
             zones = sum(1 for part in parts if part[1])
             others = L.in_layout(ctx, lambda app, doc: other_shapes(doc, net, layer), budget_s=L.READ_BUDGET_S, what="reading the planes")
             around = f" Each band is cut around {len(others)} plane shape(s) of other nets on the layer." if others else ""
+            tied, tie_width, before = L.in_layout(ctx, lambda app, doc: band_ties(doc, path, net, layer, width or 0.0),
+                                                  budget_s=L.READ_BUDGET_S, what="reading the copper in the bend zones")
+            count = sum(len(found) for _box, found in tied)
+            ties = ""
+            if tied:
+                ties = (f" {len(tied)} bend zone(s) hold nothing of {net} on layer {layer} for their band to touch, and Layout makes a "
+                        f"shape's copper only where its net touches it: {count} straight {tie_width:g} mm trace(s) of {net} cross them "
+                        "into the copper beside them.")
+                if count:
+                    from .layout_edit import trace_key
+
+                    domain = trace_key(net, layer)
+                    targets.append(base.target(path, "trace", domain, label=f"{net} traces on layer {layer}"))
+                    changes.append(base.change(base.key(path, domain), "count", before, before + count))
+                if any(not found for _box, found in tied):
+                    ties += " A zone where no trace fits stays without copper; pcb check lists it."
             return base.preview(f"Pour {net} on layer {layer} in {len(parts)} bands across the board: a {hatch} hatch of "
                                 f"{width:g} mm lines {distance:g} mm apart over the {zones} bend zone(s) and solid between them; switch "
-                                f"the plane to Dynamic so that Layout generates its copper.{around} The board is not saved.", targets, changes)
+                                f"the plane to Dynamic so that Layout generates its copper.{around}{ties} The board is not saved.", targets,
+                                changes)
         _found, _points, where, now = L.in_layout(ctx, lambda app, doc: _plane_target(doc, net, layer, margin, region, polygon),
                                                   budget_s=L.READ_BUDGET_S, what="reading the planes")
         others = L.in_layout(ctx, lambda app, doc: other_shapes(doc, net, layer), budget_s=L.READ_BUDGET_S, what="reading the planes")
@@ -1111,6 +1238,10 @@ class PlaneCreate(L.ReadsBack):
                    base.change(key, "hatch", None, hatch)]
         if hatch != "solid":
             changes += [base.change(key, "hatch_width_mm", None, width), base.change(key, "hatch_distance_mm", None, distance)]
+        if region is not None or polygon is not None:  # the net has shapes on the layer again, after a plane delete too
+            layer_now = L.in_layout(ctx, lambda app, doc: bool(L.plane_values(doc, net, layer)["exists"]), budget_s=L.READ_BUDGET_S,
+                                    what="reading the planes")
+            changes.append(base.change(base.key(path, L.plane_key(net, layer, None)), "exists", layer_now, True))
         return base.preview(f"Pour a plane shape ({fill}) for {net} on layer {layer}, {where}, and switch "
                             f"it to Dynamic so that Layout generates its copper. The board is not saved.{outer}",
                             [base.target(path, "plane", domain, label=f"{net} on layer {layer}")], changes)
@@ -1162,6 +1293,22 @@ class PlaneCreate(L.ReadsBack):
             if not poured:
                 raise base.blocked(f"Nothing is left to pour on layer {layer}: the shape lies inside other nets' plane shapes there, or "
                                    f"within {PLANE_GAP_MM:g} mm of them; delete or shrink those first, or pour another region.")
+            tied: list[dict[str, Any]] = []
+            if bends:
+                zones, tie_width, _before = band_ties(doc, ctx.document_path(), net, layer, width or 0.0)
+                tied = [{"zone_mm": [round(v, 4) for v in box], "traces": len(found)} for box, found in zones]
+                if any(found for _box, found in zones):
+                    net_object = L.find_net(doc, net)
+                    doc.TransactionStart(0)
+                    try:
+                        for _box, found in zones:
+                            for a, b in found:
+                                doc.PutTrace(layer, net_object, tie_width, 2, [[a[0], b[0]], [a[1], b[1]], [0.0, 0.0]], None, 0,
+                                             L.UNIT_MM)
+                    except Exception as exc:  # noqa: BLE001 - classified
+                        return L.failed_step(exc, "tying a band to its copper", [f"the plane shape over {p['region']}" for p in poured])
+                    finally:
+                        doc.TransactionEnd(True)
             try:
                 assignment = doc.FindPlaneAssignment(layer, parts[0][2])
                 if assignment is None:
@@ -1173,8 +1320,13 @@ class PlaneCreate(L.ReadsBack):
             if bends:
                 result.update(within=f"in {len(parts)} bands across the board", hatch=f"{hatch} over the bend zones, solid between them",
                               parts=poured)
+                if tied:
+                    result["ties"] = tied
             else:
                 result.update(within=parts[0][4], hatch=hatch)
+            empty = _shapes_without_copper(doc, net, layer) if result["generated"] else 0
+            if empty:  # some of the net's shapes on the layer got copper, these did not
+                result["without_copper"] = empty
             return base.facts("applied", "unchanged", result=result)
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="pouring the plane")

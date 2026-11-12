@@ -74,16 +74,18 @@ FANOUT_KEYS = ("refdes", "padstack", "layer")
 def parse_fanouts(items: Any) -> list[dict[str, Any]]:
     """The fan-outs a plan asks for: each connector's ``refdes``, the via ``padstack``, the ``layer``
     its far row changes to, and, if wanted, its ``plane_nets`` (pins of the near row that take a
-    free via between the rows), the nets to ``skip`` (far pins without a via), those that ``give_way``
-    (no via where the near pin of the column is of a plane net) and ``stub_width_mm``."""
+    free via between the rows), the nets to ``skip`` (far pins without a via), the only ``nets`` to
+    fan out (every other net but the plane nets is skipped), those that ``give_way`` (no via where
+    the near pin of the column is of a plane net) and ``stub_width_mm``."""
     if not isinstance(items, list) or not items:
         raise _error("fanouts is a list of at least one connector")
     out = []
     for index, item in enumerate(items):
         what = f"fanouts[{index}]"
-        if (not isinstance(item, dict) or set(item) - {*FANOUT_KEYS, "plane_nets", "skip", "give_way", "stub_width_mm"}
+        if (not isinstance(item, dict) or set(item) - {*FANOUT_KEYS, "plane_nets", "skip", "nets", "give_way", "stub_width_mm"}
                 or set(FANOUT_KEYS) - set(item)):
-            raise _error(f"{what} has the keys {', '.join(FANOUT_KEYS)} and, if wanted, plane_nets, skip, give_way and stub_width_mm")
+            raise _error(f"{what} has the keys {', '.join(FANOUT_KEYS)} and, if wanted, plane_nets, skip, nets, give_way and "
+                         "stub_width_mm")
         if not isinstance(item["refdes"], str) or not item["refdes"] or not isinstance(item["padstack"], str) or not item["padstack"]:
             raise _error(f"{what} names the connector's refdes and a via padstack")
         if type(item["layer"]) is not int or item["layer"] < 1:
@@ -94,6 +96,10 @@ def parse_fanouts(items: Any) -> list[dict[str, Any]]:
             if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
                 raise _error(f"{what}.{key} is a list of net names")
             lists[key] = value
+        only = item.get("nets")
+        if only is not None and (not isinstance(only, list) or not only or not all(isinstance(v, str) and v for v in only)):
+            raise _error(f"{what}.nets is a list of one or more net names")
+        lists["nets"] = only
         width = item.get("stub_width_mm", 0.1)
         if isinstance(width, bool) or not isinstance(width, (int, float)) or not 0 < width <= 2:
             raise _error(f"{what}.stub_width_mm is a width of more than 0 and at most 2 mm")

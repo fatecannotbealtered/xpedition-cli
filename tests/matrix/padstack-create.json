@@ -19,9 +19,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203021-padstack-create.json#normal",
+      "evidence": "live:docs/evidence/2026-11-12-173239-padstack-create.json#normal",
       "kind_evidence": {
-        "project": "live:docs/evidence/2026-11-11-203021-padstack-create.json#normal"
+        "project": "live:docs/evidence/2026-11-12-173239-padstack-create.json#normal"
       }
     },
     {
@@ -42,7 +42,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-203025-padstack-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-173245-padstack-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -64,7 +64,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203016-padstack-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-173233-padstack-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -86,7 +86,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203016-padstack-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-173233-padstack-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -113,7 +113,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203213-padstack-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-12-173505-padstack-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -135,7 +135,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203016-padstack-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-12-173233-padstack-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -177,7 +177,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-203035-padstack-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-12-173257-padstack-create.json#read_back_mismatch"
     }
   ]
 }

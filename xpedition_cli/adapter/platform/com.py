@@ -177,7 +177,31 @@ def _client() -> Any:
     except ImportError:
         raise AdapterError("E_BACKEND_UNAVAILABLE", "pywin32 is needed to reach Xpedition through COM, and it is not installed.",
                            dispatch_state="not_started") from None
+    _wrap_without_query(win32com.client)
     return win32com.client
+
+
+def _wrap_without_query(client: Any) -> None:
+    """Wrap an object Xpedition hands back without asking it again for its interface.
+
+    pywin32 wraps each object a property or a collection returns in its generated class, and the
+    class first asks the object, across the process boundary, for the interface it already is: a
+    few milliseconds each, half of the time it takes to read a routed board's hundreds of traces,
+    pads and plane pieces. An object that comes as a dispatch interface is kept as it is; one made
+    from nothing or from another wrapper goes the usual way."""
+    base = client.DispatchBaseClass
+    if getattr(base, "_xpedition_cli_quick", False):
+        return
+    usual = base.__init__
+
+    def quick(self: Any, oobj: Any = None) -> None:
+        if oobj is not None and type(oobj).__name__ == "PyIDispatch":
+            self.__dict__["_oleobj_"] = oobj
+            return
+        usual(self, oobj)
+
+    base.__init__ = quick
+    base._xpedition_cli_quick = True
 
 
 def _pythoncom() -> Any:

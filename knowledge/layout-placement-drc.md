@@ -10,7 +10,7 @@ tags: [layout, placement, drc]
 
 placement run stops part-way with "DRC 违规" (DRC violation, 10203). Some parts are placed and others are not.
 
-component move is refused with `E_CONFLICT`: the spot overlaps another component.
+component move is refused with `E_CONFLICT`, naming what lies under the place the part would take.
 
 ## Cause
 
@@ -18,7 +18,8 @@ Layout's online DRC for parts refuses to place a part:
 
 - on top of another part;
 - on its own old position (its old footprint);
-- where an identical footprint already sits.
+- where an identical footprint already sits;
+- on the other side, when the part is placed: `Place` refuses a placed part that changes side, wherever it is sent, even with nothing in the way. Lifted off the board first, the part takes the same place.
 
 A part placed outside the board outline is accepted. Switching `RespectComponentPlacementDRC` off does not turn this check off. So placement run lifts the parts first and then places them, and it parks the parts it measures in rows below the board.
 
@@ -31,4 +32,5 @@ In one live run the board was too small. The plan listed 7 parts as `outside`, a
 - Run placement run with `--dry-run` first. If `outside` is not empty, make the board larger with pcb update, then plan again.
 - After a stop part-way, read the board with pcb get first. Then run placement run with `--all`, which places the parts already placed again too.
 - One confirmed placement once stopped part-way for a reason never found, and completed when repeated. Treat a partial result as possible: read the board, do not assume.
-- When component move is refused, read where the other parts stand with component list, then send the part to a free spot. Its result says with `inside_board` whether the part still lies inside the outline.
+- component move to the other side lifts the part first when Layout refuses it so; when the new place is refused even then, the part goes back where it stood.
+- When component move is refused, its message names what lies under the place: another part, vias or traces of nets the part has no pin of on that side, or a placement keepout. Move that, or send the part to a free spot; component list shows where the parts stand. Its result says with `inside_board` whether the part still lies inside the outline.

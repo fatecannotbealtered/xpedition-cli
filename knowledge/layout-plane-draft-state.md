@@ -8,7 +8,7 @@ tags: [layout, plane, drc]
 
 ## Symptom
 
-pcb check reports `PartialNets` on a plane net, such as GND, and `Dangling` vias on it, although the plane shape is there. Or plane create, or the `planes` of pcb get, says `generated: false` for a shape.
+pcb check reports `PartialNets` on a plane net, such as GND, and `Dangling` vias on it, although the plane shape is there. Or plane create, or the `planes` of pcb get, says `generated: false` for a shape, or `without_copper` for some shapes of a net and layer whose others got copper; pcb check lists such a shape as `plane_without_copper`.
 
 ## Cause
 
@@ -18,11 +18,11 @@ In one live run the GND plane was back in Draft after its pour had been saved, a
 
 plane create switches a new pour to Dynamic. router run regenerates the planes after routing: each Dynamic plane goes to Draft and back, and each plane it finds in Draft goes to Dynamic.
 
-A Dynamic shape also generates copper only where it touches copper of its own net on its layer: a pad, a trace or a via. A shape that touches none, such as a power net's copper area on an inner layer before its vias are placed, gets no copper. It fills as soon as a via or trace of its net reaches it, also when it lies inside another net's plane on the same layer.
+A Dynamic shape also generates copper only where it touches copper of its own net on its layer: a pad, a trace or a via. A shape that touches none, such as a power net's copper area on an inner layer before its vias are placed, gets no copper. It fills as soon as a via or trace of its net reaches it, also when it lies inside another net's plane on the same layer. A shape beside another of its net does not count: on a flex board's inner ground layer, a band hatched over a bend zone touches nothing, since no via may stand there, and stays empty between the solid bands, which are poured. `plane create --bends` ties each such band with straight traces of the net across it into the copper beside it, and says so in its preview and its result (`ties`).
 
 ## What to do
 
-- Read `generated` in the result of plane create, and in the `planes` of pcb get for each net and layer. False means that no copper was generated.
+- Read `generated` in the result of plane create, and in the `planes` of pcb get for each net, layer and fill. False means that some shape of the group got no copper; `without_copper` counts them.
 - When the plane is Dynamic and `generated` is false, the shape touches no copper of its net on its layer: place the vias or traces that join it, such as with `via create` inside the area, then read pcb get again.
 - After router run, run pcb check. `PartialNets` and `Dangling` on the plane's net point to a plane in Draft, or to one not regenerated after routing. Tell the person: the plane must be switched to Dynamic, or to Draft and back, in Layout.
 - `PartialNets` also come from pins that are simply not routed yet ("Unrouted Pin"). Read the hazard descriptions before you conclude.

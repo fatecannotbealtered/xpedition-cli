@@ -21,9 +21,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-214032-via-update.json#normal",
+      "evidence": "live:docs/evidence/2026-11-12-185200-via-update.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-11-214032-via-update.json#normal"
+        "board": "live:docs/evidence/2026-11-12-185200-via-update.json#normal"
       }
     },
     {
@@ -46,7 +46,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-212804-via-update.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-185204-via-update.json#empty"
     },
     {
       "row": "invalid_input",
@@ -68,7 +68,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-11-212406-via-update.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-184304-via-update.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -92,7 +92,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-212406-via-update.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-184304-via-update.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -112,7 +112,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211050-via-update.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-12-182501-via-update.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -136,7 +136,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-11-213001-via-update.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-12-184651-via-update.json#conflict"
     },
     {
       "row": "no_scope",
@@ -160,7 +160,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-11-212758-via-update.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-12-184557-via-update.json#no_scope"
     },
     {
       "row": "busy",
@@ -182,7 +182,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211314-via-update.json#busy"
+      "evidence": "live:docs/evidence/2026-11-12-182828-via-update.json#busy"
     },
     {
       "row": "dialog",
@@ -204,7 +204,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211524-via-update.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-12-183158-via-update.json#dialog"
     },
     {
       "row": "disconnect",
@@ -246,7 +246,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-212809-via-update.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-12-185211-via-update.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -270,7 +270,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-214017-via-update.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-12-185220-via-update.json#read_back_mismatch"
     }
   ]
 }

@@ -146,7 +146,7 @@ class BoardGetTest(unittest.TestCase):
             "1": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3},
             "2": {"minimum_mm": 0.2, "typical_mm": 0.254, "expansion_mm": 0.3}}, "vias": {}}])  # the fake board has no via span
         self.assertTrue(out["geometry"]["available"])
-        self.assertIn("outline_mm", out["geometry"])
+        self.assertNotIn("outline_mm", out["geometry"])  # --output holds it
         self.assertEqual(out["geometry"]["counts"]["placed"], 2)
         self.assertEqual(out["metrics"]["summary"]["unplaced"], 1)
         self.assertEqual(out["keepout_kinds"], {"by_kind": {"plane": 1, "trace": 1, "placement": 1},

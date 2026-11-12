@@ -8,6 +8,7 @@ places it; its rotation is counter-clockwise in degrees, seen from the top.
 from __future__ import annotations
 
 import math
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -195,6 +196,87 @@ def _inside(doc: Any, component: Any) -> bool | None:
     return board[0] - 0.001 <= box[0] and box[2] <= board[2] + 0.001 and board[1] - 0.001 <= box[1] and box[3] <= board[3] + 0.001
 
 
+def _place(doc: Any, component: Any, now: dict[str, Any], goal: dict[str, Any]) -> None:
+    """``Place`` the part at the goal. Layout's placement check refuses a placed part that changes
+    side in place, where its own footprint lies; lifted off the board first, it takes the place. A
+    part refused again goes back where it was, and the refusal stands."""
+    keep = ANCHOR_CODES.get(now["anchor"], 0)  # a semi-fixed part stays semi-fixed
+    try:
+        component.Place(goal["x_mm"], goal["y_mm"], goal["rotation_deg"], goal["side"] == "top", keep, L.UNIT_MM, 0)
+        return
+    except Exception as exc:  # noqa: BLE001 - classified by the caller
+        if not now["placed"] or com.excepinfo_codes(exc)[0] != PLACEMENT_REFUSED or board_row(component) != now:
+            raise
+        refused = exc
+    component.Delete()  # unplaces the part: its own footprint no longer stands in the way
+    try:
+        component.Place(goal["x_mm"], goal["y_mm"], goal["rotation_deg"], goal["side"] == "top", keep, L.UNIT_MM, 0)
+    except Exception:  # noqa: BLE001 - put it back where it was, and report the refusal
+        try:
+            component.Place(now["x_mm"], now["y_mm"], now["rotation_deg"] or 0.0, now["side"] == "top", keep, L.UNIT_MM, 0)
+        except Exception as exc:  # noqa: BLE001 - the part is left off the board
+            raise AdapterError("E_NATIVE_FAILURE", f"{now['refdes']} was lifted to change side, Layout refused it at the new place and "
+                               f"would not put it back: it is not placed now. Place it again with component move --x {now['x_mm']:g}mm "
+                               f"--y {now['y_mm']:g}mm --side {now['side']}.", dispatch_state="dispatched",
+                               native_message=com.com_text(exc)) from None
+        raise refused from None
+
+
+def _destination_box(component: Any, now: dict[str, Any], goal: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """Roughly where the part would stand at the goal: its extents taken about its origin, turned
+    by the change of rotation and mirrored for a change of side."""
+    box = _extents(component)
+    if box is None or not now["placed"] or now["x_mm"] is None:
+        return None
+    corners = [(x - now["x_mm"], y - now["y_mm"]) for x in (box[0], box[2]) for y in (box[1], box[3])]
+    if goal["side"] != now["side"]:
+        corners = [(-x, y) for x, y in corners]
+    turn = math.radians(goal["rotation_deg"] - (now["rotation_deg"] or 0.0))
+    c, s_ = math.cos(turn), math.sin(turn)
+    moved = [(goal["x_mm"] + x * c - y * s_, goal["y_mm"] + x * s_ + y * c) for x, y in corners]
+    xs, ys = [p[0] for p in moved], [p[1] for p in moved]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _in_the_way(doc: Any, component: Any, side: str, box: tuple[float, float, float, float]) -> list[str]:
+    """What lies under ``box`` on ``side`` that Layout's placement check may refuse: other placed
+    parts, vias of nets the part has no pin of, traces of such nets on the side's outer layer, and
+    placement keepouts on that side."""
+    def overlaps(other: tuple[float, ...]) -> bool:
+        return other[0] < box[2] and box[0] < other[2] and other[1] < box[3] and box[1] < other[3]
+
+    mine = refdes_of(component)
+    own_nets = {L.net_name(pin) for pin in L.collection(component, "Pins")}
+    layer = 1 if side == "top" else int(doc.LayerCount)
+    found: list[str] = []
+    parts = []
+    for other in L.collection(doc, "Components"):
+        try:
+            if refdes_of(other) != mine and bool(other.Placed) and SIDES.get(int(other.Side)) == side and overlaps(L.extrema_mm(other)):
+                parts.append(refdes_of(other))
+        except Exception:  # noqa: BLE001 - a part that cannot be read is left out
+            continue
+    if parts:
+        found.append("part " + ", ".join(sorted(parts)[:5]))
+    vias = Counter(L.net_name(v) for v in L.collection(doc, "Vias") if L.net_name(v) not in own_nets and overlaps(L.extrema_mm(v)))
+    if vias:
+        found.append("vias of " + ", ".join(f"{net} x{n}" if n > 1 else net for net, n in vias.most_common(5)))
+    traces = Counter(L.net_name(t) for t in L.collection(doc, "Traces")
+                     if int(t.Layer) == layer and L.net_name(t) not in own_nets and overlaps(L.extrema_mm(t)))
+    if traces:
+        found.append(f"traces on layer {layer} of " + ", ".join(net for net, _n in traces.most_common(5)))
+    try:
+        from .layout_keepout import placement_keepouts
+
+        keepouts = [b for _i, where, b, _h in placement_keepouts(doc) if where == side and overlaps(b)]
+    except Exception:  # noqa: BLE001 - keepouts that cannot be read are left out
+        keepouts = []
+    if keepouts:
+        found.append(f"{len(keepouts)} placement keepout(s), such as {keepouts[0][0]:g},{keepouts[0][1]:g} to {keepouts[0][2]:g},"
+                     f"{keepouts[0][3]:g} mm")
+    return found
+
+
 class ComponentMove(L.ReadsBack):
     """Put one component at a position, rotation and side: ``Move`` and ``Orientation`` for a
     placed component that stays on its side, ``Place`` for one that changes side or is not placed."""
@@ -233,6 +315,7 @@ class ComponentMove(L.ReadsBack):
                                    "in Layout first.")
             if not _changed(now, goal):
                 return base.facts("not_applied", "unchanged", result=self._result(doc, component))
+            box = _destination_box(component, now, goal)
             try:
                 with _no_shove(doc):
                     if now["placed"] and now["side"] == goal["side"]:
@@ -241,14 +324,14 @@ class ComponentMove(L.ReadsBack):
                         if abs(goal["rotation_deg"] - (now["rotation_deg"] or 0.0)) >= 0.0005:
                             component.Orientation = goal["rotation_deg"]
                     else:
-                        keep = ANCHOR_CODES.get(now["anchor"], 0)  # a semi-fixed part stays semi-fixed
-                        component.Place(goal["x_mm"], goal["y_mm"], goal["rotation_deg"], goal["side"] == "top", keep, L.UNIT_MM, 0)
+                        _place(doc, component, now, goal)
             except Exception as exc:  # noqa: BLE001 - classified
                 if com.excepinfo_codes(exc)[0] == PLACEMENT_REFUSED and board_row(component) == now:
-                    raise base.blocked(f"Layout's placement check refuses to put {now['refdes']} there: the spot overlaps another "
-                                       "component. Nothing moved; component list shows where the "
-                                       "others stand, so choose a free spot.", knowledge=["layout-placement-drc"],
-                                       native_message=com.com_text(exc)) from None
+                    found = _in_the_way(doc, component, goal["side"], box) if box is not None else []
+                    what = ("; under the place it would take: " + "; ".join(found)) if found else ""
+                    raise base.blocked(f"Layout's placement check (online DRC) refuses to put {now['refdes']} at that place on the "
+                                       f"{goal['side']}{what}. Nothing moved; move or delete what is in the way, or choose another "
+                                       "spot.", knowledge=["layout-placement-drc"], native_message=com.com_text(exc)) from None
                 raise L.com_error(exc, f"moving {now['refdes']}", com.call_state(exc)) from None
             return base.facts("applied", "unchanged", result=self._result(doc, component))
 

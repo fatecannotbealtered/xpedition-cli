@@ -10,7 +10,9 @@ The file is JSON: `{"requirements": [...]}`. Each requirement has a `kind`, the 
 | `ring` | `net`, `layers`, `offset_mm`, `min_pct`; `tolerance_mm` (0.05 unless given) | the share of the way round the board, `offset_mm` inside the outline, that a trace of `net` covers on each layer, a trace counting within `tolerance_mm` of the line |
 | `via_padstack` | `padstack`; `nets` (every via unless given) | the vias that use another padstack |
 | `via_pitch` | `net`, `max_mm`; `min_length_mm` (2 unless given) | along every trace of `net` at least `min_length_mm` long, the gaps between its vias, its ends counting as vias; a gap longer than `max_mm` where a via of the net's most common size fits with 0.04 mm to spare, its pad off the ends of the net's traces, fails, with a spot where one fits; a gap where none fits, such as between two signals or across a bend zone, passes and is counted under `no_room`: how many gaps, their length and share of the lines measured, and the lines with no via at all (`without_via`, `without_via_mm`) |
-| `plane` | `net`, `layers`; `hatched_in_bends` (false unless given) | whether `net` is poured on each layer, with copper made, and, with `hatched_in_bends`, hatched over each bend zone with no solid copper there; `trace check` leaves it unmeasured, since the pours come after the plan |
+| `plane` | `net`, `layers`; `hatched_in_bends` (false unless given) | whether `net` is poured on each layer with copper made in every shape, such as a band hatched over a bend, and, with `hatched_in_bends`, hatched over each bend zone with no solid copper there; `trace check` leaves it unmeasured, since the pours come after the plan |
+| `opening` | `net`, `at` (`ears` or `stiffeners`), `side`; `clearance_mm` (0.1 unless given) | for each of the outline's ears, or each stiffener laminated on `side`, whether an opening of the mask on `side` lies over it that bares `net`'s copper and comes no nearer than `clearance_mm` to any other net's copper; `trace check` leaves it unmeasured |
+| `text` | `text`; `side` (top unless given) or `user_layer` | whether the board's own text with those words lies on that side's silkscreen or on the user draft layer; `trace check` leaves it unmeasured |
 
 Each result has its `index` and `kind`, the `label`, `ok` (true, false, or none when it cannot be measured yet, with `reason`), what was measured against what is needed (`measured_pct` and `needed_pct`, or `measured_mm` and `needed_mm`), `count` and `failed`, and `worst`, the worst places with their positions. A requirement the board cannot be measured for, such as a ring on a board without an outline, has `ok: false` and the `reason`.
 
@@ -20,7 +22,7 @@ The guards and rings of a routing plan take their vias within the pitch wherever
 
 Width rules, vias and turns in bend zones, dangling ends, loops and islands are not requirements: the rules file and `constraint import` set the widths, and `pcb check` reports the rest on every run.
 
-An example for a flex board reviewed for ground beside its pairs and clocks, a ring, one via padstack, 2 mm stitching and pours on every layer:
+An example for a flex board reviewed for ground beside its pairs and clocks, a ring, one via padstack, 2 mm stitching, pours on every layer, bare ground at its ears and behind its stiffeners, and its name on the silkscreen:
 
 ```json
 {"requirements": [
@@ -31,6 +33,9 @@ An example for a flex board reviewed for ground beside its pairs and clocks, a r
   {"kind": "ring", "label": "a ground trace round the outline", "net": "GND", "layers": [1, 3], "offset_mm": 0.32, "min_pct": 80},
   {"kind": "via_padstack", "label": "every via one padstack", "padstack": "VIA_D0.2_P0.4"},
   {"kind": "via_pitch", "label": "a GND via every 2 mm where there is room", "net": "GND", "max_mm": 2.0},
-  {"kind": "plane", "label": "GND on every layer, hatched over the bends", "net": "GND", "layers": [1, 2, 3], "hatched_in_bends": true}
+  {"kind": "plane", "label": "GND on every layer, hatched over the bends", "net": "GND", "layers": [1, 2, 3], "hatched_in_bends": true},
+  {"kind": "opening", "label": "bare GND at the ears on layer 3, no shorts", "net": "GND", "at": "ears", "side": "bottom"},
+  {"kind": "opening", "label": "bare GND behind the stiffeners on layer 1, no shorts", "net": "GND", "at": "stiffeners", "side": "top"},
+  {"kind": "text", "label": "the board's name on the silk layer", "text": "FLEX_A_REV1", "user_layer": "silk"}
 ]}
 ```

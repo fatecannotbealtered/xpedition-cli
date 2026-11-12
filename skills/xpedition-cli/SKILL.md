@@ -10,7 +10,7 @@ description: >-
   建工程、建库和过孔、画和读原理图、查和导出 BOM、打包、建板、正向标注、布局和挪元件、放安装孔、挪丝印位号、设布线规则、布线、画改删走线过孔铜皮、开窗露铜、DRC、出板图和生产文件。
   Not for editing schematic symbols or wires, or Xpedition versions other than 2604; 不负责改原理图里的元件和导线。
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 # xpedition-cli
@@ -60,6 +60,8 @@ Check `ok`; on failure, read `error.details.next_action`.
 - `trace`: create, check, delete
 - `via`: delete, create, update
 - `solder-mask`: create, delete
+- `keepout`: create, delete
+- `silkscreen-text`: create, delete
 - `constraint`: get, import
 <!-- driver:command-map:end -->
 
@@ -136,7 +138,7 @@ Facts, rules and resources of Xpedition live in the knowledge base, not in this 
 
 - Build a board: follow [references/build-a-board.md](references/build-a-board.md), with [references/parts-file.md](references/parts-file.md) and [references/design-file.md](references/design-file.md) for the files. In order: `doc create`, `part create`, `schematic create`, `packager run`, `pcb create`, `forward-annotation run`, `pcb update`, `placement run`, route the board, `doc save`, `pcb export`. Report each step's receipt; stop at the first failure and say which step failed.
 - Route a board: follow [references/route-a-board.md](references/route-a-board.md), with [references/rules-file.md](references/rules-file.md) and [references/routing-plan.md](references/routing-plan.md) for the files; rules come before copper. In order: `constraint import` with the widths, spacing and clearances the design asks for, `padstack create` for the via, `router run` class by class, `via update`, `trace create` for planned routes, `plane create`, `via create` to stitch, `solder-mask create` for bare copper, `pcb check`.
-- Route a flex board between two connectors: follow [references/route-a-flex.md](references/route-a-flex.md), with the knowledge entries `layout-flex-bend-and-stiffener` and `layout-flex-connector-bus`, the team's flex rules and [references/requirements-file.md](references/requirements-file.md) for a reviewer's list. In order: `pcb get` and `component get` for the stiffeners, bend zones and pins, `constraint import`, `trace check` until nothing would float and the requirements hold, `trace create` with one lane per net, `plane create` with each bend zone's band hatched, `via create` to stitch outside the bends, `pcb check --requirements`.
+- Route a flex board between two connectors: follow [references/route-a-flex.md](references/route-a-flex.md), with the knowledge entries `layout-flex-bend-and-stiffener` and `layout-flex-connector-bus`, the team's flex rules and [references/requirements-file.md](references/requirements-file.md) for a reviewer's list. In order: `pcb get` and `component get` for the stiffeners, bend zones and pins, `constraint import`, `trace check` until nothing would float and the requirements hold, `trace create` with one lane per net, `plane create` with each bend zone's band hatched, `via create` to stitch outside the bends, `solder-mask create --net` for bare ground at the ears and behind the stiffeners, `silkscreen-text create` for the board's name, `pcb check --requirements`.
 - Change a design that exists: follow [references/change-a-design.md](references/change-a-design.md). Read it first with `component list`, `net list` and `bom check` in Designer, and `component list` and `mounting-hole list` in Layout; then change one named object at a time with `component move`, `refdes move` and `mounting-hole create`, run `pcb check`, and compare the BOM with `bom export --baseline`.
 
 ## Report

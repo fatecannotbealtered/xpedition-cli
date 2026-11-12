@@ -301,6 +301,56 @@ class DocumentTest(unittest.TestCase):
         self.assertEqual(FakeAnswerer.made[0].rules, dialogs.LAYOUT_PROMPTS)
         self.assertEqual(app.ActiveDocument.validated, [0, "token-7"])
 
+    def test_open_tries_again_after_a_bare_exception(self):
+        app = FakeApp(None)
+        opened = app.OpenDocument
+        refusals = [1]
+
+        def refuse_once(path):
+            if refusals:
+                refusals.pop()
+                app.calls.append(("OpenDocument", path))
+                raise Exception(L.DISP_E_EXCEPTION, "Exception occurred.", None, None)
+            return opened(path)
+
+        app.OpenDocument = refuse_once
+        with world(app), mock.patch.object(L, "OPEN_RETRY_S", 0.0):
+            L.open_document(PID, self.path)
+        self.assertEqual(app.calls, [("OpenDocument", self.path)] * 2)
+        self.assertEqual(app.ActiveDocument.validated, [0, "token-7"])
+
+    def test_a_board_whose_log_says_why_is_not_tried_again_and_its_log_viewers_end(self):
+        app = FakeApp(None)
+
+        def refuse(path):
+            app.calls.append(("OpenDocument", path))
+            logs = Path(path).parent / "LogFiles"
+            logs.mkdir(exist_ok=True)
+            (logs / L.OPEN_LOG).write_bytes(b"\r\nXpedition Layout Version: 126.0\r\n\r\nProject database [D:/demo/database] was not "
+                                            b"closed or disconnected properly.\r\n")
+            raise Exception(L.DISP_E_EXCEPTION, "Exception occurred.", None, None)
+
+        app.OpenDocument = refuse
+        viewers = [SimpleNamespace(pid=71, parent_pid=PID), SimpleNamespace(pid=72, parent_pid=999)]
+        with world(app), mock.patch.object(L, "OPEN_RETRY_S", 0.0), \
+                mock.patch.object(L.processes, "processes", return_value=viewers), mock.patch.object(L.processes, "end") as end:
+            with self.assertRaises(AdapterError) as caught:
+                L.open_document(PID, self.path)
+        self.assertEqual(app.calls, [("OpenDocument", self.path)])
+        self.assertIn("PCBLogFile.txt says: Project database [D:/demo/database] was not closed or disconnected properly.",
+                      str(caught.exception))
+        end.assert_called_once_with(71)
+
+    def test_an_open_log_from_before_the_call_is_not_its_reason(self):
+        log = Path(self.tmp.name) / L.OPEN_LOG
+        log.write_bytes(b"Xpedition Layout Version: 126.0\r\n????????\r\nSomething old.\r\n")
+        self.assertEqual(L.open_log_reason(log, time.time() - 60), "Something old.")
+        log.write_bytes(b"\r\nXpedition Layout Version: 126.0\r\n\r\n????????\r\n")
+        self.assertEqual(L.open_log_reason(log, time.time() - 60), "")
+        os.utime(log, (time.time() - 600, time.time() - 600))
+        self.assertEqual(L.open_log_reason(log, time.time()), "")
+        self.assertEqual(L.open_log_reason(Path(self.tmp.name) / "missing.txt", 0.0), "")
+
     def test_open_refuses_while_another_board_is_open(self):
         app = FakeApp(FakeDoc(os.path.join(self.tmp.name, "Other.pcb")))
         with world(app), self.assertRaises(AdapterError) as caught:
@@ -448,6 +498,46 @@ class StartTest(unittest.TestCase):
         self.assertEqual(out, {"pid": PID, "state": "ready"})
         self.assertEqual(app.calls, [("OpenDocument", str(board))])
 
+    def _start_with_open_failing(self, error: Exception) -> tuple[object, mock.Mock]:
+        board = Path(self.tmp.name) / "Demo.pcb"
+        board.write_bytes(b"board")
+        running: list = []
+
+        def popen(*args, **kwargs):
+            running.append(process())
+            return SimpleNamespace(pid=11, poll=lambda: None)
+
+        quit_ = mock.Mock()
+        with world(FakeApp(None), running=running):
+            patches = self._patches(popen) + [mock.patch.object(L, "OPEN_MIN_S", 0.0),
+                                              mock.patch.object(L, "open_document", side_effect=error),
+                                              mock.patch.object(L, "quit", quit_)]
+            for patch in patches:
+                patch.start()
+            try:
+                try:
+                    return L.start(str(board), 5.0), quit_
+                except AdapterError as exc:
+                    return exc, quit_
+            finally:
+                for patch in patches:
+                    patch.stop()
+
+    def test_a_board_that_fails_to_open_quits_the_layout_started_for_it(self):
+        failed, quit_ = self._start_with_open_failing(
+            AdapterError("E_NATIVE_FAILURE", "Xpedition Layout: exception occurred (0x80020009)", dispatch_state="dispatched"))
+        self.assertIsInstance(failed, AdapterError)
+        self.assertEqual(failed.data["code"], "E_NATIVE_FAILURE")
+        self.assertIn("The Layout started for it was quit.", str(failed))
+        quit_.assert_called_once_with(PID, True)
+
+    def test_a_board_held_by_a_dialog_or_still_opening_leaves_layout_as_a_session(self):
+        blocked, quit_blocked = self._start_with_open_failing(AdapterError("E_HUMAN_REQUIRED", "a dialog", dispatch_state="dispatched"))
+        busy, quit_busy = self._start_with_open_failing(AdapterError("E_TIMEOUT", "still opening", dispatch_state="dispatched"))
+        self.assertEqual((blocked, busy), ({"pid": PID, "state": "blocked"}, {"pid": PID, "state": "busy"}))
+        quit_blocked.assert_not_called()
+        quit_busy.assert_not_called()
+
     def test_a_launcher_that_ends_without_layout_is_a_failure(self):
         popen = mock.Mock(return_value=SimpleNamespace(pid=11, poll=lambda: 3221225781))
         with world(None, running=[]):
@@ -508,7 +598,8 @@ class ModuleTest(unittest.TestCase):
             "forward-annotation run", "pcb update", "placement run", "plane create", "router run", "pcb get", "pcb check", "pcb export",
             "constraint get", "constraint import", "trace check", "trace create", "trace delete", "via delete", "plane delete", "via update", "via create",
             "solder-mask create", "solder-mask delete", "pcb render", "component move", "mounting-hole list",
-            "mounting-hole create", "mounting-hole delete", "refdes move"]))
+            "mounting-hole create", "mounting-hole delete", "refdes move", "silkscreen-text create", "silkscreen-text delete",
+            "keepout create", "keepout delete"]))
         self.assertEqual([h.command for h in L.HANDLERS if h.long_job],
                          ["forward-annotation run", "placement run", "router run", "pcb export", "pcb render", "constraint import",
                           "trace create", "via create"])

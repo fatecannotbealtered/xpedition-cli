@@ -1,6 +1,6 @@
 {
   "tool": "xpedition-cli",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "commands": [
     {
       "path": "project get",
@@ -240,7 +240,7 @@
     },
     {
       "path": "padstack create",
-      "summary": "Add a via padstack to the central library: plated hole, round pads, mask opening or tented.",
+      "summary": "Add a via padstack to the central library: plated hole, round pads, mask.",
       "effects": [
         "change"
       ],
@@ -517,7 +517,7 @@
     },
     {
       "path": "component list",
-      "summary": "List the components of the open schematic or board, with where each stands on a board.",
+      "summary": "List the components of the open schematic or board, and where each stands.",
       "effects": [
         "observe"
       ],
@@ -581,7 +581,7 @@
     },
     {
       "path": "component get",
-      "summary": "Read one component: on a schematic its attributes and pins' names and nets, on a board where it and its pins stand.",
+      "summary": "Read one component: its attributes, its pins' nets and on a board where they stand.",
       "effects": [
         "observe"
       ],
@@ -722,7 +722,7 @@
     },
     {
       "path": "bom check",
-      "summary": "Check the schematic's BOM: missing or unknown part numbers, repeated references, mixed values.",
+      "summary": "Check the schematic's BOM: missing or unknown part numbers, repeats, mixed values.",
       "effects": [
         "observe"
       ],
@@ -909,7 +909,7 @@
     },
     {
       "path": "pcb update",
-      "summary": "Replace the board outline by a rectangle from the origin.",
+      "summary": "Replace the board outline by a rectangle or a polygon of corners.",
       "effects": [
         "change"
       ],
@@ -931,15 +931,13 @@
         {
           "name": "--width",
           "type": "quantity",
-          "summary": "The board's width.",
-          "required": true,
+          "summary": "The board's width; a rectangle takes --width and --height.",
           "quantity": "length"
         },
         {
           "name": "--height",
           "type": "quantity",
           "summary": "The board's height.",
-          "required": true,
           "quantity": "length"
         },
         {
@@ -947,6 +945,32 @@
           "type": "quantity",
           "summary": "The corner radius, 0 for square corners; the board's current radius by default.",
           "quantity": "length"
+        },
+        {
+          "name": "--outline",
+          "type": "json",
+          "summary": "The outline as a polygon instead, {\"points_mm\": [[x, y], [x, y, r], ...]} in board coordinates, its corners in order round it; a third value rounds that corner with an arc of that radius, such as a flex board's outline with its ears from the mechanical drawing.",
+          "schema": {
+            "type": "object",
+            "required": [
+              "points_mm"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "points_mm": {
+                "type": "array",
+                "minItems": 3,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 3,
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
         },
         {
           "name": "--output",
@@ -1270,7 +1294,7 @@
     },
     {
       "path": "refdes move",
-      "summary": "Move a component's reference designator on the silkscreen, or to a free spot beside it.",
+      "summary": "Move a component's reference designator, or to a free spot beside it.",
       "effects": [
         "change"
       ],
@@ -1548,7 +1572,7 @@
     },
     {
       "path": "pcb get",
-      "summary": "Read the open board: stackup, net classes, geometry and layout metrics.",
+      "summary": "Read the open board: stackup, net classes, geometry, ears and metrics.",
       "effects": [
         "observe"
       ],
@@ -1570,14 +1594,15 @@
         {
           "name": "--output",
           "type": "path",
-          "summary": "Write the whole result to this JSON file; the response keeps the summary, without the outline's path.",
+          "summary": "Write the whole result to this JSON file, the outline's path and the model with it; the response keeps the summary, its longest lists cut to fit with their whole count beside them.",
           "output": true
         }
       ],
       "untrusted_fields": [
         "stackup",
         "net_classes",
-        "metrics"
+        "metrics",
+        "silkscreen_texts"
       ],
       "irreversible": false,
       "halt": false,
@@ -1592,7 +1617,7 @@
     },
     {
       "path": "pcb check",
-      "summary": "Run Batch DRC and the board rules it lacks, list every hazard, find each net's islands, and measure requirements.",
+      "summary": "Run Batch DRC and the board rules it lacks, find each net's islands, and measure requirements.",
       "effects": [
         "observe"
       ],
@@ -1738,7 +1763,7 @@
     },
     {
       "path": "trace check",
-      "summary": "Work a routing plan out against the board without drawing it: what trace create would refuse, the guard and ring lines that would float or only a pour can ground, the ends that join nothing and what blocks each, and the requirements it would meet.",
+      "summary": "Check a routing plan against the board without drawing it, and its requirements.",
       "effects": [
         "observe"
       ],
@@ -2126,7 +2151,7 @@
     },
     {
       "path": "solder-mask create",
-      "summary": "Open the soldermask or coverlay over a rectangle on one side.",
+      "summary": "Open the soldermask or coverlay on one side, baring one named net's copper alone if asked.",
       "effects": [
         "change"
       ],
@@ -2148,8 +2173,7 @@
         {
           "name": "--x1",
           "type": "quantity",
-          "summary": "One corner's X.",
-          "required": true,
+          "summary": "One corner's X; a rectangle takes --x1, --y1, --x2 and --y2.",
           "quantity": "length",
           "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
@@ -2157,7 +2181,6 @@
           "name": "--y1",
           "type": "quantity",
           "summary": "One corner's Y.",
-          "required": true,
           "quantity": "length",
           "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
@@ -2165,7 +2188,6 @@
           "name": "--x2",
           "type": "quantity",
           "summary": "The opposite corner's X.",
-          "required": true,
           "quantity": "length",
           "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
@@ -2173,19 +2195,60 @@
           "name": "--y2",
           "type": "quantity",
           "summary": "The opposite corner's Y.",
-          "required": true,
           "quantity": "length",
           "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
         {
+          "name": "--polygon",
+          "type": "json",
+          "summary": "The opening as a polygon instead of a rectangle, {\"points_mm\": [[x, y], ...]} in board coordinates, in order around it, such as an ear's points_mm from pcb get.",
+          "schema": {
+            "type": "object",
+            "required": [
+              "points_mm"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "points_mm": {
+                "type": "array",
+                "minItems": 3,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "--side",
           "type": "string",
-          "summary": "top (the default) or bottom."
+          "summary": "top (the default), on layer 1, or bottom, on the last layer."
         },
         {
           "name": "--cover-layer",
           "type": "boolean",
           "summary": "Open the coverlay of a flex board instead of the soldermask."
+        },
+        {
+          "name": "--net",
+          "type": "string",
+          "summary": "The net whose copper the opening is for, such as GND for a grounding spring or a stiffener's conductive glue: an opening that bares another net's copper, or comes within --clearance of it, is refused with where."
+        },
+        {
+          "name": "--fit",
+          "type": "boolean",
+          "summary": "With --net, take the rectangle or polygon as the region to search, and open the largest rectangle in it that lies on the net's copper, keeps --clearance from all other copper and stays out of the bend zones; the preview gives it."
+        },
+        {
+          "name": "--clearance",
+          "type": "quantity",
+          "summary": "How far the opening keeps from other nets' copper with --net; 0.1 mm by default.",
+          "quantity": "length"
         },
         {
           "name": "--output",
@@ -2266,6 +2329,296 @@
       "tolerances": {},
       "default_fields": [],
       "related_knowledge": [],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "keepout create",
+      "summary": "Draw a placement keepout on one side, such as a flex board's stiffener.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "keepout",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--x1",
+          "type": "quantity",
+          "summary": "One corner's X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y1",
+          "type": "quantity",
+          "summary": "One corner's Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--x2",
+          "type": "quantity",
+          "summary": "The opposite corner's X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y2",
+          "type": "quantity",
+          "summary": "The opposite corner's Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom."
+        },
+        {
+          "name": "--height",
+          "type": "quantity",
+          "summary": "Keep out only parts taller than this, such as a stiffener's thickness, 0.15mm; pcb get then lists the area under keepout_kinds.height_limits. Every part is kept out without it.",
+          "quantity": "length"
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-flex-bend-and-stiffener"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "keepout delete",
+      "summary": "Delete the board's placement keepout at a point on one side.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "keepout",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "A point inside the keepout: its X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "Its Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-flex-bend-and-stiffener"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "silkscreen-text create",
+      "summary": "Place a line of text on the board's silkscreen where it prints whole.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "text",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--text",
+          "type": "string",
+          "summary": "The words, one line, such as a board's name.",
+          "required": true
+        },
+        {
+          "name": "--x",
+          "type": "quantity",
+          "summary": "The text's centre: its X.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--y",
+          "type": "quantity",
+          "summary": "Its Y.",
+          "required": true,
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom, where the text reads mirrored from the top; with --user-layer, the side that layer prints on."
+        },
+        {
+          "name": "--user-layer",
+          "type": "string",
+          "summary": "Place it on this user draft layer instead of the silkscreen, such as a layer named silk that the team plots as silkscreen; pcb get lists them under user_layers."
+        },
+        {
+          "name": "--height",
+          "type": "quantity",
+          "summary": "The characters' height; 1 mm by default.",
+          "quantity": "length"
+        },
+        {
+          "name": "--pen-width",
+          "type": "quantity",
+          "summary": "The strokes' width; 0.15 mm by default.",
+          "quantity": "length"
+        },
+        {
+          "name": "--rotation",
+          "type": "quantity",
+          "summary": "0, 90, 180 or 270 degrees counter-clockwise, such as 90deg to run up a long, narrow board; 0 by default.",
+          "quantity": "angle"
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [
+        "text"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-silkscreen-text"
+      ],
+      "doc_kinds": [
+        "board"
+      ]
+    },
+    {
+      "path": "silkscreen-text delete",
+      "summary": "Delete a board text from the silkscreen by its words.",
+      "effects": [
+        "change"
+      ],
+      "modes": [
+        "session"
+      ],
+      "target_kind": "text",
+      "flags": [
+        {
+          "name": "--session",
+          "type": "string",
+          "summary": "The session ID of the instance (DCLI-202)."
+        },
+        {
+          "name": "--doc",
+          "type": "string",
+          "summary": "The document: its ID or path; in file mode, the file path."
+        },
+        {
+          "name": "--text",
+          "type": "string",
+          "summary": "The words, as pcb get lists them under silkscreen_texts.",
+          "required": true
+        },
+        {
+          "name": "--side",
+          "type": "string",
+          "summary": "top (the default) or bottom."
+        },
+        {
+          "name": "--user-layer",
+          "type": "string",
+          "summary": "The user draft layer it lies on, when not the silkscreen."
+        },
+        {
+          "name": "--output",
+          "type": "path",
+          "summary": "Write the full preview, with every change, to this file."
+        }
+      ],
+      "untrusted_fields": [
+        "text"
+      ],
+      "irreversible": false,
+      "halt": false,
+      "tolerances": {},
+      "default_fields": [],
+      "related_knowledge": [
+        "layout-silkscreen-text"
+      ],
       "doc_kinds": [
         "board"
       ]

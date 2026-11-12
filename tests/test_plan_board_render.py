@@ -50,7 +50,7 @@ class RenderTest(unittest.TestCase):
 
     def test_vias_traces_and_openings_are_drawn(self):
         picture = R.Picture(outline=OUTLINE, layer_count=2, traces=[(1, [(1.0, 1.0), (9.0, 1.0)], 0.3)], vias=[(5.0, 4.0, 0.3)],
-                            openings=[("top", (6.0, 2.0, 8.0, 3.0))])
+                            openings=[("top", [(6.0, 2.0), (8.0, 2.0), (8.0, 3.0), (6.0, 3.0)])])
         png, _w, _h = R.render(picture, scale=10)
         self.assertEqual(at(png, 60, 20), R.DRILL)  # the via's drill at (5, 4) mm
         self.assertEqual(at(png, 50, 50), R.COPPER["top"])  # the top trace at y 1 mm
@@ -67,7 +67,7 @@ class RenderTest(unittest.TestCase):
         square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
         picture = R.Picture(outline=OUTLINE, layer_count=4, pads=[(1, square), (4, square)], planes=[(2, square)],
                             traces=[(1, [(0.0, 0.0), (1.0, 0.0)], 0.2), (3, [(0.0, 0.0), (1.0, 0.0)], 0.2)], vias=[(5.0, 4.0, 0.3)],
-                            openings=[("top", (6.0, 2.0, 8.0, 3.0)), ("bottom", (1.0, 1.0, 2.0, 2.0))])
+                            openings=[("top", [(6.0, 2.0), (8.0, 2.0), (8.0, 3.0)]), ("bottom", [(1.0, 1.0), (2.0, 1.0), (2.0, 2.0)])])
         self.assertEqual(R.drawn(picture, layers=[1]), {"pads": 1, "traces": 1, "vias": 1, "planes": 0, "plane_copper": 0, "openings": 1})
         self.assertEqual(R.drawn(picture, side="bottom"), {"pads": 2, "traces": 2, "vias": 1, "planes": 1, "plane_copper": 0, "openings": 1})
 

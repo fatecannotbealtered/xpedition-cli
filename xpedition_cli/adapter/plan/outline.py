@@ -80,6 +80,66 @@ def targets(width: float, height: float, radius: float = 0.0) -> dict[str, dict[
     }
 
 
+def polygon_targets(points: Any) -> dict[str, dict[str, Any]]:
+    """The three contours of a board whose outline is the polygon given, by the keys of
+    `OUTLINE_MEMBERS`: `points` lists its corners in order round it, each `[x, y]`, or
+    `[x, y, r]` for a corner rounded by an arc of radius `r` tangent to both sides, as the
+    corners of a routing plan's traces. The board and manufacturing outlines are the polygon,
+    the route border the same shape `INSET_MM` inside it."""
+    from . import lanes, shapes
+    from . import trace_plan as TP
+
+    if not isinstance(points, list) or len(points) < 3:
+        raise PlanError("E_VALIDATION", "the outline lists three or more corners, each [x, y] or [x, y, radius]")
+    corners: list[tuple[tuple[float, float], float]] = []
+    for index, point in enumerate(points):
+        if not isinstance(point, (list, tuple)) or len(point) not in (2, 3):
+            raise PlanError("E_VALIDATION", f"corner {index + 1} of the outline is [x, y] or [x, y, radius]")
+        x, y = _number(point[0]), _number(point[1])
+        radius = _number(point[2], "a corner radius") if len(point) == 3 else 0.0
+        if radius < 0:
+            raise PlanError("E_VALIDATION", f"corner {index + 1} of the outline has a negative radius")
+        corners.append(((x, y), radius))
+    if math.dist(corners[0][0], corners[-1][0]) < 1e-9:
+        corners.pop()
+    ring = [c[0] for c in corners]
+    sides = shapes.edges(ring)
+    if len(ring) < 3 or any(shapes.cross(a, b) for i, a in enumerate(sides) for b in sides[i + 2:]
+                            if not (i == 0 and b == sides[-1])):
+        raise PlanError("E_VALIDATION", "the outline's sides cross each other, or it has fewer than three corners; list its corners "
+                        "in order round it")
+    area = sum(ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1] for i in range(len(ring))) / 2
+    if abs(area) < 1e-6:
+        raise PlanError("E_VALIDATION", "the outline encloses no area")
+    if area < 0:  # counter-clockwise, as Layout draws an outline
+        corners.reverse()
+    try:
+        main = _ring_rows(corners, TP)
+        inner_corners = lanes.offset_chain([corners[-1], *corners, corners[0]], INSET_MM, True)[1:-1]
+        inner = _ring_rows(inner_corners, TP)
+    except PlanError as exc:
+        raise PlanError("E_VALIDATION", exc.message.replace("The routing plan is not valid: ", "the outline: ").rstrip(".")) from None
+    if max(len(main[0]), len(inner[0])) > MAX_CONTOUR_POINTS:
+        raise PlanError("E_VALIDATION", f"the outline takes more than {MAX_CONTOUR_POINTS} points as Layout holds it; give fewer corners")
+    return {
+        "board_outline": {"points_mm": main, "cutout_count": 0, "closed": True},
+        "route_border": {"points_mm": inner, "cutout_count": 0, "closed": True},
+        "manufacturing_outline": {"points_mm": [list(row) for row in main], "cutout_count": 0, "closed": True},
+    }
+
+
+def _ring_rows(corners: list[tuple[tuple[float, float], float]], TP: Any) -> list[list[float]]:
+    """A closed ring of corners as Layout's three rows, starting halfway along its first side so
+    that every corner, the first too, can carry its arc."""
+    (a, _ra), (b, _rb) = corners[0], corners[1]
+    start = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    ordered = corners[1:] + corners[:1]
+    points = [start, *[c[0] for c in ordered], start]
+    radii = [0.0, *[c[1] for c in ordered], 0.0]
+    rows = TP.drawn(points, radii)
+    return [[round(r[0], 6) for r in rows], [round(r[1], 6) for r in rows], [round(r[2], 6) for r in rows]]
+
+
 def _array(value: Any) -> list[list[float]]:
     if (
         not isinstance(value, (list, tuple))

@@ -18,6 +18,7 @@ from test_layout_fakes import BOARD, Collection, FakeApp, FakeDoc, Geometry, con
 from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base  # noqa: E402
 from xpedition_cli.adapter import layout_edit as E  # noqa: E402
+from xpedition_cli.adapter.plan import openings as OP  # noqa: E402
 from xpedition_cli.adapter.plan import stitching as ST  # noqa: E402
 from xpedition_cli.adapter.plan import trace_plan as TP  # noqa: E402
 
@@ -283,7 +284,11 @@ class SolderMaskTest(unittest.TestCase):
         self.doc.PutFabricationLayerGfx = put_gfx
         self.doc.TransactionStart = lambda mode: None
         self.doc.TransactionEnd = lambda keep: None
-        self.patches = [mock.patch.object(E, "_copper_nets", lambda doc, side, box: ["GND"] if box[0] < 5 else []),
+        self.copper = OP.LayerCopper(regions=[("GND", [[(0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0)]])],
+                                     traces=[("SIG", 0.2, [(3.0, 4.0), (4.5, 4.0)])])
+        self.bends: list = []
+        self.patches = [mock.patch.object(E, "layer_copper", lambda doc, layer: self.copper),
+                        mock.patch.object(E.O, "bend_boxes", lambda doc, flex=None: self.bends),
                         mock.patch.object(E, "cover_layer_sides", lambda doc: set()),
                         mock.patch.object(E.L, "extrema_mm", lambda gfx: gfx.box)]
         for patch in self.patches:
@@ -315,6 +320,76 @@ class SolderMaskTest(unittest.TestCase):
                                                                               "cover_layer": True}))
         self.assertIn("no copper lies inside", bare["blocked_by"][0])
         self.assertIn("no cover layer on the top side", cover["blocked_by"][0])
+
+    def test_an_opening_for_one_net_keeps_off_other_copper(self):
+        with world(FakeApp(self.doc)):
+            over = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 2.0, "y1_mm": 2.5, "x2_mm": 4.6, "y2_mm": 4.2,
+                                                                             "net": "GND"}))
+            close = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 1.0, "y1_mm": 1.0, "x2_mm": 3.5, "y2_mm": 3.85,
+                                                                              "net": "GND"}))
+            clear = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 1.0, "y1_mm": 1.0, "x2_mm": 3.0, "y2_mm": 3.0,
+                                                                              "net": "GND"}))
+            wrong = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 3.5, "y1_mm": 3.9, "x2_mm": 4.0, "y2_mm": 4.1,
+                                                                              "net": "VBUS"}))
+        self.assertIn("bares SIG's copper", over["blocked_by"][0])
+        self.assertIn("SIG's copper comes 0.05 mm from the opening", close["blocked_by"][0])
+        self.assertTrue(clear["can_apply"])
+        self.assertIn("0.1 mm or more from all other copper", clear["action"])
+        self.assertTrue(any("bares none of VBUS's copper" in reason for reason in wrong["blocked_by"]))
+
+    def test_fit_opens_the_largest_rectangle_on_the_net_alone(self):
+        region = {"x1_mm": 0.0, "y1_mm": 0.0, "x2_mm": 5.0, "y2_mm": 5.0, "net": "GND", "fit": True}
+        with world(FakeApp(self.doc)):
+            preview = E.SolderMaskCreate().preview(context("solder-mask create", region))
+            facts = E.SolderMaskCreate().apply(context("solder-mask create", region))
+            none = E.SolderMaskCreate().preview(context("solder-mask create", {**region, "x1_mm": 6.0, "x2_mm": 8.0}))
+        x1, y1, x2, y2 = facts["result"]["rect_mm"]
+        self.assertTrue(x1 < 0.2 and y1 < 0.2 and x2 > 4.8 and 3.4 < y2 <= 3.75, facts["result"]["rect_mm"])
+        self.assertIn("the largest rectangle that fits", preview["action"])
+        self.assertEqual(facts["result"]["nets"], ["GND"])
+        self.assertIn("no rectangle of at least 0.3 mm a side", none["blocked_by"][0])
+
+    def test_a_polygon_opening_is_drawn_point_by_point(self):
+        shape = {"polygon": {"points_mm": [[0.5, 0.5], [3, 0.5], [1.5, 2.5]]}, "net": "GND", "side": "bottom"}
+        with world(FakeApp(self.doc)):
+            preview = E.SolderMaskCreate().preview(context("solder-mask create", shape))
+            facts = E.SolderMaskCreate().apply(context("solder-mask create", shape))
+        self.assertEqual(preview["changes"][0]["target"], key("/solder-mask/bottom/0.5,0.5,3,2.5"))
+        self.assertIn("the polygon of 3 points", preview["action"])
+        self.assertEqual(facts["result"]["points_mm"], [[0.5, 0.5], [3.0, 0.5], [1.5, 2.5]])
+        self.assertEqual(self.doc.gfxs[0].box, (0.5, 0.5, 3.0, 2.5))
+
+    def test_a_bend_zone_or_a_wrong_request_stops_the_opening(self):
+        self.bends = [(0.0, 2.0, 10.0, 3.0)]
+        with world(FakeApp(self.doc)):
+            bend = E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 1.0, "y1_mm": 1.0, "x2_mm": 3.0, "y2_mm": 2.5}))
+            with self.assertRaises(AdapterError) as alone:
+                E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 0.0, "y1_mm": 0.0, "x2_mm": 5.0, "y2_mm": 5.0,
+                                                                          "fit": True}))
+            with self.assertRaises(AdapterError) as both:
+                E.SolderMaskCreate().preview(context("solder-mask create", {"x1_mm": 0.0, "y1_mm": 0.0, "x2_mm": 5.0, "y2_mm": 5.0,
+                                                                          "polygon": {"points_mm": [[0, 0], [1, 0], [1, 1]]}}))
+        self.assertIn("reaches into the bend zone", bend["blocked_by"][0])
+        self.assertIn("name the net with --net", str(alone.exception))
+        self.assertIn("not both", str(both.exception))
+
+    def test_a_polygon_with_the_extents_of_an_opening_is_another_opening(self):
+        self.doc.gfxs.append(Item(self.doc.gfxs, Type=E.FAB_SOLDERMASK, Side=E.SIDE_TOP, Component=None, box=(1.0, 1.0, 3.0, 3.0)))
+        triangle = [(1.0, 1.0), (3.0, 1.0), (1.0, 3.0)]
+        with world(FakeApp(self.doc)):
+            self.assertTrue(E.opening_exists(self.doc, "solder-mask", "top", (1.0, 1.0, 3.0, 3.0), OP.rect_ring((1, 1, 3, 3))))
+            self.assertFalse(E.opening_exists(self.doc, "solder-mask", "top", (1.0, 1.0, 3.0, 3.0), triangle))
+            listed = E.listed_openings(self.doc)
+        self.assertEqual(listed, [{"side": "top", "kind": "solder-mask", "extents_mm": [1.0, 1.0, 3.0, 3.0]}])
+
+    def test_pcb_check_names_an_opening_that_joins_two_nets(self):
+        for box in ((2.0, 3.0, 4.6, 4.2), (1.0, 1.0, 2.0, 2.0)):
+            self.doc.gfxs.append(Item(self.doc.gfxs, Type=E.FAB_SOLDERMASK, Side=E.SIDE_TOP, Component=None, box=box))
+        with world(FakeApp(self.doc)):
+            rows = E.opening_rows(self.doc)
+        self.assertEqual(len(rows), 1)
+        self.assertIn("the top soldermask opening at 2,3 to 4.6,4.2 mm bares GND and SIG", rows[0]["finding"])
+        self.assertEqual((rows[0]["rule"], rows[0]["severity"]), ("opening_short", "medium"))
 
     def test_delete_needs_exactly_one_opening_at_the_point(self):
         with world(FakeApp(self.doc)):

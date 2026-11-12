@@ -14,13 +14,20 @@ repeats. The kinds:
   vias at most ``max_mm`` apart, the trace's ends counting as vias; a longer gap where no via
   fits with ``ROOM_MM`` to spare, such as between two signals or across a bend zone, is listed
   apart and does not fail;
-- ``plane``: ``net`` poured on every one of ``layers``, hatched over each bend zone with
-  ``hatched_in_bends``.
+- ``plane``: ``net`` poured on every one of ``layers``, each shape with copper made, hatched over
+  each bend zone with ``hatched_in_bends``;
+- ``opening``: an opening of the mask on ``side`` over each of the outline's ears, or over each
+  stiffener laminated on that side (``at``), that bares ``net``'s copper alone and keeps
+  ``clearance_mm`` (0.1 unless given) from every other net's copper;
+- ``text``: the words ``text`` on the silkscreen of ``side`` (top unless given), or on the user
+  draft layer ``user_layer``.
 
 Each result gives what was measured against what is needed, whether it passes, and the worst
 places. The measure takes a board model as ``board_metrics`` reads it: the board's own (pcb
 check), or the board's copper with a routing plan's laid over it (trace check), which has no
-planes yet, so a ``plane`` requirement is left unmeasured there.
+planes yet, so a ``plane`` requirement is left unmeasured there, and so are ``opening`` and
+``text``, which pcb check measures from the ``openings``, ``ears`` and ``board_texts`` it adds to
+the model.
 
 Pure Python, in mm.
 """
@@ -47,7 +54,11 @@ KEYS = {
     "via_padstack": ({"padstack"}, {"nets"}),
     "via_pitch": ({"net", "max_mm"}, {"min_length_mm"}),
     "plane": ({"net", "layers"}, {"hatched_in_bends"}),
+    "opening": ({"net", "at", "side"}, {"clearance_mm"}),
+    "text": ({"text"}, {"side", "user_layer"}),
 }
+OPENING_CLEARANCE_MM = 0.1
+PLACES = ("ears", "stiffeners")
 Point = tuple[float, float]
 Box = tuple[float, float, float, float]
 
@@ -139,6 +150,18 @@ def _checked(kind: str, values: dict[str, Any], what: str) -> dict[str, Any]:
         return {"padstack": name("padstack"), "nets": names("nets") if "nets" in values else None}
     if kind == "via_pitch":
         return {"net": name("net"), "max_mm": number("max_mm", 0, 100), "min_length_mm": number("min_length_mm", 0, 1000, 2.0)}
+    if kind == "opening":
+        if values.get("at") not in PLACES:
+            raise _error(f"{what} (opening) has at, ears or stiffeners")
+        if values.get("side") not in ("top", "bottom"):
+            raise _error(f"{what} (opening) has side, top or bottom")
+        return {"net": name("net"), "at": values["at"], "side": values["side"],
+                "clearance_mm": number("clearance_mm", 0, 2, OPENING_CLEARANCE_MM)}
+    if kind == "text":
+        side = values.get("side", "top")
+        if side not in ("top", "bottom"):
+            raise _error(f"{what} (text) has side, top or bottom")
+        return {"text": name("text"), "side": side, "user_layer": name("user_layer") if "user_layer" in values else None}
     hatched = values.get("hatched_in_bends", False)
     if not isinstance(hatched, bool):
         raise _error(f"{what} (plane) has hatched_in_bends, true or false")
@@ -431,4 +454,62 @@ def _xy(p: Any) -> list[float]:
     return [round(float(p[0]), 4), round(float(p[1]), 4)]
 
 
-MEASURES = {"guard": _guard, "ring": _ring, "via_padstack": _via_padstack, "via_pitch": _via_pitch, "plane": _plane}
+def _box_of(points: list[Any]) -> Box:
+    xs, ys = [float(p[0]) for p in points], [float(p[1]) for p in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _opening(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+    if "openings" not in model:
+        return {"ok": None, "reason": "the openings come after the plan is drawn and poured; pcb check measures this"}
+    if values["at"] == "ears":
+        places = [_box_of(ear["points_mm"]) for ear in model.get("ears") or [] if ear.get("points_mm")]
+    else:  # the stiffeners laminated on that side: their glue meets that side's copper
+        places = [tuple(float(v) for v in k["extents_mm"]) for k in model.get("keepouts") or []
+                  if k.get("kind") == "placement" and k.get("height_mm") and k.get("extents_mm") and k.get("side") == values["side"]]
+    if not places:
+        where = "ears" if values["at"] == "ears" else f"stiffeners on the {values['side']}"
+        return {"ok": False, "count": 0, "failed": 0, "reason": f"the board has no {where}: pcb get lists them under "
+                + ("ears" if values["at"] == "ears" else "keepout_kinds.height_limits")}
+    net, clearance = values["net"], values["clearance_mm"]
+    worst = []
+    for place in places:
+        at = _xy(((place[0] + place[2]) / 2, (place[1] + place[3]) / 2))
+        over = [o for o in model["openings"] if o.get("side") == values["side"] and _overlap(tuple(o["extents_mm"]), place) > 0]
+        if not over:
+            worst.append({"at_mm": at, "problem": f"no {values['side']} opening"})
+            continue
+        good = []
+        for opening in over:
+            others = [row for row in opening.get("near") or [] if row["net"] != net and row["gap_mm"] < clearance - 1e-9]
+            if net in (opening.get("bared") or []) and not others:
+                good.append(opening)
+        if good:
+            continue
+        opening = over[0]
+        others = [row for row in opening.get("near") or [] if row["net"] != net and row["gap_mm"] < clearance - 1e-9]
+        if others:
+            row = others[0]
+            problem = (f"the opening bares {row['net']}" if row["gap_mm"] == 0 else
+                       f"{row['net']}'s copper comes {row['gap_mm']:g} mm from the opening")
+            worst.append({"at_mm": at, "problem": problem, "near_mm": row.get("at_mm")})
+        else:
+            worst.append({"at_mm": at, "problem": f"the opening bares none of {net}'s copper"})
+    return {"ok": not worst, "count": len(places), "failed": len(worst), "worst": worst}
+
+
+def _text(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+    if "board_texts" not in model:
+        return {"ok": None, "reason": "the text comes after the plan is drawn; pcb check measures this"}
+    place = f"user:{values['user_layer']}" if values["user_layer"] else values["side"]
+    where = f"the user layer {values['user_layer']}" if values["user_layer"] else f"the {values['side']} silkscreen"
+    found = [t for t in model["board_texts"] if t.get("text") == values["text"] and t.get("place") == place]
+    if found:
+        return {"ok": True, "count": 1, "failed": 0}
+    elsewhere = sorted({t.get("place") for t in model["board_texts"] if t.get("text") == values["text"]})
+    problem = f"not on {where}" + (f"; it lies on {', '.join(str(p) for p in elsewhere)}" if elsewhere else "")
+    return {"ok": False, "count": 1, "failed": 1, "worst": [{"text": values["text"], "problem": problem}]}
+
+
+MEASURES = {"guard": _guard, "ring": _ring, "via_padstack": _via_padstack, "via_pitch": _via_pitch, "plane": _plane,
+            "opening": _opening, "text": _text}

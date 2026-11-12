@@ -17,9 +17,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-210049-router-run.json#normal",
+      "evidence": "live:docs/evidence/2026-11-12-181044-router-run.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-11-210049-router-run.json#normal"
+        "board": "live:docs/evidence/2026-11-12-181044-router-run.json#normal"
       }
     },
     {
@@ -38,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-210054-router-run.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-181050-router-run.json#empty"
     },
     {
       "row": "invalid_input",
@@ -60,7 +60,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210019-router-run.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-181008-router-run.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -80,7 +80,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210019-router-run.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-181008-router-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -95,7 +95,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211032-router-run.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-12-182413-router-run.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -115,7 +115,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210024-router-run.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-12-181014-router-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -135,7 +135,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210019-router-run.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-12-181008-router-run.json#no_scope"
     },
     {
       "row": "busy",
@@ -153,7 +153,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211143-router-run.json#busy"
+      "evidence": "live:docs/evidence/2026-11-12-182610-router-run.json#busy"
     },
     {
       "row": "dialog",
@@ -171,7 +171,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211458-router-run.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-12-183112-router-run.json#dialog"
     },
     {
       "row": "disconnect",
@@ -205,7 +205,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-210041-router-run.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-12-181035-router-run.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -225,7 +225,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210035-router-run.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-12-181027-router-run.json#read_back_mismatch"
     }
   ]
 }

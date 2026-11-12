@@ -74,6 +74,10 @@ xpedition-cli 的风险等级和决定它的命令，由 `xpedition-cli referenc
 - `via update`: change
 - `solder-mask create`: change
 - `solder-mask delete`: change
+- `keepout create`: change
+- `keepout delete`: change
+- `silkscreen-text create`: change
+- `silkscreen-text delete`: change
 - `pcb render`: artifact
 - `constraint import`: change, persist
 <!-- driver:risk:end -->

@@ -23,9 +23,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-205113-pcb-update.json#normal",
+      "evidence": "live:docs/evidence/2026-11-12-175916-pcb-update.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-11-205113-pcb-update.json#normal"
+        "board": "live:docs/evidence/2026-11-12-175916-pcb-update.json#normal"
       }
     },
     {
@@ -50,7 +50,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-205116-pcb-update.json#empty"
+      "evidence": "live:docs/evidence/2026-11-12-175920-pcb-update.json#empty"
     },
     {
       "row": "invalid_input",
@@ -74,7 +74,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-11-205110-pcb-update.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-12-175911-pcb-update.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -98,7 +98,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-11-205110-pcb-update.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-12-175911-pcb-update.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -118,7 +118,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211020-pcb-update.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-12-182353-pcb-update.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -144,7 +144,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-11-210842-pcb-update.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-12-182123-pcb-update.json#conflict"
     },
     {
       "row": "no_scope",
@@ -170,7 +170,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-11-205110-pcb-update.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-12-175911-pcb-update.json#no_scope"
     },
     {
       "row": "busy",
@@ -194,7 +194,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211110-pcb-update.json#busy"
+      "evidence": "live:docs/evidence/2026-11-12-182534-pcb-update.json#busy"
     },
     {
       "row": "dialog",
@@ -218,7 +218,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-211448-pcb-update.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-12-183056-pcb-update.json#dialog"
     },
     {
       "row": "disconnect",
@@ -264,7 +264,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-11-205119-pcb-update.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-12-175925-pcb-update.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -290,7 +290,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-11-205125-pcb-update.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-12-175932-pcb-update.json#read_back_mismatch"
     }
   ]
 }

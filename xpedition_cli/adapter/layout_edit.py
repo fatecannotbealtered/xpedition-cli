@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +26,11 @@ from .plan import PlanError, board_metrics
 from .plan import fanout as FO
 from .plan import guards as GD
 from .plan import lanes as LN
+from .plan import openings as OP
 from .plan import requirements as RQ
 from .plan import routing as plan_routing
 from .plan import stitching as ST
 from .plan import trace_plan as TP
-from .plan.shapes import box_polygon, segment_box
 from .platform import com
 
 
@@ -662,10 +663,17 @@ def _mask_kind(ctx: Context) -> tuple[str, int]:
     return ("cover-layer", FAB_COVER_LAYER) if ctx.inputs.get("cover_layer") else ("solder-mask", FAB_SOLDERMASK)
 
 
-def _rect(ctx: Context) -> tuple[float, float, float, float]:
+MASK_CLEARANCE_MM = 0.1  # how far an opening meant for one net keeps from other nets' copper, by default
+MASK_CLEARANCE_MAX_MM = 2.0
+Box = tuple[float, float, float, float]
+
+
+def _rect(ctx: Context) -> Box | None:
     values = [ctx.inputs.get(name) for name in ("x1_mm", "y1_mm", "x2_mm", "y2_mm")]
+    if all(v is None for v in values):
+        return None
     if any(v is None for v in values):
-        raise AdapterError("E_VALIDATION", "solder-mask create needs --x1, --y1, --x2 and --y2: two opposite corners.",
+        raise AdapterError("E_VALIDATION", "A rectangle needs all of --x1, --y1, --x2 and --y2: two opposite corners.",
                            dispatch_state="not_started")
     x1, y1, x2, y2 = (round(float(v), 4) for v in values)
     box = (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
@@ -674,13 +682,168 @@ def _rect(ctx: Context) -> tuple[float, float, float, float]:
     return box
 
 
+@dataclass
+class MaskRequest:
+    side: str
+    side_code: int
+    kind: str
+    fab: int
+    shape: list[tuple[float, float]]  # the opening, or with ``fit`` the region it is fitted in
+    polygon: bool
+    net: str | None
+    fit: bool
+    clearance: float
+
+
+def _mask_request(ctx: Context) -> MaskRequest:
+    from .layout_board import polygon_ring
+
+    side, code = _side(ctx)
+    kind, fab = _mask_kind(ctx)
+    box, value = _rect(ctx), ctx.inputs.get("polygon")
+    if (box is None) == (value is None):
+        raise AdapterError("E_VALIDATION", "Give the opening as a rectangle, --x1, --y1, --x2 and --y2, or as --polygon, not both.",
+                           dispatch_state="not_started")
+    shape = OP.rect_ring(box) if box is not None else polygon_ring(value)
+    net = str(ctx.inputs.get("net") or "").strip() or None
+    fit = bool(ctx.inputs.get("fit"))
+    if fit and net is None:
+        raise AdapterError("E_VALIDATION", "--fit finds where an opening bares one net's copper alone: name the net with --net.",
+                           dispatch_state="not_started")
+    clearance = ctx.inputs.get("clearance_mm")
+    clearance = MASK_CLEARANCE_MM if clearance is None else float(clearance)
+    if not 0 <= clearance <= MASK_CLEARANCE_MAX_MM:
+        raise AdapterError("E_VALIDATION", f"--clearance is 0 to {MASK_CLEARANCE_MAX_MM:g} mm.", dispatch_state="not_started")
+    return MaskRequest(side, code, kind, fab, shape, value is not None, net, fit, clearance)
+
+
+def _box_of(points: list[tuple[float, float]]) -> Box:
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    return round(min(xs), 4), round(min(ys), 4), round(max(xs), 4), round(max(ys), 4)
+
+
+def layer_copper(doc: Any, layer: int) -> OP.LayerCopper:
+    """The copper of one layer as the opening checks take it: Layout's plane copper and the pads as
+    regions, the traces and the vias, each with its net."""
+    from .layout_output import board_model, geometry_record
+
+    model = board_model(doc, full=True, silk=False, shapes=False)
+    scale = L.geometry_scale(doc)
+    if model is None or scale is None:
+        raise AdapterError("E_UNSUPPORTED", "The board's copper can be read only on a board in mils with an outline; switch the board's "
+                           "unit to mils in Layout.", dispatch_state="not_started")
+    copper = OP.LayerCopper()
+    for pad in model["pads"]:
+        if int(pad.get("layer") or 0) == layer:
+            copper.regions.append((_net_or_none(pad.get("net")), [_ring(pad)]))
+    for trace in model["traces"]:
+        if int(trace.get("layer") or 0) == layer and trace.get("path"):
+            copper.traces.append((_net_or_none(trace.get("net")), float(trace.get("width") or 0.0), _centre_line(trace["path"])))
+    for via in model["vias"]:
+        copper.vias.append((_net_or_none(via.get("net")), (float(via["circle"][0]), float(via["circle"][1])), float(via["circle"][2])))
+    for piece in L.collection(doc, "GeneratedPlanes"):  # the copper itself, its clearances and hatching as holes
+        if int(piece.Layer) != layer:
+            continue
+        geometry = piece.Geometry
+        record = geometry_record(geometry, scale)
+        if not record:
+            continue
+        rings = [_ring(record)]
+        for hole in L.collection(geometry, "Cutouts"):
+            cut = geometry_record(hole, scale)
+            if cut:
+                rings.append(_ring(cut))
+        copper.regions.append((_net_or_none(L.net_name(piece)), rings))
+    return copper
+
+
+def _net_or_none(name: Any) -> str:
+    return str(name or "") or "(no net)"
+
+
+def _ring(record: dict[str, Any]) -> list[tuple[float, float]]:
+    """A geometry record as a polygon in mm: a circle as 24 sides around it, a path with its arcs as chords."""
+    if record.get("circle"):
+        x, y, r = (float(v) for v in record["circle"][:3])
+        reach = r / math.cos(math.pi / 24)
+        return [(x + reach * math.cos(k * math.pi / 12), y + reach * math.sin(k * math.pi / 12)) for k in range(24)]
+    return ST.polygon(record.get("path"), None)
+
+
+@dataclass
+class MaskPlan:
+    shape: list[tuple[float, float]] | None  # the opening to draw, None where no fit was found
+    box: Box | None
+    exposure: dict[str, Any]
+    blocked: list[str]
+
+
+def _overlaps(a: Box, b: Box) -> bool:
+    return min(a[2], b[2]) - max(a[0], b[0]) > 0 and min(a[3], b[3]) - max(a[1], b[1]) > 0
+
+
+def _mask_plan(doc: Any, request: MaskRequest) -> MaskPlan:
+    """Where the opening goes and what it bares, with what stands in its way."""
+    layer = 1 if request.side == "top" else int(doc.LayerCount)
+    copper = layer_copper(doc, layer)
+    shape = request.shape
+    blocked: list[str] = []
+    bends = O.bend_boxes(doc)
+    margin = f"{request.clearance:g} mm"
+    if request.fit:
+        rect = OP.fit(request.shape, copper, request.net or "", request.clearance, avoid=bends)
+        if rect is None:
+            region = "the polygon" if request.polygon else "the rectangle"
+            return MaskPlan(None, None, {"bared": [], "near": []}, [
+                f"no rectangle of at least {OP.MIN_SIDE_MM:g} mm a side inside {region} lies on {request.net}'s copper on layer "
+                f"{layer}, keeps {margin} from other copper and stays out of the bend zones; give a larger region, or pour "
+                f"{request.net} there first"])
+        shape = OP.rect_ring(rect)
+    exposure = OP.exposure(shape, copper, request.clearance)
+    box = _box_of(shape)
+    if request.net is None:
+        if not exposure["bared"]:
+            blocked.append(f"no copper lies inside the opening on layer {layer}, so it would bare nothing; pour or route the copper first")
+    else:
+        for row in exposure["near"]:
+            if row["net"] == request.net:
+                continue
+            at = f"({row['at_mm'][0]:g}, {row['at_mm'][1]:g})"
+            if row["gap_mm"] == 0:
+                blocked.append(f"the opening bares {row['net']}'s copper at {at} on layer {layer}, not only {request.net}'s; move it off, "
+                               "or give a region with --fit")
+            else:
+                blocked.append(f"{row['net']}'s copper comes {row['gap_mm']:g} mm from the opening at {at} on layer {layer}, within the "
+                               f"{margin} clearance; move the opening off, or give a region with --fit")
+        if request.net not in exposure["bared"]:
+            blocked.append(f"the opening bares none of {request.net}'s copper on layer {layer}; pcb render --layers {layer} shows "
+                           "where it lies")
+    for zone in bends:
+        if _overlaps(box, zone):
+            blocked.append(f"the opening reaches into the bend zone {zone[0]:g},{zone[1]:g} to {zone[2]:g},{zone[3]:g} mm, where bare "
+                           "copper cracks as the board bends; keep it out of the zones pcb get lists")
+    return MaskPlan(shape, box, exposure, blocked)
+
+
+def _mask_where(plan: MaskPlan, request: MaskRequest) -> str:
+    box = plan.box
+    if box is None:
+        return ""
+    if request.polygon and not request.fit:
+        return f"the polygon of {len(plan.shape or [])} points within {box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm"
+    return f"{box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm"
+
+
 def mask_key(kind: str, side: str, box: tuple[float, float, float, float]) -> str:
     return f"/{kind}/{side}/" + ",".join(f"{v:g}" for v in box)
 
 
 def _openings(doc: Any, fab_type: int, side_code: int) -> list[tuple[Any, tuple[float, float, float, float]]]:
+    """The board's own openings of one kind on one side, with their extents. Layout is asked for
+    those alone: a board's parts carry hundreds of fabrication graphics."""
+    found = L.filtered(doc, "FabricationLayerGfxs", fab_type, 0, side_code, False)
     out = []
-    for gfx in L.collection(doc, "FabricationLayerGfxs"):
+    for gfx in found if found is not None else L.collection(doc, "FabricationLayerGfxs"):
         try:
             if int(gfx.Type) != fab_type or int(gfx.Side) != side_code or gfx.Component is not None:
                 continue
@@ -690,35 +853,81 @@ def _openings(doc: Any, fab_type: int, side_code: int) -> list[tuple[Any, tuple[
     return out
 
 
-def opening_exists(doc: Any, kind: str, side: str, box: tuple[float, ...]) -> bool:
+def opening_exists(doc: Any, kind: str, side: str, box: tuple[float, ...], shape: list[tuple[float, float]] | None = None) -> bool:
+    """Whether the side holds an opening with these extents, and, with ``shape``, of that shape's area."""
     fab_type = FAB_COVER_LAYER if kind == "cover-layer" else FAB_SOLDERMASK
     side_code = SIDE_TOP if side == "top" else SIDE_BOTTOM
-    return any(all(abs(a - b) < 0.002 for a, b in zip(found, box, strict=True)) for _g, found in _openings(doc, fab_type, side_code))
+    for gfx, found in _openings(doc, fab_type, side_code):
+        if not all(abs(a - b) < 0.002 for a, b in zip(found, box, strict=True)):
+            continue
+        if shape is None or abs(_area(opening_shape(doc, gfx, found)) - _area(shape)) <= 0.01 * max(_area(shape), 1e-6):
+            return True
+    return False
 
 
-def _copper_nets(doc: Any, side: str, box: tuple[float, float, float, float]) -> list[str]:
-    """The nets with copper inside the box on the outer layer of that side: pads, traces and planes."""
-    from .layout_output import board_model, geometry_record
+def _area(ring: list[tuple[float, float]]) -> float:
+    return abs(sum(ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1] for i in range(len(ring)))) / 2
 
-    layer = 1 if side == "top" else int(doc.LayerCount)
-    model = board_model(doc, full=True, silk=False)
-    nets: set[str] = set()
-    if model is not None:
-        for pad in model["pads"]:
-            if int(pad.get("layer") or 0) == layer and box_polygon(box, ST.polygon(pad.get("path"), pad.get("circle"))):
-                nets.add(str(pad.get("net") or "") or "(no net)")
-        for trace in model["traces"]:
-            points = [(p[0], p[1]) for p in trace.get("path") or []]
-            if int(trace.get("layer") or 0) == layer and any(segment_box(points[i], points[i + 1], box) == 0.0
-                                                              for i in range(len(points) - 1)):
-                nets.add(str(trace.get("net") or ""))
+
+def opening_shape(doc: Any, gfx: Any, box: Box) -> list[tuple[float, float]]:
+    """An opening's shape as a polygon in mm; its box where the shape cannot be read."""
+    from .layout_output import geometry_record
+    from .plan.board_render import polygon_of
+
     scale = L.geometry_scale(doc)
-    for shape in L.collection(doc, "PlaneShapes"):
-        if int(shape.Layer) == layer and scale is not None:
-            record = geometry_record(shape.Geometry, scale)
-            if record and box_polygon(box, ST.polygon(record.get("path"), record.get("circle"))):
-                nets.add(L.net_name(shape))
-    return sorted(n for n in nets if n)
+    try:
+        record = geometry_record(gfx.Geometry, scale) if scale is not None else None
+    except Exception:  # noqa: BLE001 - its box stands in
+        record = None
+    if record:
+        return polygon_of(record.get("path"), record.get("circle"))
+    return OP.rect_ring(box)
+
+
+def opening_facts(doc: Any, clearance: float = MASK_CLEARANCE_MM) -> list[dict[str, Any]]:
+    """The board's own openings, each with its side, kind and extents, the nets whose copper it
+    bares (``bared``) and each net's copper within ``clearance`` of it (``near``)."""
+    out = []
+    for side, code in (("top", SIDE_TOP), ("bottom", SIDE_BOTTOM)):
+        found = [(kind, gfx, box) for kind, fab in (("soldermask", FAB_SOLDERMASK), ("coverlay", FAB_COVER_LAYER))
+                 for gfx, box in _openings(doc, fab, code)]
+        if not found:
+            continue
+        copper = layer_copper(doc, 1 if side == "top" else int(doc.LayerCount))
+        for kind, gfx, box in found:
+            exposure = OP.exposure(opening_shape(doc, gfx, box), copper, clearance)
+            out.append({"side": side, "kind": kind, "extents_mm": list(box), **exposure})
+    return out
+
+
+def opening_rows(doc: Any) -> list[dict[str, Any]]:
+    """pcb check's rule for the board's own openings: one that bares the copper of two nets, or
+    comes within ``MASK_CLEARANCE_MM`` of a second net's copper, so that a spring, foam or
+    conductive glue on it would join them."""
+    rows = []
+    for opening in opening_facts(doc):
+        if len(opening["near"]) < 2:
+            continue
+        box = opening["extents_mm"]
+        where = f"the {opening['side']} {opening['kind']} opening at {box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm"
+        close = [row for row in opening["near"] if row["gap_mm"] > 0]
+        finding = f"{where} bares {' and '.join(opening['bared']) or 'no copper'}"
+        if close:
+            finding += "; " + ", ".join(f"{row['net']}'s copper comes {row['gap_mm']:g} mm from it at ({row['at_mm'][0]:g}, "
+                                        f"{row['at_mm'][1]:g})" for row in close)
+        rows.append({"rule": "opening_short", "severity": "medium", "net": opening["near"][0]["net"], "other": opening["near"][1]["net"],
+                     "finding": finding + f": a spring, foam or glue on it would join them; keep {MASK_CLEARANCE_MM:g} mm from other "
+                                          "nets"})
+    return rows
+
+
+def listed_openings(doc: Any) -> list[dict[str, Any]]:
+    """The board's own soldermask and coverlay openings as pcb get lists them."""
+    rows = []
+    for side, code in (("top", SIDE_TOP), ("bottom", SIDE_BOTTOM)):
+        for kind, fab in (("solder-mask", FAB_SOLDERMASK), ("cover-layer", FAB_COVER_LAYER)):
+            rows += [{"side": side, "kind": kind, "extents_mm": list(box)} for _gfx, box in _openings(doc, fab, code)]
+    return rows
 
 
 def cover_layer_sides(doc: Any) -> set[str]:
@@ -740,56 +949,69 @@ def cover_layer_sides(doc: Any) -> set[str]:
 
 
 class SolderMaskCreate(L.ReadsBack):
-    """A rectangular opening in the soldermask, or in the coverlay of a flex board (--cover-layer),
-    on one side: ``PutFabricationLayerGfx``, filled. Copper under it is left bare."""
+    """An opening in the soldermask, or in the coverlay of a flex board (--cover-layer), on one side:
+    a rectangle or a polygon, ``PutFabricationLayerGfx``, filled. Copper under it is left bare. With
+    --net it may bare that net's copper alone, at the margin from all other copper; --fit finds the
+    largest rectangle that does inside the region given."""
 
     command = "solder-mask create"
 
     def preview(self, ctx: Context) -> dict[str, Any]:
-        side, _code = _side(ctx)
-        kind, _fab = _mask_kind(ctx)
-        box = _rect(ctx)
+        request = _mask_request(ctx)
         path = ctx.document_path()
 
-        def look(app: Any, doc: Any) -> tuple[bool, list[str], bool]:
-            cover = kind != "cover-layer" or side in cover_layer_sides(doc)
-            return opening_exists(doc, kind, side, box), _copper_nets(doc, side, box), cover
+        def look(app: Any, doc: Any) -> tuple[MaskPlan, bool, bool]:
+            plan = _mask_plan(doc, request)
+            cover = request.kind != "cover-layer" or request.side in cover_layer_sides(doc)
+            exists = plan.box is not None and opening_exists(doc, request.kind, request.side, plan.box, plan.shape)
+            return plan, exists, cover
 
-        exists, nets, cover = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the copper under the opening")
-        domain = mask_key(kind, side, box)
-        target = [base.target(path, "opening", domain, label=f"{kind} opening on the {side}")]
-        where = f"{box[0]:g},{box[1]:g} to {box[2]:g},{box[3]:g} mm"
+        plan, exists, cover = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the copper under the opening")
+        label = f"{request.kind} opening on the {request.side}"
+        if plan.box is None:
+            return base.preview(f"Find room for a {request.side} opening on {request.net}'s copper.",
+                                [base.target(path, "opening", None, label=label)], [], blocked_by=plan.blocked)
+        domain = mask_key(request.kind, request.side, plan.box)
+        target = [base.target(path, "opening", domain, label=label)]
+        where = _mask_where(plan, request)
         if exists:
-            return base.preview(f"The {side} {kind} has an opening at {where} already; nothing changes.", target, [])
-        blocked = [] if nets else [f"no copper lies inside {where} on the {side} side, so the opening would bare nothing; pour or "
-                                   "route the copper first"]
+            return base.preview(f"The {request.side} {request.kind} has an opening at {where} already; nothing changes.", target, [])
+        blocked = list(plan.blocked)
         if not cover:
-            blocked.append(f"the board's stackup has no cover layer on the {side} side (pcb get lists the stackup); open the "
+            blocked.append(f"the board's stackup has no cover layer on the {request.side} side (pcb get lists the stackup); open the "
                            "soldermask instead, without --cover-layer")
-        layer = "coverlay" if kind == "cover-layer" else "soldermask"
-        return base.preview(f"Open the {side} {layer} over {where}, baring the copper of {', '.join(nets) or 'no net'} there. The board "
-                            "is not saved.", target, [base.change(base.key(path, domain), "exists", False, True)],
-                            blocked_by=blocked or None)
+        layer = "coverlay" if request.kind == "cover-layer" else "soldermask"
+        others = [row for row in plan.exposure["near"] if row["net"] != request.net]
+        apart = "" if request.net is None or others else f", {request.clearance:g} mm or more from all other copper"
+        fitted = " (the largest rectangle that fits)" if request.fit else ""
+        return base.preview(f"Open the {request.side} {layer} over {where}{fitted}, baring the copper of "
+                            f"{', '.join(plan.exposure['bared']) or 'no net'} there{apart}. The board is not saved.", target,
+                            [base.change(base.key(path, domain), "exists", False, True)], blocked_by=blocked or None)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
-        side, code = _side(ctx)
-        kind, fab = _mask_kind(ctx)
-        box = _rect(ctx)
+        request = _mask_request(ctx)
 
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            if opening_exists(doc, kind, side, box):
-                return base.facts("not_applied", "unchanged", result={"kind": kind, "side": side, "created": False})
-            x1, y1, x2, y2 = box
-            points = [[x1, x2, x2, x1, x1], [y1, y1, y2, y2, y1], [0.0] * 5]
+            plan = _mask_plan(doc, request)
+            if plan.shape is None or plan.box is None:
+                raise base.blocked("The board changed since the preview: " + "; ".join(plan.blocked) + ".")
+            result = {"kind": request.kind, "side": request.side, "rect_mm": list(plan.box), "nets": plan.exposure["bared"]}
+            if request.polygon and not request.fit:
+                result["points_mm"] = [[round(x, 4), round(y, 4)] for x, y in plan.shape]
+            if opening_exists(doc, request.kind, request.side, plan.box, plan.shape):
+                return base.facts("not_applied", "unchanged", result={**result, "created": False})
+            if plan.blocked:
+                raise base.blocked("The board changed since the preview: " + "; ".join(plan.blocked) + ".")
+            ring = [*plan.shape, plan.shape[0]]
+            points = [[p[0] for p in ring], [p[1] for p in ring], [0.0] * len(ring)]
             doc.TransactionStart(0)
             try:
-                doc.PutFabricationLayerGfx(fab, code, 0.0, 5, points, True, None, L.UNIT_MM)
+                doc.PutFabricationLayerGfx(request.fab, request.side_code, 0.0, len(ring), points, True, None, L.UNIT_MM)
             except Exception as exc:  # noqa: BLE001 - classified
                 raise L.com_error(exc, "drawing the opening", com.call_state(exc)) from None
             finally:
                 doc.TransactionEnd(True)
-            return base.facts("applied", "unchanged", result={"kind": kind, "side": side, "created": True,
-                                                              "rect_mm": list(box), "nets": _copper_nets(doc, side, box)})
+            return base.facts("applied", "unchanged", result={**result, "created": True})
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="drawing the opening")
 
@@ -803,7 +1025,8 @@ class SolderMaskDelete(L.ReadsBack):
         side, code = _side(ctx)
         kind, fab = _mask_kind(ctx)
         x, y = base.need_input(ctx, "x_mm"), base.need_input(ctx, "y_mm")
-        hits = [(g, box) for g, box in _openings(doc, fab, code) if box[0] <= x <= box[2] and box[1] <= y <= box[3]]
+        hits = [(g, box) for g, box in _openings(doc, fab, code) if box[0] <= x <= box[2] and box[1] <= y <= box[3]
+                and OP.inside((x, y), opening_shape(doc, g, box))]
         if not hits:
             raise AdapterError("E_NOT_FOUND", f"No {side} {kind} opening contains ({x:g}, {y:g}) mm.", dispatch_state="not_started")
         if len(hits) > 1:
@@ -908,6 +1131,20 @@ def board_obstacles(doc: Any, path: str, copper: TP.Copper) -> GD.Obstacles:
         LN.outline_corners(_outline_rows(doc))), _cutouts(doc))
 
 
+DEFAULT_CLEARANCE_MM = 0.1  # the clearance taken where the board's rules cannot be read
+
+
+def ruled_obstacles(doc: Any, path: str, copper: TP.Copper) -> GD.Obstacles:
+    """The board's copper with its clearance rules, or, where the rules cannot be read (a board
+    without its project beside it), with ``DEFAULT_CLEARANCE_MM`` between any two nets."""
+    try:
+        return board_obstacles(doc, path, copper)
+    except AdapterError:
+        rules = TP.Rules(net_class_of={}, widths={}, clearance=lambda *_args: DEFAULT_CLEARANCE_MM)
+        return GD.Obstacles(copper, TP.Plan(), rules, _route_border(doc) or _outline_polygon(LN.outline_corners(_outline_rows(doc))),
+                            _cutouts(doc))
+
+
 def _rules_of(doc: Any, path: str, copper: TP.Copper) -> TP.Rules:
     """The clearance rules, read once per reading of the copper: each reading opens the constraints."""
     if getattr(copper, "rules", None) is None:
@@ -989,8 +1226,11 @@ def _fanout_pins(component: Any) -> list[FO.Pin]:
     return pins
 
 
-def _fanned(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None) -> tuple[TP.Plan, dict[str, FO.Fanout]]:
-    """The plan with each fan-out's stubs, joins and vias, and the fan-outs by connector."""
+def _fanned(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None,
+            lanes: list[LN.Lane] | None = None) -> tuple[TP.Plan, dict[str, FO.Fanout]]:
+    """The plan with each fan-out's stubs, joins and vias, and the fan-outs by connector. A near pin
+    of a net whose lane starts or ends at the connector on another layer than its pads changes to
+    the lane's layer through a via of the fan-out."""
     from . import layout_parts
     from .plan.shapes import flatten
 
@@ -1010,8 +1250,10 @@ def _fanned(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None)
             raise AdapterError("E_VALIDATION", f"The routing plan is not valid: the size of the via {spec['padstack']} is not known: {why}.",
                                dispatch_state="not_started")
         try:
+            lift = {lane.net: lane.layer for lane in lanes or [] if spec["refdes"] in (lane.from_ref, lane.to_ref)}
             fanout = FO.plan(pins, body, radius, clear.via_to_pad, clear.via_to_via, spec["layer"],
-                             set(spec["plane_nets"]), set(spec["skip"]), spec["stub_width"], set(spec["give_way"]))
+                             set(spec["plane_nets"]), set(spec["skip"]), spec["stub_width"], set(spec["give_way"]),
+                             set(spec["nets"]) if spec.get("nets") is not None else None, lift)
         except PlanError as exc:
             raise AdapterError(exc.code, f"The routing plan is not valid: the fan-out of {spec['refdes']}: {exc.message}.",
                                dispatch_state="not_started") from None
@@ -1483,7 +1725,7 @@ def _outline_polygon(ring: list[tuple[tuple[float, float], float]]) -> list[tupl
 
 def _lanes_laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], copper: TP.Copper | None = None) -> TP.Plan:
     """The plan with each fan-out, and each lane as a trace along the board outline."""
-    plan, fanouts = _fanned(doc, path, plan, copper)
+    plan, fanouts = _fanned(doc, path, plan, copper, lanes)
     if not lanes:
         return plan
     ring = LN.outline_corners(_outline_rows(doc))

@@ -99,10 +99,10 @@ def __getattr__(name: str) -> Any:
         except AdapterError:
             return ""
     if name == "HANDLERS":
-        from . import layout_board, layout_edit, layout_output, layout_parts, layout_rules
+        from . import layout_board, layout_edit, layout_keepout, layout_output, layout_parts, layout_rules, layout_silk
 
         return [*layout_board.HANDLERS, *layout_output.HANDLERS, *layout_rules.HANDLERS, *layout_edit.HANDLERS,
-                *layout_parts.HANDLERS]
+                *layout_parts.HANDLERS, *layout_silk.HANDLERS, *layout_keepout.HANDLERS]
     raise AttributeError(name)
 
 
@@ -110,10 +110,40 @@ def __getattr__(name: str) -> Any:
 
 
 def items(collection: Any) -> list[Any]:
-    """The items of a COM collection (one-based ``Item``); none for a missing collection."""
+    """The items of a COM collection (one-based ``Item``); none for a missing collection. A
+    collection of Layout is read through its enumerator in batches, each item wrapped in the class
+    ``Item`` returns, which costs no call to Layout: reading hundreds of items one by one cost
+    milliseconds each."""
     if collection is None:
         return []
-    return [collection.Item(index) for index in range(1, int(collection.Count) + 1)]
+    count = int(collection.Count)
+    if count == 0:
+        return []
+    first = collection.Item(1)
+    if count > 1:
+        raw = _enumerated(collection)
+        kind = type(first)
+        if raw is not None and len(raw) == count and getattr(kind, "_xpedition_cli_quick", False):
+            return [first, *(kind(item) for item in raw[1:])]
+    return [first, *(collection.Item(index) for index in range(2, count + 1))]
+
+
+def _enumerated(collection: Any) -> list[Any] | None:
+    """A collection's items as raw interfaces, through its enumerator; None where it has none."""
+    try:
+        import pythoncom
+
+        raw = collection._oleobj_
+        enum = raw.Invoke(pythoncom.DISPID_NEWENUM, 0, pythoncom.DISPATCH_PROPERTYGET | pythoncom.DISPATCH_METHOD, 1)
+        enum = enum.QueryInterface(pythoncom.IID_IEnumVARIANT)
+        out: list[Any] = []
+        while True:
+            batch = enum.Next(256)
+            if not batch:
+                return out
+            out.extend(batch)
+    except Exception:  # noqa: BLE001 - read them one by one
+        return None
 
 
 def collection(owner: Any, name: str) -> list[Any]:
@@ -121,6 +151,70 @@ def collection(owner: Any, name: str) -> list[Any]:
     properties whose parameters all default to "everything"; read bare, both the late-bound and
     the generated object accept them."""
     return items(com.member(owner, name))
+
+
+def filtered(owner: Any, name: str, *args: Any) -> list[Any] | None:
+    """A collection read with its arguments, such as ``FabricationLayerGfxs(type, 0, side, False)``
+    or ``GeneratedPlanes(0, layer)``, so that Layout hands over only what matches; None when the
+    collection cannot be read that way, and the caller reads it whole."""
+    raw = getattr(owner, "_oleobj_", None)
+    if raw is None or not hasattr(raw, "GetIDsOfNames"):
+        return None
+    try:
+        key = (type(owner).__name__, name)
+        dispid = _DISPIDS.get(key)
+        if dispid is None:
+            dispid = _DISPIDS[key] = raw.GetIDsOfNames(name)
+        return items(com.propget(owner, dispid, *args))
+    except Exception:  # noqa: BLE001 - read it whole instead
+        return None
+
+
+def raw_items(owner: Any, name: str, *args: Any) -> list[Any] | None:
+    """A collection's items as raw interfaces, fetched in batches through its enumerator: tens of
+    times as fast as reading them one by one through pywin32's wrappers, for collections of
+    hundreds such as the pieces of plane copper. Read them with ``raw_net`` and ``raw_extents``.
+    None when the collection cannot be read that way."""
+    import pythoncom
+
+    raw = getattr(owner, "_oleobj_", None)
+    if raw is None or not hasattr(raw, "GetIDsOfNames"):
+        return None
+    try:
+        key = (type(owner).__name__, name)
+        dispid = _DISPIDS.get(key)
+        if dispid is None:
+            dispid = _DISPIDS[key] = raw.GetIDsOfNames(name)
+        found = raw.Invoke(dispid, 0, _PROPERTYGET, 1, *args)
+        enum = found.Invoke(pythoncom.DISPID_NEWENUM, 0, pythoncom.DISPATCH_PROPERTYGET | pythoncom.DISPATCH_METHOD, 1)
+        enum = enum.QueryInterface(pythoncom.IID_IEnumVARIANT)
+        out: list[Any] = []
+        while True:
+            batch = enum.Next(256)
+            if not batch:
+                return out
+            out.extend(batch)
+    except Exception:  # noqa: BLE001 - read it whole through the wrappers instead
+        return None
+
+
+def raw_net(raw: Any, kind: str) -> str:
+    """The net name of a raw interface's object, "" without one."""
+    net = _raw_get(raw, kind, "Net")
+    return "" if net is None else str(_raw_get(net, "Net", "Name") or "")
+
+
+def raw_extents(raw: Any, kind: str) -> tuple[float, float, float, float]:
+    """A raw interface's object's extents in mm."""
+    extrema = _raw_get(raw, kind, "Extrema")
+    values = []
+    for name in ("MinX", "MinY", "MaxX", "MaxY"):
+        key = ("Extrema", name)
+        dispid = _DISPIDS.get(key)
+        if dispid is None:
+            dispid = _DISPIDS[key] = extrema.GetIDsOfNames(name)
+        values.append(float(extrema.Invoke(dispid, 0, _PROPERTYGET, 1, UNIT_MM)))
+    return values[0], values[1], values[2], values[3]
 
 
 def count(owner: Any, name: str) -> int | None:
@@ -272,7 +366,23 @@ def failed_step(exc: BaseException, what: str, done: list[str]) -> dict[str, Any
 
 
 def extrema_mm(obj: Any) -> tuple[float, float, float, float]:
-    """An object's extents in mm, whatever the document's unit."""
+    """An object's extents in mm, whatever the document's unit. Read through the raw interface
+    where it can be, about three times as fast as through pywin32's wrappers, which matters on a
+    board of hundreds of pieces of plane copper."""
+    raw = getattr(obj, "_oleobj_", None)
+    if raw is not None and hasattr(raw, "GetIDsOfNames"):
+        try:
+            extrema = _raw_get(raw, type(obj).__name__, "Extrema")
+            values = []
+            for name in ("MinX", "MinY", "MaxX", "MaxY"):
+                key = ("Extrema", name)
+                dispid = _DISPIDS.get(key)
+                if dispid is None:
+                    dispid = _DISPIDS[key] = extrema.GetIDsOfNames(name)
+                values.append(float(extrema.Invoke(dispid, 0, _PROPERTYGET, 1, UNIT_MM)))
+            return values[0], values[1], values[2], values[3]
+        except Exception:  # noqa: BLE001 - read it through the wrappers
+            pass
     extrema = obj.Extrema
     return (float(extrema.GetMinX(UNIT_MM)), float(extrema.GetMinY(UNIT_MM)),
             float(extrema.GetMaxX(UNIT_MM)), float(extrema.GetMaxY(UNIT_MM)))
@@ -798,8 +908,28 @@ def start(path: str | None, wait_s: float) -> dict[str, Any]:
         return {"pid": pid, "state": "starting"}
     left = deadline - time.monotonic()
     if path and left >= OPEN_MIN_S:
-        open_document(pid, path, budget_s=left)
+        try:
+            open_document(pid, path, budget_s=left)
+        except AdapterError as exc:
+            code = str(exc.data.get("code"))
+            if code in ("E_HUMAN_REQUIRED", "E_TIMEOUT"):
+                # A dialog waits for a person, or the board is still opening: Layout runs on as a
+                # session whose state says so, and doc open can try the board again.
+                return {"pid": pid, "state": "blocked" if code == "E_HUMAN_REQUIRED" else "busy"}
+            raise _given_up(pid, exc) from None
     return {"pid": pid, "state": "ready"}
+
+
+def _given_up(pid: int, exc: AdapterError) -> AdapterError:
+    """The board did not open in the Layout just started for it: quit that Layout, which holds
+    nothing, so that the next session open is not refused for a Layout already running."""
+    extra = {key: value for key, value in exc.data.items() if key != "code"}
+    try:
+        quit(pid, True)
+    except AdapterError as failed:
+        return AdapterError(str(exc.data.get("code")), f"{exc} The Layout started for it (process {pid}) could not be quit: "
+                            f"{failed}", **extra)
+    return AdapterError(str(exc.data.get("code")), f"{exc} The Layout started for it was quit.", **extra)
 
 
 def quit(pid: int, discard: bool) -> None:
@@ -845,6 +975,47 @@ def _wait_gone(pid: int, seconds: float) -> None:
         time.sleep(0.5)
 
 
+OPEN_TRIES = 3
+OPEN_RETRY_S = 4.0
+DISP_E_EXCEPTION = -2147352567  # 0x80020009, "exception occurred", with nothing more said
+
+
+def _bare_exception(exc: Exception) -> bool:
+    return bool(getattr(exc, "args", None)) and exc.args[0] == DISP_E_EXCEPTION
+
+
+OPEN_LOG = "PCBLogFile.txt"  # in the board's LogFiles: Layout writes there why it would not open a board
+LOG_VIEWER = "FileViewer.exe"
+
+
+def open_log_reason(log: Path, since: float) -> str:
+    """What Layout wrote in its open log since ``since``, its version line left out."""
+    try:
+        if log.stat().st_mtime < since - 2.0:
+            return ""
+        text = log.read_bytes().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+    # Layout writes the log in the system's code page with "?" for what it cannot write there, so a
+    # message in another language comes out as question marks alone, on every open: not a reason.
+    lines = [line.strip() for line in text.splitlines()
+             if line.strip().strip("?") and not line.strip().startswith("Xpedition Layout Version")]
+    return " ".join(dict.fromkeys(lines))[:600]
+
+
+def _open_failure(pid: int, error: AdapterError, reason: str) -> AdapterError:
+    """The error of a board Layout would not open, with the reason its log gives. Under automation
+    Layout answers its own "view the log file now?" with Yes and opens the log in a FileViewer, one
+    per attempt; those viewers, children of this Layout, are ended."""
+    for viewer in processes.processes(LOG_VIEWER):
+        if viewer.parent_pid == pid:
+            processes.end(viewer.pid)
+    if not reason:
+        return error
+    extra = {key: value for key, value in error.data.items() if key != "code"}
+    return AdapterError(str(error.data.get("code")), f"{error} Layout's log PCB/LogFiles/{OPEN_LOG} says: {reason}", **extra)
+
+
 def open_document(pid: int, path: str, budget_s: float = LIFECYCLE_BUDGET_S) -> None:
     """Open a board with Layout's open prompts answered (stale lock: Open; recovery: the saved
     database; "annotate now?": No). Refused while another board is open: opening one would raise
@@ -862,10 +1033,21 @@ def open_document(pid: int, path: str, budget_s: float = LIFECYCLE_BUDGET_S) -> 
                 return
             raise base.blocked(f"Layout has another board open ({current}); close it with doc close first, since opening a "
                                "second board raises Layout's Save All prompt.", knowledge=["layout-open-prompts"])
-        try:
-            app.OpenDocument(path)
-        except Exception as exc:  # noqa: BLE001 - classified
-            raise com_error(exc, "opening the board", com.call_state(exc)) from None
+        log = Path(path).parent / "LogFiles" / OPEN_LOG
+        since = time.time()
+        for attempt in range(OPEN_TRIES):
+            try:
+                app.OpenDocument(path)
+                break
+            except Exception as exc:  # noqa: BLE001 - classified
+                # Layout sometimes refuses a board it has just closed, as doc save's reopen does, with
+                # a bare "exception occurred"; a few seconds later it opens it. Not when its log
+                # says why: then the board will not open however often it is asked.
+                reason = open_log_reason(log, since)
+                if attempt + 1 < OPEN_TRIES and _bare_exception(exc) and not reason and not active_path(app):
+                    time.sleep(OPEN_RETRY_S)
+                    continue
+                raise _open_failure(pid, com_error(exc, "opening the board", com.call_state(exc)), reason) from None
         doc = licensed(app)
         if doc is None or not same_path(str(doc.FullName or ""), path):
             raise AdapterError("E_NATIVE_FAILURE", "Layout returned from OpenDocument without the board open.", dispatch_state="dispatched",
@@ -1144,6 +1326,8 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str], store:
         "nets": lambda parts: {"routed": statuses().get(parts[1], {}).get("routed")},
         "mounting-holes": lambda parts: _hole_at(doc, parts[1]),
         "refdes": lambda parts: _refdes_at(doc, parts[1]),
+        "silkscreen-text": lambda parts: _text_at(doc, parts[1], parts[2]),
+        "keepouts": lambda parts: _keepout_at(doc, parts[2], parts[3]),
     }
     def _plan_drawn(parts: list[str]) -> dict[str, Any]:
         if store is None or "plan_drawn" not in fields or len(parts) < 3:
@@ -1155,7 +1339,7 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str], store:
         return {} if drawn is None else {"plan_drawn": drawn}
 
     sizes = {"components": 2, "planes": (3, 4), "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
-             "mounting-holes": 2, "refdes": 2}
+             "mounting-holes": 2, "refdes": 2, "silkscreen-text": 3, "keepouts": 4}
     for target in targets:
         parts = fragment(target, path)
         reader = readers.get(parts[0]) if parts else None
@@ -1176,6 +1360,18 @@ def _hole_at(doc: Any, spot: str) -> dict[str, Any]:
     from .layout_parts import hole_at
 
     return hole_at(doc, spot)
+
+
+def _keepout_at(doc: Any, side: str, box: str) -> dict[str, Any]:
+    from .layout_keepout import keepout_at
+
+    return keepout_at(doc, side, tuple(float(v) for v in box.split(",")))
+
+
+def _text_at(doc: Any, side: str, words: str) -> dict[str, Any]:
+    from .layout_silk import text_at
+
+    return text_at(doc, side, words)
 
 
 def _refdes_at(doc: Any, refdes: str) -> dict[str, Any]:

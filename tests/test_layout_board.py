@@ -611,6 +611,10 @@ class PlaneHatchTest(unittest.TestCase):
         from xpedition_cli.adapter.plan import board_metrics
 
         doc = FakeDoc(nets=["GND"])
+        doc.TransactionStart = lambda mode: None
+        doc.TransactionEnd = lambda keep: None
+        ties = []
+        doc.PutTrace = lambda layer, net, width, count, rows, component, fixed, unit: ties.append((layer, width, rows))
         zones = [{"extents_mm": [0.0, 10.0, 60.0, 14.0], "along": "x", "marked_by": ["placement_keepout"]},
                  {"extents_mm": [0.0, 30.0, 60.0, 33.0], "along": "x", "marked_by": ["placement_keepout"]}]
         inputs = {"net": "GND", "layer": 3, "bends": True, "hatch": "diagonal", "hatch_width_mm": 0.1, "hatch_distance_mm": 0.3}
@@ -623,7 +627,8 @@ class PlaneHatchTest(unittest.TestCase):
             with self.assertRaises(AdapterError) as solid:
                 B.PlaneCreate().preview(context("plane create", {"net": "GND", "layer": 3, "bends": True}))
         self.assertEqual([t["key"] for t in preview["targets"]],
-                         [key(f"/planes/GND/3/{r}") for r in (",,,10", ",10,,14", ",14,,30", ",30,,33", ",33,,")])
+                         [key("/planes/GND/3")] + [key(f"/planes/GND/3/{r}") for r in (",,,10", ",10,,14", ",14,,30", ",30,,33", ",33,,")]
+                         + [key("/traces/GND/3")])
         self.assertEqual([p["hatch"] for p in facts["result"]["parts"]], ["solid", "diagonal", "solid", "diagonal", "solid"])
         self.assertEqual(len(doc.shapes), 5)
         self.assertEqual(doc.shapes[1].PlaneClass.HatchPattern, 6)
@@ -631,6 +636,12 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual(back["observed"][key("/planes/GND/3/,14,,30")], {"exists": True, "hatch": "solid"})
         self.assertEqual(code(solid), "E_VALIDATION")  # the bend zones need a hatch
         self.assertIn("2 bend zone(s)", preview["action"])
+        # nothing of GND lies in the zones on layer 3, so each band is tied across to the copper beside it
+        self.assertIn("2 bend zone(s) hold nothing of GND on layer 3", preview["action"])
+        self.assertEqual(facts["result"]["ties"], [{"zone_mm": [0.0, 10.0, 60.0, 14.0], "traces": 3},
+                                                   {"zone_mm": [0.0, 30.0, 60.0, 33.0], "traces": 3}])
+        self.assertEqual([(layer, rows[0], rows[1]) for layer, _w, rows in ties][:3],
+                         [(3, [15.0, 15.0], [9.7, 14.3]), (3, [30.0, 30.0], [9.7, 14.3]), (3, [45.0, 45.0], [9.7, 14.3])])
 
     def test_bend_parts_need_bend_zones_along_one_axis(self):
         with self.assertRaises(AdapterError) as none:

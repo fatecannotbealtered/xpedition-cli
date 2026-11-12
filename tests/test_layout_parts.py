@@ -4,12 +4,13 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_layout_fakes import BOARD, FakeApp, FakeComError, FakeComponent, FakeDoc, context, world  # noqa: E402
+from test_layout_fakes import BOARD, Extrema, FakeApp, FakeComError, FakeComponent, FakeDoc, context, world  # noqa: E402
 
 from xpedition_cli._driver import AdapterError  # noqa: E402
 from xpedition_cli.adapter import base, designer, layout_parts  # noqa: E402
@@ -40,6 +41,20 @@ class Part(FakeComponent):
         if self.refuse:
             raise self.refuse
         self.Placed, self.x, self.y, self.Orientation, self.Side, self.Anchor = True, x, y, rotation, 1 if top else 512, a
+
+
+class InPlace(Part):
+    """A part Layout refuses to flip where its own footprint lies, as it does, until it is lifted."""
+
+    def Place(self, x: float, y: float, rotation: float, top: bool, a: int, unit: int, b: int) -> None:  # noqa: N802
+        if self.Placed and (1 if top else 512) != self.Side:
+            self.calls.append(("Place", x, y, rotation, top))
+            raise refused()
+        super().Place(x, y, rotation, top, a, unit, b)
+
+    def Delete(self) -> None:  # noqa: N802 - unplaces the part
+        self.calls.append(("Delete",))
+        self.Placed = False
 
 
 class Control:
@@ -188,6 +203,24 @@ class MoveTest(BoardCase):
         with self.assertRaises(AdapterError) as caught:
             self.apply(refdes="R1", x_mm=20.0, y_mm=10.0)
         self.assertEqual(caught.exception.data["code"], "E_NATIVE_FAILURE")
+
+    def test_a_part_refused_a_side_change_in_place_is_lifted_and_placed(self):
+        part = InPlace("J2", 4.0, 10.0, placed=True, x=30.0, y=20.0)
+        self.doc.components.append(part)
+        facts = self.apply(refdes="J2", side="bottom")
+        self.assertEqual([c[0] for c in part.calls], ["Place", "Delete", "Place"])
+        self.assertEqual((facts["result"]["side"], facts["result"]["x_mm"], facts["result"]["placed"]), ("bottom", 30.0, True))
+
+    def test_a_refused_place_names_what_lies_under_it_and_the_part_goes_back(self):
+        part = InPlace("J2", 4.0, 10.0, placed=True, x=30.0, y=20.0)
+        part.refuse = refused()
+        self.doc.components.append(part)
+        self.doc.vias.append(SimpleNamespace(Net=SimpleNamespace(Name="SIG"), Name="V", Extrema=Extrema((29.8, 19.8, 30.2, 20.2))))
+        with self.assertRaises(AdapterError) as caught:
+            self.apply(refdes="J2", x_mm=31.0, y_mm=20.0)
+        message = str(caught.exception)
+        self.assertIn("under the place it would take: vias of SIG", message)
+        self.assertNotIn("overlaps another component", message)
 
     def test_the_read_back_reads_the_side(self):
         self.apply(refdes="R10", x_mm=25.0)

@@ -6,7 +6,8 @@ On the real Xpedition an Xpedition project cannot come from the repository, so `
 the sample project in the question's documents folder with the tool itself, up to the stage the
 question needs: ``doc create`` in a Designer session from Xpedition's stock setup template,
 ``part create`` with tests/inputs/parts.json, the schematic drawn from tests/inputs/design.json
-and saved, ``packager run`` and ``pcb create``, and the laid-out board. Designer and Layout are
+and saved, ``packager run`` and ``pcb create``, and the laid-out board. Each stage is made once
+and kept in the workspace root's ``samples`` folder; later questions copy it. Designer and Layout are
 started by the hooks with ``session open`` and quit by ``after`` with ``session close``, so no
 Designer or Layout may run when the evaluation starts: the tool can drive only one of each
 (knowledge entry ``designer-one-instance-only``). The hooks follow every long job to its end,
@@ -23,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import time
 from pathlib import Path
@@ -32,6 +34,7 @@ FIXTURES = Path(__file__).resolve().parents[1] / "inputs"
 STAGES = ("project", "parts", "drawn", "board", "placed", "laid_out")
 FINAL_JOB_STATES = {"completed", "failed", "partial", "unknown", "cancelled"}
 START_WAIT_S = 300.0
+RELEASE_WAIT_S = 60.0  # Xpedition's database server serves a project a few seconds after the last program quits
 # The sample projects build makes: its inputs, copied as parts.json and design.json with any other
 # files, the board outline, and the parts moved to a fixed spot after placement run. The flex
 # sample is a 90 x 18 mm strip with a 40-pin board-to-board connector at each end, J2 on the bottom
@@ -357,53 +360,145 @@ def copy_inputs(run: Any, sample: str = "demo") -> None:
         shutil.copyfile(FIXTURES / name, run.documents / name)
 
 
+def _make_project(run: Any, sample: str) -> None:
+    create_project(run, project(run))
+    copy_inputs(run, sample)
+
+
+def _make_parts(run: Any, sample: str) -> None:
+    need(write(run, "part", "create", "--doc", str(project(run)), "--file", str(parts(run))), "part create")
+
+
+def _make_drawn(run: Any, sample: str) -> None:
+    prj = str(project(run))
+    designer = start(run, project(run))
+    need(write(run, "schematic", "create", "--session", designer, "--doc", prj, "--design", str(design(run))), "schematic create")
+    need(write(run, "doc", "save", "--session", designer, "--doc", prj), "doc save of the schematic")
+    stop_all(run)  # file-mode writes are refused while Designer has the project open
+
+
+def _make_board(run: Any, sample: str) -> None:
+    need(write(run, "packager", "run", "--doc", str(project(run))), "packager run")
+    need(write(run, "pcb", "create", "--doc", str(project(run))), "pcb create")
+
+
+def _make_placed(run: Any, sample: str) -> None:
+    pcb = ["--session", start(run, board(run)), "--doc", str(board(run))]
+    need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run")
+    width, height, radius = SAMPLES[sample]["outline"]
+    need(write(run, "pcb", "update", *pcb, "--width", width, "--height", height, "--radius", radius), "pcb update")
+    need(write(run, "placement", "run", *pcb, "--design", str(design(run))), "placement run")
+    for refdes, x, y, rotation, side in SAMPLES[sample]["spots"]:
+        need(write(run, "component", "move", *pcb, "--refdes", refdes, "--x", x, "--y", y, "--rotation", rotation, "--side", side),
+             f"component move of {refdes}")
+    need(write(run, "doc", "save", *pcb), "doc save of the board")
+    stop_all(run)
+
+
+def _make_laid_out(run: Any, sample: str) -> None:
+    pcb = ["--session", start(run, board(run)), "--doc", str(board(run))]
+    need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
+    need(write(run, "router", "run", *pcb), "router run")
+    need(write(run, "doc", "save", *pcb), "doc save of the board")
+    stop_all(run)
+
+
+MAKE = {"project": _make_project, "parts": _make_parts, "drawn": _make_drawn, "board": _make_board,
+        "placed": _make_placed, "laid_out": _make_laid_out}
+SHELF = "samples"  # beside the questions' folders in the workspace root
+ORIGIN = "built-in.txt"  # in a kept stage: the documents folder it was built in
+
+
+def _shelf_key(sample: str) -> str:
+    """What a kept stage depends on: the tool's package, the sample's input files and this file."""
+    digest = hashlib.sha256()
+    package = Path(__file__).resolve().parents[2] / "xpedition_cli"
+    for path in sorted(package.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            digest.update(path.relative_to(package).as_posix().encode() + b"\0" + path.read_bytes())
+    chosen = SAMPLES[sample]
+    for name in [chosen["parts"], chosen["design"], *chosen["files"]]:
+        digest.update((FIXTURES / name).read_bytes())
+    digest.update(Path(__file__).read_bytes())
+    return digest.hexdigest()[:16]
+
+
+def _keep(run: Any, shelf: Path, name: str) -> None:
+    """Copy the documents folder, everything in it saved and closed, to the shelf as one stage,
+    once Xpedition's database server has let the project go: it serves the project while its
+    ``database/cdbsvr/sAddress.adr`` exists, and a copy taken meanwhile is a database "not closed
+    properly", which Layout refuses to open (seen live). Not kept when it does not let go in time."""
+    kept = shelf / name
+    part = shelf / (name + ".part")
+    deadline = time.monotonic() + RELEASE_WAIT_S
+    served = run.documents / "database" / "cdbsvr" / "sAddress.adr"
+    while served.exists():
+        if time.monotonic() > deadline:
+            return
+        time.sleep(1)
+    while True:
+        shutil.rmtree(part, ignore_errors=True)
+        try:
+            shutil.copytree(run.documents, part)
+            break
+        except OSError:  # shutil.Error too: a file still held by the database server
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(1)
+    (part / ORIGIN).write_text(str(run.documents), encoding="utf-8")
+    part.rename(kept)
+
+
+def _restore(run: Any, kept: Path) -> None:
+    """Copy a kept stage into the documents folder. The project file names its central library by
+    its full path, in the folder the stage was built in: point it at the copy's own library."""
+    shutil.copytree(kept, run.documents, dirs_exist_ok=True)
+    origin = run.documents / ORIGIN
+    built_in = origin.read_text(encoding="utf-8")
+    origin.unlink()
+    pattern = re.compile(r"[\\/]".join(re.escape(part) for part in re.split(r"[\\/]", built_in)), re.IGNORECASE)
+    prj = project(run)
+    text = prj.read_bytes().decode("latin-1")
+    prj.write_bytes(pattern.sub(lambda _m: str(run.documents), text).encode("latin-1"))
+
+
 def build(run: Any, upto: str, *, keep_open: bool = False, sample: str = "demo") -> str | None:
     """Real Xpedition: make a sample project of SAMPLES as Demo.prj in the documents folder up to a
     stage of STAGES: ``placed`` has the board's netlist, outline and parts, ``laid_out`` also a GND
-    plane on layer 2 and the routing, both saved. With ``keep_open``, the last instance used stays
-    open with the file (``drawn``: Designer with the project, reopened after the save; ``placed``
-    and ``laid_out``: Layout with the saved board), and its session is returned. Fake host: copy
-    the input files only."""
+    plane on layer 2 and the routing, all saved. With ``keep_open``, an instance is started with the
+    file (``drawn``: Designer with the project; ``placed`` and ``laid_out``: Layout with the board)
+    and its session is returned. Fake host: copy the input files only.
+
+    Each stage is made once and kept in the workspace root's ``samples`` folder, saved and closed,
+    as long as the tool's package, the sample's inputs and this file stay the same: a later question
+    copies the furthest kept stage it needs and makes only the stages after it."""
     if fake(run):
         copy_inputs(run, sample)
         return None
     level = STAGES.index(upto)
+    shelf = run.documents.parent.parent / SHELF
+    shelf.mkdir(exist_ok=True)
+    key = _shelf_key(sample)
+    for old in shelf.glob(f"{sample}-*"):  # kept for another package, input or helper
+        if old.is_dir() and not old.name.endswith(f"-{key}"):
+            shutil.rmtree(old, ignore_errors=True)
     clear(run)
-    create_project(run, project(run))
-    copy_inputs(run, sample)
-    prj = str(project(run))
-    if level >= STAGES.index("parts"):
-        need(write(run, "part", "create", "--doc", prj, "--file", str(parts(run))), "part create")
-    if level >= STAGES.index("drawn"):
-        designer = start(run, project(run))
-        need(write(run, "schematic", "create", "--session", designer, "--doc", prj, "--design", str(design(run))),
-             "schematic create")
-        # doc save also opens the project again, so Designer then reads the design right
-        # (knowledge entry designer-reopen-after-sheet-changes).
-        need(write(run, "doc", "save", "--session", designer, "--doc", prj), "doc save of the schematic")
-        if keep_open and upto == "drawn":
-            return designer
-        stop_all(run)  # file-mode writes are refused while Designer has the project open
-    if level >= STAGES.index("board"):
-        need(write(run, "packager", "run", "--doc", prj), "packager run")
-        need(write(run, "pcb", "create", "--doc", prj), "pcb create")
-    if level >= STAGES.index("placed"):
-        layout = start(run, board(run))
-        pcb = ["--session", layout, "--doc", str(board(run))]
-        need(write(run, "forward-annotation", "run", *pcb), "forward-annotation run")
-        width, height, radius = SAMPLES[sample]["outline"]
-        need(write(run, "pcb", "update", *pcb, "--width", width, "--height", height, "--radius", radius), "pcb update")
-        need(write(run, "placement", "run", *pcb, "--design", str(design(run))), "placement run")
-        for refdes, x, y, rotation, side in SAMPLES[sample]["spots"]:
-            need(write(run, "component", "move", *pcb, "--refdes", refdes, "--x", x, "--y", y, "--rotation", rotation, "--side", side),
-                 f"component move of {refdes}")
-        if level >= STAGES.index("laid_out"):
-            need(write(run, "plane", "create", *pcb, "--net", "GND", "--layer", "2"), "plane create")
-            need(write(run, "router", "run", *pcb), "router run")
-        need(write(run, "doc", "save", *pcb), "doc save of the board")
-        if keep_open:
-            return layout
-        stop_all(run)
+    made = -1
+    for index in range(level, -1, -1):
+        kept = shelf / f"{sample}-{STAGES[index]}-{key}"
+        if kept.is_dir():
+            _restore(run, kept)
+            made = index
+            break
+    for stage in STAGES[made + 1:level + 1]:
+        MAKE[stage](run, sample)
+        _keep(run, shelf, f"{sample}-{stage}-{key}")
+    if not keep_open:
+        return None
+    if upto == "drawn":
+        return start(run, project(run))
+    if upto in ("placed", "laid_out"):
+        return start(run, board(run))
     return None
 
 

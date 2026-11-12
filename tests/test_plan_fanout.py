@@ -55,6 +55,22 @@ class FanoutTest(unittest.TestCase):
         self.assertEqual(len([pts for n, _l, _w, pts in fan.traces if n == "P" and pts[0][1] == pts[1][1]]), 2)  # still joined
         self.assertEqual(pins[0].net, "GND")  # the caller's pins are left as they were
 
+    def test_only_the_nets_named_are_fanned_out(self):
+        fan = FO.plan(_connector(), (2.0, 50.0), 0.2, 0.1, 0.1, 1, {"GND"}, set(), 0.1, only={"A"})
+        self.assertEqual(sorted({net for net, _at in fan.vias}), ["A", "GND"])  # the plane net keeps its vias
+        self.assertFalse([pts for net, _l, _w, pts in fan.traces if net == "P"])  # nor joined pin to pin
+
+    def test_a_near_pin_whose_lane_runs_on_another_layer_changes_layer_past_the_row(self):
+        fan = FO.plan(_connector(), (2.0, 50.0), 0.2, 0.1, 0.1, 1, {"GND"}, set(), 0.1, lift={"N1": 1, "N2": 1, "N3": 3})
+        spots = {net: at for net, at in fan.vias}
+        self.assertEqual(fan.exits["N1"], [(spots["N1"], 1)])
+        self.assertEqual(fan.exits["N3"], [((2.4, NEAR_Y), 3)])  # its lane runs on the pads' layer: no via
+        near_edge = NEAR_Y + 0.275
+        self.assertAlmostEqual(min(spots["N1"][1], spots["N2"][1]), near_edge + 0.1 + 0.2, places=6)  # just past the near row
+        self.assertGreater(abs(spots["N2"][1] - spots["N1"][1]), 0.2)  # staggered from its neighbour
+        self.assertIn([(1.35, NEAR_Y), spots["N1"]], [pts for net, _l, _w, pts in fan.traces if net == "N1"])
+        self.assertGreater(fan.clear_at, max(spots["N1"][1], spots["N2"][1]))  # the pad layer leaves past them
+
     def test_a_skipped_net_is_left_to_the_caller(self):
         fan = FO.plan(_connector(), (2.0, 50.0), 0.2, 0.1, 0.1, 1, {"GND"}, {"P"}, 0.1)
         self.assertFalse([at for net, at in fan.vias if net == "P"])

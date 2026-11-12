@@ -165,6 +165,56 @@ class MeasureTest(unittest.TestCase):
         self.assertIn("no outline", row["reason"])
 
 
+class OpeningAndTextTest(unittest.TestCase):
+    EARS = [{"points_mm": [[10.0, 18.0], [12.0, 18.0], [12.0, 22.0], [10.0, 22.0]]},
+            {"points_mm": [[0.0, 30.0], [-2.0, 30.0], [-2.0, 34.0], [0.0, 34.0]]}]
+
+    def test_each_ear_needs_an_opening_that_bares_the_net_alone(self):
+        model = {"ears": self.EARS, "openings": [
+            {"side": "bottom", "kind": "soldermask", "extents_mm": [10.0, 18.0, 12.0, 22.0], "bared": ["GND"],
+             "near": [{"net": "GND", "gap_mm": 0.0, "at_mm": [10, 18]}]},
+            {"side": "bottom", "kind": "soldermask", "extents_mm": [-2.0, 30.0, 0.0, 34.0], "bared": ["GND"],
+             "near": [{"net": "GND", "gap_mm": 0.0, "at_mm": [-2, 30]}, {"net": "SIG", "gap_mm": 0.05, "at_mm": [0, 31]}]}]}
+        found = RQ.measure(model, parsed({"kind": "opening", "net": "GND", "at": "ears", "side": "bottom"}), [])[0]
+        loose = RQ.measure(model, parsed({"kind": "opening", "net": "GND", "at": "ears", "side": "bottom", "clearance_mm": 0.04}), [])[0]
+        top = RQ.measure(model, parsed({"kind": "opening", "net": "GND", "at": "ears", "side": "top"}), [])[0]
+        self.assertEqual((found["ok"], found["count"], found["failed"]), (False, 2, 1))
+        self.assertEqual(found["worst"][0], {"at_mm": [-1.0, 32.0], "problem": "SIG's copper comes 0.05 mm from the opening",
+                                             "near_mm": [0, 31]})
+        self.assertTrue(loose["ok"])
+        self.assertEqual([w["problem"] for w in top["worst"]], ["no top opening"] * 2)
+
+    def test_each_stiffener_needs_its_opening_and_a_board_without_them_says_so(self):
+        model = {"keepouts": [{"kind": "placement", "side": "top", "height_mm": 0.15, "extents_mm": [0.0, 0.0, 10.0, 4.0]},
+                             {"kind": "placement", "side": "bottom", "height_mm": 0.15, "extents_mm": [0.0, 36.0, 10.0, 40.0]}],
+                 "ears": [],
+                 "openings": [{"side": "top", "kind": "soldermask", "extents_mm": [6.0, 0.5, 9.0, 1.5], "bared": ["GND"],
+                               "near": [{"net": "GND", "gap_mm": 0.0, "at_mm": [6, 0.5]}]}]}
+        stiffened = RQ.measure(model, parsed({"kind": "opening", "net": "GND", "at": "stiffeners", "side": "top"}), [])[0]
+        no_ears = RQ.measure(model, parsed({"kind": "opening", "net": "GND", "at": "ears", "side": "top"}), [])[0]
+        planned = RQ.measure({}, parsed({"kind": "opening", "net": "GND", "at": "ears", "side": "top"}), [])[0]
+        self.assertEqual((stiffened["ok"], stiffened["count"]), (True, 1))  # the bottom stiffener's glue meets the bottom
+        self.assertEqual((no_ears["ok"], no_ears["count"]), (False, 0))
+        self.assertIn("the board has no ears", no_ears["reason"])
+        self.assertIsNone(planned["ok"])
+
+    def test_a_text_on_its_layer(self):
+        model = {"board_texts": [{"text": "BOARD_A", "place": "top"}, {"text": "BOARD_B", "place": "user:silk"}]}
+        on_top = RQ.measure(model, parsed({"kind": "text", "text": "BOARD_A"}), [])[0]
+        on_silk = RQ.measure(model, parsed({"kind": "text", "text": "BOARD_B", "user_layer": "silk"}), [])[0]
+        moved = RQ.measure(model, parsed({"kind": "text", "text": "BOARD_A", "user_layer": "silk"}), [])[0]
+        self.assertEqual((on_top["ok"], on_silk["ok"], moved["ok"]), (True, True, False))
+        self.assertEqual(moved["worst"][0]["problem"], "not on the user layer silk; it lies on top")
+
+    def test_wrong_values_are_named(self):
+        for item, words in (({"kind": "opening", "net": "GND", "at": "tabs", "side": "top"}, "at, ears or stiffeners"),
+                            ({"kind": "opening", "net": "GND", "at": "ears", "side": "left"}, "side, top or bottom"),
+                            ({"kind": "text", "text": ""}, "names a text")):
+            with self.assertRaises(PlanError) as caught:
+                parsed(item)
+            self.assertIn(words, caught.exception.message)
+
+
 class ChainTest(unittest.TestCase):
     def test_traces_end_to_end_are_one_run_and_a_branch_splits_them(self):
         traces = [trace("GND", [(0, 0), (0, 5)]), trace("GND", [(0, 10), (0, 5)]), trace("GND", [(0, 10), (3, 10)], width=0.2),

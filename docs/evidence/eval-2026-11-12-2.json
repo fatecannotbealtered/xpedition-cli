@@ -1,0 +1,328 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.4.0",
+  "date": "2026-11-12",
+  "agent": "Claude Code 2.1.322",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/evals/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "board-in-new-layout",
+      "passed": true,
+      "notes": "Start Layout with a board, report the board's layers and outline, then quit that Layout.",
+      "sha256": "af8be5ea6b03b0b16bef2bb1dd5b086ee94fc2fd483b54c1bd2f8b67b843f9d9",
+      "commands": [
+        "session open",
+        "session get",
+        "pcb get",
+        "session close"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge list",
+        "pcb get",
+        "reference",
+        "session close",
+        "session list",
+        "session open"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "acb8672d772259a77d0bf3c35d04888180732bad43c27969d7b98555984aef25"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "lay-out-board",
+      "passed": true,
+      "notes": "Lay out the open board: forward annotation, outline, placement, a GND plane and routing, then the",
+      "sha256": "28bb42562b11fb73dd676969a3f67d8266ac72183f9057e7bddd8aeff156ae55",
+      "commands": [
+        "forward-annotation run",
+        "job get",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "pcb check"
+      ],
+      "ran": [
+        "doctor",
+        "forward-annotation run",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "c730addc86530d280938195d11c79a3f88bbb59dc0341db3c7730b836792a769"
+    },
+    {
+      "scenario": "separate_save",
+      "id": "outline-then-save",
+      "passed": true,
+      "notes": "Open a board, change its outline, then save it as a separate step and close it: the file changes",
+      "sha256": "a5d72b83a0c20fead182d9713d06405afbcf8aa971da03927a5c8ddbd3ff8843",
+      "commands": [
+        "doc open",
+        "pcb update",
+        "doc get",
+        "doc save",
+        "doc close"
+      ],
+      "ran": [
+        "doc close",
+        "doc get",
+        "doc open",
+        "doc save",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "pcb update",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "d1a7dbc695a6a2a88d3336beb350d75cbb9769872c96d743d3e8ef9a8133c70c"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "power-class-and-via",
+      "passed": true,
+      "notes": "Put the power nets in a net class of their own width, route only that class, and give their vias",
+      "sha256": "c7f9cdbb069c293c2441ed4e755dba49c1047edb4baefda0aac7e9815eb1780b",
+      "commands": [
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "router run",
+        "via update",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "constraint get",
+        "constraint import",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "padstack create",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "reference",
+        "router run",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "d41472d03e8a3ed47fae9889c3d1c8620e4bdb706dd6b37f336476f7f271bd26"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "route-a-flex",
+      "passed": true,
+      "notes": "Route two differential pairs across a flex board between its two connectors, with two ground",
+      "sha256": "d017a694b594b04ae4937763f6c742fa913e6400bcb389d0cdf713504dea5657",
+      "commands": [
+        "pcb get",
+        "component get",
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "plane create",
+        "trace create",
+        "via create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component get",
+        "constraint get",
+        "constraint import",
+        "doc list",
+        "doctor",
+        "job get",
+        "keepout create",
+        "knowledge get",
+        "knowledge list",
+        "knowledge search",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "project get",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create",
+        "via create"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "e1bf83be68541af4ad7929f7fd7ee864a71a336987fbeb696ccd40894754fdbf"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "route-one-trace",
+      "passed": true,
+      "notes": "Draw one planned trace between two named pins, as wide as the net's class allows, around the",
+      "sha256": "b917a5a76da0376902850f5652e667748abe1dbc7a91057e7a583e9fdf92093c",
+      "commands": [
+        "component get",
+        "constraint get",
+        "trace create",
+        "pcb get"
+      ],
+      "ran": [
+        "component get",
+        "component list",
+        "constraint get",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "net get",
+        "pcb check",
+        "pcb get",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "3c7d44a3b9974dd9bc4a24e0f970eb6ba2df36b5261b2dda0354fa3e0a119bd1"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "stitch-and-expose",
+      "passed": true,
+      "notes": "Pour a second GND plane, stitch the two with vias, bare a patch of GND copper and draw the board;",
+      "sha256": "6a884b3e249a189dcc8d50c61ef300f0462da963102feb06fe006209bae3d53c",
+      "commands": [
+        "plane create",
+        "via create",
+        "solder-mask create",
+        "pcb render",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb get",
+        "pcb render",
+        "plane create",
+        "reference",
+        "session list",
+        "solder-mask create",
+        "via create"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "3e62ef4084b43fe06765258c1667e2bb5faf32aec277d6fadc78373d802a75d9"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "take-back-copper",
+      "passed": true,
+      "notes": "Take back copper work: delete the traces and vias of two nets, a plane and a soldermask opening,",
+      "sha256": "552451d7c4e4b2e5f574a5806f1b51b2547773117d15550305371eb3b29c0327",
+      "commands": [
+        "trace delete",
+        "via delete",
+        "plane delete",
+        "solder-mask delete",
+        "pcb get"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "knowledge list",
+        "plane delete",
+        "reference",
+        "session list",
+        "solder-mask delete",
+        "trace delete",
+        "via delete"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "a803de459e9431c132d6f5eb548598aff0e8c64a0dbc5764f129e7c5e30891f8"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "tidy-board",
+      "passed": true,
+      "notes": "Tidy a placed board by named changes: one part to the bottom at a position, a mounting hole in",
+      "sha256": "1be837db9013031e5491c6ebe0e1abac81a47fc22f50e7c16d8ca1e487db8a9d",
+      "commands": [
+        "component list",
+        "component move",
+        "padstack list",
+        "mounting-hole create",
+        "mounting-hole delete",
+        "mounting-hole list",
+        "refdes move"
+      ],
+      "ran": [
+        "component list",
+        "component move",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "mounting-hole create",
+        "mounting-hole delete",
+        "mounting-hole list",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "project get",
+        "refdes move",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/",
+        "skills/"
+      ],
+      "fingerprint": "128c577f4cdeaa3f1c06a8815d137635ace71ec36746d74c3a1792907b6b5194"
+    }
+  ]
+}
