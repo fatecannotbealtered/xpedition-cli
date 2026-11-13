@@ -35,6 +35,14 @@ class OutlineTest(unittest.TestCase):
         sharp = LN.offset_chain([((0.0, 0.0), 0.0), ((0.0, 50.0), 0.0), ((50.0, 50.0), 0.0)], 2.0, left=True)
         self.assertEqual(sharp[1][1], 2.0)  # a sharp corner turning away gets an arc of the distance about it
 
+    def test_a_notch_whose_arc_reaches_a_bend_zone_is_made_sharp(self):
+        # an L: a wide head below and a neck above it, the notch rounded where they meet
+        ring = [((0.0, 0.0), 0.0), ((10.0, 0.0), 0.0), ((10.0, 5.0), 0.0), ((4.0, 5.0), 1.0), ((4.0, 20.0), 0.0), ((0.0, 20.0), 0.0)]
+        self.assertEqual(LN.sharpened(ring, [(0.0, 5.5, 4.0, 8.0)])[3], ((4.0, 5.0), 0.0))  # its arc ends at (4, 6), in the zone
+        self.assertEqual(LN.sharpened(ring, [(0.0, 15.0, 4.0, 17.0)]), ring)  # a zone further up leaves it rounded
+        convex = [((0.0, 0.0), 1.0), ((10.0, 0.0), 0.0), ((10.0, 20.0), 0.0), ((0.0, 20.0), 0.0)]
+        self.assertEqual(LN.sharpened(convex, [(0.0, 0.0, 10.0, 2.0)]), convex)  # a corner of the board, not a notch
+
 
 class ExpandTest(unittest.TestCase):
     def test_a_lane_runs_parallel_to_the_edge_between_its_ends(self):
@@ -43,6 +51,47 @@ class ExpandTest(unittest.TestCase):
         trace = LN.expand(lane, ring, "lanes[0]")
         self.assertEqual([(round(x, 6), round(y, 6)) for x, y in trace.points], [(5, 5), (5, 8), (2, 8), (2, 92), (5, 92), (5, 95)])
         self.assertEqual(trace.radii, [0.0, 0.5, 0.5, 0.5, 0.5, 0.0])
+
+    def test_a_point_a_hair_off_the_lane_line_joins_it_without_a_sliver(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        lane = LN.parse([_lane(from_mm=[[5, 5], [2.0002, 8]], radius_mm=0)])[0]  # the line runs at x 2
+        points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(lane, ring, "lanes[0]").points]
+        self.assertEqual(points[:3], [(5.0, 5.0), (2.0002, 8.0), (2.0, 92.0)])  # no 0.0002 mm piece onto the line
+
+    def test_a_jog_moves_the_lane_to_another_distance_part_way_at_45_degrees(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        lane = LN.parse([_lane(jogs=[{"at_mm": [0, 50], "offset_mm": 3}])])[0]
+        points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(lane, ring, "lanes[0]").points]
+        self.assertIn((2.0, 50.0), points)  # on its first line up to the jog
+        self.assertIn((3.0, 51.0), points)  # and across at 45 degrees to the second
+        self.assertEqual(points[-2:], [(5.0, 92.0), (5.0, 95.0)])
+        with self.assertRaises(PlanError) as caught:  # a jog inside the outline's turn
+            LN.expand(LN.parse([_lane(jogs=[{"at_mm": [0, 99.6], "offset_mm": 3}])])[0], ring, "lanes[0]")
+        self.assertIn("jogs[0] needs", caught.exception.message)
+
+    def test_a_lane_ends_on_a_named_pin_reached_at_45_degrees(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        lane = LN.parse([{k: v for k, v in _lane(to="J9.1").items() if k != "to_mm"}])[0]
+        LN.resolve_pins([lane], {"J9.1": (3.0, 92.0)})
+        points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(lane, ring, "lanes[0]").points]
+        self.assertEqual(points[-2:], [(2.0, 91.0), (3.0, 92.0)])  # off its line by 1 mm: it leaves the line 1 mm before
+        with self.assertRaises(PlanError):
+            LN.resolve_pins(LN.parse([{k: v for k, v in _lane(to="J9.2").items() if k != "to_mm"}]), {"J9.1": (3.0, 92.0)})
+        cleared = LN.parse([{k: v for k, v in _lane(to="J9.1").items() if k != "to_mm"}])[0]
+        LN.resolve_pins([cleared], {"J9.1": [(3.0, 92.0), (3.0, 91.4)]})  # the pin, and where its trace clears its row's pads
+        points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(cleared, ring, "lanes[0]").points]
+        self.assertEqual(points[-3:], [(2.0, 90.4), (3.0, 91.4), (3.0, 92.0)])  # straight out of the row, then 45 degrees
+
+    def test_the_jogs_of_a_band_start_one_after_another(self):
+        band = LN.parse([_lane(net=net, width_mm=0.15, offset_mm=d, from_mm=[[d, 5]], to_mm=[[d + 1, 95]],
+                               jogs=[{"at_mm": [0, 50], "offset_mm": d + 1}]) for net, d in (("A", 1.0), ("B", 1.3))])
+        LN.stagger(band, 0.15)
+        self.assertEqual([lane.jogs[0][2] for lane in band], [0.0, 0.13])  # moving outwards: the outer one first, 0.13 mm earlier
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        traces = [LN.expand(lane, ring, f"lanes[{i}]") for i, lane in enumerate(band)]
+        gap = min(TP._segment_distance(a, b, c, d) for a, b in zip(traces[0].points, traces[0].points[1:], strict=False)
+                  for c, d in zip(traces[1].points, traces[1].points[1:], strict=False))
+        self.assertGreaterEqual(gap, 0.15 + 0.15 - 1e-6)  # the widths and the clearance all along
 
     def test_a_neck_narrows_the_lane_from_its_ends_to_its_line(self):
         ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))

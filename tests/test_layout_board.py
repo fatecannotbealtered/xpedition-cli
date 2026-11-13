@@ -651,6 +651,9 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual((code(none), code(mixed)), ("E_CONFLICT", "E_CONFLICT"))
         self.assertEqual(B.bend_parts([{"extents_mm": [5, 0, 6, 9], "along": "y"}]),
                          [((None, None, 5, None), False), ((5, None, 6, None), True), ((6, None, None, None), False)])
+        necks = [{"extents_mm": [-36, 14, -32, 21], "along": "x"}, {"extents_mm": [22, 14, 26, 21], "along": "x"}]  # side by side
+        self.assertEqual(B.bend_parts(necks), [((None, None, None, 14), False), ((None, 14, None, 21), True),
+                                               ((None, 21, None, None), False)])
 
     def test_a_plane_is_cut_around_another_nets_shape_on_its_layer(self):
         doc = FakeDoc(nets=["GND", "VBUS"])

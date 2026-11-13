@@ -31,6 +31,7 @@ pcb export patches the setups that need it, each backed up once, with the board 
 ## What to do
 
 - Do not edit setup files while the board is open. Do not open the output dialogs by hand in the Layout session before pcb export.
+- An output dialog left open, such as by a pcb export that was stopped part way, blocks the session. Ask the person to press its Cancel button: it closes without writing the setup files, and the session is ready again. Its OK button would run the output and write the setup back.
 - After pcb export, check the package. The ODB++ job (under `Output/ODBpp/`) has a drill layer and a profile. The Gerber set (`Output/Gerber/*.gdo`) has a board outline and a top silkscreen with draws. NC drill wrote `Output/NCDrill/ThruHolePlated.ncd` and `ThruHoleNonPlated.ncd`.
 - In one live run seven files stayed empty or duplicate: the bottom silkscreen, the bottom paste, the layer-3 plane negative and the generator's silkscreens were empty, and `EtchLayerTop` and `EtchLayerBottom` duplicated other files.
 - After pcb export, Layout holds a file in the board folder: see `layout-drillprefs-held`.

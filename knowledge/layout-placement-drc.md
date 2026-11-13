@@ -34,3 +34,11 @@ In one live run the board was too small. The plan listed 7 parts as `outside`, a
 - One confirmed placement once stopped part-way for a reason never found, and completed when repeated. Treat a partial result as possible: read the board, do not assume.
 - component move to the other side lifts the part first when Layout refuses it so; when the new place is refused even then, the part goes back where it stood.
 - When component move is refused, its message names what lies under the place: another part, vias or traces of nets the part has no pin of on that side, or a placement keepout. Move that, or send the part to a free spot; component list shows where the parts stand. Its result says with `inside_board` whether the part still lies inside the outline.
+
+## A structure drawing's marks
+
+A structure drawing imported into Layout can carry a copy of a connector's land pattern as placement keepouts, one per pad, on the side the part goes. `component move --to-marks` puts the part over them. The marks stay where they are: Batch DRC then reports each mark under the part as a Proximity error, "Placement Obstruct vs Placement Outline". They are expected, not a defect of the placement.
+
+- Report them as the structure drawing's marks, with the count, and leave them unless the person asks to remove them: they are the drawing's data.
+- When the person asks, `keepout delete --x --y --side` removes one mark at a point inside it; each lies under one pin's pad.
+- A connector whose pads are all one shape and spaced evenly fits its marks turned half a turn as well: the marks do not show where pin 1 goes. `marks.other_places` then lists the same spot turned, with `same_spot: true`. Keep the turn the part already has, the one the nearest fit gives, unless the drawing or the person says where pin 1 goes.

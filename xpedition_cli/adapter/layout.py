@@ -603,11 +603,18 @@ def action_for(dialog: dict[str, Any]) -> str:
     return "sign_in" if any(marker in title for marker in SIGN_IN_MARKERS) else "activate_license"
 
 
+def _dialog_entry(dialog: dict[str, Any]) -> str:
+    """The knowledge entry for a dialog that waits for a person: an Output menu dialog's own, else the open prompts'."""
+    title = str(dialog.get("title") or "").lower()
+    output = any(marker.lower() in title for marker, _button, _option in dialogs.OUTPUT_PROMPTS)
+    return "layout-output-setups" if output else "layout-open-prompts"
+
+
 def blocker(dialog: dict[str, Any]) -> dict[str, Any]:
     """A session blocker for a window that waits for a person, with the entry that tells how to handle it."""
     action = action_for(dialog)
     return {"action": action, "title": str(dialog.get("title") or ""),
-            "knowledge": ["layout-open-prompts"] if action == "dismiss_dialog" else ["xpedition-license-sign-in"]}
+            "knowledge": [_dialog_entry(dialog)] if action == "dismiss_dialog" else ["xpedition-license-sign-in"]}
 
 
 def human(dialog: dict[str, Any], what: str, dispatch_state: str | None) -> AdapterError:
@@ -615,7 +622,7 @@ def human(dialog: dict[str, Any], what: str, dispatch_state: str | None) -> Adap
     action = action_for(dialog)
     if action == "dismiss_dialog":
         message = f"Layout shows a dialog that waits for a person while {what}; answer it in Layout, then go on."
-        knowledge = ["layout-open-prompts"]
+        knowledge = [_dialog_entry(dialog)]
     else:
         message = f"Layout waits at a licence or sign-in window while {what}; only a person can complete it."
         knowledge = ["xpedition-license-sign-in"]
@@ -698,17 +705,162 @@ def call(fn: Callable[[], T], budget_s: float, pid: int | None, *, rules: tuple[
             raise com_error(exc, what, None if write else "not_started") from None
 
 
+# The board writes doc undo takes back: each runs in one Layout transaction, which Layout keeps as one
+# step on its Undo stack. The others leave no step there (constraint import writes the project's
+# rules; router run's autorouter keeps its own steps; pcb render and pcb export draw files).
+UNDOABLE = frozenset({
+    "component move", "refdes move", "mounting-hole create", "mounting-hole delete", "placement run", "pcb update",
+    "plane create", "plane delete", "trace create", "trace delete", "via create", "via delete", "via update",
+    "solder-mask create", "solder-mask delete", "keepout create", "keepout delete", "silkscreen-text create",
+    "silkscreen-text delete"})
+ID_EDIT_UNDO = 57643  # Edit > Undo, the MFC command id; Layout has no automation call for Undo
+DRC_MODE_NONE = 0  # epcbDRCModeNone: a transaction's changes go in as made; pcb check judges them
+DRC_MODE_DRC = 1  # epcbDRCModeDRC: Layout checks them, and refuses a part moved onto a taken spot (seen live)
+_OPEN_STEPS: set[int] = set()  # the documents whose write's transaction is still open
+
+
 def in_layout(ctx: base.Context, work: Callable[[Any, Any], T], *, budget_s: float, what: str,
-              rules: tuple[dialogs.Rule, ...] = (), write: bool = False) -> T:
-    """Run ``work(app, doc)`` on the session's board, the request's document."""
+              rules: tuple[dialogs.Rule, ...] = (), write: bool = False, checked: bool = False) -> T:
+    """Run ``work(app, doc)`` on the session's board, the request's document. A write of a command
+    doc undo takes back runs in one transaction, so it is one step on Layout's Undo stack. Inside a
+    transaction without DRC, Layout's parts check refuses no taken spot, whatever its setting (seen
+    live); ``checked`` runs the transaction with DRC, as a move that relies on that refusal needs."""
     ref = ctx.need_session(base.LAYOUT)
     path = ctx.document_path()
+    command = ctx.request.get("command")
+    step = write and command in UNDOABLE and command != "doc undo"
 
     def body() -> T:
         app = attach(ref.pid)
-        return work(app, board(app, path))
+        doc = board(app, path)
+        if not step:
+            return work(app, doc)
+        try:
+            started = doc.TransactionStart(DRC_MODE_DRC if checked else DRC_MODE_NONE) is not False
+        except Exception:  # noqa: BLE001 - a release without transactions: the write runs as it is
+            started = False
+        if started:
+            _OPEN_STEPS.add(id(doc))
+        try:
+            out = work(app, doc)
+        except BaseException:
+            end_step(doc)
+            raise
+        if not end_step(doc) and checked:
+            raise base.blocked(f"Layout's DRC refused the change when {what} ended, so it kept none of it; nothing changed. Read "
+                               "what lies there, then choose another place or move what is in the way.")
+        return out
 
     return call(body, budget_s, ref.pid, rules=rules, write=write, what=what)
+
+
+def end_step(doc: Any) -> bool:
+    """End the write's open transaction on ``doc``, keeping its changes: False when Layout's DRC
+    refused them. A write ends it early where Layout acts only on what a transaction committed, such
+    as a layer's first plane shape, whose plane assignment exists only then."""
+    if id(doc) not in _OPEN_STEPS:
+        return True
+    _OPEN_STEPS.discard(id(doc))
+    try:
+        return doc.TransactionEnd(True) is not False
+    except Exception:  # noqa: BLE001 - the changes are made; the Undo step may be split
+        return True
+
+
+WRITES_KEPT = 50  # the tool's writes on a board remembered for doc undo, the latest last
+
+
+def remember_write(store: Any, session: Any, path: str, command: str, changes: list[dict[str, Any]], changed: bool = True,
+                   operation_id: str | None = None) -> None:
+    """A write on the board in a Layout session, with its operation, the changes its preview listed
+    and whether it changed anything: doc undo takes the writes back in turn, the latest first. A
+    write that changed nothing is kept too, for a runtime that names no write it undoes and takes
+    the last one whatever it changed; it takes nothing back."""
+    key = _writes_key(session, path)
+    try:
+        writes = store.get(key, [])
+        entry = {"command": command, "changes": changes, "changed": changed, "operation_id": operation_id}
+        if store.get(_cleared_key(session, path)):  # this write cleared Layout's Undo stack: nothing before it can be undone
+            store.delete(_cleared_key(session, path))
+            writes, entry["cleared"] = [], True
+        store.set(key, ((writes if isinstance(writes, list) else []) + [entry])[-WRITES_KEPT:])
+    except Exception:  # noqa: BLE001 - not remembered: doc undo then refuses rather than guesses
+        pass
+
+
+def _writes_key(session: Any, path: str) -> str:
+    """The adapter store's key of the tool's writes on a board in a session, which doc undo takes back in turn."""
+    import hashlib
+
+    return "board-writes-" + hashlib.sha1(f"{session}|{os.path.normcase(os.path.abspath(path))}".encode()).hexdigest()[:20]
+
+
+def _cleared_key(session: Any, path: str) -> str:
+    return _writes_key(session, path).replace("board-writes-", "board-undo-cleared-")
+
+
+def undo_cleared(store: Any, session: Any, path: str) -> None:
+    """The running write clears Layout's Undo stack, as a net's first plane on a layer does: doc undo
+    can take back neither it nor any write before it."""
+    try:
+        store.set(_cleared_key(session, path), True)
+    except Exception:  # noqa: BLE001 - not kept: doc undo then sends Undo, which Layout refuses
+        pass
+
+
+def forget_writes(session: Any, path: str, store: Any) -> None:
+    """Opening or closing a board starts Layout's Undo stack afresh: the remembered writes go with it."""
+    store.delete(_writes_key(session, path))
+
+
+def undo(ctx: base.Context) -> dict[str, Any]:
+    """Take back the tool's most recent write on the board: Layout's Undo command, which reverts the
+    transaction that write ran in. A write that left no step on the Undo stack is refused."""
+    path = ctx.document_path()
+    key = _writes_key(ctx.request.get("session"), path)
+    writes = ctx.store.get(key, [])
+    writes = [w for w in writes if isinstance(w, dict)] if isinstance(writes, list) else []
+    undoes = ctx.request.get("undoes") or {}
+    if undoes.get("operation_id"):  # the runtime names the write: writes that changed nothing above it hold no step of Layout's
+        while writes and not writes[-1].get("changed", True):
+            writes.pop()
+    if not writes:
+        raise AdapterError("E_UNSUPPORTED", "Layout's Undo stack holds no write of this tool on this board since it was opened, so "
+                           "doc undo cannot take anything back; change it back with the command that set it.",
+                           dispatch_state="not_started")
+    if undoes.get("operation_id") and writes[-1].get("operation_id") not in (None, undoes["operation_id"]):
+        raise AdapterError("E_CONFLICT", f"The last step of Layout's Undo on this board is {writes[-1].get('command')} "
+                           f"({writes[-1].get('operation_id')}), not {undoes.get('command')} ({undoes['operation_id']}), so doc undo "
+                           "would take back another change; nothing was sent.", dispatch_state="not_started",
+                           conflict="application_state")
+    command = writes[-1].get("command")
+    if writes[-1].get("cleared"):
+        raise AdapterError("E_UNSUPPORTED", f"The tool's last write on this board, {command}, made a net's first plane on a layer, "
+                           "which clears Layout's Undo stack, so doc undo can take back neither it nor anything before it; delete "
+                           "the plane with plane delete, or change the rest back with the commands that set it.",
+                           dispatch_state="not_started")
+    if not writes[-1].get("changed", True):
+        ctx.store.set(key, writes[:-1])  # it changed nothing: nothing to take back, and Layout's Undo stack holds no step of it
+        return base.facts("not_applied", "unchanged")
+    if command not in UNDOABLE:
+        raise AdapterError("E_UNSUPPORTED", f"The tool's last write on this board, {command}, leaves no step on Layout's Undo stack, "
+                           "so doc undo cannot take it back; change it back with the command that set it.",
+                           dispatch_state="not_started")
+
+    def work(app: Any, doc: Any) -> dict[str, Any]:
+        if not app.Gui.ProcessCommand(ID_EDIT_UNDO):
+            raise AdapterError("E_NATIVE_FAILURE", "Layout did not take its Undo command; nothing was undone.",
+                               dispatch_state="not_started")
+        return base.facts("applied", "unchanged")
+
+    out = in_layout(ctx, work, budget_s=WRITE_BUDGET_S, write=True, what="undoing the change")
+    ctx.store.set(key, writes[:-1])
+    from .sessions import note_change
+
+    # what the next save must find is the board before the undone write
+    note_change(ctx.store, ctx.request["session"], path, [{**c, "before": c.get("after"), "after": c.get("before")}
+                                                          for c in writes[-1].get("changes") or [] if c.get("field")])
+    return out
 
 
 @contextmanager
@@ -1176,6 +1328,8 @@ def plane_values(doc: Any, net: str, layer: int, region: Region | None = None) -
         shapes = [shape for shape in collection(doc, "PlaneShapes") if net_name(shape) == net and int(shape.Layer) == int(layer)]
     else:
         shapes = plane_shapes_in(doc, net, layer, region)
+        if len(shapes) > 1 and None not in region:  # a piece named by its extents: the shape that fills them, not one inside them
+            shapes.sort(key=lambda shape: sum(abs(a - b) for a, b in zip(extrema_mm(shape), region, strict=True)))
     exists = bool(shapes)
     hatch = None
     fill: dict[str, Any] = {}

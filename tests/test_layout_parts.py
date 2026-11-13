@@ -204,6 +204,16 @@ class MoveTest(BoardCase):
             self.apply(refdes="R1", x_mm=20.0, y_mm=10.0)
         self.assertEqual(caught.exception.data["code"], "E_NATIVE_FAILURE")
 
+    def test_the_move_runs_in_a_transaction_with_drc_and_over_marks_without(self):
+        modes: list[int] = []
+        self.doc.TransactionStart = lambda mode: modes.append(mode) or True
+        self.doc.TransactionEnd = lambda keep: True
+        self.apply(refdes="R1", x_mm=20.0, y_mm=10.0)  # Layout refuses a taken spot only with DRC on
+        with mock.patch.object(layout_parts, "_pad_shapes", lambda doc, component, side: list(ToMarksTest.PADS)), \
+                mock.patch.object(layout_parts, "_mark_shapes", lambda doc, side: [(x + 1.0, y, a) for _p, (x, y, a) in ToMarksTest.PADS]):
+            self.apply(refdes="R1", to_marks=True)
+        self.assertEqual(modes, [layout_parts.L.DRC_MODE_DRC, layout_parts.L.DRC_MODE_NONE])
+
     def test_a_part_refused_a_side_change_in_place_is_lifted_and_placed(self):
         part = InPlace("J2", 4.0, 10.0, placed=True, x=30.0, y=20.0)
         self.doc.components.append(part)
@@ -228,6 +238,40 @@ class MoveTest(BoardCase):
                       fields=["x_mm", "side"])
         observed = self.move().read_back(ctx)["observed"][base.key(BOARD, "/components/R10")]
         self.assertEqual(observed, {"x_mm": 25.0, "side": "bottom"})
+
+
+class ToMarksTest(BoardCase):
+    """component move --to-marks, with the pads and the placement keepouts read as shapes (centroid, area)."""
+
+    PADS = [("1", (9.2, 10.0, 0.1)), ("2", (10.8, 10.0, 0.1)), ("3", (10.0, 9.0, 0.3)), ("4", (10.0, 11.0, 0.3))]
+
+    def marked(self, marks: list[tuple[float, float, float]]) -> Any:
+        stack = mock.patch.object(layout_parts, "_pad_shapes", lambda doc, component, side: list(self.PADS))
+        stack.start()
+        self.addCleanup(stack.stop)
+        other = mock.patch.object(layout_parts, "_mark_shapes", lambda doc, side: list(marks))
+        other.start()
+        self.addCleanup(other.stop)
+
+    def test_the_part_moves_onto_its_marks_with_the_parts_check_off(self):
+        self.marked([(x + 5.0, y, a) for _pin, (x, y, a) in self.PADS])
+        out = self.move().preview(context("component move", {"refdes": "R1", "to_marks": True}))
+        self.assertEqual({(c["field"], c["before"], c["after"]) for c in out["changes"]}, {("x_mm", 10.0, 15.0)})
+        self.assertIn("4 of its 4 pads lie on placement keepouts", out["action"])
+        facts = self.move().apply(context("component move", {"refdes": "R1", "to_marks": True}))
+        self.assertEqual((self.r1.x, self.r1.y), (15.0, 10.0))
+        self.assertEqual(self.doc.EditorControl.modes, [layout_parts.DRC_OFF, 2])  # over its marks, which Layout's check refuses
+        self.assertEqual(facts["result"]["marks"], {"pins": ["1", "2", "3", "4"], "pads": 4, "off_mm": 0.0,
+                                                     "other_places": [{"x_mm": 15.0, "y_mm": 10.0, "rotation_deg": 180.0, "same_spot": True}]})  # symmetric pads: turned on its spot
+
+    def test_no_marks_an_unplaced_part_or_another_side_is_refused(self):
+        self.marked([(x + 5.0, y, a * 3.0) for _pin, (x, y, a) in self.PADS])  # marks of other shapes
+        for inputs, code in (({"refdes": "R1", "to_marks": True}, "E_NOT_FOUND"), ({"refdes": "U1", "to_marks": True}, "E_VALIDATION"),
+                             ({"refdes": "R1", "to_marks": True, "side": "bottom"}, "E_VALIDATION")):
+            with self.subTest(inputs=inputs), self.assertRaises(AdapterError) as caught:
+                self.move().preview(context("component move", inputs))
+            self.assertEqual(caught.exception.data["code"], code)
+        self.assertEqual(self.r1.calls, [])
 
 
 class Hole:

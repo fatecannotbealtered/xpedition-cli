@@ -43,6 +43,15 @@ class StitchTest(unittest.TestCase):
         self.assertTrue(all(not 2.8 < x < 5.2 for x, _y in plan.points))  # the zone and the via's radius beside it
         self.assertGreater(plan.dropped.get("in a bend zone", 0), 0)
 
+    def test_no_via_stands_in_a_keepout_of_vias(self):
+        keepout = [(6.0, 0.0), (10.0, 0.0), (10.0, 5.0), (6.0, 5.0)]
+        b = board(keepouts=[keepout])
+        self.assertEqual(S.free((8.0, 2.5), "GND", 0.2, b, CLEAR), "in a via keepout")
+        self.assertEqual(S.free((5.9, 2.5), "GND", 0.2, b, CLEAR), "in a via keepout")  # its pad reaches in
+        plan = S.stitch("GND", 0.2, b, CLEAR, 1.0, 0.0)
+        self.assertTrue(plan.points)
+        self.assertTrue(all(x <= 6.0 - 0.2 + 1e-9 for x, _y in plan.points))
+
     def test_points_keep_clear_of_pads_other_traces_vias_and_holes(self):
         b = board(pads=[S.polygon(circle=[5.0, 2.5, 0.3])], traces=[([(0.0, 1.0), (10.0, 1.0)], 0.1, "SIG"),
                                                                     ([(0.0, 4.0), (10.0, 4.0)], 0.1, "GND")],
@@ -51,7 +60,8 @@ class StitchTest(unittest.TestCase):
         self.assertTrue(plan.points)
         for point in plan.points:
             self.assertIsNone(S.free(point, "GND", 0.2, b, CLEAR))
-        self.assertIn("too close to a trace of another net", plan.dropped)
+        self.assertFalse([y for _x, y in plan.points if abs(y - 1.0) < 0.35 - 1e-9])  # clear of the other net's trace
+        self.assertTrue([y for _x, y in plan.points if 0.5 < y < 1.5])  # the grid row on it moved off it, not dropped
         self.assertIn("too close to a pad", plan.dropped)
         self.assertTrue(any(abs(y - 4.0) < 0.3 for _x, y in plan.points))  # its own net's trace is no obstacle
 

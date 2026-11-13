@@ -23,20 +23,25 @@ ANCHORS = {0: "none", 1: "semi_fixed", 2: "fixed", 3: "locked"}  # EPcbAnchorTyp
 ANCHOR_CODES = {name: code for code, name in ANCHORS.items()}
 SIDES = {1: "top", 512: "bottom"}  # EPcbSide
 HELD = ("fixed", "locked")  # what Layout keeps where it is
+LISTED_PLACES = 5  # other places a part fits its marks, listed
+SAME_SPOT_MM = 0.05  # another fit this close to the chosen one is the part turned on its spot: its marks do not show pin 1
+MARK_SLACK_MM = 0.05  # a placement keepout this far past the part's footprint still lies inside it
 NO_SHOVE = 3  # EditorControl.PartsOnlineDRC epcbECDRCPreventiveNoShovePart: refuse a spot that is taken, move nothing else
+DRC_OFF = 0  # epcbECDRCOff: lets a part over its structure marks, once the adapter has checked nothing else is in the way
 PLACEMENT_REFUSED = 10203  # Layout's error number when its placement check refuses a spot ("DRC violation")
 
 
 @contextmanager
-def _no_shove(doc: Any) -> Iterator[None]:
+def _parts_drc(doc: Any, mode: int = NO_SHOVE) -> Iterator[None]:
     """Layout's online DRC for parts set to refuse, not shove, while a part moves, and restored
     afterwards. Set to shove, as boards come, a move onto another part pushes that part aside,
-    a change nobody asked for; set to refuse, the part lands where it was sent or not at all."""
+    a change nobody asked for; set to refuse, the part lands where it was sent or not at all.
+    A move onto structure marks sets it off, after checking that nothing but the marks is in the way."""
     control, previous = None, None
     try:
         control = doc.EditorControl
         previous = int(control.PartsOnlineDRC)
-        control.PartsOnlineDRC = NO_SHOVE
+        control.PartsOnlineDRC = mode
     except Exception:  # noqa: BLE001 - this release lacks the switch; Layout moves as it is set
         control = None
     try:
@@ -147,16 +152,24 @@ def _move_inputs(ctx: Context) -> tuple[str, float | None, float | None, float |
         side = str(side).strip().lower()
         if side not in ("top", "bottom"):
             raise AdapterError("E_VALIDATION", "--side is top or bottom.", dispatch_state="not_started")
-    if x is None and y is None and rotation is None and side is None:
+    if ctx.inputs.get("to_marks"):
+        if x is not None or y is not None:
+            raise AdapterError("E_VALIDATION", "--to-marks finds the place from the marks; leave out --x and --y.",
+                               dispatch_state="not_started")
+    elif x is None and y is None and rotation is None and side is None:
         raise AdapterError("E_VALIDATION", "component move needs --x and --y, --rotation or --side.", dispatch_state="not_started")
     return (refdes, None if x is None else round(float(x), 4), None if y is None else round(float(y), 4),
             None if rotation is None else round(float(rotation) % 360.0, 4), side)
 
 
-def _destination(component: Any, ctx: Context) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Where the component stands now and where the move puts it."""
+def _destination(component: Any, ctx: Context, doc: Any = None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
+    """Where the component stands now, where the move puts it and, with --to-marks, the marks it fits."""
     refdes, x, y, rotation, side = _move_inputs(ctx)
     now = board_row(component)
+    if ctx.inputs.get("to_marks"):
+        fit = _mark_fit(doc, component, now, side, rotation)
+        goal = {"placed": True, "x_mm": fit["x_mm"], "y_mm": fit["y_mm"], "rotation_deg": fit["rotation_deg"], "side": now["side"]}
+        return now, goal, fit
     if not now["placed"] and (x is None or y is None):
         raise AdapterError("E_VALIDATION", f"{now['refdes']} is not placed: give --x and --y to place it.", dispatch_state="not_started")
     if now["placed"] and now["side"] is None and side is None:
@@ -165,7 +178,78 @@ def _destination(component: Any, ctx: Context) -> tuple[dict[str, Any], dict[str
     goal = {"placed": True, "x_mm": now["x_mm"] if x is None else x, "y_mm": now["y_mm"] if y is None else y,
             "rotation_deg": (now["rotation_deg"] or 0.0) if rotation is None else rotation,
             "side": (now["side"] or "top") if side is None else side}
-    return now, goal
+    return now, goal, None
+
+
+def _shape(record: dict[str, Any] | None) -> tuple[float, float, float] | None:
+    from .plan import marks as M
+
+    if record is None:
+        return None
+    return M.circle_shape(*record["circle"]) if "circle" in record else M.path_shape(record["path"])
+
+
+def _pad_shapes(doc: Any, component: Any, side: str) -> list[tuple[str, tuple[float, float, float]]]:
+    """Each pad of the part on the outer layer of its side: its pin, centroid and area, in mm."""
+    from .layout_output import geometry_record
+
+    scale = L.geometry_scale(doc)
+    layer = 1 if side == "top" else int(doc.LayerCount)
+    shapes = []
+    for pin in L.collection(component, "Pins"):
+        for pad in L.collection(pin, "Pads"):
+            if int(pad.Layer) != layer:
+                continue
+            for geometry in L.collection(pad, "Geometries"):
+                shape = _shape(geometry_record(geometry, scale)) if scale else None
+                if shape is not None:
+                    shapes.append((L.name_of(pin), shape))
+    return shapes
+
+
+def _mark_shapes(doc: Any, side: str) -> list[tuple[float, float, float]]:
+    """The placement keepouts on ``side``: each one's centroid and area."""
+    from .layout_keepout import placement_keepouts
+    from .layout_output import geometry_record
+
+    scale = L.geometry_scale(doc)
+    out = []
+    for item, where, _box, _height in placement_keepouts(doc):
+        if where != side or not scale:
+            continue
+        try:
+            shape = _shape(geometry_record(item.Geometry, scale))
+        except Exception:  # noqa: BLE001 - a keepout without a shape is no mark
+            continue
+        if shape is not None:
+            out.append(shape)
+    return out
+
+
+def _mark_fit(doc: Any, component: Any, now: dict[str, Any], side: str | None, rotation: float | None) -> dict[str, Any]:
+    """Where the part's pads lie on placement keepouts of the same shapes on its side, a structure
+    drawing's marks: the fit nearest where the part stands, at ``rotation`` when given."""
+    from .plan import marks as M
+
+    if not now["placed"] or now["side"] is None:
+        raise AdapterError("E_VALIDATION", f"{now['refdes']} is not placed: place it near its marks with --x and --y first, then "
+                           "move it with --to-marks.", dispatch_state="not_started")
+    if side is not None and side != now["side"]:
+        raise AdapterError("E_VALIDATION", f"--to-marks keeps {now['refdes']} on the {now['side']}; move it to the {side} first.",
+                           dispatch_state="not_started")
+    pads = _pad_shapes(doc, component, now["side"])
+    marks = _mark_shapes(doc, now["side"])
+    best, others = M.choose(M.fits(pads, marks), now["x_mm"], now["y_mm"], now["rotation_deg"] or 0.0, rotation)
+    if best is None:
+        at = f" at {rotation:g} degrees" if rotation is not None else ""
+        raise AdapterError("E_NOT_FOUND", f"No placement keepouts on the {now['side']} match {M.MIN_PADS} or more of {now['refdes']}'s "
+                           f"{len(pads)} pads in shape and spacing{at}; the board has {len(marks)} placement keepouts there. Give "
+                           "--x, --y and --rotation instead.", dispatch_state="not_started")
+    return {"x_mm": best["x_mm"], "y_mm": best["y_mm"], "rotation_deg": best["rotation_deg"],
+            "pins": sorted(best["matched"], key=natural), "pads": len(pads), "off_mm": round(best["residual_mm"], 4),
+            "other_places": [{**{k: o[k] for k in ("x_mm", "y_mm", "rotation_deg")},
+                              "same_spot": math.hypot(o["x_mm"] - best["x_mm"], o["y_mm"] - best["y_mm"]) < SAME_SPOT_MM}
+                             for o in others[:LISTED_PLACES]]}
 
 
 def _changed(now: dict[str, Any], goal: dict[str, Any]) -> dict[str, tuple[Any, Any]]:
@@ -238,10 +322,11 @@ def _destination_box(component: Any, now: dict[str, Any], goal: dict[str, Any]) 
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def _in_the_way(doc: Any, component: Any, side: str, box: tuple[float, float, float, float]) -> list[str]:
+def _in_the_way(doc: Any, component: Any, side: str, box: tuple[float, float, float, float], marks: bool = False) -> list[str]:
     """What lies under ``box`` on ``side`` that Layout's placement check may refuse: other placed
     parts, vias of nets the part has no pin of, traces of such nets on the side's outer layer, and
-    placement keepouts on that side."""
+    placement keepouts on that side; with ``marks``, only the keepouts that reach past the box,
+    since those inside are the structure's marks the part goes over."""
     def overlaps(other: tuple[float, ...]) -> bool:
         return other[0] < box[2] and box[0] < other[2] and other[1] < box[3] and box[1] < other[3]
 
@@ -268,13 +353,19 @@ def _in_the_way(doc: Any, component: Any, side: str, box: tuple[float, float, fl
     try:
         from .layout_keepout import placement_keepouts
 
-        keepouts = [b for _i, where, b, _h in placement_keepouts(doc) if where == side and overlaps(b)]
+        keepouts = [b for _i, where, b, _h in placement_keepouts(doc) if where == side and overlaps(b)
+                    and not (marks and _within(b, box))]
     except Exception:  # noqa: BLE001 - keepouts that cannot be read are left out
         keepouts = []
     if keepouts:
         found.append(f"{len(keepouts)} placement keepout(s), such as {keepouts[0][0]:g},{keepouts[0][1]:g} to {keepouts[0][2]:g},"
                      f"{keepouts[0][3]:g} mm")
     return found
+
+
+def _within(inner: tuple[float, ...], outer: tuple[float, ...]) -> bool:
+    s = MARK_SLACK_MM
+    return outer[0] - s <= inner[0] and inner[2] <= outer[2] + s and outer[1] - s <= inner[1] and inner[3] <= outer[3] + s
 
 
 class ComponentMove(L.ReadsBack):
@@ -286,38 +377,55 @@ class ComponentMove(L.ReadsBack):
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
 
-        def look(app: Any, doc: Any) -> tuple[dict[str, Any], dict[str, Any]]:
-            return _destination(find(doc, str(need_input(ctx, "refdes"))), ctx)
+        def look(app: Any, doc: Any) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
+            return _destination(find(doc, str(need_input(ctx, "refdes"))), ctx, doc)
 
-        now, goal = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the component")
+        now, goal, fit = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="reading the component")
         refdes = now["refdes"]
         domain = component_key(refdes)
         target = [base.target(path, "component", domain, label=refdes)]
         changes = _changed(now, goal)
         where = f"({goal['x_mm']:g}, {goal['y_mm']:g}) mm, {goal['rotation_deg']:g} degrees, on the {goal['side']}"
+        fits = ""
+        if fit is not None:
+            fits = (f", where {len(fit['pins'])} of its {fit['pads']} pads lie on placement keepouts of the same shapes, the "
+                    f"structure's marks ({fit['off_mm']:g} mm off on average)")
         if not changes:
-            return base.preview(f"{refdes} stands at {where} already; nothing changes.", target, [])
+            return base.preview(f"{refdes} stands at {where}{fits} already; nothing changes.", target, [])
         blocked = None
         if now["anchor"] in HELD:
             blocked = [f"{refdes} is {now['anchor']} in Layout, which keeps it where it is; a person releases it in Layout first"]
         verb = "Place" if not now["placed"] else "Move"
-        return base.preview(f"{verb} {refdes} at {where}; a spot another component takes is refused, and no other component "
-                            "moves. Traces on its pins stay where they are. The board is not saved.", target,
+        over = ""
+        if fit is not None:
+            over = " It goes over the placement keepouts inside its footprint there; anything else in the way refuses the move."
+            if fit["other_places"]:
+                over += " It fits as well at " + "; ".join(f"({o['x_mm']:g}, {o['y_mm']:g}) mm, {o['rotation_deg']:g} degrees"
+                                                           for o in fit["other_places"]) + "."
+        return base.preview(f"{verb} {refdes} at {where}{fits}; a spot another component takes is refused, and no other component "
+                            f"moves.{over} Traces on its pins stay where they are. The board is not saved.", target,
                             [base.change(base.key(path, domain), field, before, after) for field, (before, after) in changes.items()],
                             blocked_by=blocked)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
         def work(app: Any, doc: Any) -> dict[str, Any]:
             component = find(doc, str(need_input(ctx, "refdes")))
-            now, goal = _destination(component, ctx)
+            now, goal, fit = _destination(component, ctx, doc)
             if now["anchor"] in HELD:
                 raise base.blocked(f"{now['refdes']} is {now['anchor']} in Layout, which keeps it where it is; a person releases it "
                                    "in Layout first.")
             if not _changed(now, goal):
-                return base.facts("not_applied", "unchanged", result=self._result(doc, component))
+                return base.facts("not_applied", "unchanged", result=self._result(doc, component, fit))
             box = _destination_box(component, now, goal)
+            mode = NO_SHOVE
+            if fit is not None and box is not None:
+                found = _in_the_way(doc, component, goal["side"], box, marks=True)
+                if found:
+                    raise base.blocked(f"Besides its marks, under the place they give {now['refdes']} lie: {'; '.join(found)}. Nothing "
+                                       "moved; move or delete what is in the way.", knowledge=["layout-placement-drc"])
+                mode = DRC_OFF
             try:
-                with _no_shove(doc):
+                with _parts_drc(doc, mode):
                     if now["placed"] and now["side"] == goal["side"]:
                         if abs(goal["x_mm"] - now["x_mm"]) >= 0.0005 or abs(goal["y_mm"] - now["y_mm"]) >= 0.0005:
                             component.Move(goal["x_mm"], goal["y_mm"], L.UNIT_MM)
@@ -329,19 +437,26 @@ class ComponentMove(L.ReadsBack):
                 if com.excepinfo_codes(exc)[0] == PLACEMENT_REFUSED and board_row(component) == now:
                     found = _in_the_way(doc, component, goal["side"], box) if box is not None else []
                     what = ("; under the place it would take: " + "; ".join(found)) if found else ""
+                    marks = (" When those keepouts are a structure drawing's marks of its pads, component move --to-marks puts it on "
+                             "them.") if any("placement keepout" in f for f in found) else ""
                     raise base.blocked(f"Layout's placement check (online DRC) refuses to put {now['refdes']} at that place on the "
                                        f"{goal['side']}{what}. Nothing moved; move or delete what is in the way, or choose another "
-                                       "spot.", knowledge=["layout-placement-drc"], native_message=com.com_text(exc)) from None
+                                       f"spot.{marks}", knowledge=["layout-placement-drc"], native_message=com.com_text(exc)) from None
                 raise L.com_error(exc, f"moving {now['refdes']}", com.call_state(exc)) from None
-            return base.facts("applied", "unchanged", result=self._result(doc, component))
+            return base.facts("applied", "unchanged", result=self._result(doc, component, fit))
 
-        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="moving the component")
+        # Layout refuses a taken spot only in a transaction with DRC; over its marks the adapter has checked the way itself
+        return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="moving the component",
+                           checked=not ctx.inputs.get("to_marks"))
 
     @staticmethod
-    def _result(doc: Any, component: Any) -> dict[str, Any]:
+    def _result(doc: Any, component: Any, fit: dict[str, Any] | None = None) -> dict[str, Any]:
         row = board_row(component)
-        return {**{k: row[k] for k in ("refdes", "placed", "x_mm", "y_mm", "rotation_deg", "side")},
-                "inside_board": _inside(doc, component)}
+        result = {**{k: row[k] for k in ("refdes", "placed", "x_mm", "y_mm", "rotation_deg", "side")},
+                  "inside_board": _inside(doc, component)}
+        if fit is not None:
+            result["marks"] = {k: fit[k] for k in ("pins", "pads", "off_mm", "other_places")}
+        return result
 
 
 # ------------------------------------------------------------------ mounting holes

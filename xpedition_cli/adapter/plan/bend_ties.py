@@ -19,7 +19,7 @@ from typing import Callable
 
 from . import board_metrics as BM
 from . import trace_plan as TP
-from .shapes import box_disc, box_polygon, segment_box
+from .shapes import box_disc, box_polygon, inside, point_segment, segment_box, segment_polygon
 
 Point = tuple[float, float]
 Box = tuple[float, float, float, float]
@@ -86,4 +86,62 @@ def ties(zone: Box, along_x: bool, net: str, layer: int, width: float, copper: T
         if found:
             chosen.append(found[0])
             out.append((found[1], found[2]))
+    return out
+
+
+def touches_polygon(zone: list[Point], net: str, layer: int, copper: TP.Copper) -> bool:
+    """Whether a pad, trace or via of the net on the layer reaches into a zone given as its polygon."""
+    if any(n == net and lay == layer and (any(inside(p, zone) for p in poly) or any(inside(p, poly) for p in zone))
+           for lay, n, poly in copper.pads):
+        return True
+    if any(n == net and lay == layer and any(segment_polygon(a, b, zone) < w / 2 for a, b in zip(pts, pts[1:], strict=False))
+           for lay, n, w, pts in copper.traces):
+        return True
+    return any(n == net and (inside((x, y), zone) or min(point_segment((x, y), a, b) for a, b in zip(zone, zone[1:] + zone[:1],
+                                                                                                    strict=True)) < r)
+               for n, x, y, r in copper.vias)
+
+
+def ties_across(zone: list[Point], net: str, layer: int, width: float, copper: TP.Copper,
+                clear: Callable[[Point, Point], bool], run: Point | None = None) -> list[tuple[Point, Point]] | None:
+    """The ties across a zone that lies at a slant, a convex polygon: each running ``run``, the way
+    traces cross the zone (along the sides it shares with the board's edges), or else square to its
+    long sides, at a quarter, the half and three quarters of its width, moved to the nearest spot that
+    clears; None where the zone touches the net on its layer already."""
+    xs, ys = [p[0] for p in zone], [p[1] for p in zone]
+    if touches_polygon(zone, net, layer, copper):
+        return None
+    cx, cy = sum(xs) / len(zone), sum(ys) / len(zone)
+    if run is not None:
+        length = math.hypot(*run) or 1.0
+        n = (run[0] / length, run[1] / length)
+        u = (n[1], -n[0])
+    else:
+        sxx = sum((x - cx) ** 2 for x in xs)
+        syy = sum((y - cy) ** 2 for y in ys)
+        sxy = sum((x - cx) * (y - cy) for x, y in zone)
+        angle = 0.5 * math.atan2(2 * sxy, sxx - syy)
+        u, n = (math.cos(angle), math.sin(angle)), (-math.sin(angle), math.cos(angle))
+    along = [(x - cx) * u[0] + (y - cy) * u[1] for x, y in zone]
+    across = [(x - cx) * n[0] + (y - cy) * n[1] for x, y in zone]
+    low, high = min(along), max(along)
+    near, far = min(across) - EXTEND_MM, max(across) + EXTEND_MM
+    reach = (high - low) / 8
+
+    def at(t: float, v: float) -> Point:
+        return cx + u[0] * t + n[0] * v, cy + u[1] * t + n[1] * v
+
+    chosen: list[float] = []
+    out: list[tuple[Point, Point]] = []
+    for share in SHARES:
+        target = low + share * (high - low)
+        spots = [target] + [target + sign * k * STEP_MM for k in range(1, int(math.floor(reach / STEP_MM)) + 1) for sign in (1, -1)]
+        for t in spots:
+            if any(abs(t - c) < 1.0 for c in chosen):
+                continue
+            a, b = at(t, near), at(t, far)
+            if clear(a, b):
+                chosen.append(t)
+                out.append((a, b))
+                break
     return out

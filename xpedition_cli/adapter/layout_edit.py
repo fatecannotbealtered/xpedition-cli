@@ -13,7 +13,7 @@ import json
 import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -69,40 +69,58 @@ def via_key(net: str) -> str:
 
 
 class TraceDelete(L.ReadsBack):
-    """Delete the traces of the nets named, on the layers named or on every layer. Vias stay:
+    """Delete the traces of the nets named, on the layers named or on every layer; with the region
+    flags, only those that lie wholly inside the rectangle, such as a stub or an island. Vias stay:
     via delete removes them."""
 
     command = "trace delete"
 
-    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], list[int], dict[tuple[str, int | None], int]]:
+    def _look(self, ctx: Context, doc: Any) -> tuple[list[str], list[int], dict[tuple[str, int | None], int],
+                                                   dict[tuple[str, int | None], int]]:
+        """The nets, the layers, each net's traces on each layer now, and how many of them go."""
         nets = _nets(ctx)
         _known(doc, nets)
         layers = _layer_list(ctx, int(doc.LayerCount))
+        region = L.region_inputs(ctx.inputs)
         board = L.trace_counts(doc)
         counts = {(net, layer): board.get((net, layer), 0) for net in nets for layer in layers or [None]}
-        return nets, layers, counts
+        if region is None:
+            return nets, layers, counts, counts
+        going = dict.fromkeys(counts, 0)
+        for trace in L.collection(doc, "Traces"):
+            net, layer = L.net_name(trace), int(trace.Layer)
+            key = (net, layer if layers else None)
+            if key in going and _trace_within(trace, region):
+                going[key] += 1
+        return nets, layers, counts, going
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         path = ctx.document_path()
-        nets, layers, counts = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
-                                           what="reading the traces")
-        live = {k: v for k, v in counts.items() if v}
+        region = L.region_inputs(ctx.inputs)
+        nets, layers, counts, going = L.in_layout(ctx, lambda app, doc: self._look(ctx, doc), budget_s=L.READ_BUDGET_S,
+                                                  what="reading the traces")
+        live = {k: v for k, v in going.items() if v}
         on = f" on layers {', '.join(map(str, layers))}" if layers else ""
+        within = f" wholly within {L.region_text(region)}" if region is not None else ""
         if not live:
-            return base.preview(f"The nets {', '.join(nets)} have no traces{on}; nothing to delete.", [], [])
+            return base.preview(f"The nets {', '.join(nets)} have no traces{on}{within}; nothing to delete.", [], [])
         targets = [base.target(path, "trace", trace_key(net, layer), label=f"{net}" + (f" on layer {layer}" if layer else ""))
                    for net, layer in live]
-        changes = [base.change(base.key(path, trace_key(net, layer)), "count", count, 0) for (net, layer), count in live.items()]
-        return base.preview(f"Delete {sum(live.values())} traces of {len(nets)} nets{on}; their vias stay (via delete removes them). "
-                            "The board is not saved.", targets, changes)
+        changes = [base.change(base.key(path, trace_key(net, layer)), "count", counts[(net, layer)], counts[(net, layer)] - count)
+                   for (net, layer), count in live.items()]
+        return base.preview(f"Delete {sum(live.values())} traces of {len(live)} nets{on}{within}; their vias stay (via delete removes "
+                            "them). The board is not saved.", targets, changes)
 
     def apply(self, ctx: Context) -> dict[str, Any]:
+        region = L.region_inputs(ctx.inputs)
+
         def work(app: Any, doc: Any) -> dict[str, Any]:
-            nets, layers, _counts = self._look(ctx, doc)
+            nets, layers, _counts, _going = self._look(ctx, doc)
             wanted = set(nets)
             deleted = 0
             for trace in L.collection(doc, "Traces"):
-                if L.net_name(trace) in wanted and (not layers or int(trace.Layer) in layers):
+                if L.net_name(trace) in wanted and (not layers or int(trace.Layer) in layers) and (
+                        region is None or _trace_within(trace, region)):
                     try:
                         trace.Delete()
                         deleted += 1
@@ -114,6 +132,15 @@ class TraceDelete(L.ReadsBack):
             return base.facts("applied" if deleted else "not_applied", "unchanged", result={"deleted": deleted})
 
         return L.in_layout(ctx, work, budget_s=L.WRITE_BUDGET_S, write=True, what="deleting the traces")
+
+
+def _trace_within(trace: Any, region: L.Region) -> bool:
+    """Whether a trace lies wholly inside the region: both corners of its extents."""
+    try:
+        x0, y0, x1, y1 = L.extrema_mm(trace)
+    except Exception:  # noqa: BLE001 - a trace without extents is left alone
+        return False
+    return L.in_region((x0, y0), region) and L.in_region((x1, y1), region)
 
 
 def _via_point(via: Any) -> tuple[float, float]:
@@ -515,7 +542,14 @@ def _stitch_board(doc: Any, net: str) -> ST.Board:
             if record:
                 board.cutouts.append(ST.polygon(record.get("path"), record.get("circle")))
     board.bends = O.bend_boxes(doc)
+    board.keepouts = via_keepouts(model)
     return board
+
+
+def via_keepouts(model: dict[str, Any]) -> list[list[tuple[float, float]]]:
+    """The shapes of the board's keepouts that keep vias out, on any layer, from a full board model."""
+    return [ST.polygon(k["shape"].get("path"), k["shape"].get("circle")) for k in model.get("keepouts") or []
+            if k.get("kind") in TP.VIA_KEEPOUTS and k.get("shape")]
 
 
 
@@ -1095,7 +1129,8 @@ def _trace_rules(doc: Any, path: str) -> TP.Rules:
     for row in net_classes(doc, layer_count):
         widths[row["name"]] = {int(layer): (float(values.get("minimum_mm", 0.0)), float(values.get("expansion_mm", 25.0)))
                                for layer, values in row["widths"].items()}
-    return TP.Rules(net_class_of=current.net_class_of, widths=widths, clearance=_clearance_lookup(current))
+    return TP.Rules(net_class_of=current.net_class_of, widths=widths, clearance=_clearance_lookup(current),
+                    pairs=[list(pair) for pair in current.differential_pairs if len(pair) == 2])
 
 
 def _copper(doc: Any) -> TP.Copper:
@@ -1103,12 +1138,29 @@ def _copper(doc: Any) -> TP.Copper:
     call reads (``_rules_of``, ``_flex_of``), each read once."""
     from .layout_output import board_model
 
+    from .layout_output import geometry_record, keepouts
+
     model = board_model(doc, full=True, silk=False, shapes=False)
     scale = L.geometry_scale(doc)
     if model is None or scale is None:
         raise AdapterError("E_UNSUPPORTED", "The board's geometry can be read only on a board in mils with an outline; switch the "
                            "board's unit to mils in Layout, or set the outline with pcb update.", dispatch_state="not_started")
-    return copper_from_model(model, int(doc.LayerCount), {L.name_of(net) for net in L.collection(doc, "Nets")})
+    copper = copper_from_model(model, int(doc.LayerCount), {L.name_of(net) for net in L.collection(doc, "Nets")})
+    try:
+        copper.keepouts = [(k["kind"], k.get("layer"), ST.polygon(k["shape"].get("path"), k["shape"].get("circle")))
+                           for k in keepouts(doc, scale, geometry=True)
+                           if k.get("kind") in TP.TRACE_KEEPOUTS + TP.VIA_KEEPOUTS and k.get("shape")]
+    except Exception:  # noqa: BLE001 - keepouts that cannot be read are left out
+        copper.keepouts = []
+    for shape in L.collection(doc, "PlaneShapes"):
+        try:
+            record = geometry_record(shape.Geometry, scale)
+            if record:
+                copper.planes.append((int(shape.Layer), L.net_name(shape), ST.polygon(record.get("path"), record.get("circle"))))
+        except Exception:  # noqa: BLE001 - a shape that cannot be read is left out
+            continue
+    copper.border = _route_border(doc)
+    return copper
 
 
 def copper_from_model(model: dict[str, Any], layer_count: int, nets: set[str]) -> TP.Copper:
@@ -1210,7 +1262,7 @@ def _model_pins(model: dict[str, Any], refdes: str) -> list[FO.Pin] | None:
         layer = int(shapes[0].get("layer") or 1)  # the first pad's layer, its shapes there taken together
         points = [p for pad in shapes if int(pad.get("layer") or 1) == layer for p in ST.polygon(pad.get("path"), pad.get("circle"))]
         box = (min(p[0] for p in points), min(p[1] for p in points), max(p[0] for p in points), max(p[1] for p in points))
-        pins.append(FO.Pin(str(pin["pin"]), pin.get("net") or None, (float(pin["x"]), float(pin["y"])), box, layer))
+        pins.append(FO.Pin(str(pin["pin"]), pin.get("net") or None, (float(pin["x"]), float(pin["y"])), box, layer, points))
     return pins
 
 
@@ -1227,19 +1279,24 @@ def _fanout_pins(component: Any) -> list[FO.Pin]:
 
 
 def _fanned(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None,
-            lanes: list[LN.Lane] | None = None) -> tuple[TP.Plan, dict[str, FO.Fanout]]:
-    """The plan with each fan-out's stubs, joins and vias, and the fan-outs by connector. A near pin
-    of a net whose lane starts or ends at the connector on another layer than its pads changes to
-    the lane's layer through a via of the fan-out."""
+            lanes: list[LN.Lane] | None = None) -> tuple[TP.Plan, dict[str, FO.Fanout], set[int]]:
+    """The plan with each fan-out's stubs, joins and vias, the fan-outs by connector, and the indices
+    of the stubs in the plan's traces. A near pin of a net whose lane starts or ends at the connector
+    on another layer than its pads changes to the lane's layer through a via of the fan-out. Each
+    stub and join keeps within its net class's widths on its layer: a join as wide as the pads it
+    joins is drawn no wider than the class allows."""
     from . import layout_parts
     from .plan.shapes import flatten
 
     if not plan.fanouts:
-        return plan, {}
+        return plan, {}, set()
     body = FO.centroid(flatten(_outline_rows(doc)))
+    rules = _rules_of(doc, path, copper) if copper is not None else _trace_rules(doc, path)
+    stubs: set[int] = set()
     clear = _clearances(path)
     traces, vias, notes = list(plan.traces), list(plan.vias), list(plan.notes)
     fanouts: dict[str, FO.Fanout] = {}
+    keepouts = copper.keepouts if copper is not None else _copper(doc).keepouts
     for spec in plan.fanouts:
         model = getattr(copper, "model", None)
         pins = _model_pins(model, spec["refdes"]) if model else None
@@ -1251,28 +1308,80 @@ def _fanned(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None,
                                dispatch_state="not_started")
         try:
             lift = {lane.net: lane.layer for lane in lanes or [] if spec["refdes"] in (lane.from_ref, lane.to_ref)}
+            pad_layer = pins[0].layer if pins else None
+            kept = [("via" if kind in TP.VIA_KEEPOUTS else "trace", poly) for kind, layer, poly in keepouts
+                    if kind in TP.VIA_KEEPOUTS or (kind in TP.TRACE_KEEPOUTS and layer == pad_layer)]
             fanout = FO.plan(pins, body, radius, clear.via_to_pad, clear.via_to_via, spec["layer"],
                              set(spec["plane_nets"]), set(spec["skip"]), spec["stub_width"], set(spec["give_way"]),
-                             set(spec["nets"]) if spec.get("nets") is not None else None, lift)
+                             set(spec["nets"]) if spec.get("nets") is not None else None, lift, kept)
         except PlanError as exc:
             raise AdapterError(exc.code, f"The routing plan is not valid: the fan-out of {spec['refdes']}: {exc.message}.",
                                dispatch_state="not_started") from None
         fanouts[spec["refdes"]] = fanout
-        traces += [TP.Trace(net, layer, width, list(points)) for net, layer, width, points in fanout.traces]
-        vias += [TP.Via(net, at, spec["padstack"]) for net, at in fanout.vias]
+        for net, layer, width, points in fanout.traces:
+            if abs(width - spec["stub_width"]) < 1e-9:
+                stubs.add(len(traces))
+            traces.append(TP.Trace(net, layer, within_class(rules, net, layer, width), list(points),
+                                   origin=f"the fan-out of {spec['refdes']}"))
+        vias += [TP.Via(net, at, spec["padstack"], origin=f"the fan-out of {spec['refdes']}") for net, at in fanout.vias]
         if fanout.loose:
             notes.append(f"{spec['refdes']} leaves pins {', '.join(fanout.loose)} to connect: no via between the rows is free for them")
-    return TP.Plan(traces=traces, vias=vias, notes=notes), fanouts
+    return TP.Plan(traces=traces, vias=vias, notes=notes), fanouts, stubs
+
+
+def within_class(rules: TP.Rules, net: str, layer: int, width: float) -> float:
+    """``width`` brought within the widths the net's class allows on the layer."""
+    low, high = rules.widths.get(rules.net_class_of.get(net, "(Default)"), {}).get(layer, (0.0, math.inf))
+    return round(min(max(width, low), high), 4)
 
 
 def _laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], copper: TP.Copper | None = None) -> TP.Plan:
     """The plan with each fan-out, each lane as a trace along the board outline, and its guards and
     rings, which keep clear of the board's ``copper`` (read here when not given)."""
     guards, rings = plan.guards, plan.rings
-    plan = _lanes_laid(doc, path, plan, lanes, copper)
+    moving = _guard_lanes(guards, lanes)
+    plan = _lanes_laid(doc, path, plan, lanes, copper, list(moving.values()))
     if not guards and not rings:
         return plan
-    return _guarded(doc, path, plan, lanes, guards, rings, copper or _copper(doc))
+    return _guarded(doc, path, plan, lanes, guards, rings, copper or _copper(doc), moving)
+
+
+def _guard_lanes(guards: list[GD.Guard], lanes: list[LN.Lane]) -> dict[tuple[int, int], LN.Lane]:
+    """Each guard line that moves with jogging lanes, as a lane of its own by guard and line, so that
+    its crossings are staggered with theirs (``LN.stagger``). A guard whose lanes cannot be read here
+    is left to ``_guarded``, which says why."""
+    out: dict[tuple[int, int], LN.Lane] = {}
+    for index, guard in enumerate(guards):
+        try:
+            groups = GD.members(guard, lanes, f"guards[{index}]")
+            lines = GD.guard_offsets(guard, groups, f"guards[{index}]")
+            moves = GD.guard_jogs(guard, groups, f"guards[{index}]")
+        except PlanError as exc:
+            if "jog" in exc.message:
+                raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+            continue
+        first = groups[0][0]
+        for line, ((offset, width), targets) in enumerate(zip(lines, moves, strict=True)):
+            if targets:
+                out[(index, line)] = replace(first, net=guard.net, width=width, offset=offset, neck=None,
+                                             jogs=[(at, moved, 0.0) for at, moved in targets])
+    return out
+
+
+def _moved_jogs(moving: dict[tuple[int, int], LN.Lane] | None, index: int, line: int) -> list[tuple[Any, float, float]]:
+    """The jogs of a guard's line that moves with its lanes, staggered with theirs; none for a line that does not."""
+    pseudo = (moving or {}).get((index, line))
+    return list(pseudo.jogs) if pseudo is not None else []
+
+
+def _runs_forward(lane: LN.Lane, traces: list[TP.Trace], ring: list[tuple[tuple[float, float], float]]) -> bool:
+    """Whether the lane, as drawn, runs with its edge's chain: its trace starts nearer the chain's start."""
+    chain, _left = LN.edge_chain(ring, lane.edge)
+    drawn = next((t for t in traces if t.net == lane.net and t.layer == lane.layer and t.joins is not None), None) or         next((t for t in traces if t.net == lane.net and t.layer == lane.layer), None)
+    if drawn is None or len(chain) < 2:
+        return True
+    start = drawn.points[0]
+    return math.dist(start, chain[0][0]) <= math.dist(start, chain[-1][0])
 
 
 def _route_border(doc: Any) -> list[tuple[float, float]] | None:
@@ -1294,10 +1403,10 @@ def _route_border(doc: Any) -> list[tuple[float, float]] | None:
 
 
 def _guarded(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], guards: list[GD.Guard], rings: list[GD.Ring],
-             copper: TP.Copper) -> TP.Plan:
+             copper: TP.Copper, moving: dict[tuple[int, int], LN.Lane] | None = None) -> TP.Plan:
     """The plan with ground traces beside the lanes its guards name and around the outline, each kept
     where it clears the other nets' copper inside the route border, with vias along them."""
-    ring = LN.outline_corners(_outline_rows(doc))
+    ring = LN.sharpened(LN.outline_corners(_outline_rows(doc)), O.bend_boxes(doc, _flex_of(doc, copper)))
     radii: dict[str, float] = {}
 
     def radius_of(padstack: str) -> float:
@@ -1415,12 +1524,12 @@ def _guarded(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], guards: l
                     run_on.append([tip, at])  # drawing runs the end on to the centre at the line's width
                 else:
                     joins.append([tip, at])  # a stub
-        trace = TP.Trace(net, layer, width, points, radii, free_ends=True)
+        trace = TP.Trace(net, layer, width, points, radii, free_ends=True, origin=what)
         traces.append(trace)
         obstacles.add_trace(net, layer, width, trace.path)
         for piece in run_on:
             obstacles.add_trace(net, layer, width, piece, [False])
-        traces.extend(TP.Trace(net, layer, thin, path) for path in joins)
+        traces.extend(TP.Trace(net, layer, thin, path, origin=f"a join of {what}") for path in joins)
         left_free = [(tip, outward, number == 0) for number, tip, outward in unjoined]
         free = len(left_free)
         line = GD.cut(chain.line, start, end)
@@ -1519,7 +1628,7 @@ def _guarded(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], guards: l
                            walls=_walls(traces, net, layer, tip))
             if path is None:
                 continue
-            traces.append(TP.Trace(net, layer, thin, path))
+            traces.append(TP.Trace(net, layer, thin, path, origin=f"a join of {entry['what']}"))
             obstacles.add_trace(net, layer, thin, path, [False] * (len(path) - 1))
             joined[0] += 1
             entry["joined"] = True
@@ -1553,16 +1662,17 @@ def _guarded(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], guards: l
             cls = obstacles.rules.net_class_of.get(guard.net, "(Default)")
             widest = obstacles.rules.widths.get(cls, {}).get(beside[0].layer, (0.0, math.inf))[1]
             # a line between two groups fills the room up to its net class's widest trace, so it stays within the rules
+            forward = _runs_forward(beside[0], traces, ring)
             lines += [GD.Line(beside[0].layer, guard.net, offset, max(guard.width, min(width, widest)), beside, guard.pitch,
-                              guard.padstack, guard.min_run, guard.width)
-                      for offset, width in GD.guard_offsets(guard, groups, f"guards[{index}]")]
+                              guard.padstack, guard.min_run, guard.width, _moved_jogs(moving, index, line), forward)
+                      for line, (offset, width) in enumerate(GD.guard_offsets(guard, groups, f"guards[{index}]"))]
         totals: dict[int, list[float]] = {}
         for item in GD.merged(lines):
-            chain = GD.guard_chain(item.beside[0], item.offset, ring)
+            chain = GD.guard_chain(item.beside[0], item.offset, ring, item.jogs, item.forward)
             ranges = []
             for member in item.beside:
                 mine = [t for t in traces if t.net == member.net and t.layer == member.layer]
-                ranges.append(GD.lane_span(chain.line, GD.guard_line(member, member.offset, ring), mine))
+                ranges.append(GD.lane_span(chain.line, GD.guard_line(member, member.offset, ring, member.jogs, item.forward), mine))
             ranges = [r for r in ranges if r is not None]
             total = totals.setdefault(item.layer, [0, 0.0, 0, 0, 0])
             total[0] += 1
@@ -1723,32 +1833,86 @@ def _outline_polygon(ring: list[tuple[tuple[float, float], float]]) -> list[tupl
     return [corner[0] for corner in ring]
 
 
-def _lanes_laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], copper: TP.Copper | None = None) -> TP.Plan:
-    """The plan with each fan-out, and each lane as a trace along the board outline."""
-    plan, fanouts = _fanned(doc, path, plan, copper, lanes)
+def _board_pins(copper: TP.Copper | None, doc: Any) -> dict[str, tuple[float, float]]:
+    """Every placed pin's position, by ``REFDES.PIN``."""
+    model = getattr(copper, "model", None) or _copper(doc).model
+    return {f"{part['refdes']}.{pin['pin']}": (float(pin["x"]), float(pin["y"]))
+            for part in model.get("components") or [] for pin in part.get("pins") or []}
+
+
+def _pin_ends(doc: Any, path: str, copper: TP.Copper | None, lanes: list[LN.Lane]) -> dict[str, Any]:
+    """Every placed pin's position by ``REFDES.PIN``; for a pin a lane ends on, the pin and the point
+    where a trace leaving it straight towards the board's body clears its row's pads."""
+    from .plan.shapes import flatten
+
+    ends: dict[str, Any] = dict(_board_pins(copper, doc))
+    model = getattr(copper, "model", None) or _copper(doc).model
+    body = FO.centroid(flatten(_outline_rows(doc)))
+    try:
+        clearance = _clearances(path).via_to_pad
+    except AdapterError:  # a board without its project's rules: the default clearance
+        clearance = DEFAULT_CLEARANCE_MM
+    for lane in lanes:
+        for ref in (lane.from_ref, lane.to_ref):
+            if not ref or "." not in ref or ref not in ends:
+                continue
+            refdes, number = ref.rsplit(".", 1)
+            exit_at = FO.pin_exit(_model_pins(model, refdes) or [], number, body, clearance, lane.width)
+            if exit_at is not None:
+                ends[ref] = [ends[ref], exit_at]
+    return ends
+
+
+def _lanes_laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], copper: TP.Copper | None = None,
+                guard_lanes: list[LN.Lane] | None = None) -> TP.Plan:
+    """The plan with each fan-out, and each lane as a trace along the board outline; ``guard_lanes``,
+    the guard lines that jog with their lanes, cross in turn with them."""
+    if any("." in (ref or "") for lane in lanes for ref in (lane.from_ref, lane.to_ref)):
+        try:
+            LN.resolve_pins(lanes, _pin_ends(doc, path, copper, lanes))
+        except PlanError as exc:
+            raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+    plan, fanouts, stubs = _fanned(doc, path, plan, copper, lanes)
     if not lanes:
         return plan
-    ring = LN.outline_corners(_outline_rows(doc))
+    flex = _flex_of(doc, copper) if copper is not None else O.flex_model(doc)
+    bends = O.bend_boxes(doc, flex)
+    ring = LN.sharpened(LN.outline_corners(_outline_rows(doc)), bends)
+    zones = [[(float(x), float(y)) for x, y in zone["polygon_mm"]] if zone.get("polygon_mm") else
+             [(zone["extents_mm"][0], zone["extents_mm"][1]), (zone["extents_mm"][2], zone["extents_mm"][1]),
+              (zone["extents_mm"][2], zone["extents_mm"][3]), (zone["extents_mm"][0], zone["extents_mm"][3])]
+             for zone in board_metrics.bend_zones(flex)]
     clearance = _clearances(path).via_to_pad if fanouts else 0.1
+    if any(lane.jogs for lane in lanes):
+        try:
+            LN.stagger(lanes + list(guard_lanes or []), _clearances(path).via_to_pad)
+        except AdapterError:  # a board without its project's rules: the default clearance
+            LN.stagger(lanes + list(guard_lanes or []), DEFAULT_CLEARANCE_MM)
     try:
         laid = [piece for index, lane in enumerate(lanes)
-                for piece in LN.necked(lane, LN.expand(copy.copy(lane), ring, f"lanes[{index}]", fanouts, clearance))]
+                for piece in LN.necked(lane, LN.expand(copy.copy(lane), ring, f"lanes[{index}]", fanouts, clearance, zones))]
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
     traces = plan.traces + laid
-    if copper is not None and any(lane.neck is not None for lane in lanes):
-        traces = _widened(doc, path, plan, lanes, traces, copper)
+    # a lane's fan-out stubs, and its neck, as wide as the lane wherever that clears
+    full = {lane.net: lane.width for lane in lanes}
+    wanted = {i: full[t.net] for i, t in enumerate(plan.traces) if i in stubs and t.width < full.get(t.net, 0.0) - 1e-9}
+    necks = {lane.net: lane.width for lane in lanes if lane.neck is not None}
+    start = len(plan.traces)
+    wanted.update({start + i: necks[t.net] for i, t in enumerate(laid) if t.net in necks and t.width < necks[t.net] - 1e-9})
+    if copper is not None and wanted:
+        traces = _widened(doc, path, plan, lanes, traces, copper, wanted)
     if len(traces) + len(plan.vias) > TP.MAX_ITEMS:
         raise AdapterError("E_VALIDATION", f"The routing plan is not valid: it names more than {TP.MAX_ITEMS} items.",
                            dispatch_state="not_started")
     return TP.Plan(traces=traces, vias=plan.vias, notes=plan.notes)
 
 
-def _widened(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], traces: list[TP.Trace], copper: TP.Copper) -> list[TP.Trace]:
-    """A necked lane's neck and its fan-out stubs at the lane's width wherever that clears the board's
-    copper, the plan's vias and the other nets' traces at their lanes' widths, narrow only where it
-    must be (``LN.widened``)."""
-    wide = {lane.net: lane.width for lane in lanes if lane.neck is not None}
+def _widened(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], traces: list[TP.Trace], copper: TP.Copper,
+              wanted: dict[int, float]) -> list[TP.Trace]:
+    """The traces ``wanted`` names, a lane's neck or fan-out stubs, at the width it gives wherever that
+    clears the board's copper, the plan's vias and the other nets' traces at their lanes' widths,
+    narrow only where it must be (``LN.widened``)."""
     full = {lane.net: lane.width for lane in lanes}
     sizes: dict[str, float] = {}
     for via in plan.vias:  # the fan-out's vias have no size yet
@@ -1760,23 +1924,24 @@ def _widened(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], traces: l
     obstacles = GD.Obstacles(copper, TP.Plan(traces=others, vias=plan.vias), _rules_of(doc, path, copper),
                              _route_border(doc) or _outline_polygon(LN.outline_corners(_outline_rows(doc))), _cutouts(doc))
     out: list[TP.Trace] = []
-    for trace in traces:
-        width = wide.get(trace.net)
-        if width is None or trace.width >= width - 1e-9:
+    for index, trace in enumerate(traces):
+        width = wanted.get(index)
+        if width is None:
             out.append(trace)
             continue
         out += LN.widened(trace, width, lambda a, b, w, t=trace: obstacles.piece_clear(a, b, t.net, t.layer, w))
     return out
 
 
-def _plan_notes(doc: Any, plan: TP.Plan, copper: TP.Copper | None = None) -> list[str]:
+def _plan_notes(doc: Any, path: str, plan: TP.Plan, copper: TP.Copper | None = None) -> list[str]:
     """What the plan's own copper shows before it is drawn: each pair's two lengths, the pairs
     recognised by name, and what the board's bend zones forbid of it."""
     lengths: dict[str, float] = {}
     for trace in plan.traces:
         lengths[trace.net] = lengths.get(trace.net, 0.0) + TP.length(trace)
+    defined = _rules_of(doc, path, copper).pairs if copper is not None else None
     notes = [f"{a} and {b} are {lengths[a]:.3f} and {lengths[b]:.3f} mm long, {abs(lengths[a] - lengths[b]):.3f} mm apart"
-             for a, b in board_metrics._pairs(sorted(lengths))]
+             for a, b in board_metrics._pairs(sorted(lengths), defined)]
     model = {**(_flex_of(doc, copper) if copper is not None else O.flex_model(doc)),
              "traces": [{"net": t.net, "layer": t.layer, "width": t.width, "path": TP.drawn(t.points, t.radii)} for t in plan.traces],
              "vias": [{"net": v.net, "circle": [v.at[0], v.at[1], 0.0]} for v in plan.vias]}
@@ -1802,9 +1967,9 @@ def _trace_look(ctx: Context, doc: Any, plan: TP.Plan,
     drawn, extended = _as_drawn(plan, copper)  # checked as drawn: an end on a via or a pad runs on to its centre
     rules = _rules_of(doc, path, copper)
     found = TP.check(drawn, copper, rules)
-    planned = set(TP.check(plan, copper, rules)) if extended else set()
+    planned = {TP.without_where(r) for r in TP.check(plan, copper, rules)} if extended else set()
     for number, reason in enumerate(found):
-        if reason in planned:
+        if TP.without_where(reason) in planned:
             continue
         own = reason[:reason.find(":") + 1]
         names = [own] + [f"trace {n} of {net}:" for n, net in re.findall(r"trace (\d+) of (\S+) in the plan", reason)]
@@ -1830,7 +1995,7 @@ def _as_drawn(plan: TP.Plan, copper: TP.Copper) -> tuple[TP.Plan, dict[str, list
     traces, extended = [], {}
     for index, trace in enumerate(plan.traces):
         pts, radii, extended_to = _extended(trace, points)
-        traces.append(TP.Trace(trace.net, trace.layer, trace.width, pts, radii, trace.free_ends))
+        traces.append(TP.Trace(trace.net, trace.layer, trace.width, pts, radii, trace.free_ends, origin=trace.origin))
         if extended_to:
             extended[f"trace {index + 1} of {trace.net}:"] = extended_to
     return TP.Plan(traces=traces, vias=plan.vias), extended
@@ -2037,7 +2202,7 @@ class TraceCreate(L.ReadsBack):
         def look(app: Any, doc: Any) -> tuple[TP.Plan, list[str], dict[tuple[str, int], int], dict[str, int], list[str]]:
             copper = _copper(doc)
             plan = _laid(doc, path, given, lanes, copper)
-            return plan, *_trace_look(ctx, doc, plan, copper), plan.notes + _plan_notes(doc, plan, copper)
+            return plan, *_trace_look(ctx, doc, plan, copper), plan.notes + _plan_notes(doc, path, plan, copper)
 
         plan, blocked, traces, vias, notes = L.in_layout(ctx, look, budget_s=L.READ_BUDGET_S, what="checking the routing plan")
         added_vias: dict[str, int] = {}
@@ -2167,7 +2332,7 @@ class TraceCheck(base.Handler):
             blocked, _traces, _vias = _trace_look(ctx, doc, plan, copper)
             kinds = {kind: [f for f in plan.findings if f["kind"] == kind] for kind in ("floating", "pour_only", "free_end")}
             kinds["free_end"].sort(key=lambda f: "pour_at_mm" in f)  # the ends no pour reaches first
-            notes = plan.notes + _plan_notes(doc, plan, copper)
+            notes = plan.notes + _plan_notes(doc, path, plan, copper)
             out: dict[str, Any] = {"traces": len(plan.traces), "vias": len(plan.vias), "blocked": blocked[:FINDINGS_LISTED],
                                    "blocked_count": len(blocked), "notes": notes[:FINDINGS_LISTED]}
             whole: dict[str, Any] = {**out, "blocked": blocked, "notes": notes}
@@ -2184,7 +2349,13 @@ class TraceCheck(base.Handler):
                 measured = RQ.measure(model, requirements, O.bend_boxes(doc, _flex_of(doc, copper)), obstacles)
                 out["requirements"], whole["requirements"] = RQ.listed(measured), measured
                 out["requirements_failed"] = whole["requirements_failed"] = sum(1 for row in measured if row.get("ok") is False)
-            if output:
+            if output:  # the plan as worked out, for a person or an Agent to see where each line runs
+                whole["plan"] = {"traces": [{"number": i + 1, "net": t.net, "layer": t.layer, "width_mm": t.width, "from": t.origin,
+                                             "points_mm": [[round(x, 4), round(y, 4)] + ([round(r, 4)] if r else [])
+                                                           for (x, y), r in zip(t.points, t.radii, strict=True)]}
+                                            for i, t in enumerate(plan.traces)],
+                                 "vias": [{"number": i + 1, "net": v.net, "at_mm": [round(v.at[0], 4), round(v.at[1], 4)],
+                                           "padstack": v.padstack, "from": v.origin} for i, v in enumerate(plan.vias)]}
                 out["output"] = O.write_output(str(output), whole)
             return base.fitted(out, ["notes", "pour_only", "free_ends", "floating", "blocked", "requirements"])
 

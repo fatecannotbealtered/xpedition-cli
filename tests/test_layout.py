@@ -261,6 +261,9 @@ class InstancesTest(unittest.TestCase):
             row = L.instances(2.0)[0]
         self.assertEqual((row["state"], row["blocker"]), ("blocked", {"action": "dismiss_dialog", "title": "Database Recovery",
                                                                       "knowledge": ["layout-open-prompts"]}))
+        output = {"title": "ODB++ Design Output", "text": "", "buttons": ["OK", "Cancel"]}  # left open by an export that was stopped
+        self.assertEqual(L.blocker(output)["knowledge"], ["layout-output-setups"])
+        self.assertEqual(L.human(output, "exporting", None).data["knowledge"], ["layout-output-setups"])
 
     def test_a_dialog_look_that_hangs_leaves_the_layout_unresponsive(self):
         with world(FakeApp()), mock.patch.object(com, "call_with_timeout", mock.Mock(side_effect=TimeoutError)):
@@ -427,12 +430,14 @@ class QuitTest(unittest.TestCase):
             alive[pid] = False
             return True
 
-        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: alive[pid]),                 mock.patch.object(processes, "end", end), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
+        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: alive[pid]), \
+                mock.patch.object(processes, "end", end), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
             L.quit(PID, False)
         self.assertEqual(ended, [PID])
 
     def test_a_layout_that_cannot_be_ended_is_reported_with_the_held_file(self):
-        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: True),                 mock.patch.object(processes, "end", lambda pid: False), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
+        with world(FakeApp(FakeDoc())), mock.patch.object(processes, "alive", lambda pid: True), \
+                mock.patch.object(processes, "end", lambda pid: False), mock.patch.object(L, "QUIT_WAIT_S", 0.0):
             with self.assertRaises(AdapterError) as caught:
                 L.quit(PID, False)
         self.assertEqual(caught.exception.data["knowledge"], ["layout-drillprefs-held"])

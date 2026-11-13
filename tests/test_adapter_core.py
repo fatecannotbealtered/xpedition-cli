@@ -64,6 +64,33 @@ class DocumentStateTest(unittest.TestCase):
         self.assertEqual([(c["before"], c["after"]) for c in width], [(70.0, 72.0)])
         self.assertEqual(len(changes), 2)
 
+    def test_a_later_write_on_an_object_drops_what_earlier_writes_expected_of_it(self):
+        traces, on_layer = base.key(self.doc, "/traces/GND"), base.key(self.doc, "/traces/GND/3")
+        plane = base.key(self.doc, "/planes/GND/1")
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(traces, "count", 12, 0),  # trace delete
+                                                              base.change(plane, "exists", True, False), base.change(plane, "hatch", "solid", None)])
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(on_layer, "plan_drawn", False, True),  # trace create
+                                                              base.change(plane, "exists", False, True)])  # plane create
+        changes = sessions.doc_state(self.store, self.sid, self.doc)["changes"]
+        self.assertEqual(sorted((c["target"].split("#")[1], c["field"]) for c in changes),
+                         [("/planes/GND/1", "exists"), ("/traces/GND/3", "plan_drawn")])  # no stale count, no stale hatch
+        self.assertEqual(next(c for c in changes if c["field"] == "exists")["before"], True)  # the first before kept
+
+    def test_a_later_write_on_a_nets_traces_or_vias_drops_their_other_fields(self):
+        vias, on_layer = base.key(self.doc, "/vias/GND"), base.key(self.doc, "/traces/GND/1")
+        outline = base.key(self.doc, "/outline")
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(vias, "count", 51, 0),  # via delete
+                                                              base.change(vias, "padstack", "VIA02", None),
+                                                              base.change(outline, "width_mm", 70.0, 61.0)])
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(on_layer, "count", 0, 2)])  # a plane's bend ties
+        sessions.note_change(self.store, self.sid, self.doc, [base.change(vias, "count", 0, 33),  # trace create
+                                                              base.change(on_layer, "plan_drawn", False, True),
+                                                              base.change(outline, "radius_mm", 3.0, 1.0)])
+        changes = sessions.doc_state(self.store, self.sid, self.doc)["changes"]
+        self.assertEqual(sorted((c["target"].split("#")[1], c["field"], c["after"]) for c in changes),
+                         [("/outline", "radius_mm", 1.0), ("/outline", "width_mm", 61.0), ("/traces/GND/1", "plan_drawn", True),
+                          ("/vias/GND", "count", 33)])  # no stale padstack or tie count; a single object's other field stands
+
     def test_a_change_makes_the_document_dirty_and_a_save_clears_it(self):
         change = base.change(base.key(self.doc, "/schematic/nets/GND"), "pins", None, ["R1.2"])
         sessions.note_change(self.store, self.sid, self.doc, [change])
@@ -108,7 +135,8 @@ class DocumentStateTest(unittest.TestCase):
         self.assertEqual([d["id"] for d in second], [os.path.abspath(self.doc)])
         app.instances.assert_not_called()
         app.open_documents.assert_called_with(7, sessions.DOCS_TIMEOUT_S)
-        with mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.object(sessions, "make_session_id", return_value="layout-7-other"), self.assertRaises(AdapterError):
+        with mock.patch.object(sessions, "_app", return_value=app), \
+                mock.patch.object(sessions, "make_session_id", return_value="layout-7-other"), self.assertRaises(AdapterError):
             sessions.documents(self.store, {"session": sid})  # that process has ended; pid 7 is another one now
 
     def test_session_open_starts_the_program_of_the_kind(self):
@@ -162,7 +190,9 @@ class DocumentStateTest(unittest.TestCase):
         app.close_document.side_effect = lambda pid, path, discard: Path(path).write_text("written on close", encoding="utf-8")
         sid, doc = "designer-1-1", os.path.abspath(self.doc)
         os.utime(doc, ns=(1_000_000_000, 1_000_000_000))
-        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})),                 mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
+        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})), \
+                mock.patch.object(sessions, "_app", return_value=app), \
+                mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
             sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
             out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
                                                         "fields": ["saved"]})
@@ -211,7 +241,9 @@ class DocumentStateTest(unittest.TestCase):
         app.save_document.side_effect = None  # Layout's Save wrote nothing
         app.open_document.side_effect = lambda pid, path: data.write_text("rewritten on open", encoding="utf-8")
         sid, doc = "layout-1-1", str(board)
-        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})),                 mock.patch.object(sessions, "_app", return_value=app),                 mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
+        with mock.patch.object(sessions, "_session", return_value=(base.parse_session(sid), {"documents": []})), \
+                mock.patch.object(sessions, "_app", return_value=app), \
+                mock.patch.dict(os.environ, {jobs.WORKER_ENV: "job-0123456789:ab"}):
             sessions.save_doc(self.store, {"session": sid, "document": doc, "operation_id": "op_1"})
             out = sessions.save_read_back(self.store, {"session": sid, "document": doc, "targets": [base.key(doc)],
                                                         "fields": ["saved"]})

@@ -2162,7 +2162,11 @@ class SchematicExport(Handler):
             warnings.append("Designer holds unsaved changes; the PDF shows the project as last saved.")
         warnings += [f"sch2pdf showed the dialog {d['title']!r}: {d['text']}" for d in run.dialogs]
         result = {"path": out, "pages": pages, "warnings": warnings}
-        return base.facts("not_applicable", "saved", result=result, files=[{"path": out}])
+        facts = base.facts("not_applicable", "saved", result=result, files=[{"path": out}])
+        notices = sessions.release(ctx.store, [prj])  # sch2pdf opens the project's database too
+        if notices:
+            facts["notices"] = notices
+        return facts
 
     @staticmethod
     def _check(run: env.ToolRun, partial: Path) -> None:

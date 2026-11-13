@@ -10,7 +10,7 @@ A flex board that joins two boards carries one bus from a two-row board-to-board
 
 Connector fan-out:
 
-- The row nearer the board's body can leave on the connector's pad layer straight away. The other row is blocked by it, so each of its pins changes layer through one via beside the pin, inside the stiffener, and changes back the same way at the far end. Traces of one layer keep the order the pins have, so none crosses another.
+- The row nearer the board's body can leave on the connector's pad layer straight away. The other row is blocked by it, so its nets change layer through vias beside their pins, inside the stiffener, one via for consecutive pins of one net joined pin to pin, and change back the same way at the far end. Traces of one layer keep the order the pins have, so none crosses another. When the two connectors' pinouts put two nets in opposite orders, one of them crosses the other on another layer through a via at each side.
 - Ground pins between signal pins reach the ground plane through a via beside the pin, inside the stiffener; copper poured between two signal lanes is an island unless a via ties it to the plane.
 
 Lanes:

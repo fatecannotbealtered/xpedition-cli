@@ -21,9 +21,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183924-trace-check.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-170916-trace-check.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-12-183924-trace-check.json#normal"
+        "board": "live:docs/evidence/2026-11-13-170916-trace-check.json#normal"
       }
     },
     {
@@ -44,7 +44,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183940-trace-check.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-170929-trace-check.json#empty"
     },
     {
       "row": "invalid_input",
@@ -66,7 +66,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183919-trace-check.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-170912-trace-check.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -88,7 +88,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183919-trace-check.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-170912-trace-check.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -106,7 +106,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-12-182445-trace-check.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-165538-trace-check.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -136,7 +136,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-12-182722-trace-check.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-165749-trace-check.json#busy"
     },
     {
       "row": "dialog",
@@ -156,7 +156,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183142-trace-check.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-170155-trace-check.json#dialog"
     },
     {
       "row": "disconnect",
@@ -194,7 +194,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-184004-trace-check.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-170949-trace-check.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

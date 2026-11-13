@@ -67,7 +67,11 @@ PAIR_ENDS = (("P", ("N", "M")), ("+", ("-",)))  # the last character of a pair's
 SKEW_LIMIT_MM = 0.127  # 5 mil between a pair's two lengths
 SQUARE_TOLERANCE = 5.0  # degrees a trace may cross a bend zone off square
 INSIDE_EPSILON = 0.01  # mm a point lies inside a zone's edge to count as in it
+EDGE_APART_MM = 1000.0  # crossings of a bend zone's different edges are kept this far apart when compared
+POUR_ROOM_MM = 0.15  # another net's copper this close to a spot leaves a pour no copper there: its clearance and a sliver
 BAND_COVER = 0.8  # a placement keepout across this share of the board's width marks a bend zone
+EDGE_TO_EDGE = 0.95  # a placement keepout across this share, with board on both sides, marks a bend on a board without stiffeners
+SPLIT_MARGIN_MM = 0.2  # board that must lie beyond each long side of such a band
 
 
 def net_kind(name: str) -> str:
@@ -201,6 +205,7 @@ def _decoupling(
 def _routing(model: dict[str, Any]) -> dict[str, Any]:
     by_layer: dict[str, float] = {}
     by_net: dict[str, float] = {}
+    widths: dict[str, list[float]] = {}
     acute: list[dict[str, Any]] = []
     for trace in model.get("traces") or []:
         points = _trace_points(trace)
@@ -208,6 +213,8 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
         length = sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
         by_layer[layer] = by_layer.get(layer, 0.0) + length
         net = str(trace.get("net") or "")
+        if net and trace.get("width") is not None:
+            widths.setdefault(net, []).append(float(trace["width"]))
         by_net[net] = by_net.get(net, 0.0) + length
         for before, vertex, after in zip(points, points[1:], points[2:], strict=False):
             ax, ay = before[0] - vertex[0], before[1] - vertex[1]
@@ -228,7 +235,7 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
                 )
     unrouted = {str(row.get("net")) for row in model.get("unrouted") or []}
     pairs = []
-    for first, second in _pairs(sorted(name for name in by_net if name)):
+    for first, second in _pairs(sorted(name for name in by_net if name), model.get("differential_pairs")):
         if first in unrouted or second in unrouted:
             continue
         a, b = by_net[first], by_net[second]
@@ -240,6 +247,7 @@ def _routing(model: dict[str, Any]) -> dict[str, Any]:
         "vias": len(model.get("vias") or []),
         "acute_corners": acute,
         "pairs": pairs,
+        "widths": [{"net": net, "min_mm": round(min(found), 4), "max_mm": round(max(found), 4)} for net, found in sorted(widths.items())],
     }
 
 
@@ -266,23 +274,96 @@ def _segment_cells(traces: list[dict[str, Any]]) -> dict[tuple[int, int, int], l
 
 
 def guard_cover(model: dict[str, Any], groups: list[list[str]], gap: float) -> list[dict[str, Any]]:
-    """For each net named and each layer it runs on: how much of its trace length has a ground
-    trace on its layer within ``gap`` of its copper on the left, on the right and on both sides,
-    in per cent, and how many mm have none on either side. Ground is a net named as ground, such
-    as GND; its planes do not count, only its traces, such as guards beside a signal. Nets named
-    as one group, such as a pair, cover each other: a member's side towards another running within
-    ``GROUP_REACH_MM`` of its copper counts as guarded, however far apart the pair's spacing is set."""
+    """For each net named and each layer it runs on: how much of its trace length has ground on its
+    layer within ``gap`` of its copper on the left, on the right and on both sides, in per cent, and
+    how many mm have none on either side. Ground is a net named as ground, such as GND: its traces,
+    such as guards beside a signal, and its pours, a plane shape that holds copper and reaches
+    beside the trace with room for that copper there (no other net's copper within
+    ``POUR_ROOM_MM`` of the spot). Nets named as one group, such as a pair, cover each other: a
+    member's side towards another running within ``GROUP_REACH_MM`` of its copper counts as
+    guarded, however far apart the pair's spacing is set."""
     traces = model.get("traces") or []
     cells = _segment_cells([t for t in traces if GROUND_NET.match(str(t.get("net") or ""))])
+    pours = _ground_pours(model)
+    others = _other_copper(model) if pours else {}
     rows: list[dict[str, Any]] = []
     for group in groups:
         for net in group:
-            rows += _net_cover(traces, net, [t for t in traces if t.get("net") in group and t.get("net") != net], cells, gap)
+            rows += _net_cover(traces, net, [t for t in traces if t.get("net") in group and t.get("net") != net], cells, gap,
+                               pours, others)
     return rows
 
 
+def _ground_pours(model: dict[str, Any]) -> dict[int, list[list[Point]]]:
+    """The ground nets' plane shapes that hold copper, by layer, as polygons."""
+    out: dict[int, list[list[Point]]] = {}
+    for plane in model.get("planes") or []:
+        path = (plane.get("shape") or {}).get("path")
+        if not path or not GROUND_NET.match(str(plane.get("net") or "")) or plane.get("copper") is False:
+            continue
+        out.setdefault(int(plane.get("layer") or 0), []).append(
+            flatten([(float(q[0]), float(q[1]), float(q[2]) if len(q) > 2 else 0.0) for q in path]))
+    return out
+
+
+def _other_copper(model: dict[str, Any]) -> dict[tuple[int, int, int], list[tuple[Point, Point, float]]]:
+    """Every copper not of a ground net, by layer and 1 mm cell: traces as segments, pads and vias as discs round their middles."""
+    cells = _segment_cells([t for t in model.get("traces") or [] if not GROUND_NET.match(str(t.get("net") or ""))])
+    layers = int(model.get("layers") or 0)
+    for pad in model.get("pads") or []:
+        if GROUND_NET.match(str(pad.get("net") or "")):
+            continue
+        rows = pad.get("path") or []
+        if rows:
+            xs, ys = [r[0] for r in rows], [r[1] for r in rows]
+            disc = ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2), max(max(xs) - min(xs), max(ys) - min(ys))
+        elif pad.get("circle"):
+            disc = (pad["circle"][0], pad["circle"][1]), 2 * pad["circle"][2]
+        else:
+            continue
+        (x, y), size = disc
+        cells.setdefault((int(pad.get("layer") or 0), math.floor(x), math.floor(y)), []).append(((x, y), (x, y), size))
+    for via in model.get("vias") or []:
+        if GROUND_NET.match(str(via.get("net") or "")):
+            continue
+        x, y, r = via["circle"]
+        for layer in range(1, layers + 1):
+            cells.setdefault((layer, math.floor(x), math.floor(y)), []).append(((x, y), (x, y), 2 * r))
+    return cells
+
+
+def _pour_sides(p: Point, u: Point, width: float, gap: float, layer: int, pours: dict[int, list[list[Point]]],
+                others: dict[tuple[int, int, int], list[tuple[Point, Point, float]]]) -> set[str]:
+    """The sides of a trace at ``p``, running along ``u``, where a ground pour stands within ``gap`` of its copper."""
+    shapes = pours.get(layer)
+    if not shapes or gap <= POUR_ROOM_MM / 2:
+        return set()
+    reach = width / 2 + gap - POUR_ROOM_MM / 2  # the spot the pour's copper must reach, short of the gap's far end
+    sides: set[str] = set()
+    for side, normal in (("left", (-u[1], u[0])), ("right", (u[1], -u[0]))):
+        q = (p[0] + normal[0] * reach, p[1] + normal[1] * reach)
+        if not any(_within(q, shape) for shape in shapes):
+            continue
+        crowded = False
+        for i in range(math.floor(q[0] - 1.0), math.floor(q[0] + 1.0) + 1):
+            for j in range(math.floor(q[1] - 1.0), math.floor(q[1] + 1.0) + 1):
+                for a, b, size in others.get((layer, i, j), ()):
+                    if _point_segment(q, a, b) - size / 2 < POUR_ROOM_MM:
+                        crowded = True
+                        break
+                if crowded:
+                    break
+            if crowded:
+                break
+        if not crowded:
+            sides.add(side)
+    return sides
+
+
 def _net_cover(traces: list[dict[str, Any]], net: str, partners: list[dict[str, Any]],
-               cells: dict[tuple[int, int, int], list[tuple[Point, Point, float]]], gap: float) -> list[dict[str, Any]]:
+               cells: dict[tuple[int, int, int], list[tuple[Point, Point, float]]], gap: float,
+               pours: dict[int, list[list[Point]]] | None = None,
+               others: dict[tuple[int, int, int], list[tuple[Point, Point, float]]] | None = None) -> list[dict[str, Any]]:
     near = _segment_cells(partners) if partners else {}
     rows: list[dict[str, Any]] = []
     mine = [t for t in traces if t.get("net") == net]
@@ -299,6 +380,8 @@ def _net_cover(traces: list[dict[str, Any]], net: str, partners: list[dict[str, 
                 for k in range(count):
                     p = (a[0] + u[0] * length * (k + 0.5) / count, a[1] + u[1] * length * (k + 0.5) / count)
                     sides = _ground_sides(p, u, width, gap, layer, cells) | _ground_sides(p, u, width, GROUP_REACH_MM, layer, near)
+                    if pours and len(sides) < 2:
+                        sides |= _pour_sides(p, u, width, gap, layer, pours, others or {})
                     piece = length / count
                     total += piece
                     left += piece if "left" in sides else 0.0
@@ -331,9 +414,12 @@ def _ground_sides(p: Point, u: Point, width: float, gap: float, layer: int,
     return sides
 
 
-def _pairs(names: list[str]) -> list[tuple[str, str]]:
-    """The differential pairs among the routed nets, by name: two nets whose names differ only in a
-    last character of ``PAIR_ENDS``."""
+def _pairs(names: list[str], defined: list[list[str]] | None = None) -> list[tuple[str, str]]:
+    """The differential pairs among the routed nets: those the design defines, when it defines any;
+    otherwise by name, two nets whose names differ only in a last character of ``PAIR_ENDS``."""
+    if defined:
+        present = set(names)
+        return sorted((a, b) for a, b in (sorted(pair) for pair in defined if len(pair) == 2) if a in present and b in present)
     by_upper = {name.upper(): name for name in names}
     pairs = []
     for upper, name in sorted(by_upper.items()):
@@ -657,10 +743,11 @@ def board_rules(
                 net=row["net"],
             )
         )
+    pair_source = "a pair the design defines" if model.get("differential_pairs") else "a pair recognised by name"
     for row in metrics["routing"]["pairs"]:
         if row["skew_mm"] > SKEW_LIMIT_MM:
             findings.append(_rule("pair_skew", "medium", f"the pair's lengths differ by {row['skew_mm']} mm, {row['mm'][0]} and "
-                                  f"{row['mm'][1]} mm (limit {SKEW_LIMIT_MM:g} mm; a pair recognised by name)",
+                                  f"{row['mm'][1]} mm (limit {SKEW_LIMIT_MM:g} mm; {pair_source})",
                                   net=row["nets"][0], other=row["nets"][1]))
     findings += label_rules(model, min_text_height)
     findings += silk_rules(model)
@@ -720,39 +807,93 @@ def _across(box: Rect, outline: list[Point]) -> tuple[Rect, bool, float] | None:
 def bend_zones(model: dict[str, Any]) -> list[dict[str, Any]]:
     """The bend zones, each a band across the board, with the axis it runs along (traces cross it
     along the other) and what marks it: ``hatched_plane``, a hatched plane shape of a net that is
-    solid elsewhere on the same layer; ``placement_keepout``, on a board with stiffeners, a
-    placement keepout of no height at least twice as long as wide. Either must span most of the
-    board's width, so a hatched patch on a rigid board is no bend. Each band reaches the board's
-    edges along its length; bands that overlap are one zone."""
+    solid elsewhere on the same layer; ``placement_keepout``, a placement keepout of no height: on
+    a board with stiffeners, one at least twice as long as wide; on a board without, one that
+    reaches from edge to edge with board on both its long sides, as a flex neck's bend is drawn,
+    while a strip along the outline is none. Each must span most of the board's width, so a
+    hatched patch on a rigid board is no bend. Each band reaches the board's edges along its
+    length; bands that overlap are one zone. A zone a keepout marks from edge to edge also has the
+    keepout's own outline, ``polygon_mm``, which the flex rules go by: such a zone follows a neck that
+    turns, its edges not square to its band."""
     outline = _outline_points(model)
     if not outline:
         return []
-    found: list[tuple[Rect, bool, str]] = []
+    found: list[tuple[Rect, bool, str, list[Point] | None]] = []
     planes = [p for p in model.get("planes") or [] if p.get("extents_mm")]
     solid = {(p.get("net"), p.get("layer")) for p in planes if p.get("hatch") == "solid"}
     marks: list[tuple[dict[str, Any], str]] = [(p, "hatched_plane") for p in planes
                                                if p.get("hatch") not in (None, "solid") and (p.get("net"), p.get("layer")) in solid]
-    if stiffeners(model):
-        marks += [(k, "placement_keepout") for k in model.get("keepouts") or []
-                  if k.get("kind") == "placement" and not k.get("height_mm") and k.get("extents_mm")]
+    stiffened = bool(stiffeners(model))
+    marks += [(k, "placement_keepout") for k in model.get("keepouts") or []
+              if k.get("kind") == "placement" and not k.get("height_mm") and k.get("extents_mm")]
     for item, mark in marks:
         x0, y0, x1, y1 = (float(v) for v in item["extents_mm"])
         long, short = max(x1 - x0, y1 - y0), min(x1 - x0, y1 - y0)
-        if mark == "placement_keepout" and not (short > 0 and long >= 2 * short):
+        if mark == "placement_keepout" and stiffened and not (short > 0 and long >= 2 * short):
             continue
         band = _across((x0, y0, x1, y1), outline)
-        if band is not None and band[2] >= BAND_COVER:
-            found.append((band[0], band[1], mark))
-    zones: list[tuple[Rect, bool, set[str]]] = []
-    for box, along_x, mark in found:
+        if band is None or band[2] < BAND_COVER:
+            continue
+        if mark == "placement_keepout" and not stiffened and (band[2] < EDGE_TO_EDGE or not _splits(band[0], band[1], outline)):
+            continue
+        shape = (item.get("shape") or {}).get("path") if mark == "hatched_plane" or not stiffened else None
+        polygon = flatten([(float(q[0]), float(q[1]), float(q[2]) if len(q) > 2 else 0.0) for q in shape]) if shape else None
+        if mark == "hatched_plane" and polygon and _square(polygon):
+            polygon = None  # a band poured square to the board: its extents say it all
+        found.append((band[0], band[1], mark, polygon if polygon and len(polygon) >= 3 else None))
+    zones: list[tuple[Rect, bool, set[str], list[Point] | None]] = []
+    for box, along_x, mark, polygon in found:
         named = {mark}
         for other in [z for z in zones if overlap(z[0], box) > 0]:
             zones.remove(other)
-            box = (min(box[0], other[0][0]), min(box[1], other[0][1]), max(box[2], other[0][2]), max(box[3], other[0][3]))
-            along_x, named = other[1], named | other[2]
-        zones.append((box, along_x, named))
-    return [{"extents_mm": [round(v, 3) for v in box], "along": "x" if along_x else "y", "marked_by": sorted(named)}
-            for box, along_x, named in sorted(zones, key=lambda z: z[0])]
+            merged = (min(box[0], other[0][0]), min(box[1], other[0][1]), max(box[2], other[0][2]), max(box[3], other[0][3]))
+            # one zone marked twice, such as a keepout and the hatched pour over it, keeps an outline, the keepout's
+            # first; zones that only run together keep their band alone
+            if _same_band(box, other[0]):
+                if "placement_keepout" in other[2] and other[3] is not None:
+                    polygon = other[3]
+                elif not (mark == "placement_keepout" and polygon is not None):
+                    polygon = polygon or other[3]
+            elif other[3] is not None and _holds(other[0], box):
+                polygon = other[3]
+            elif polygon is None or not _holds(box, other[0]):
+                polygon = None
+            box, along_x, named = merged, other[1], named | other[2]
+        zones.append((box, along_x, named, polygon))
+    out = []
+    for box, along_x, named, polygon in sorted(zones, key=lambda z: z[0]):
+        row: dict[str, Any] = {"extents_mm": [round(v, 3) for v in box], "along": "x" if along_x else "y", "marked_by": sorted(named)}
+        if polygon:
+            row["polygon_mm"] = [[round(x, 3), round(y, 3)] for x, y in polygon]
+        out.append(row)
+    return out
+
+
+SAME_BAND = 0.8  # two marks whose bands overlap by this share of the smaller one mark one zone
+
+
+def _same_band(a: Rect, b: Rect) -> bool:
+    smaller = min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+    return smaller > 0 and overlap(a, b) >= SAME_BAND * smaller
+
+
+def _square(polygon: list[Point]) -> bool:
+    """Whether every side of the polygon runs along x or y."""
+    return all(abs(a[0] - b[0]) < 1e-6 or abs(a[1] - b[1]) < 1e-6 for a, b in zip(polygon, polygon[1:] + polygon[:1], strict=True))
+
+
+def _holds(outer: Rect, inner: Rect, slack: float = 0.05) -> bool:
+    return outer[0] - slack <= inner[0] and inner[2] <= outer[2] + slack and outer[1] - slack <= inner[1] and inner[3] <= outer[3] + slack
+
+
+def _splits(band: Rect, along_x: bool, outline: list[Point]) -> bool:
+    """Whether the board goes on beyond both long sides of a band, so it parts the board in two."""
+    x0, y0, x1, y1 = band
+    if along_x:
+        chord = _chord(outline, False, (x0 + x1) / 2, (y0 + y1) / 2)
+        return chord is not None and chord[0] < y0 - SPLIT_MARGIN_MM and chord[1] > y1 + SPLIT_MARGIN_MM
+    chord = _chord(outline, True, (y0 + y1) / 2, (x0 + x1) / 2)
+    return chord is not None and chord[0] < x0 - SPLIT_MARGIN_MM and chord[1] > x1 + SPLIT_MARGIN_MM
 
 
 def stiffeners(model: dict[str, Any]) -> list[Rect]:
@@ -767,6 +908,49 @@ def stiffeners(model: dict[str, Any]) -> list[Rect]:
 
 def _inside(point: Point, zone: Rect, epsilon: float = INSIDE_EPSILON) -> bool:
     return zone[0] + epsilon < point[0] < zone[2] - epsilon and zone[1] + epsilon < point[1] < zone[3] - epsilon
+
+
+Zone = tuple[Rect, list[Point] | None]  # a bend zone's band, and its own outline when a keepout draws it
+
+
+def _in_zone(point: Point, zone: Zone, epsilon: float = INSIDE_EPSILON) -> bool:
+    box, polygon = zone
+    if polygon is None:
+        return _inside(point, box, epsilon)
+    if not _inside(point, box, -epsilon) or not _within(point, polygon):
+        return False
+    return min(_point_segment(point, polygon[i], polygon[(i + 1) % len(polygon)]) for i in range(len(polygon))) > epsilon
+
+
+def _within(point: Point, polygon: list[Point]) -> bool:
+    x, y, odd = point[0], point[1], False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1], strict=True):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            odd = not odd
+    return odd
+
+
+def _point_segment(p: Point, a: Point, b: Point) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy or 1.0)))
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy)
+
+
+def _edge_crossings(a: Point, b: Point, polygon: list[Point]) -> list[tuple[int, Point, float]]:
+    """Where segment a-b crosses the polygon's edges: the edge's index, the point, and how many
+    degrees off square to that edge."""
+    out = []
+    for index, (c, d) in enumerate(zip(polygon, polygon[1:] + polygon[:1], strict=True)):
+        r, s = (b[0] - a[0], b[1] - a[1]), (d[0] - c[0], d[1] - c[1])
+        denominator = r[0] * s[1] - r[1] * s[0]
+        if abs(denominator) < 1e-12:
+            continue
+        qp = (c[0] - a[0], c[1] - a[1])
+        t, u = (qp[0] * s[1] - qp[1] * s[0]) / denominator, (qp[0] * r[1] - qp[1] * r[0]) / denominator
+        if 0.0 < t < 1.0 and 0.0 <= u <= 1.0:
+            cosine = abs(r[0] * s[0] + r[1] * s[1]) / (math.hypot(*r) * math.hypot(*s))
+            out.append((index, (a[0] + t * r[0], a[1] + t * r[1]), math.degrees(math.asin(min(1.0, cosine)))))
+    return out
 
 
 def _clipped(a: Point, b: Point, zone: Rect) -> tuple[Point, Point] | None:
@@ -806,17 +990,19 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
     where the board has stiffeners, a via of a net without plane shapes, a layer change, outside them."""
     zones: list[Rect] = []
     along: dict[Rect, bool] = {}
+    shapes: dict[Rect, list[Point] | None] = {}
     for zone in bend_zones(model):
         x0, y0, x1, y1 = zone["extents_mm"]
         zones.append((x0, y0, x1, y1))
         along[(x0, y0, x1, y1)] = zone["along"] == "x"
+        shapes[(x0, y0, x1, y1)] = [(float(x), float(y)) for x, y in zone["polygon_mm"]] if zone.get("polygon_mm") else None
     if not zones:
         return []
     findings: list[dict[str, Any]] = []
     for via in model.get("vias") or []:
         at = _via_at(via)
         for zone in zones:
-            if _inside(at, zone, 0.0):
+            if _in_zone(at, (zone, shapes[zone]), 0.0):
                 findings.append(_rule("bend_via", "high", f"via at {_at(at)} in the bend zone {_zone_text(zone)}, which takes no vias",
                                       net=via.get("net"), at=list(at)))
     crossing: dict[Rect, list[tuple[int, str, float, float]]] = {zone: [] for zone in zones}
@@ -827,13 +1013,13 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
         points = _trace_points(trace)
         net, layer, width = str(trace.get("net") or ""), int(trace.get("layer") or 0), float(trace.get("width") or 0.0)
         for zone in zones:
-            turned, off = _crossing(points, net, layer, width, zone, along[zone], crossing[zone])
+            turned, off = _crossing(points, net, layer, width, zone, along[zone], crossing[zone], shapes[zone])
             if turned is not None:
                 turns.setdefault((zone, net, layer), turned)
             if off > SQUARE_TOLERANCE:
                 angles[(zone, net, layer)] = max(off, angles.get((zone, net, layer), 0.0))
             for end in (points[0], points[-1]) if points else ():
-                if _inside(end, zone):
+                if _in_zone(end, (zone, shapes[zone])):
                     ends.setdefault((zone, net, layer, (round(end[0], 3), round(end[1], 3))), set()).add(round(width, 4))
     for (zone, net, layer), at in turns.items():
         findings.append(_rule("bend_turn", "medium", f"trace turns at {_at(at)} on layer {layer} inside the bend zone {_zone_text(zone)}",
@@ -881,12 +1067,21 @@ def _meshed(model: dict[str, Any], zone: Rect) -> set[tuple[str, int]]:
 
 
 def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect, along_x: bool,
-              rows: list[tuple[int, str, float, float]]) -> tuple[Point | None, float]:
+              rows: list[tuple[int, str, float, float]], polygon: list[Point] | None = None) -> tuple[Point | None, float]:
     """Where one trace first turns inside one bend zone, or None, and how many degrees off square
     it runs across it at most; each square run is added to ``rows`` as (layer, net, where it
-    crosses, width). A band that runs along x is crossed in y."""
+    crosses, width). A band that runs along x is crossed in y. A zone with its own outline is
+    crossed square to the edge the trace passes through, which may lie at an angle."""
     turned = next((v for b, v, a in zip(points, points[1:], points[2:], strict=False)
-                   if _inside(v, zone) and _turn(b, v, a) > ACUTE_TOLERANCE), None)
+                   if _in_zone(v, (zone, polygon)) and _turn(b, v, a) > ACUTE_TOLERANCE), None)
+    if polygon is not None:
+        off = 0.0
+        for a, b in zip(points, points[1:], strict=False):
+            for edge, at, degrees in _edge_crossings(a, b, polygon):
+                off = max(off, degrees)
+                if degrees <= SQUARE_TOLERANCE:  # where it crosses, along that edge: crossings of two edges never meet
+                    rows.append((layer, net, EDGE_APART_MM * edge + (at[0] if along_x else at[1]), width))
+        return turned, off
     off = 0.0
     for a, b in zip(points, points[1:], strict=False):
         part = _clipped(a, b, zone)

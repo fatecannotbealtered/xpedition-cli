@@ -1,9 +1,10 @@
 """Where via create puts stitching vias: a grid inside the board, kept clear of other copper.
 
-A stitching via ties a net's copper on several layers together, so a grid point is kept only
-where the net has a plane shape on at least two layers. It must keep the rules' clearances: to
+A stitching via ties a net's copper on several layers together, so a via stands only where the
+net has a plane shape on at least two layers. A grid point without room moves to the nearest free
+spot within half the pitch, so a board crossed by traces still gets a via wherever there is room. It must keep the rules' clearances: to
 every pad (Layout refuses a via close to a pad of its own net too), to the traces of other nets,
-to every via and hole, ``CUTOUT_CLEARANCE_MM`` to every cutout (an internal contour, such as a
+to every via and hole, out of every keepout of vias on any layer, ``CUTOUT_CLEARANCE_MM`` to every cutout (an internal contour, such as a
 slot for a screw), and the margin to the board outline. On a flex board no via stands in a bend
 zone, where bending would crack it. The adapter reads the board into the
 shapes below, in mm; this module only does the geometry.
@@ -21,6 +22,7 @@ MAX_POINTS = 2000  # a grid this dense is a pitch mistake
 # Layout's DRC asked a via to keep 0.254 mm from an internal contour on the flex board measured;
 # the setting it comes from cannot be read through automation, so the plan keeps that distance.
 CUTOUT_CLEARANCE_MM = 0.254
+SEARCH_STEP_MM = 0.2  # a grid point without room looks for a free spot on rings this far apart
 
 
 @dataclass
@@ -33,6 +35,7 @@ class Board:
     planes: dict[int, list[list[Point]]] = field(default_factory=dict)  # the net's plane shapes by layer
     cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts
     bends: list[tuple[float, float, float, float]] = field(default_factory=list)  # a flex board's bend zones, which take no vias
+    keepouts: list[list[Point]] = field(default_factory=list)  # keepouts of vias on any layer, which a via passes through
     boxes: list[tuple[float, float, float, float]] = field(default_factory=list)  # each trace's extents, filled by ``free``
 
 
@@ -106,6 +109,8 @@ def free(point: Point, net: str, radius: float, board: Board, clear: Clearances)
     """Why a via of ``radius`` cannot stand at ``point``, or None when it can."""
     if in_bend(point, radius, board.bends):
         return "in a bend zone"
+    if any(distance_to_polygon(point, keepout) < radius - 1e-9 for keepout in board.keepouts if len(keepout) >= 3):
+        return "in a via keepout"
     for pad in board.pads:
         if distance_to_polygon(point, pad) < radius + clear.via_to_pad - 1e-9:
             return "too close to a pad"
@@ -132,28 +137,57 @@ def free(point: Point, net: str, radius: float, board: Board, clear: Clearances)
     return None
 
 
+def _around(point: Point, reach: float) -> list[Point]:
+    """``point`` first, then spots on rings round it ``SEARCH_STEP_MM`` apart, out to ``reach``, nearest first."""
+    spots = [point]
+    for ring in range(1, int(reach / SEARCH_STEP_MM + 1e-9) + 1):
+        radius, count = ring * SEARCH_STEP_MM, 8 * ring
+        spots += [(point[0] + radius * math.cos(2 * math.pi * k / count), point[1] + radius * math.sin(2 * math.pi * k / count))
+                  for k in range(count)]
+    return spots
+
+
 def stitch(net: str, radius: float, board: Board, clear: Clearances, pitch: float, margin: float,
            region: tuple[float | None, ...] | None = None) -> Plan:
-    """The grid points where a stitching via of ``net`` can stand, and how many were dropped why."""
+    """Where a stitching via of ``net`` can stand, one for each grid point that has room: the grid
+    point itself, or the nearest free spot within half the pitch of it, at least half the pitch from
+    the vias kept already; and how many grid points were dropped why, by the reason at the point."""
     layers_with_planes = [layer for layer, shapes in board.planes.items() if shapes]
     if len(layers_with_planes) < 2:
         raise PlanError("E_CONFLICT", f"{net} has plane shapes on {len(layers_with_planes)} layer(s); stitching vias tie a net's "
                         "copper on at least two layers together, so pour it with plane create on two layers first.")
     kept: list[Point] = []
     dropped: dict[str, int] = {}
-    for point in grid(board.outline, pitch, margin + radius, region):
-        covered = sum(1 for layer in layers_with_planes
-                      if any(len(shape) >= 3 and inside(point, shape) for shape in board.planes[layer]))
-        reason = "outside the net's copper on two layers" if covered < 2 else free(point, net, radius, board, clear)
-        if reason is None:
-            for x, y in kept:
-                if math.hypot(point[0] - x, point[1] - y) < 2 * radius + clear.via_to_via - 1e-9:
-                    reason = "too close to a via"
-                    break
-        if reason is None:
-            kept.append(point)
+    apart = max(2 * radius + clear.via_to_via, pitch / 2)
+    outline_margin = margin + radius
+    for point in grid(board.outline, pitch, outline_margin, region):
+        first: str | None = None
+        chosen = None
+        for spot in _around(point, pitch / 2):
+            if spot is not point and (not inside(spot, board.outline) or edge_distance(spot, board.outline) < outline_margin - 1e-9
+                                      or not _in_region(spot, region)):
+                continue
+            covered = sum(1 for layer in layers_with_planes
+                          if any(len(shape) >= 3 and inside(spot, shape) for shape in board.planes[layer]))
+            reason = "outside the net's copper on two layers" if covered < 2 else free(spot, net, radius, board, clear)
+            if reason is None and any(math.hypot(spot[0] - x, spot[1] - y) < apart - 1e-9 for x, y in kept):
+                reason = "too close to a via"
+            if reason is None:
+                chosen = spot
+                break
+            first = first or reason
+        if chosen is not None:
+            kept.append((round(chosen[0], 4), round(chosen[1], 4)))
             if len(kept) > MAX_POINTS:
                 raise PlanError("E_VALIDATION", f"More than {MAX_POINTS} vias would stand on this grid; use a larger --pitch.")
         else:
-            dropped[reason] = dropped.get(reason, 0) + 1
+            dropped[first or "no room"] = dropped.get(first or "no room", 0) + 1
     return Plan(kept, dropped)
+
+
+def _in_region(point: Point, region: tuple[float | None, ...] | None) -> bool:
+    if region is None:
+        return True
+    x0, y0, x1, y1 = region
+    return ((x0 is None or point[0] >= x0) and (x1 is None or point[0] <= x1) and (y0 is None or point[1] >= y0)
+            and (y1 is None or point[1] <= y1))

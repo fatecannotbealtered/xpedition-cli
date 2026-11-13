@@ -78,6 +78,16 @@ class GuardTest(unittest.TestCase):
         self.assertIn("a cutout", [name for name, _gap, _need in wide.via_blockers((10.0, 10.0), "GND", 0.2)])
         self.assertTrue(wide.via_clear((25.0, 10.0), "GND", 0.2))
 
+    def test_guards_and_their_vias_keep_out_of_keepouts(self):
+        strip = [(2.0, 0.0), (3.0, 0.0), (3.0, 20.0), (2.0, 20.0)]
+        copper = TP.Copper(layer_count=3, keepouts=[("trace", 1, strip), ("via", None, [(10.0, 0.0), (12.0, 0.0), (12.0, 20.0), (10.0, 20.0)])])
+        found = GD.Obstacles(copper, TP.Plan(), RULES)
+        self.assertFalse(found.piece_clear((2.5, 5.0), (2.5, 8.0), "GND", 1, 0.1))  # in the keepout of traces on its layer
+        self.assertTrue(found.piece_clear((2.5, 5.0), (2.5, 8.0), "GND", 3, 0.1))  # another layer's is no keepout for it
+        self.assertTrue(found.via_clear((2.5, 5.0), "GND", 0.2))  # nor for a via
+        self.assertFalse(found.via_clear((11.0, 5.0), "GND", 0.2))
+        self.assertFalse(found.via_clear((9.9, 5.0), "GND", 0.2))  # its pad reaches in
+
     def test_a_stretch_ends_on_a_via_where_one_fits(self):
         stretch = [(1.0, 5.0), (1.0, 15.0)]
         bend = [(0.0, 4.0, 10.0, 6.0)]  # its first end lies in a bend zone
@@ -144,6 +154,24 @@ class GuardTest(unittest.TestCase):
             points, radii = GD.drawn(chain, start, end)
             self.assertIn((0.0, 0.0), [(round(x, 6), round(y, 6)) for x, y in points])  # the corner, rounded, not cut across
             self.assertIn(1.0, radii)
+
+    def test_a_guard_moves_with_lanes_that_jog(self):
+        guard = GD.Guard([["P", "N"]], "GND", 0.1, 0.15)
+        p, n = lane("P", 1.0, 0.06), lane("N", 1.16, 0.06)
+        for each in (p, n):
+            each.jogs = [((0.0, 20.0), each.offset + 1.0, 0.0)]
+        groups = GD.members(guard, [p, n], "g")
+        before = [round(o, 4) for o, _w in GD.guard_offsets(guard, groups, "g")]
+        after = [[(at, round(o, 4)) for at, o in line] for line in GD.guard_jogs(guard, groups, "g")]
+        self.assertEqual(after, [[((0.0, 20.0), round(before[0] + 1.0, 4))], [((0.0, 20.0), round(before[1] + 1.0, 4))]])
+        ring = LN.outline_corners(BOARD)
+        line = GD.guard_line(p, before[0], ring, [((0.0, 20.0), before[0] + 1.0, 0.0)])
+        xs = {round(x, 4) for x, y in line if 5.0 <= y <= 15.0} | {round(x, 4) for x, y in line if 25.0 <= y <= 35.0}
+        self.assertEqual(xs, {before[0], round(before[0] + 1.0, 4)})  # on its first distance before the jog, on the new one after
+        n.jogs = [((0.0, 30.0), n.offset + 1.0, 0.0)]
+        with self.assertRaises(PlanError) as caught:  # lanes that jog at different places
+            GD.guard_jogs(guard, GD.members(guard, [p, n], "g"), "g")
+        self.assertIn("jog at different places", caught.exception.message)
 
     def test_guard_lines_that_touch_are_merged_as_wide_as_both(self):
         beside = [lane("A", 1.0)]
@@ -276,6 +304,12 @@ class RingTest(unittest.TestCase):
         vias = GD.vias_along([(0.3, 5.0), (0.3, 30.0)], "GND", 0.2, 5.0, found, [], [0.0, 0.1, 0.26], left=False)
         self.assertTrue(vias)
         self.assertTrue(all(abs(x - 0.4) < 1e-6 for x, _y in vias))  # moved inwards until the pad keeps inside the border
+
+    def test_a_long_piece_that_leaves_the_border_between_its_ends_is_refused(self):
+        notched = [(0.0, 0.0), (10.0, 0.0), (10.0, 2.0), (2.0, 2.0), (2.0, 3.0), (10.0, 3.0), (10.0, 10.0), (0.0, 10.0)]
+        found = GD.Obstacles(TP.Copper(layer_count=3), TP.Plan(), RULES, notched)
+        self.assertFalse(found.piece_clear((5.0, 0.5), (5.0, 9.5), "GND", 1, 0.1))  # ends and middle inside, the notch crossed
+        self.assertTrue(found.piece_clear((1.0, 0.5), (1.0, 9.5), "GND", 1, 0.1))  # beside the notch's end
 
 
 if __name__ == "__main__":

@@ -67,6 +67,20 @@ class TraceDeleteTest(unittest.TestCase):
         self.assertEqual([(c["target"], c["before"]) for c in out["changes"]], [(key("/traces/A/1"), 2), (key("/traces/B/1"), 1)])
         self.assertEqual([(t.Net.Name, t.Layer) for t in doc.traces], [("A", 2)])
 
+    def test_with_a_region_only_the_traces_wholly_inside_it_go(self):
+        from test_layout_fakes import Extrema
+        doc = board()
+        for trace, box in zip(doc.traces, ((2.0, 3.0, 2.5, 4.0), (2.0, 3.0, 9.0, 4.0), (2.2, 3.5, 2.8, 4.5), (2.0, 3.0, 2.5, 4.0)),
+                              strict=True):
+            trace.Extrema = Extrema(box)  # A: a stub inside, a trace leaving the rectangle, one on layer 2; B inside
+        inputs = {"nets": "A", "from_x_mm": 1.0, "to_x_mm": 3.0, "from_y_mm": 2.0, "to_y_mm": 5.0}
+        with world(FakeApp(doc)):
+            out = E.TraceDelete().preview(context("trace delete", inputs))
+            facts = E.TraceDelete().apply(context("trace delete", inputs))
+        self.assertEqual([(c["before"], c["after"]) for c in out["changes"]], [(3, 1)])
+        self.assertEqual(facts["result"]["deleted"], 2)
+        self.assertEqual([(t.Net.Name, t.Extrema.box[2]) for t in doc.traces], [("A", 9.0), ("B", 2.5)])
+
     def test_nothing_to_delete_and_unknown_names(self):
         with world(FakeApp(board())):
             self.assertEqual(E.TraceDelete().preview(context("trace delete", {"nets": "GND"}))["changes"], [])
@@ -249,7 +263,8 @@ class ViaCreateTest(unittest.TestCase):
 
         self.doc.PadstackNames = ("026VIA", "LOCAL_VIA")
         self.doc.PutPadstack = put_padstack
-        with world(FakeApp(self.doc)), mock.patch.object(E, "_via_row", unreadable),                 mock.patch.object(E, "_padstack_pad_radius", lambda stack, scale: 0.2):
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_via_row", unreadable), \
+                mock.patch.object(E, "_padstack_pad_radius", lambda stack, scale: 0.2):
             facts = E.ViaCreate().run(context("via create", {"net": "GND", "x_mm": 2.0, "y_mm": 2.0, "padstack": "LOCAL_VIA"}), None)
         self.assertEqual((facts["result"]["placed"], self.doc.placed_vias[-1][2]), (1, "LOCAL_VIA"))
         self.assertTrue(pulled)
@@ -643,6 +658,15 @@ class TraceCreateTest(unittest.TestCase):
         self.assertLess(floating["gap_mm"], floating["needed_mm"])
         self.assertIn("more room for a via", floating["next"])
         self.assertEqual(found["blocked_count"], len(found["blocked"]))
+        out = Path(self.plan_file(plan)).with_name("checked.json")
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            E.TraceCheck().read(context("trace check", {**inputs, "output": str(out)}))
+        written = json.loads(out.read_text(encoding="utf-8"))["plan"]
+        lane = next(t for t in written["traces"] if t["net"] == "B")
+        self.assertEqual((lane["from"], lane["layer"]), ("lanes[1]", 3))  # each line with its plan entry and points
+        self.assertEqual(lane["points_mm"][0], [20.4, 20.0])
+        self.assertEqual([v["from"] for v in written["vias"]][:2], ["vias[0]", "vias[1]"])
 
     def test_a_guard_end_with_no_via_of_its_own_joins_a_ground_via_nearby(self):
         plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},
@@ -682,7 +706,8 @@ class TraceCreateTest(unittest.TestCase):
         def halves(chain, net, layer, width, obstacles, min_run, closed=False):  # cut on both sides near the start, at the bottom's middle
             return [(0.0, 10.0), (chain.length - 10.0, chain.length)] if closed else real(chain, net, layer, width, obstacles, min_run)
 
-        with world(FakeApp(self.doc)), mock.patch.object(E.GD, "spans", halves),                 mock.patch.object(E.L, "find_net", lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+        with world(FakeApp(self.doc)), mock.patch.object(E.GD, "spans", halves), \
+                mock.patch.object(E.L, "find_net", lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
             found = E.TraceCheck().read(context("trace check", {"file": self.plan_file(plan)}))
         lines = found["pour_only"] + found["floating"]
         self.assertEqual([(row["what"], row["length_mm"]) for row in lines], [("rings[0] on layer 1", 20.0)])  # its two halves, as one
@@ -841,6 +866,15 @@ class ClearanceLookupTest(unittest.TestCase):
         self.assertEqual(clearance("DP", "DN", 1, "trace_to_trace"), 0.1)  # the pair's own spacing
         self.assertEqual(clearance("DP", "SIG", 1, "trace_to_trace"), 0.15)  # another net of the class
         self.assertEqual(clearance("DP", "DN", 1, "trace_to_via"), 0.12)  # a via keeps the rule
+
+
+class ClassWidthTest(unittest.TestCase):
+    def test_a_fan_out_join_or_stub_keeps_within_its_class(self):
+        rules = TP.Rules({"LED_A": "LED"}, {"LED": {1: (0.1, 0.2)}}, None)
+        self.assertEqual(E.within_class(rules, "LED_A", 1, 0.23), 0.2)  # a join as wide as the pads, more than the class allows
+        self.assertEqual(E.within_class(rules, "LED_A", 1, 0.08), 0.1)
+        self.assertEqual(E.within_class(rules, "LED_A", 3, 0.23), 0.23)  # no limits given on that layer
+        self.assertEqual(E.within_class(rules, "OTHER", 1, 0.23), 0.23)
 
 
 class CentreLineTest(unittest.TestCase):

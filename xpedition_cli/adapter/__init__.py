@@ -99,6 +99,17 @@ class Adapter(BaseAdapter):
     def close_doc(self, request: dict[str, Any]) -> dict[str, Any]:
         return sessions.close_doc(self.store, request)
 
+    def undo(self, request: dict[str, Any]) -> dict[str, Any]:
+        """doc undo: the request is the undone write's own, so its command says what is taken back. Layout
+        keeps each board write as one Undo step; Designer and the project's files keep none for this tool."""
+        from . import layout
+
+        ref = base.parse_session(request.get("session"))
+        if ref is None or ref.kind != base.LAYOUT:
+            raise AdapterError("E_UNSUPPORTED", f"doc undo takes back only board writes in Layout; {request.get('command')} "
+                               "cannot be undone here: change it back with the command that set it.", dispatch_state="not_started")
+        return layout.undo(Context(self.store, request))
+
     # ------------------------------------------------------------------ domain commands
 
     def _handler(self, request: dict[str, Any]) -> Handler:
@@ -145,10 +156,17 @@ class Adapter(BaseAdapter):
             facts = handler.apply(ctx)
         # A change the application saved at once, such as the constraints, is not one of the
         # document's unsaved changes, so the next doc save neither lists nor reads it (DCLI-058).
+        kept = (self.store.get(sessions.preview_key(request), {}) or {}) if request.get("session") else {}
         if (request.get("session") and request.get("document") and sessions.changed(facts)
                 and facts.get("persistence") != "saved"):
-            kept = self.store.get(sessions.preview_key(request), {}) or {}
             sessions.note_change(self.store, request["session"], request["document"], kept.get("changes", []))
+        ref = base.parse_session(request.get("session"))
+        if request.get("document") and ref is not None and ref.kind == base.LAYOUT and facts.get("dispatch_state") != "not_started":
+            from . import layout
+
+            # every write that went through, a change or not: doc undo takes back the runtime's last one
+            layout.remember_write(self.store, request["session"], request["document"], handler.command, kept.get("changes", []),
+                                  changed=sessions.changed(facts), operation_id=request.get("operation_id"))
         if request.get("session"):
             self.store.delete(sessions.preview_key(request))
         return facts

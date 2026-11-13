@@ -30,7 +30,7 @@ class ParseTest(unittest.TestCase):
     def test_traces_and_vias_are_read_in_mm(self):
         plan = TP.parse({"traces": [trace([[0, 0], [10.00004, 0]])],
                          "vias": [{"net": "A", "at_mm": [5, 0], "padstack": "VIA_D0.2_P0.4"}]})
-        self.assertEqual(plan.traces, [TP.Trace("A", 1, 0.1, [(0.0, 0.0), (10.0, 0.0)])])
+        self.assertEqual(plan.traces, [TP.Trace("A", 1, 0.1, [(0.0, 0.0), (10.0, 0.0)], origin="traces[0]")])
         self.assertEqual((plan.vias[0].at, plan.vias[0].padstack), ((5.0, 0.0), "VIA_D0.2_P0.4"))
 
     def test_every_malformed_plan_is_refused_with_its_reason(self):
@@ -64,6 +64,35 @@ class CheckTest(unittest.TestCase):
         for via in plan.vias:
             via.radius = 0.2
         self.assertEqual(TP.check(plan, copper(), rules()), [])
+
+    def test_copper_keeps_inside_the_route_border_and_out_of_keepouts(self):
+        board = copper()
+        board.border = [(-1.0, -0.5), (11.0, -0.5), (11.0, 3.0), (-1.0, 3.0)]  # 0.5 mm below the line of the pads
+        board.keepouts = [("trace", 1, square(5.0, -0.1, 0.1)), ("via", None, square(3.0, 1.0, 0.1))]
+        plan = TP.parse({"traces": [trace([[0, 0], [0, -0.48]]), trace([[0, 0], [10, 0]])],
+                         "vias": [{"net": "A", "at_mm": [3, 1], "padstack": "V"}]})
+        plan.vias[0].radius = 0.2
+        blocked = TP.check(plan, board, rules())
+        self.assertTrue(any("trace 1 of A: reaches past the route border" in b for b in blocked))  # 0.02 mm from it
+        self.assertFalse(any("trace 2 of A: reaches past" in b for b in blocked))
+        self.assertTrue(any("trace 2 of A: runs into a keepout of traces on layer 1" in b for b in blocked))
+        self.assertTrue(any("via 1 of A: stands in a keepout of vias" in b for b in blocked))
+
+    def test_two_traces_of_the_plan_that_cross_are_named_as_crossing(self):
+        board = copper()
+        board.pads += [(1, "B", square(0.0, 2.0)), (1, "B", square(10.0, -2.0))]
+        plan = TP.parse({"traces": [trace([[0, 0], [10, 0]]), trace([[0, 2], [10, -2]], net="B")]})
+        blocked = TP.check(plan, board, rules())
+        crossing = next(b for b in blocked if "trace 1 of A: crosses trace 2 of B (traces[1]) on layer 1" in b)
+        self.assertIn("opposite orders", crossing)
+        self.assertTrue(crossing.endswith("(traces[0], at (5.000, 0.000) mm)"))  # the plan's entry and where they cross
+        self.assertEqual(TP.without_where(crossing), crossing[:crossing.rindex(" (traces[0]")])
+
+    def test_an_end_on_a_pour_of_its_net_touches_copper(self):
+        board = copper()
+        board.planes = [(1, "A", [(3.0, -1.0), (6.0, -1.0), (6.0, 1.0), (3.0, 1.0)])]
+        plan = TP.parse({"traces": [trace([[0, 0], [4, 0]])]})
+        self.assertEqual(TP.check(plan, board, rules()), [])
 
     def test_an_end_on_nothing_and_a_width_outside_the_class_are_refused(self):
         plan = TP.parse({"traces": [trace([[0, 0], [4, 0]], width=0.5)]})

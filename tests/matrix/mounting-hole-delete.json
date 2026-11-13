@@ -21,9 +21,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183540-mounting-hole-delete.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-170601-mounting-hole-delete.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-12-183540-mounting-hole-delete.json#normal"
+        "board": "live:docs/evidence/2026-11-13-170601-mounting-hole-delete.json#normal"
       }
     },
     {
@@ -43,7 +43,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183455-mounting-hole-delete.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-170522-mounting-hole-delete.json#empty"
     },
     {
       "row": "invalid_input",
@@ -65,7 +65,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183550-mounting-hole-delete.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-170609-mounting-hole-delete.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -89,7 +89,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183550-mounting-hole-delete.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-170609-mounting-hole-delete.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -109,7 +109,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-12-182334-mounting-hole-delete.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-165436-mounting-hole-delete.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -133,7 +133,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183601-mounting-hole-delete.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-13-170618-mounting-hole-delete.json#conflict"
     },
     {
       "row": "no_scope",
@@ -157,7 +157,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183550-mounting-hole-delete.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-13-170609-mounting-hole-delete.json#no_scope"
     },
     {
       "row": "busy",
@@ -179,7 +179,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183024-mounting-hole-delete.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-170021-mounting-hole-delete.json#busy"
     },
     {
       "row": "dialog",
@@ -201,7 +201,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183250-mounting-hole-delete.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-170256-mounting-hole-delete.json#dialog"
     },
     {
       "row": "disconnect",
@@ -243,7 +243,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183555-mounting-hole-delete.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-170613-mounting-hole-delete.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -267,7 +267,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183609-mounting-hole-delete.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-13-170625-mounting-hole-delete.json#read_back_mismatch"
     }
   ]
 }

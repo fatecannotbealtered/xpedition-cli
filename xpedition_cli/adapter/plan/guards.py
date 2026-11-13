@@ -22,11 +22,11 @@ import bisect
 import heapq
 import math
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from . import trace_plan as TP
-from .lanes import Lane, _fitted, edge_chain, offset_chain
+from .lanes import Lane, _fitted, _jogged, edge_chain, offset_chain
 from .stitching import CUTOUT_CLEARANCE_MM
 from .shapes import inside, point_segment
 
@@ -154,8 +154,12 @@ def members(guard: Guard, lanes: list[Lane], what: str) -> list[list[Lane]]:
             mine = [lane for lane in lanes if lane.net == net and (guard.layer is None or lane.layer == guard.layer)]
             if not mine:
                 raise TP._error(f"{what} names {net}, which no lane of the plan has" + (f" on layer {guard.layer}" if guard.layer else ""))
-            if len(mine) > 1:
+            if len(mine) > 1 and len({lane.layer for lane in mine}) > 1:
                 raise TP._error(f"{what} names {net}, which has lanes on layers {sorted(lane.layer for lane in mine)}; name the layer")
+            if len(mine) > 1:
+                raise TP._error(f"{what} names {net}, which has {len(mine)} lanes on layer {mine[0].layer}; a guard follows one lane of "
+                                "each net along one edge. Route the net as one lane, which jogs moves to another distance from its "
+                                "edge, or leave it out of the guard and lay its ground as lanes of the ground net beside it")
             group.append(mine[0])
         groups.append(sorted(group, key=lambda lane: lane.offset))
     every = [lane for group in groups for lane in group]
@@ -206,6 +210,8 @@ class Line:
     padstack: str | None
     min_run: float
     join_width: float
+    jogs: list[tuple[Point, float, float]] = field(default_factory=list)  # where it moves with its lanes: at, distance, start earlier by
+    forward: bool = True  # whether its lanes run with the edge's chain, which says where a jog starts
 
 
 def merged(lines: list[Line]) -> list[Line]:
@@ -217,8 +223,13 @@ def merged(lines: list[Line]) -> list[Line]:
                 and line.offset - line.width / 2 <= last.offset + last.width / 2 + 1e-6):
             low = min(last.offset - last.width / 2, line.offset - line.width / 2)
             high = max(last.offset + last.width / 2, line.offset + line.width / 2)
+            jogs = last.jogs
+            if len(last.jogs) == len(line.jogs):  # both move with their lanes: the merged line moves as both do
+                jogs = [(at, (min(a - last.width / 2, b - line.width / 2) + max(a + last.width / 2, b + line.width / 2)) / 2,
+                         max(early_a, early_b)) for (at, a, early_a), (_at, b, early_b) in zip(last.jogs, line.jogs, strict=True)]
             out[-1] = Line(last.layer, last.net, (low + high) / 2, high - low, last.beside + line.beside, last.pitch or line.pitch,
-                           last.padstack or line.padstack, min(last.min_run, line.min_run), min(last.join_width, line.join_width))
+                           last.padstack or line.padstack, min(last.min_run, line.min_run), min(last.join_width, line.join_width),
+                           jogs, last.forward)
             continue
         out.append(line)
     return out
@@ -245,9 +256,36 @@ def fine(points: list[Point], radii: list[float], chord: float = CHORD_MM) -> li
     return [p for i, p in enumerate(out) if i == 0 or math.dist(p, out[i - 1]) > 1e-9]
 
 
-def guard_line(lane: Lane, offset: float, ring: list[tuple[Point, float]]) -> list[Point]:
-    """A guard line as short chords: the offset of the lane's edge at ``offset``, the whole length of the edge."""
-    return guard_chain(lane, offset, ring).line
+def guard_line(lane: Lane, offset: float, ring: list[tuple[Point, float]], jogs: list[tuple[Point, float, float]] | None = None,
+               forward: bool = True) -> list[Point]:
+    """A guard line as short chords: the offset of the lane's edge at ``offset``, moved where ``jogs``
+    say, the whole length of the edge."""
+    return guard_chain(lane, offset, ring, jogs, forward).line
+
+
+def guard_jogs(guard: Guard, groups: list[list[Lane]], what: str) -> list[list[tuple[Point, float]]]:
+    """For each line of ``guard_offsets``, where it moves with the lanes it guards: at each place the
+    lanes jog, the distance ``guard_offsets`` gives for the lanes' new distances. Lanes that jog at
+    different places, or not all of them, are refused: the guard could follow none of them."""
+    beside = [lane for group in groups for lane in group]
+    counts = {len(lane.jogs) for lane in beside}
+    lines = guard_offsets(guard, groups, what)
+    if counts == {0}:
+        return [[] for _ in lines]
+    places = {tuple((round(at[0], 0), round(at[1], 0)) for at, _o, _e in lane.jogs) for lane in beside}
+    if len(counts) > 1 or len(places) > 1:
+        raise TP._error(f"{what} guards lanes that jog at different places, or only some of them; a guard moves with its lanes only "
+                        "where all of them jog at one place: give them the same jogs")
+    out: list[list[tuple[Point, float]]] = [[] for _ in lines]
+    for k in range(next(iter(counts))):
+        moved = sorted((sorted((replace(lane, offset=lane.jogs[k][1]) for lane in group), key=lambda lane: lane.offset)
+                        for group in groups), key=lambda group: group[0].offset)
+        after = guard_offsets(guard, moved, f"{what}, after the lanes' jog {k}")
+        if len(after) != len(lines):
+            raise TP._error(f"{what}: its lanes change order at their jog {k}, so its lines cannot follow them")
+        for line, (offset, _width) in zip(out, after, strict=True):
+            line.append((beside[0].jogs[k][0], offset))
+    return out
 
 
 def position(line: list[Point], point: Point) -> float:
@@ -303,6 +341,18 @@ class _Segments:
             for j in range(math.floor((point[1] - reach) / CELL_MM), math.floor((point[1] + reach) / CELL_MM) + 1):
                 for a, b in self.cells.get((i, j), ()):
                     best = min(best, point_segment(point, a, b))
+        return best
+
+    def piece_near(self, a: Point, b: Point, reach: float) -> float:
+        """The distance from the segment a-b to the nearest segment of the line within ``reach`` of it, else infinity."""
+        best = math.inf
+        seen: set[tuple[Point, Point]] = set()
+        for i in range(math.floor((min(a[0], b[0]) - reach) / CELL_MM), math.floor((max(a[0], b[0]) + reach) / CELL_MM) + 1):
+            for j in range(math.floor((min(a[1], b[1]) - reach) / CELL_MM), math.floor((max(a[1], b[1]) + reach) / CELL_MM) + 1):
+                for segment in self.cells.get((i, j), ()):
+                    if segment not in seen:
+                        seen.add(segment)
+                        best = min(best, TP._segment_distance(a, b, *segment))
         return best
 
     def encloses(self, point: Point) -> bool:
@@ -379,6 +429,9 @@ class Obstacles:
             self.add_trace(trace.net, trace.layer, trace.width, path, arcs)
         for via in plan.vias:
             self.add_via(via.net, via.at, via.radius)
+        self.keepouts = [(kind, layer, poly, (min(q[0] for q in poly), min(q[1] for q in poly), max(q[0] for q in poly),
+                                              max(q[1] for q in poly)))
+                         for kind, layer, poly in getattr(copper, "keepouts", None) or [] if len(poly) >= 3]
         self.holes: list[tuple[tuple[float, float, float, float], _Segments]] = []
         for cutout in cutouts or []:  # slots and holes inside the outline, which copper keeps clear of: each edge, and inside
             for c, d in zip(cutout, cutout[1:] + cutout[:1], strict=False):
@@ -464,10 +517,14 @@ class Obstacles:
         the chords of other traces' arcs by as much as the arcs lie off them, for a piece that is not
         concentric with them. Without ``border``, the route border does not count, as for a pour,
         which keeps to its own shape."""
-        middle = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)  # a border's inward corner may stand between a piece's ends
-        if border and not (self._within(a, width / 2) and self._within(b, width / 2) and self._within(middle, width / 2)):
+        # both ends inside and the whole piece clear of the border's line: a long piece, such as a tie across a bend
+        # zone, may leave the border between its ends where the outline turns
+        if border and not (self._within(a, width / 2) and self._within(b, width / 2) and
+                           (self.border is None or self.border.piece_near(a, b, width / 2) >= width / 2 - 1e-9)):
             return False
         if self.holes and (self._in_hole(a) or self._in_hole(b)):
+            return False
+        if border and self._in_keepout(a, b, layer, width / 2):
             return False
         x0, x1, y0, y1 = min(a[0], b[0]), max(a[0], b[0]), min(a[1], b[1]), max(a[1], b[1])
         # the tolerance is for copper concentric with the piece; against a pad or a via, whose shape is exact, a piece
@@ -569,11 +626,25 @@ class Obstacles:
             self._needs[key] = self.rules.clearance(net, other, layer, kind)
         return self._needs[key]
 
+    def _in_keepout(self, a: Point, b: Point, layer: int | None, reach: float) -> bool:
+        """Whether a piece of trace on ``layer`` (or a via, ``layer`` None, at ``a``) comes within ``reach`` of a
+        keepout that keeps it out: one of traces on its layer, or one of vias on any layer."""
+        for kind, keep_layer, poly, (x0, y0, x1, y1) in self.keepouts:
+            if layer is None and kind not in TP.VIA_KEEPOUTS or layer is not None and (kind not in TP.TRACE_KEEPOUTS or keep_layer != layer):
+                continue
+            if max(a[0], b[0]) < x0 - reach or min(a[0], b[0]) > x1 + reach or max(a[1], b[1]) < y0 - reach or min(a[1], b[1]) > y1 + reach:
+                continue
+            if TP._segment_polygon(a, b, poly) < reach - 1e-9:
+                return True
+        return False
+
     def via_clear(self, at: Point, net: str, radius: float, items: list[_Item] | None = None) -> bool:
         """Whether a via lies inside the border and clears every pad (its own net's too), every other
         net's trace and every via, on every layer. ``items`` may hold the copper near it already
         (``_near`` of a point within reach), for several spots tried around one point."""
         if not self._within(at, radius) or (self.holes and self._in_hole(at)):
+            return False
+        if self._in_keepout(at, at, None, radius):
             return False
         for item in self._near([at], REACH_MM + radius) if items is None else items:
             if item.kind == "cutout":
@@ -918,10 +989,16 @@ def _fitted_chain(corners: list[tuple[Point, float]]) -> Chain:
     return make_chain(points, radii)
 
 
-def guard_chain(lane: Lane, offset: float, ring: list[tuple[Point, float]]) -> Chain:
-    """A guard line: the offset of the lane's edge at ``offset``, the whole length of the edge."""
+def guard_chain(lane: Lane, offset: float, ring: list[tuple[Point, float]], jogs: list[tuple[Point, float, float]] | None = None,
+                forward: bool = True) -> Chain:
+    """A guard line: the offset of the lane's edge at ``offset``, moved where ``jogs`` say as a lane
+    is (``forward``: as its lanes run, with the edge's chain or against it), the whole length of the
+    edge, in the chain's direction."""
     chain, left = edge_chain(ring, lane.edge)
-    return _fitted_chain(offset_chain(chain, offset, left))
+    if not jogs:
+        return _fitted_chain(offset_chain(chain, offset, left))
+    corners = _jogged(replace(lane, offset=offset, jogs=list(jogs)), chain, left, forward, "a guard")
+    return _fitted_chain(corners if forward else corners[::-1])
 
 
 def ring_chain(ring: list[tuple[Point, float]], offset: float) -> tuple[Chain, bool]:

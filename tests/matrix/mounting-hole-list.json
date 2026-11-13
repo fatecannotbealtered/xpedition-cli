@@ -17,9 +17,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183519-mounting-hole-list.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-170543-mounting-hole-list.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-12-183519-mounting-hole-list.json#normal"
+        "board": "live:docs/evidence/2026-11-13-170543-mounting-hole-list.json#normal"
       }
     },
     {
@@ -38,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183451-mounting-hole-list.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-170518-mounting-hole-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -60,7 +60,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183451-mounting-hole-list.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-170518-mounting-hole-list.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -80,7 +80,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183451-mounting-hole-list.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-170518-mounting-hole-list.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -95,7 +95,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-12-182326-mounting-hole-list.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-165430-mounting-hole-list.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -123,7 +123,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183001-mounting-hole-list.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-170001-mounting-hole-list.json#busy"
     },
     {
       "row": "dialog",
@@ -141,7 +141,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-12-183242-mounting-hole-list.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-170249-mounting-hole-list.json#dialog"
     },
     {
       "row": "disconnect",
@@ -175,7 +175,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-183519-mounting-hole-list.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-170543-mounting-hole-list.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

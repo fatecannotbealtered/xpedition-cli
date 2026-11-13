@@ -29,6 +29,7 @@ from .._driver.state import AdapterStore
 from . import jobs
 from .._driver.targets import file_key, normalize
 from .base import DESIGNER, LAYOUT, SessionRef, make_session_id, parse_session
+from .platform import icdb
 
 INSTANCE_TIMEOUT_S = 1.2  # one instance that does not answer in time is reported unresponsive; with the dialog look it stays inside the 2.5 s the adapter's sessions gets (DCLI-205)
 START_WAIT_S = 300.0  # session open runs in the long-job worker: start, register for COM and open the file
@@ -111,20 +112,43 @@ def _dirty(store: AdapterStore, session: str, path: str) -> bool | None:
     return None if value is None else bool(value)
 
 
+COLLECTIONS = ("#/traces/", "#/vias/")  # a net's traces or vias: their fields describe all of them together
+
+
+def _superseded(earlier: dict[str, Any], change: dict[str, Any]) -> bool:
+    """Whether a later change makes what an earlier write expected of a field unreliable: the
+    later one is on an object that holds the earlier one's or that it holds, such as a net's traces
+    and its traces on one layer; it makes or deletes the very object, whose other fields then start
+    afresh; or it changes a net's traces or vias, whose other fields, such as the count a plane's
+    bend ties expected or the padstack a via delete left, then describe another set. A later change
+    of another field of the same single object leaves it standing."""
+    a, b = str(earlier.get("target") or ""), str(change.get("target") or "")
+    if a.startswith(b + "/") or b.startswith(a + "/"):
+        return True
+    if a != b or change.get("field") == earlier.get("field"):
+        return False
+    return change.get("field") == "exists" or any(marker in a for marker in COLLECTIONS)
+
+
 def note_change(store: AdapterStore, session: str, path: str, changes: list[dict[str, Any]]) -> None:
     """A session-mode write changed the document in memory: dirty, new revision, and the changes
     kept for the next save preview (DCLI-058). A later change of a field replaces an earlier one,
-    keeping the earlier one's ``before``: the save stores only the last value."""
+    keeping the earlier one's ``before``: the save stores only the last value. A later write also
+    drops what earlier writes expected that it makes unreliable (``_superseded``), such as the
+    trace count a trace delete expected before a trace create drew
+    the net again, or the hatch a plane delete expected before a plane create poured the layer
+    again: the later write is what the save must find."""
     state = doc_state(store, session, path)
     state["revision"] = int(state.get("revision", 0)) + 1
     state["dirty"] = True
-    kept = list(state.get("changes", []))
+    earlier = list(state.get("changes", []))
+    befores = {(c.get("target"), c.get("field")): c["before"] for c in earlier if "before" in c}
+    kept = [c for c in earlier if not any(_superseded(c, change) for change in changes)]
     for change in changes:
         entry = dict(change, origin="tool")
-        same = [c for c in kept if c.get("target") == change.get("target") and c.get("field") == change.get("field")]
-        if same and "before" in same[0]:
-            entry["before"] = same[0]["before"]
-        kept = [c for c in kept if c not in same] + [entry]
+        if (change.get("target"), change.get("field")) in befores:
+            entry["before"] = befores[(change.get("target"), change.get("field"))]
+        kept = [c for c in kept if not (c.get("target") == change.get("target") and c.get("field") == change.get("field"))] + [entry]
     state["changes"] = kept
     store.set(_doc_key(session, path), state)
 
@@ -137,6 +161,14 @@ def note_saved(store: AdapterStore, session: str, path: str) -> None:
 
 def forget(store: AdapterStore, session: str, path: str) -> None:
     store.delete(_doc_key(session, path))
+    forget_writes(store, session, path)
+
+
+def forget_writes(store: AdapterStore, session: str, path: str) -> None:
+    """Layout starts its Undo stack afresh when it opens a board: the tool's writes doc undo would take back go."""
+    from .layout import forget_writes as forget_board_writes
+
+    forget_board_writes(session, path, store)
 
 
 def _document(store: AdapterStore, session: str | None, path: str) -> dict[str, Any]:
@@ -336,6 +368,19 @@ def _driving(store: AdapterStore, ref: SessionRef, command: str) -> Any:
     return nullcontext()
 
 
+def release(store: AdapterStore, paths: list[str], closing: str | None = None) -> list[dict[str, str]]:
+    """Wait until Xpedition's database server lets go of each project of ``paths`` that the call
+    closed, so that the call reports done once the project's files are closed (``icdb``). A
+    project a session other than ``closing`` still has open stays served and is not waited for.
+    A notice for each project still served when the wait ends."""
+    folders = {folder for folder in map(icdb.project_folder, paths) if folder is not None and icdb.served(folder)}
+    if not folders:
+        return []
+    held = {icdb.project_folder(doc["path"]) for item in list_sessions(store)["items"] if item["id"] != closing
+            for doc in item["documents"]}
+    return [icdb.still_served(folder) for folder in sorted(folders - held) if not icdb.wait_released(folder)]
+
+
 def close_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
     with _driving(store, _ref(request["session"]), "session close"):
         ref, item = _session(store, request["session"])
@@ -343,8 +388,12 @@ def close_session(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any
     for doc in item["documents"]:
         forget(store, ref.id, doc["path"])
     store.set("owned", [s for s in _owned(store) if s != ref.id])
-    return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
-            "persistence": "unchanged" if not request.get("discard") else "not_applicable"}
+    out: dict[str, Any] = {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
+                           "persistence": "unchanged" if not request.get("discard") else "not_applicable"}
+    notices = release(store, [doc["path"] for doc in item["documents"]], ref.id)
+    if notices:
+        out["notices"] = notices
+    return out
 
 
 def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
@@ -358,6 +407,7 @@ def open_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
         _app(ref.kind).open_document(ref.pid, path)
     if not already:
         note_saved(store, ref.id, path)  # freshly opened from the file: clean; an open document keeps its state
+        forget_writes(store, ref.id, path)
     return {"dispatch_state": "dispatched", "change": "applied", "delivery": "not_applicable",
             "persistence": "not_applicable", "document": _document(store, ref.id, path)}
 
@@ -404,6 +454,7 @@ def save_doc(store: AdapterStore, request: dict[str, Any]) -> dict[str, Any]:
             # read-back then reads what was saved (DCLI-057). Opening writes files too, so what
             # the save wrote is measured before the document opens again.
             app.close_document(ref.pid, path, False)
+            forget_writes(store, ref.id, path)
             if ref.kind == DESIGNER:
                 after = disk_stamp(path)
             app.open_document(ref.pid, path)

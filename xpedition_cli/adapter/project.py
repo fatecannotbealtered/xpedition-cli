@@ -426,6 +426,14 @@ def _path_hint(project: Path) -> str:
             "are about missing parts, that may be why.")
 
 
+def _released(ctx: Context, project: Path, out: dict[str, Any]) -> dict[str, Any]:
+    """``out`` once Xpedition's database server has let the project go (``sessions.release``)."""
+    notices = sessions.release(ctx.store, [str(project)])
+    if notices:
+        out["notices"] = notices
+    return out
+
+
 def _packager_log(project: Path) -> Path:
     return project.parent / "Integration" / "PartPkg.log"
 
@@ -453,7 +461,8 @@ class PackagerRun(Handler):
         progress(0, 1, "packaging runs")
         out = self.apply(ctx)
         progress(1, 1, "packaging runs")
-        return {"change": out["change"], "persistence": out["persistence"], "result": out.get("result", {})}
+        return {"change": out["change"], "persistence": out["persistence"], "result": out.get("result", {}),
+                **({"notices": out["notices"]} if out.get("notices") else {})}
 
     def preview(self, ctx: Context) -> dict[str, Any]:
         project = lib.project_path(ctx)
@@ -499,7 +508,7 @@ class PackagerRun(Handler):
         result = {"packaged": run.exit_code == 0 and log.is_file() and not errors and "NOT been packaged" not in verdict,
                   "design": design, "errors": errors, "warnings": _warnings(log), "verdict": verdict, "log": str(log)}
         if result["packaged"]:
-            return facts("applied", "saved", result=result)
+            return _released(ctx, project, facts("applied", "saved", result=result))
         hint = _path_hint(project)
         if errors:
             raise AdapterError("E_VALIDATION", f"The packager did not package design {design}: {verdict or 'it reported errors'}. "
@@ -629,8 +638,10 @@ class PcbCreate(Handler):
         # Verified by reading the board back (read_back: exists), not by hashing files: the
         # command changes the project, so no `files` are reported (writes.DomainWrite.verify).
         if problems:
-            return facts("partial", "partial", result=result, native_message="; ".join(problems[:10]))
-        return facts("applied", "saved", result=result)
+            out = facts("partial", "partial", result=result, native_message="; ".join(problems[:10]))
+        else:
+            out = facts("applied", "saved", result=result)
+        return _released(ctx, board.project, out)
 
     def read_back(self, ctx: Context) -> dict[str, Any]:
         project = lib.project_path(ctx)

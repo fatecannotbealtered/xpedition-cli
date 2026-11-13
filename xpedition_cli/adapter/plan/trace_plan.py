@@ -19,6 +19,7 @@ closer to another net's pad, trace or via than the clearance rule for the two ne
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -38,6 +39,7 @@ class Trace:
     radii: list[float] = field(default_factory=list)  # each point's corner radius in mm, 0 for a sharp corner
     free_ends: bool = False  # a guard or ring, whose ends need not touch copper of its net
     joins: tuple[int, int] | None = None  # a lane's: the points where it turns onto its line and off it
+    origin: str = ""  # the plan's entry it comes from, such as lanes[3] or the fan-out of J1, named in the check's reasons
 
     def __post_init__(self) -> None:
         if not self.radii:
@@ -55,6 +57,7 @@ class Via:
     at: Point
     padstack: str
     radius: float = 0.0  # filled in by the adapter from the padstack
+    origin: str = ""  # the plan's entry it comes from, named in the check's reasons
 
 
 @dataclass
@@ -116,6 +119,9 @@ class Copper:
     traces: list[tuple[int, str, float, list[Point]]] = field(default_factory=list)  # (layer, net, width, points)
     vias: list[tuple[str, float, float, float]] = field(default_factory=list)  # (net, x, y, radius); vias go through every layer
     nets: set[str] = field(default_factory=set)
+    keepouts: list[tuple[str, int | None, list[Point]]] = field(default_factory=list)  # (kind, layer, polygon) of route and via keepouts
+    planes: list[tuple[int, str, list[Point]]] = field(default_factory=list)  # (layer, net, polygon) of the plane shapes
+    border: list[Point] | None = None  # Layout's route border, which copper keeps inside (its DRC reports what reaches past it)
 
 
 @dataclass
@@ -125,6 +131,7 @@ class Rules:
     net_class_of: dict[str, str]
     widths: dict[str, dict[int, tuple[float, float]]]  # class -> layer -> (min, max)
     clearance: Any  # callable(net_a, net_b, layer, kind) -> mm; kind is trace_to_pad, trace_to_trace, trace_to_via, ...
+    pairs: list[list[str]] = field(default_factory=list)  # the differential pairs the design defines
 
 
 def _error(message: str) -> PlanError:
@@ -266,7 +273,7 @@ def parse(data: Any, lanes: bool = False) -> Plan:
         corners = [_corner(p, f"{what}.points_mm[{i}]") for i, p in enumerate(points)]
         if corners[0][1] or corners[-1][1]:
             raise _error(f"{what}.points_mm rounds corners only between its ends")
-        trace = Trace(net, layer, round(float(width), 4), [c[0] for c in corners], [c[1] for c in corners])
+        trace = Trace(net, layer, round(float(width), 4), [c[0] for c in corners], [c[1] for c in corners], origin=what)
         _corners(trace.points, trace.radii)  # a radius that does not fit is refused here
         plan.traces.append(trace)
     for index, item in enumerate(data.get("vias", [])):
@@ -276,7 +283,7 @@ def parse(data: Any, lanes: bool = False) -> Plan:
         net, padstack = item.get("net"), item.get("padstack")
         if not isinstance(net, str) or not net or not isinstance(padstack, str) or not padstack:
             raise _error(f"{what} needs a net and a padstack")
-        plan.vias.append(Via(net, _point(item.get("at_mm"), f"{what}.at_mm"), padstack))
+        plan.vias.append(Via(net, _point(item.get("at_mm"), f"{what}.at_mm"), padstack, origin=what))
     if not plan.traces and not plan.vias and not lanes:
         raise _error("it names no trace or via")
     if len(plan.traces) + len(plan.vias) > MAX_ITEMS:
@@ -315,19 +322,25 @@ def _touches(end: Point, trace: Trace, copper: Copper, plan: Plan, own: int) -> 
     for layer, net, poly in copper.pads:
         if net == trace.net and layer == trace.layer and _polygon_distance(end, poly) <= trace.width / 2 + 1e-6:
             return True
-    for layer, net, width, points in copper.traces:
-        if net == trace.net and layer == trace.layer and any(point_segment(end, a, b) <= width / 2 + 1e-6 for a, b in _segments(points)):
+    for layer, net, width, points in copper.traces:  # Layout joins an end to a trace only on its centre line
+        if net == trace.net and layer == trace.layer and any(point_segment(end, a, b) <= ON_CENTRE_MM for a, b in _segments(points)):
             return True
     for net, x, y, radius in copper.vias:
         if net == trace.net and math.hypot(end[0] - x, end[1] - y) <= radius + 1e-6:
             return True
+    for layer, net, poly in copper.planes:  # a pour of the net makes its copper round the end
+        if net == trace.net and layer == trace.layer and len(poly) >= 3 and inside(end, poly):
+            return True
     for index, other in enumerate(plan.traces):
         if index != own and other.net == trace.net and other.layer == trace.layer and any(
-                point_segment(end, a, b) <= other.width / 2 + 1e-6 for a, b in _segments(other.path)):
+                point_segment(end, a, b) <= ON_CENTRE_MM for a, b in _segments(other.path)):
             return True
     return any(via.net == trace.net and math.hypot(end[0] - via.at[0], end[1] - via.at[1]) <= via.radius + 1e-6 for via in plan.vias)
 
 
+ON_CENTRE_MM = 0.005  # an end this close to a trace's centre line lies on it: Layout joins it there, not anywhere on its copper
+TRACE_KEEPOUTS = ("trace", "trace_and_via")  # the obstruct kinds that keep traces out on their layer
+VIA_KEEPOUTS = ("via", "trace_and_via")  # those that keep vias out; a via passes through every layer
 CELL_MM = 1.0  # the grid the check finds nearby copper by
 REACH_MM = 1.0  # no clearance rule is larger than this
 
@@ -354,9 +367,35 @@ class _Grid:
         return list(found.values())
 
 
+BORDER_TOUCH_MM = 0.005  # copper whose edge meets the route border reaches past it for Layout's DRC (seen live)
+
+
+def _border_grid(border: list[Point] | None) -> _Grid | None:
+    if not border or len(border) < 3:
+        return None
+    grid = _Grid()
+    for a, b in zip(border, border[1:] + border[:1], strict=True):
+        grid.add((a, b), [a, b], 0.0)
+    return grid
+
+
+def _past_border(points: list[Point], reach: float, border: list[Point], grid: _Grid) -> bool:
+    """Whether copper along ``points`` (a piece of trace, or a via's centre alone) comes within
+    ``reach`` of the route border's line, or lies outside it."""
+    if not all(inside(p, border) for p in points):
+        return True
+    pieces = list(zip(points, points[1:], strict=False)) or [(points[0], points[0])]
+    for a, b in pieces:
+        for c, d in grid.near([a, b], reach):
+            if _segment_distance(a, b, c, d) < reach + BORDER_TOUCH_MM:
+                return True
+    return False
+
+
 def check(plan: Plan, copper: Copper, rules: Rules) -> list[str]:
     """Every reason the plan cannot go onto the board; an empty list when it can."""
     blocked: list[str] = []
+    edge = _border_grid(copper.border)
     board = _Grid()
     for layer, net, poly in copper.pads:
         board.add(("pad", layer, net, poly), poly, 0.0)
@@ -386,37 +425,55 @@ def check(plan: Plan, copper: Copper, rules: Rules) -> list[str]:
         for end in () if trace.free_ends else (trace.points[0], trace.points[-1]):
             if not _touches(end, trace, copper, plan, index):
                 blocked.append(f"{name}: its end at ({end[0]:g}, {end[1]:g}) mm touches no copper of {trace.net} on layer {trace.layer}")
-        found: list[str] = []
+        found: dict[str, Point] = {}  # each reason once, with the first place it holds
         others: set[int] = set()
+        if edge is not None and copper.border:
+            for a, b in _segments(trace.path):
+                if _past_border([a, b], trace.width / 2, copper.border, edge):
+                    found.setdefault(f"{name}: reaches past the route border on layer {trace.layer}, where Layout's DRC reports it; "
+                                     "keep it further from the board's edge", _nearest_on(a, b, _edges(copper.border)))
+                    break
         for a, b in _segments(trace.path):
+            for kind, layer, poly in copper.keepouts:
+                if kind in TRACE_KEEPOUTS and layer == trace.layer and _segment_polygon(a, b, poly) < trace.width / 2 - CLEARANCE_TOLERANCE:
+                    found.setdefault(f"{name}: runs into a keepout of traces on layer {layer}", _nearest_on(a, b, _edges(poly)))
             for kind, layer, net, shape, *_ in board.near([a, b], REACH_MM + trace.width / 2):
                 if net == trace.net:
                     continue
                 if kind == "pad" and layer == trace.layer:
                     need = rules.clearance(trace.net, net, layer, "trace_to_pad") + trace.width / 2
                     if _segment_polygon(a, b, shape) < need - CLEARANCE_TOLERANCE:
-                        found.append(f"{name}: closer to a pad of {net or 'no net'} than {need - trace.width / 2:g} mm on layer {layer}")
+                        found.setdefault(f"{name}: closer to a pad of {net or 'no net'} than {need - trace.width / 2:g} mm on layer {layer}",
+                                         _nearest_on(a, b, _edges(shape)))
                 elif kind == "trace" and layer == trace.layer:
                     c, d, width = shape
                     need = rules.clearance(trace.net, net, layer, "trace_to_trace") + (trace.width + width) / 2
                     if _segment_distance(a, b, c, d) < need - CLEARANCE_TOLERANCE:
-                        found.append(f"{name}: closer to a trace of {net} than the clearance on layer {layer}")
+                        found.setdefault(f"{name}: closer to a trace of {net} than the clearance on layer {layer}", _nearest_on(a, b, [(c, d)]))
                 elif kind == "via":
                     x, y, radius = shape
                     need = rules.clearance(trace.net, net, trace.layer, "trace_to_via") + trace.width / 2 + radius
                     if point_segment((x, y), a, b) < need - CLEARANCE_TOLERANCE:
-                        found.append(f"{name}: closer to a via of {net} than the clearance on layer {trace.layer}")
+                        found.setdefault(f"{name}: closer to a via of {net} than the clearance on layer {trace.layer}", _foot((x, y), a, b))
             for other_index, c, d in own.near([a, b], REACH_MM + trace.width / 2):
                 other = plan.traces[other_index]
                 if other_index <= index or other_index in others or other.net == trace.net or other.layer != trace.layer:
                     continue
                 need = rules.clearance(trace.net, other.net, trace.layer, "trace_to_trace") + (trace.width + other.width) / 2
-                if _segment_distance(a, b, c, d) < need - CLEARANCE_TOLERANCE:
+                gap = _segment_distance(a, b, c, d)
+                if gap < need - CLEARANCE_TOLERANCE:
                     others.add(other_index)
-                    found.append(f"{name}: closer to trace {other_index + 1} of {other.net} in the plan than the clearance")
-        blocked += list(dict.fromkeys(found))
+                    if gap <= 0.0:
+                        found.setdefault(f"{name}: crosses trace {other_index + 1} of {other.net}{_from(other)} on layer {trace.layer}: "
+                                         "their ends lie in opposite orders along the way, so on one layer they must cross; put one on "
+                                         "another layer through vias, or run it round the other's end", _nearest_on(a, b, [(c, d)]))
+                    else:
+                        found.setdefault(f"{name}: closer to trace {other_index + 1} of {other.net} in the plan{_from(other)} than the "
+                                         "clearance", _nearest_on(a, b, [(c, d)]))
+        blocked += [reason + where(trace.origin, at) for reason, at in found.items()]
     for index, via in enumerate(plan.vias):
         name = f"via {index + 1} of {via.net}"
+        before = len(blocked)
         if via.net not in copper.nets:
             blocked.append(f"{name}: the board has no net {via.net}")
             continue
@@ -439,4 +496,58 @@ def check(plan: Plan, copper: Copper, rules: Rules) -> list[str]:
                       + via.radius + item[3][2] - CLEARANCE_TOLERANCE), None)
         if other is not None:
             blocked.append(f"{name}: closer to a via of {other[2]} than the clearance")
+        if edge is not None and copper.border and _past_border([via.at], via.radius, copper.border, edge):
+            blocked.append(f"{name}: reaches past the route border, where Layout's DRC reports it")
+        keepout = next((layer for kind, layer, poly in copper.keepouts
+                        if kind in VIA_KEEPOUTS and _polygon_distance(via.at, poly) < via.radius - CLEARANCE_TOLERANCE), 0)
+        if keepout != 0:
+            blocked.append(f"{name}: stands in a keepout of vias on layer {keepout}")
+        blocked[before:] = [reason + where(via.origin, via.at) for reason in blocked[before:]]
     return blocked
+
+
+def where(origin: str, at: Point) -> str:
+    """The end of a reason the check gives: the plan's entry the copper comes from and the place."""
+    return f" ({origin + ', ' if origin else ''}at ({at[0]:.3f}, {at[1]:.3f}) mm)"
+
+
+WHERE = re.compile(r" \((?:[^()]*, )?at \([-0-9.]+, [-0-9.]+\) mm\)$")
+
+
+def without_where(reason: str) -> str:
+    """A reason without the place ``where`` gave it, to compare reasons about copper that moved."""
+    return WHERE.sub("", reason)
+
+
+def _from(trace: Trace) -> str:
+    return f" ({trace.origin})" if trace.origin else ""
+
+
+def _edges(points: list[Point]) -> list[tuple[Point, Point]]:
+    return list(zip(points, points[1:] + points[:1], strict=True)) if len(points) > 1 else [(points[0], points[0])]
+
+
+def _foot(p: Point, a: Point, b: Point) -> Point:
+    """The point of segment a-b nearest to p."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = dx * dx + dy * dy
+    t = 0.0 if not length else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / length))
+    return a[0] + dx * t, a[1] + dy * t
+
+
+def _nearest_on(a: Point, b: Point, edges: list[tuple[Point, Point]]) -> Point:
+    """The point of segment a-b nearest to any of ``edges``: where it comes closest to a shape."""
+    best, at = math.inf, a
+    for c, d in edges:
+        rx, ry, sx, sy = b[0] - a[0], b[1] - a[1], d[0] - c[0], d[1] - c[1]
+        denominator = rx * sy - ry * sx
+        if abs(denominator) > 1e-12:  # where they cross, when they do
+            t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / denominator
+            u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / denominator
+            if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0:
+                return a[0] + rx * t, a[1] + ry * t
+        for q in (a, b, _foot(c, a, b), _foot(d, a, b)):
+            distance = point_segment(q, c, d)
+            if distance < best:
+                best, at = distance, q
+    return at

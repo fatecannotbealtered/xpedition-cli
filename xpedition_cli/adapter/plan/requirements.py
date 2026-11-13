@@ -386,27 +386,39 @@ def _via_pitch(model: dict[str, Any], values: dict[str, Any], bends: list[Box], 
             if b - a <= pitch + 1e-6:
                 continue
             row = {"layer": layer, "from_mm": _xy(walker.at(a)), "to_mm": _xy(walker.at(b)), "gap_mm": round(b - a, 3)}
-            spot = None
+            spots: list[Point] = []
             offsets = GD.across(width, radius)
             if obstacles is not None:
                 low, high = (-math.inf, math.inf) if closed else GD.clear_of_ends(length, radius, widest)  # no pad over an end
-                at = max(a + radius, low)
-                while at < min(b - radius, high + 1e-9) and spot is None:
+
+                def fits(at: float) -> Point | None:
                     base, (ux, uy) = walker.at(at), _turn(walker, at)
                     items = obstacles._near([base], GD.REACH_MM + radius + ROOM_MM + max(offsets))
                     for off in offsets:  # on the line, or off it as far as a via along it may stand
                         p = (base[0] - uy * off, base[1] + ux * off)
                         if (not _in_box(p, bends, radius + ROOM_MM) and obstacles.via_clear(p, net, radius + ROOM_MM, items)
                                 and not _covers(ends, p, radius + ROOM_MM) and all(math.dist(p, t) >= spacing for t in taken)):
-                            spot = p
-                            taken.append(p)
-                            break
-                    at += STEP_MM
-            if obstacles is not None and spot is None:
+                            return p
+                    return None
+
+                # every via the gap needs: each as far along as the pitch allows from the last, where one fits
+                start, first = a, max(a + radius, low)
+                while b - start > pitch + 1e-6:
+                    at, spot = min(start + pitch, b - radius, high), None
+                    while at >= max(first, start + STEP_MM) - 1e-9 and spot is None:
+                        spot = fits(at)
+                        if spot is None:
+                            at -= STEP_MM
+                    if spot is None:
+                        break
+                    spots.append(spot)
+                    taken.append(spot)
+                    start = at
+            if obstacles is not None and not spots:
                 no_room.append(row)
             else:
-                if spot is not None:
-                    row["via_fits_at_mm"] = _xy(spot)
+                if spots:
+                    row["vias_fit_at_mm"] = [_xy(spot) for spot in spots]
                 too_long.append(row)
     too_long.sort(key=lambda r: -r["gap_mm"])
     no_room.sort(key=lambda r: -r["gap_mm"])

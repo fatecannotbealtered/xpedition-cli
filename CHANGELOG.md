@@ -4,6 +4,35 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 
 ## [Unreleased]
 
+### Added
+
+- `component move --to-marks` moves a part onto the placement keepouts a structure drawing left in the shapes of its pads: the place with the most pins on marks, then the one nearest the part, at `--rotation` when given. Its result's `marks` gives the pins on marks, how far the pads lie off them and the other places that fit as well.
+- `doc undo` on a Layout board takes back the tool's last write, one write per call; each write now goes in as one step of Layout's undo. A write that leaves no such step, such as `constraint import`, is refused, as is a net's first plane on a layer and every write before it, since Layout clears its undo when it makes one. `component move` runs with Layout's DRC in its step, so a taken spot is still refused.
+- `trace delete --from-x --from-y --to-x --to-y` deletes only the net's traces wholly inside the rectangle, such as a stub that ends on nothing.
+- Routing plan: a lane ends on a pin with `"to": "J1.5"` (or `"from"`), reached from its line at 45 degrees, as is a lone end point beyond its edge's end; `jogs` moves a lane to another distance from its edge part way along, and lanes that jog at one place cross one after another, their diagonals clear of each other.
+- `pcb get` lists a bend zone that a placement keepout marks from edge to edge across a board without stiffeners, with its own shape in `polygon_mm`.
+
+### Changed
+
+- The fan-out gives one via to each run of consecutive far pins of one net, fans out a connector set at an angle along its own rows, and, where a keepout closes the gap between the rows, puts the far row's vias in one line beyond it. A lane leaving a connector goes past a via the fan-out added for another pin only where that via stands in its way.
+- `trace check` and `trace create` refuse copper that reaches Layout's route border, traces in keepouts of traces and vias in keepouts of vias; accept an end on a plane shape of its net; require an end on another trace to lie on its centre line, where Layout joins it; and name two plan traces that must cross.
+- Lanes, guards and rings turn about the corner of a rounded notch whose arc reaches a bend zone, so they cross the zone straight. `plane create --bends` hatches side-by-side zones as one band.
+- `via create --pitch` moves a grid point without room to the nearest free spot within half the pitch, and keeps stitching vias, like the vias and ties of guards, out of keepouts of vias.
+- `pcb check` judges a bend zone that lies at a slant by its shape and the edge each trace crosses, and its guard requirement counts a ground pour beside a trace.
+- A Layout output dialog left open points at the knowledge entry `layout-output-setups`, which now says to press Cancel.
+- The routing plan's guards move with lanes that jog at one place; a lane ending on a pin runs straight along the pad until clear of its row's pads before it turns; a lane leaving a fan-out turns onto its line more steeply where a 45 degree turn would fall in a bend zone; a lane's fan-out stubs are as wide as the lane wherever that clears; a join pin to pin is no wider than its net class allows.
+- Every reason `trace check` and `trace create` give ends with the plan's entry the copper comes from and the place, and `trace check --output` writes the plan as worked out, each trace and via with its number, points and entry.
+- A failing `via_pitch` gap lists every via it needs, `vias_fit_at_mm`, in place of one spot.
+- `plane create --bends` hatches a bend zone at a slant by its own shape, the parts of the board beside it left solid, and ties each hatched piece square to the sides it shares with the solid copper, or along the board's edges where nothing fits so.
+- `pcb check` and the plan's notes judge pair lengths only on the differential pairs the design defines, by name only when it defines none; `pcb get` `metrics.widths` gives each net's narrowest and widest trace.
+- `component move --to-marks` marks the other fits on the same spot (`same_spot`), which show that the marks do not say where pin 1 goes; the knowledge entry `layout-placement-drc` explains the marks Batch DRC then reports under the part.
+
+### Fixed
+
+- Lane points a hair off the lane's line no longer leave a sliver of a segment that `pcb check` reads as a sharp corner, and a guard naming a net with two lanes on one layer says what it cannot do.
+- `doc save` checks each change against what the last write expected: a later write to the same object, a later write that adds or deletes some of a net's traces or vias (such as a routing plan's vias after a `via delete`), or a `doc undo`, no longer leaves an earlier expectation that fails verification of a save that wrote the board correctly.
+- `session close`, `pcb create`, `packager run` and `schematic export` report done once Xpedition's database server has let the project go, waiting up to 15 s; a project another session has open is not waited for. They reported done up to a second or so before, and a copy of the project taken then held a database that was not closed properly, which Layout refused to open. A project still served when the wait ends gets a warning that names the server's address file.
+
 ## [1.5.0] - 2026-11-12
 
 ### Added

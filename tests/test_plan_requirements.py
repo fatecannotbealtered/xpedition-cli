@@ -93,13 +93,16 @@ class MeasureTest(unittest.TestCase):
         row = RQ.measure(model, requirement, [], free)[0]
         self.assertEqual((row["ok"], row["count"], row["failed"]), (False, 1, 1))
         self.assertEqual(row["worst"][0]["gap_mm"], 6.0)
-        self.assertIn("via_fits_at_mm", row["worst"][0])
+        spots = row["worst"][0]["vias_fit_at_mm"]  # every via the 6 mm gap needs at a 2.5 mm pitch, all at once
+        self.assertEqual(len(spots), 2)
+        stops = [5.0] + [y for _x, y in spots] + [11.0]
+        self.assertTrue(all(b - a <= 2.5 + 1e-6 for a, b in zip(stops, stops[1:], strict=False)), stops)
         sides = [TP.Trace("A", 1, 0.1, [(1.25, 5.5), (1.25, 11)]), TP.Trace("B", 1, 0.1, [(0.75, 5.5), (0.75, 11)])]
         one_side = GD.Obstacles(TP.Copper(layer_count=2), TP.Plan(traces=sides[:1], vias=[TP.Via("GND", (1.0, y), "V", 0.2) for y in (1, 3, 5)]),
                                 RULES)
         row = RQ.measure(model, requirement, [], one_side)[0]
         self.assertFalse(row["ok"])  # a signal 0.25 mm on one side: a via fits moved off the line the other way
-        self.assertLess(row["worst"][0]["via_fits_at_mm"][0], 1.0)
+        self.assertLess(row["worst"][0]["vias_fit_at_mm"][0][0], 1.0)
         crowded = GD.Obstacles(TP.Copper(layer_count=2), TP.Plan(traces=sides, vias=[TP.Via("GND", (1.0, y), "V", 0.2) for y in (1, 3, 5)]),
                                RULES)
         row = RQ.measure(model, requirement, [], crowded)[0]

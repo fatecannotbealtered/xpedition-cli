@@ -1103,6 +1103,11 @@
           "summary": "top or bottom; its side by default. A part on the bottom is mirrored."
         },
         {
+          "name": "--to-marks",
+          "type": "boolean",
+          "summary": "Find where the part's pads lie on placement keepouts of the same shapes on its side, a structure drawing's marks, and move it there over them; the fit nearest the part wins, at --rotation when given."
+        },
+        {
           "name": "--output",
           "type": "path",
           "summary": "Write the full preview, with every change, to this file."
@@ -1796,7 +1801,7 @@
         {
           "name": "--output",
           "type": "path",
-          "summary": "Write the whole result to this JSON file; the response keeps the first entries of each list.",
+          "summary": "Write the whole result to this JSON file, with the plan as worked out: each trace's and via's number, points and the plan's entry it comes from; the response keeps the first entries of each list.",
           "output": true
         }
       ],
@@ -1851,6 +1856,34 @@
           "name": "--layers",
           "type": "string",
           "summary": "Only on these conductor layers, such as 1,4; every layer by default."
+        },
+        {
+          "name": "--from-x",
+          "type": "quantity",
+          "summary": "The left side of the rectangle; with the other region flags, only the traces wholly inside it, such as a stub that ends on nothing or an island.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--from-y",
+          "type": "quantity",
+          "summary": "The bottom side of the rectangle; a side left out runs to the board's edge.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-x",
+          "type": "quantity",
+          "summary": "The right side of the rectangle.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
+        },
+        {
+          "name": "--to-y",
+          "type": "quantity",
+          "summary": "The top side of the rectangle.",
+          "quantity": "length",
+          "coordinate_system": "Board coordinates in mm: the origin is the board origin, the lower left corner of the outline pcb update draws; x to the right, y up, seen from the top side."
         },
         {
           "name": "--output",

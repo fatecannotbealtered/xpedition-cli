@@ -1,0 +1,58 @@
+{
+  "kind": "live",
+  "tool": "xpedition-cli",
+  "tool_version": "1.5.0",
+  "commit": "9fa6cf720a45",
+  "application": {
+    "name": "Xpedition",
+    "version": "2604"
+  },
+  "os": "Windows-11-10.0.26300-SP0",
+  "platform": "windows",
+  "recorded_at": "2026-11-13T16:13:07Z",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/"
+  ],
+  "runs": [
+    {
+      "command": "pcb create",
+      "arguments": [
+        "--doc",
+        "D:\\driver-work\\xpedition-cli\\practice\\v12\\Demo\\Demo.prj"
+      ],
+      "exit": 6,
+      "result": "pass",
+      "matrix_row": "conflict",
+      "mode": "file",
+      "fingerprint": "7e98fabafa83735eca5fd9a9a1bab4b44cbed0b0fbb2c2f9d13a9154cde05735",
+      "sources": {
+        "ran": [
+          "xpedition_cli/__init__.py",
+          "xpedition_cli/adapter/__init__.py",
+          "xpedition_cli/adapter/base.py",
+          "xpedition_cli/adapter/designer.py",
+          "xpedition_cli/adapter/jobs.py",
+          "xpedition_cli/adapter/layout.py",
+          "xpedition_cli/adapter/platform/com.py",
+          "xpedition_cli/adapter/platform/dialogs.py",
+          "xpedition_cli/adapter/platform/env.py",
+          "xpedition_cli/adapter/platform/processes.py",
+          "xpedition_cli/adapter/sessions.py"
+        ],
+        "imported": [
+          "xpedition_cli/adapter/plan/__init__.py",
+          "xpedition_cli/adapter/plan/bom.py",
+          "xpedition_cli/adapter/plan/pdf_pages.py",
+          "xpedition_cli/adapter/plan/project_file.py",
+          "xpedition_cli/adapter/plan/review_engine.py",
+          "xpedition_cli/adapter/plan/schematic_layout.py",
+          "xpedition_cli/adapter/plan/symbols.py",
+          "xpedition_cli/adapter/plan/verification.py",
+          "xpedition_cli/adapter/platform/__init__.py",
+          "xpedition_cli/adapter/platform/icdb.py"
+        ]
+      },
+      "doc_kind": "project"
+    }
+  ]
+}

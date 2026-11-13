@@ -383,6 +383,15 @@ class PackagerRunTest(Case):
         back = PR.PackagerRun().read_back(self.ctx("packager run", self.prj, operation_id="op_1"))
         self.assertEqual(back["observed"], {base.key(str(self.prj), "/package"): {"packaged": True}})
 
+    def test_the_job_ends_once_the_database_server_let_the_project_go(self):
+        self.packager(PACKAGER_LOG)
+        held = [{"severity": "warning", "message": "still served"}]
+        with mock.patch.object(PR.sessions, "release", return_value=held) as released:
+            out = PR.PackagerRun().run(self.ctx("packager run", self.prj, operation_id="op_1"), lambda *a: None)
+        released.assert_called_once()
+        self.assertEqual(released.call_args.args[1], [str(self.prj)])
+        self.assertEqual(out["notices"], held)
+
     def test_a_report_older_than_the_run_does_not_count(self):
         self.packager(PACKAGER_LOG)
         PR.PackagerRun().apply(self.ctx("packager run", self.prj, operation_id="op_1"))

@@ -22,6 +22,7 @@ from .plan import PlanError, board_layout, logs, project_file
 from .plan import outline as plan_outline
 from .plan import routing as plan_routing
 from .plan import shapes
+from .plan.bands import untangled as _untangled
 from .plan.shapes import flatten
 from .platform import com, dialogs
 
@@ -893,57 +894,6 @@ def _clip(polygon: list[tuple[float, float]], region: L.Region) -> list[tuple[fl
     return out
 
 
-def _untangled(polygon: list[tuple[float, float]]) -> list[list[tuple[float, float]]]:
-    """A clipped polygon as the pieces it holds. Clipping a concave shape, such as a U-shaped board
-    cut across both its arms, joins the pieces by an edge run there and back along the clip line,
-    copper of no width; the edges along each horizontal or vertical line are counted by direction,
-    what is run both ways is dropped, and the rest is walked into closed pieces."""
-    edges: list[tuple[tuple[float, float], tuple[float, float]]] = []
-    runs: dict[tuple[int, float], list[tuple[float, float, int]]] = {}
-    count = len(polygon)
-    for i in range(count):
-        a, b = polygon[i], polygon[(i + 1) % count]
-        if math.dist(a, b) < 1e-9:
-            continue
-        for axis in (1, 0):  # a horizontal edge keeps its y, a vertical one its x
-            if abs(a[axis] - b[axis]) < 1e-7:
-                along = 1 - axis
-                low, high = sorted((a[along], b[along]))
-                runs.setdefault((axis, round(a[axis], 6)), []).append((low, high, 1 if b[along] > a[along] else -1))
-                break
-        else:
-            edges.append((a, b))
-    for (axis, at), pieces in runs.items():
-        cuts = sorted({v for low, high, _sign in pieces for v in (low, high)})
-        for u, w in zip(cuts, cuts[1:], strict=False):
-            net = sum(sign for low, high, sign in pieces if low <= u + 1e-9 and w <= high + 1e-9) if w - u > 1e-9 else 0
-            if net:
-                p, q = ((u, at), (w, at)) if axis == 1 else ((at, u), (at, w))
-                edges.append((p, q) if net > 0 else (q, p))
-
-    def key(point: tuple[float, float]) -> tuple[float, float]:
-        return round(point[0], 6), round(point[1], 6)
-
-    leaving: dict[tuple[float, float], list[tuple[tuple[float, float], tuple[float, float]]]] = {}
-    for a, b in edges:
-        leaving.setdefault(key(a), []).append((a, b))
-    out = []
-    for start in list(leaving):
-        while leaving[start]:
-            a, b = leaving[start].pop()
-            loop, here = [a], b
-            while key(here) != key(a) and leaving.get(key(here)) and len(loop) <= len(edges):
-                loop.append(here)
-                here = leaving[key(here)].pop()[1]
-            if key(here) == key(a):
-                loop = [q for i, q in enumerate(loop)
-                        if abs((q[0] - loop[i - 1][0]) * (loop[(i + 1) % len(loop)][1] - q[1])
-                               - (q[1] - loop[i - 1][1]) * (loop[(i + 1) % len(loop)][0] - q[0])) > 1e-12]  # no point in line
-                if len(loop) >= 3:
-                    out.append(loop)
-    return out
-
-
 def _scaled(doc: Any, item: Any) -> list[list[float]] | None:
     """The (x, y, r) rows of a graphic's points in mm, or None when the board's unit cannot be measured."""
     scale = L.geometry_scale(doc)
@@ -1036,26 +986,47 @@ def _plane_target(doc: Any, net: str, layer: int, margin: float | None, region: 
     return found, points, where, {**now, "layers": layers}
 
 
-def band_ties(doc: Any, path: str, net: str, layer: int, width: float) -> tuple[list[tuple[tuple[float, ...], list[Any]]], float, int]:
+def band_ties(doc: Any, path: str, net: str, layer: int, width: float,
+              pieces: list[list[tuple[float, float]]] | None = None) -> tuple[list[tuple[tuple[float, ...], list[Any]]], float, int]:
     """For --bends: the ties each band over a bend zone needs on the layer (none where the band
     touches the net there already), the width they take (the hatch's, or the net class's least on
-    the layer when that is wider) and how many traces the net has on the layer now."""
+    the layer when that is wider) and how many traces the net has on the layer now. ``pieces``, the
+    hatched pieces of a board whose zones lie at a slant, are tied each by its own shape: square to
+    the sides it shares with the solid copper, or, where nothing fits so, along its sides at the
+    board's edges, the way the traces run."""
     from . import layout_output as O
     from .layout_edit import _copper, ruled_obstacles
-    from .plan import bend_ties, board_metrics
+    from .plan import bands, bend_ties, board_metrics
 
     copper = _copper(doc)
     obstacles = ruled_obstacles(doc, path, copper)
     net_class = obstacles.rules.net_class_of.get(net)
     least = (obstacles.rules.widths.get(net_class) or {}).get(layer, (0.0, 0.0))[0] if net_class else 0.0
     tie_width = max(width, least)
+
+    def clear(a: tuple[float, float], b: tuple[float, float]) -> bool:
+        return obstacles.piece_clear(a, b, net, layer, tie_width)
+
     out = []
-    for zone in board_metrics.bend_zones(O.flex_model(doc)):
-        box = tuple(zone["extents_mm"])
-        found = bend_ties.ties(box, zone["along"] == "x", net, layer, tie_width, copper,
-                               lambda a, b: obstacles.piece_clear(a, b, net, layer, tie_width))
-        if found is not None:
-            out.append((box, found))
+    if pieces is not None:
+        flex = O.flex_model(doc)
+        outline = flex["outline"][0].get("path") if flex.get("outline") else None
+        edge = flatten([(float(q[0]), float(q[1]), float(q[2]) if len(q) > 2 else 0.0) for q in outline]) if outline else []
+        for piece in pieces:
+            xs, ys = [p[0] for p in piece], [p[1] for p in piece]
+            box = (min(xs), min(ys), max(xs), max(ys))
+            square = bands.edge_run(piece, edge) if edge else None
+            found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, square)
+            if found == [] and square is not None:  # nothing fits square to it: along the board's edges instead
+                found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, (-square[1], square[0]))
+            if found is not None:
+                out.append((box, found))
+    else:
+        for zone in board_metrics.bend_zones(O.flex_model(doc)):
+            box = tuple(zone["extents_mm"])
+            found = bend_ties.ties(box, zone["along"] == "x", net, layer, tie_width, copper, clear)
+            if found is not None:
+                out.append((box, found))
     traces = sum(1 for lay, name, _w, _p in copper.traces if name == net and lay == layer)
     return out, tie_width, traces
 
@@ -1132,7 +1103,12 @@ def bend_parts(zones: list[dict[str, Any]]) -> list[tuple[L.Region, bool]]:
     if len(axes) > 1:
         raise base.blocked("The board's bend zones run along both axes; pour the parts with the region flags instead.")
     across = 1 if axes == {"x"} else 0  # the axis the bands are cut along
-    edges = sorted((zone["extents_mm"][across], zone["extents_mm"][across + 2]) for zone in zones)
+    edges: list[tuple[float, float]] = []
+    for low, high in sorted((zone["extents_mm"][across], zone["extents_mm"][across + 2]) for zone in zones):
+        if edges and low <= edges[-1][1]:  # zones side by side across the board, such as two necks' bends, make one band
+            edges[-1] = (edges[-1][0], max(edges[-1][1], high))
+        else:
+            edges.append((low, high))
 
     def band(low: float | None, high: float | None) -> L.Region:
         return (None, low, None, high) if across == 1 else (low, None, high, None)
@@ -1152,9 +1128,12 @@ def _pour_parts(doc: Any, net: str, layer: int, margin: float | None) -> tuple[l
     from . import layout_output as O
     from .plan import board_metrics
 
+    zones = board_metrics.bend_zones(O.flex_model(doc))
+    if any(zone.get("polygon_mm") for zone in zones):
+        return _slanted_parts(doc, net, layer, margin, zones)
     parts = []
     now: dict[str, Any] = {}
-    for region, hatched in bend_parts(board_metrics.bend_zones(O.flex_model(doc))):
+    for region, hatched in bend_parts(zones):
         try:
             found, points, where, now = _plane_target(doc, net, layer, margin, region)
         except AdapterError as exc:
@@ -1163,6 +1142,55 @@ def _pour_parts(doc: Any, net: str, layer: int, margin: float | None) -> tuple[l
             raise
         parts.append((region, hatched, found, points, where))
     return parts, {**now, "layer_exists": bool(L.plane_values(doc, net, layer)["exists"])}
+
+
+ZONE_REACH_MM = 1.0  # a slanted zone marked just inside the board's edges is taken this far past them
+SLIVER_MM2 = 0.05  # a piece of a cut shape smaller than this holds no useful copper
+
+
+def _slanted_parts(doc: Any, net: str, layer: int, margin: float | None,
+                   zones: list[dict[str, Any]]) -> tuple[list[tuple[L.Region, bool, Any, Any, str]], dict[str, Any]]:
+    """For --bends on a board whose bend zones lie at a slant: the layer's shape cut by each zone's
+    own polygon, hatched inside it and solid outside, each piece by its extents."""
+    from .plan import bands
+
+    found, points, _where, now = _plane_target(doc, net, layer, margin, None)
+    whole = flatten(list(zip(*points, strict=False)))
+    if len(whole) > 1 and whole[0] == whole[-1]:
+        whole.pop()
+    rest, hatched = [whole], []
+    for zone in zones:
+        if zone.get("polygon_mm"):
+            ring = bands.reaching([(float(x), float(y)) for x, y in zone["polygon_mm"]], whole, ZONE_REACH_MM)
+        else:
+            x0, y0, x1, y1 = zone["extents_mm"]
+            ring = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        hatched += [part for piece in rest for part in bands.inside(piece, ring)]
+        rest = [part for piece in rest for part in bands.outside(piece, ring)]
+    parts = []
+    for piece, is_hatched in [(p, True) for p in hatched] + [(p, False) for p in bands.merged(rest)]:
+        if bands.area(piece) < SLIVER_MM2:
+            continue
+        xs, ys = [q[0] for q in piece], [q[1] for q in piece]
+        region = (round(min(xs), 3), round(min(ys), 3), round(max(xs), 3), round(max(ys), 3))
+        rows = _rows([[q[0] for q in [*piece, piece[0]]], [q[1] for q in [*piece, piece[0]]], [0.0] * (len(piece) + 1)])
+        parts.append((region, is_hatched, found, rows, f"a piece within {L.region_text(region)}"))
+    parts.sort(key=lambda part: (part[0][1], part[0][0]))
+    return parts, {**now, "layer_exists": bool(L.plane_values(doc, net, layer)["exists"])}
+
+
+def _slanted_pieces(parts: list[tuple[Any, bool, Any, Any, str]]) -> list[list[tuple[float, float]]] | None:
+    """The hatched pieces of --bends on a board whose zones lie at a slant, as polygons; None for bands across the board."""
+    if not any(where.startswith("a piece") for *_rest, where in parts):
+        return None
+    out = []
+    for _region, hatched, _net, points, _where in parts:
+        if hatched:
+            polygon = flatten(list(zip(*points, strict=False)))
+            if len(polygon) > 1 and polygon[0] == polygon[-1]:
+                polygon.pop()
+            out.append(polygon)
+    return out
 
 
 def _bends_inputs(region: L.Region | None, polygon: Ring | None, hatch: str) -> None:
@@ -1204,7 +1232,8 @@ class PlaneCreate(L.ReadsBack):
             zones = sum(1 for part in parts if part[1])
             others = L.in_layout(ctx, lambda app, doc: other_shapes(doc, net, layer), budget_s=L.READ_BUDGET_S, what="reading the planes")
             around = f" Each band is cut around {len(others)} plane shape(s) of other nets on the layer." if others else ""
-            tied, tie_width, before = L.in_layout(ctx, lambda app, doc: band_ties(doc, path, net, layer, width or 0.0),
+            hatched_pieces = _slanted_pieces(parts)
+            tied, tie_width, before = L.in_layout(ctx, lambda app, doc: band_ties(doc, path, net, layer, width or 0.0, hatched_pieces),
                                                   budget_s=L.READ_BUDGET_S, what="reading the copper in the bend zones")
             count = sum(len(found) for _box, found in tied)
             ties = ""
@@ -1262,6 +1291,12 @@ class PlaneCreate(L.ReadsBack):
                 parts = [(region, hatch != "solid", found, points, where)]
             poured: list[dict[str, Any]] = []
             boxes = other_shapes(doc, net, layer)
+            try:
+                first = doc.FindPlaneAssignment(layer, parts[0][2]) is None if parts else False
+            except Exception:  # noqa: BLE001 - not known: taken as a first pour, which doc undo then refuses
+                first = True
+            if first:  # the net's first plane on the layer: making it clears Layout's Undo stack (seen live)
+                L.undo_cleared(ctx.store, ctx.request.get("session"), ctx.document_path())
             for part, hatched, part_net, whole, _where in parts:
                 pieces = cut_around(whole, boxes) if boxes else _pieces_of(whole)
                 if not pieces:
@@ -1295,7 +1330,7 @@ class PlaneCreate(L.ReadsBack):
                                    f"within {PLANE_GAP_MM:g} mm of them; delete or shrink those first, or pour another region.")
             tied: list[dict[str, Any]] = []
             if bends:
-                zones, tie_width, _before = band_ties(doc, ctx.document_path(), net, layer, width or 0.0)
+                zones, tie_width, _before = band_ties(doc, ctx.document_path(), net, layer, width or 0.0, _slanted_pieces(parts))
                 tied = [{"zone_mm": [round(v, 4) for v in box], "traces": len(found)} for box, found in zones]
                 if any(found for _box, found in zones):
                     net_object = L.find_net(doc, net)
@@ -1311,6 +1346,10 @@ class PlaneCreate(L.ReadsBack):
                         doc.TransactionEnd(True)
             try:
                 assignment = doc.FindPlaneAssignment(layer, parts[0][2])
+                if assignment is None:
+                    # a layer's first plane shape gets its plane assignment only once the write's transaction commits it
+                    L.end_step(doc)
+                    assignment = doc.FindPlaneAssignment(layer, parts[0][2])
                 if assignment is None:
                     raise AdapterError("E_NATIVE_FAILURE", "Layout made the shape but reports no plane assignment for it.")
                 assignment.PlaneDataState = L.PLANE_DYNAMIC

@@ -203,7 +203,7 @@ def board_model(doc: Any, *, full: bool, status: dict[str, dict[str, Any]] | Non
                     model["holes"].append([x, y, round(size, 4)])
         model["keepouts"] = _quietly(lambda: keepouts(doc, scale, geometry=True), [])
         model["cutouts"] = _quietly(lambda: cutouts(doc, scale), [])
-        model["planes"] = _quietly(lambda: plane_shapes(doc), [])
+        model["planes"] = _quietly(lambda: with_copper(doc, plane_shapes(doc, geometry=True)), [])
     return model
 
 
@@ -326,13 +326,17 @@ def cutouts(doc: Any, scale: float | None) -> list[dict[str, Any]]:
     return rows
 
 
-def plane_shapes(doc: Any) -> list[dict[str, Any]]:
-    """Each plane shape: its net, layer, fill (solid, or the hatch with its line width and distance) and extents."""
+def plane_shapes(doc: Any, geometry: bool = False) -> list[dict[str, Any]]:
+    """Each plane shape: its net, layer, fill (solid, or the hatch with its line width and distance) and extents;
+    with ``geometry``, its outline too."""
     rows = []
+    scale = L.geometry_scale(doc) if geometry else None
     for shape in L.collection(doc, "PlaneShapes"):
         row = {"net": L.net_name(shape), "layer": _quietly(lambda shape=shape: int(shape.Layer))}
         row.update(_quietly(lambda shape=shape: L.plane_fill(doc, shape), {}))
         row["extents_mm"] = _extents(shape)
+        if scale:
+            row["shape"] = _quietly(lambda shape=shape: geometry_record(shape.Geometry, scale))
         rows.append(row)
     return rows
 
@@ -453,7 +457,8 @@ def metrics_summary(model: dict[str, Any]) -> dict[str, Any]:
     measured = board_metrics.measure(model)
     return {"available": True, "board": measured["board"], "summary": measured["summary"],
             "unplaced": measured["parts"]["unplaced"][:LISTED], "supply_nets": measured["ratsnest"]["supply_nets"][:LISTED],
-            "trace_mm_by_layer": measured["routing"]["by_layer"], "pairs": measured["routing"]["pairs"][:LISTED]}
+            "trace_mm_by_layer": measured["routing"]["by_layer"], "pairs": measured["routing"]["pairs"][:LISTED],
+            "widths": measured["routing"]["widths"][:LISTED], "widths_count": len(measured["routing"]["widths"])}
 
 
 def flex_model(doc: Any, traces: list[dict[str, Any]] | None = None, vias: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -462,7 +467,7 @@ def flex_model(doc: Any, traces: list[dict[str, Any]] | None = None, vias: list[
     scale = L.geometry_scale(doc)
     outline = doc.BoardOutline
     record = _quietly(lambda: geometry_record(outline.Geometry, scale, kind="outline")) if outline is not None and scale else None
-    return {"planes": _quietly(lambda: plane_shapes(doc), []), "keepouts": _quietly(lambda: keepouts(doc, scale), []),
+    return {"planes": _quietly(lambda: plane_shapes(doc, geometry=True), []), "keepouts": _quietly(lambda: keepouts(doc, scale, geometry=True), []),
             "outline": [record] if record else [], "traces": traces or [], "vias": vias or []}
 
 
@@ -516,7 +521,7 @@ def board_facts(doc: Any, path: str, full: bool = False) -> tuple[dict[str, Any]
         model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
     scale = L.geometry_scale(doc)
     unavailable = {"available": False, "reason": UNIT_NOTE if scale is None else "The geometry could not be read."}
-    blocked = _quietly(lambda: keepouts(doc, scale), [])
+    blocked = _quietly(lambda: keepouts(doc, scale, geometry=True), [])
     shapes = _quietly(lambda: plane_shapes(doc), [])
     return ({
         "path": path, "layers": layer_count,
@@ -707,6 +712,15 @@ def hazard_record(hazard: Any, names: dict[int, str]) -> dict[str, Any]:
             "required_mm": required if required is None or required >= 0 else None}
 
 
+def defined_pairs(doc: Any, path: str) -> list[list[str]]:
+    """The differential pairs the design's constraints define, each as its two nets."""
+    from .layout_rules import board_project, ces_design, read_current
+
+    prj, design_name = board_project(path)
+    with ces_design(prj, design_name) as design:
+        return [list(pair) for pair in read_current(design, int(doc.LayerCount)).differential_pairs if len(pair) == 2]
+
+
 def rule_findings(model: dict[str, Any] | None, reason: str = UNIT_NOTE) -> list[dict[str, Any]]:
     if model is None:
         return [{"id": "board_rules-1", "severity": "info", "rule": "board_rules_unavailable", "message": reason, "objects": []}]
@@ -771,6 +785,8 @@ def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | No
         raise L.com_error(exc, "reading the Batch DRC hazards", "not_started") from None
     hazards.sort(key=lambda row: (row["severity"] != "error", row["type"]))
     model = _quietly(lambda: board_model(doc, full=True)) if L.geometry_scale(doc) is not None else None
+    if model is not None:  # the pairs the design defines, not every two nets named like a pair, such as LED+ and LED-
+        model["differential_pairs"] = _quietly(lambda: defined_pairs(doc, path), None)
     if L.geometry_scale(doc) is None:
         rules = rule_findings(None)
     else:

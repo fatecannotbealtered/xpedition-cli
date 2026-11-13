@@ -381,6 +381,29 @@ class FlexRuleTest(unittest.TestCase):
         self.assertEqual([z["marked_by"] for z in M.bend_zones(rigid)], [["hatched_plane"]])  # no stiffener: no keepout band
         self.assertEqual(M.stiffeners(_flex()), [(0.0, 0.0, 20.0, 10.0), (0.0, 90.0, 20.0, 100.0)])
 
+    def test_a_keepout_from_edge_to_edge_marks_a_bend_on_a_board_without_stiffeners(self):
+        def keepout(*box):
+            return {"kind": "placement", "height_mm": None, "extents_mm": list(box)}
+
+        board = {"outline": [{"path": [[0, 0, 0], [10, 0, 0], [10, 100, 0], [0, 100, 0], [0, 0, 0]]}],
+                 "keepouts": [keepout(0, 40, 10, 47),  # across the neck, board on both sides: a bend, square or not
+                              keepout(0, 0, 10, 2),  # a strip along the end of the board
+                              keepout(1, 60, 9, 62)]}  # most of the width, not edge to edge
+        self.assertEqual(M.bend_zones(board), [{"extents_mm": [0.0, 40.0, 10.0, 47.0], "along": "x", "marked_by": ["placement_keepout"]}])
+
+    def test_a_slanted_bend_zone_is_judged_by_its_own_outline(self):
+        # a neck from y 0 to 10, its bend drawn from y 2 to a top edge that falls from (0, 8) to (10, 6)
+        bend = [[0, 2, 0], [10, 2, 0], [10, 6, 0], [0, 8, 0], [0, 2, 0]]
+        board = {"outline": [{"path": [[0, -5, 0], [10, -5, 0], [10, 15, 0], [0, 15, 0], [0, -5, 0]]}],
+                 "keepouts": [{"kind": "placement", "height_mm": None, "extents_mm": [0, 2, 10, 8], "shape": {"path": bend}}]}
+        (zone,) = M.bend_zones(board)
+        self.assertEqual(zone["polygon_mm"][:4], [[0.0, 2.0], [10.0, 2.0], [10.0, 6.0], [0.0, 8.0]])
+        tilt = (2.0 / math.hypot(10, 2), 10.0 / math.hypot(10, 2))  # square to the top edge
+        square = {"net": "S", "layer": 1, "width": 0.1, "path": [[5, 0], [5, 4], [5 + 4 * tilt[0], 4 + 4 * tilt[1]]]}
+        upright = {"net": "U", "layer": 1, "width": 0.1, "path": [[2, 0], [2, 10]]}
+        found = M.flex_rules({**board, "traces": [square, upright], "vias": [{"circle": [9.5, 7.5, 0.1], "net": "GND"}]})
+        self.assertEqual({(r["rule"], r.get("net")) for r in found}, {("bend_angle", "U"), ("bend_turn", "S")})  # the via lies beyond the edge
+
     def test_what_a_bend_zone_and_the_stiffeners_forbid(self):
         found = {(row["rule"], row.get("net")) for row in M.flex_rules(_flex())}
         self.assertEqual(found, {("bend_via", "GND"), ("bend_turn", "C"), ("bend_angle", "C"), ("bend_width", "D"),
@@ -413,3 +436,15 @@ class FlexRuleTest(unittest.TestCase):
         self.assertEqual(M.measure(model)["summary"]["pair_skew_max_mm"], 0.5)
         unrouted = M.measure({**model, "unrouted": [{"net": "USB_DP", "opens": 1}]})
         self.assertEqual(unrouted["routing"]["pairs"], [])  # a pair not routed yet has no skew
+
+    def test_each_nets_drawn_widths_are_reported(self):
+        model = {"traces": [{"net": "VCC", "layer": 1, "width": 0.15, "path": [[0, 0, 0], [5, 0, 0]]},
+                            {"net": "VCC", "layer": 1, "width": 0.1, "path": [[5, 0, 0], [6, 0, 0]]},
+                            {"net": "SIG", "layer": 3, "width": 0.1, "path": [[0, 1, 0], [5, 1, 0]]}]}
+        self.assertEqual(M.measure(model)["routing"]["widths"], [{"net": "SIG", "min_mm": 0.1, "max_mm": 0.1},
+                                                                 {"net": "VCC", "min_mm": 0.1, "max_mm": 0.15}])
+
+    def test_the_pairs_the_design_defines_replace_the_guess_by_name(self):
+        self.assertEqual(M._pairs(["D+", "D-", "X_N", "X_P"], [["X_N", "X_P"], ["Y_P", "Y_N"]]), [("X_N", "X_P")])
+        model = {**_flex(), "differential_pairs": [["MIPI_P", "MIPI_N"]]}  # USB_DP and USB_DN are no defined pair
+        self.assertFalse([row for row in M.board_rules(model) if row["rule"] == "pair_skew"])

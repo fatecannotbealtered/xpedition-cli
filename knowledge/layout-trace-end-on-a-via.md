@@ -15,4 +15,4 @@ trace create and trace check check every trace as it will be drawn, with these p
 What to do:
 
 - End a trace of the plan at the via's centre or the pin's origin, or keep it clear of the pad.
-- Place a via of the plan, such as one a pcb check result suggests (`via_fits_at_mm`), so that its pad does not cover the end of a trace of the plan; trace check names any that does.
+- Place a via of the plan, such as one a pcb check result suggests (`vias_fit_at_mm`), so that its pad does not cover the end of a trace of the plan; trace check names any that does.

@@ -17,9 +17,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-174413-bom-check.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-162115-bom-check.json#normal",
       "kind_evidence": {
-        "project": "live:docs/evidence/2026-11-12-174413-bom-check.json#normal"
+        "project": "live:docs/evidence/2026-11-13-162115-bom-check.json#normal"
       }
     },
     {
@@ -38,7 +38,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-172841-bom-check.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-160724-bom-check.json#empty"
     },
     {
       "row": "invalid_input",
@@ -60,7 +60,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-12-172841-bom-check.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-160724-bom-check.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -80,7 +80,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-12-172841-bom-check.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-160724-bom-check.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -95,7 +95,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-12-182218-bom-check.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-165330-bom-check.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -123,7 +123,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-12-174149-bom-check.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-161909-bom-check.json#busy"
     },
     {
       "row": "dialog",
@@ -141,7 +141,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-12-174606-bom-check.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-162248-bom-check.json#dialog"
     },
     {
       "row": "disconnect",
@@ -175,7 +175,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-12-173629-bom-check.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-161413-bom-check.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
