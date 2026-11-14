@@ -274,7 +274,10 @@ class SilkscreenTextCreate(L.ReadsBack):
                 raise L.com_error(exc, "placing the text", com.call_state(exc)) from None
             result = {**base_result, "created": True, "height_mm": request["height"]}
             try:
-                result.update(**position(text), extents_mm=[round(v, 4) for v in L.extrema_mm(text)])
+                result.update(**position(text))
+                x0, y0, x1, y1 = L.extrema_mm(text)
+                if x0 <= x1 and y0 <= y1:  # inside the write's step Layout may give a new text no extents yet: an empty box
+                    result["extents_mm"] = [round(v, 4) for v in (x0, y0, x1, y1)]
             except Exception:  # noqa: BLE001 - the read-back reads it again
                 pass
             return base.facts("applied", "unchanged", result=result)

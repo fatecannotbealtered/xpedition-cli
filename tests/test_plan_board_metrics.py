@@ -404,6 +404,32 @@ class FlexRuleTest(unittest.TestCase):
         found = M.flex_rules({**board, "traces": [square, upright], "vias": [{"circle": [9.5, 7.5, 0.1], "net": "GND"}]})
         self.assertEqual({(r["rule"], r.get("net")) for r in found}, {("bend_angle", "U"), ("bend_turn", "S")})  # the via lies beyond the edge
 
+    def test_a_wide_arc_in_a_bend_zone_is_a_curve_and_a_tight_one_a_turn(self):
+        def curve(net: str, radius: float) -> dict:
+            a = math.radians(10)  # up x 4, then a tangent arc 10 degrees to the left, then on along its tangent
+            end = (4 - radius + radius * math.cos(a), 42 + radius * math.sin(a))
+            return {"net": net, "layer": 1, "width": 0.1,
+                    "path": [[4, 20], [4, 42], [4 - radius, 42, -radius], [end[0], end[1]], [end[0] - 2 * math.sin(a), end[1] + 2 * math.cos(a)]]}
+
+        board = {**_flex(), "vias": [], "traces": [curve("WIDE", 5.0), curve("TIGHT", 0.3),
+                                                   {"net": "KINK", "layer": 1, "width": 0.1, "path": [[8, 20], [8, 44], [7, 50]]}]}
+        self.assertEqual({row.get("net") for row in M.flex_rules(board) if row["rule"] == "bend_turn"}, {"TIGHT", "KINK"})
+
+    def test_a_ground_line_on_an_outer_layer_stacks_and_an_inner_tie_does_not(self):
+        board = {**_flex(), "layers": 3, "vias": [],
+                 "planes": _flex()["planes"] + [{"net": "GND", "layer": 3, "hatch": "diagonal", "extents_mm": [0, 40, 20, 50]}],
+                 "traces": [{"net": "SIG", "layer": 1, "width": 0.1, "path": [[5, 20], [5, 80]]},
+                            {"net": "GND", "layer": 2, "width": 0.1, "path": [[5, 39.7], [5, 50.3]]},  # the inner plane's tie
+                            {"net": "GND", "layer": 3, "width": 0.1, "path": [[5.05, 20], [5.05, 80]]}]}  # a guard under it
+        stacked = [row for row in M.flex_rules(board) if row["rule"] == "bend_stacked"]
+        self.assertEqual([(row["net"], row["other"]) for row in stacked], [("SIG", "GND")])
+        self.assertIn("1 pairs of traces", stacked[0]["finding"])
+
+    def test_a_via_near_a_bend_zone_is_listed(self):
+        board = {**_flex(), "traces": [], "vias": [{"circle": [5, 39.5, 0.2], "net": "GND"}, {"circle": [5, 37.0, 0.2], "net": "GND"}]}
+        near = [row for row in M.flex_rules(board) if row["rule"] == "bend_via_near"]
+        self.assertEqual([row["at"] for row in near], [[5.0, 39.5]])  # half a millimetre off the zone; 3 mm off is no matter
+
     def test_what_a_bend_zone_and_the_stiffeners_forbid(self):
         found = {(row["rule"], row.get("net")) for row in M.flex_rules(_flex())}
         self.assertEqual(found, {("bend_via", "GND"), ("bend_turn", "C"), ("bend_angle", "C"), ("bend_width", "D"),

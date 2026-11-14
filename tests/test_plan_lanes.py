@@ -44,6 +44,21 @@ class OutlineTest(unittest.TestCase):
         self.assertEqual(LN.sharpened(convex, [(0.0, 0.0, 10.0, 2.0)]), convex)  # a corner of the board, not a notch
 
 
+    def test_a_sharp_corner_in_a_bend_zone_is_rounded_and_lanes_curve_about_it(self):
+        # an arm 4 mm wide going up, both edges turning 10 degrees left at y 6, inside a zone from y 3 to 9
+        s, c = math.sin(math.radians(10)), math.cos(math.radians(10))
+        ring = [((0.0, 0.0), 0.0), ((4.0, 0.0), 0.0), ((4.0, 6.0), 0.0), ((4.0 - 14 * s, 6 + 14 * c), 0.0),
+                ((-14 * s, 6 + 14 * c), 0.0), ((0.0, 6.0), 0.0)]
+        zone = [(-1.0, 3.0), (5.0, 3.0), (5.0, 9.0), (-1.0, 9.0)]
+        rounded_ring = LN.sharpened(ring, [(-1.0, 3.0, 5.0, 9.0)], [zone])
+        away = LN.BEND_ROUND_SAG_MM / (1 / math.cos(math.radians(5)) - 1)  # the left edge turns away from the board: its arc stays close
+        self.assertEqual([round(r, 6) for _p, r in rounded_ring], [0.0, 0.0, LN.BEND_ROUND_MAX_MM, 0.0, 0.0, round(away, 6)])
+        self.assertEqual(LN.sharpened(ring, [(-1.0, 3.0, 5.0, 9.0)]), ring)  # without the zones' outlines, as before
+        chain, left = LN.edge_chain(rounded_ring, ((0.0, 1.0), (-1.5, 15.0)))
+        lane = LN.offset_chain(chain, 1.0, left)
+        self.assertAlmostEqual(lane[1][1], away + 1.0)  # turning away from the board: wider by its distance
+
+
 class ExpandTest(unittest.TestCase):
     def test_a_lane_runs_parallel_to_the_edge_between_its_ends(self):
         ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
@@ -56,7 +71,7 @@ class ExpandTest(unittest.TestCase):
         ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
         lane = LN.parse([_lane(from_mm=[[5, 5], [2.0002, 8]], radius_mm=0)])[0]  # the line runs at x 2
         points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(lane, ring, "lanes[0]").points]
-        self.assertEqual(points[:3], [(5.0, 5.0), (2.0002, 8.0), (2.0, 92.0)])  # no 0.0002 mm piece onto the line
+        self.assertEqual(points[:3], [(5.0, 5.0), (2.0, 8.0), (2.0, 92.0)])  # no 0.0002 mm piece, and the lane runs on its line, not at a slant
 
     def test_a_jog_moves_the_lane_to_another_distance_part_way_at_45_degrees(self):
         ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
@@ -153,7 +168,7 @@ class ExpandTest(unittest.TestCase):
         tab = [(0.0, 0.0, 0.0), (20.0, 0.0, 0.0), (20.0, 100.0, 0.0), (0.0, 100.0, 0.0), (0.0, 58.0, 0.0), (-8.0, 58.0, 0.0),
                (-8.0, 56.0, 0.0), (0.0, 56.0, 0.0), (0.0, 0.0, 0.0)]
         trace = LN.expand(LN.parse([_lane(radius_mm=0)])[0], LN.outline_corners(tab), "lanes[0]")
-        self.assertEqual({round(x, 6) for x, y in trace.points if 9 < y < 91}, {2.0})  # straight past the 8 mm tab
+        self.assertEqual([(round(x, 6), round(y, 6)) for x, y in trace.points if 9 < y < 91], [])  # straight past the 8 mm tab, no point on the way
         chain, _left = LN.edge_chain(LN.outline_corners(_rows(0, 0, 20, 100, 1)), ((17.0, 0.0), (20.0, 3.0)))
         self.assertIn((20.0, 0.0), [(round(p[0], 6), round(p[1], 6)) for p, _r in chain])  # the rounded corner stays
         tail = [(20.0, 0.0, 0.0), (20.0, 4.0, 0.0), (-10.0, 4.0, 0.0), (-10.0, 2.0, -2.0), (-10.0, 0.0, 0.0), (20.0, 0.0, 0.0)]
@@ -166,7 +181,7 @@ class ExpandTest(unittest.TestCase):
         trace = LN.expand(lane, ring, "lanes[0]")
         radii = {(round(x, 6), round(y, 6)): round(r, 6) for (x, y), r in zip(trace.points, trace.radii, strict=True)}
         self.assertEqual(radii[(19.5, 0.5)], 1.5)  # concentric with the outline's 2 mm corner
-        self.assertAlmostEqual(radii[(17.8, 0.5)], 0.2, places=5)  # the join made smaller to fit
+        self.assertAlmostEqual(radii[(17.8, 0.5)], 0.2 - LN.FIT_MARGIN_MM, places=6)  # the join made smaller to fit, the margin short of the room
         with self.assertRaises(PlanError) as caught:  # it would join the edge inside the corner's turn
             LN.expand(LN.parse([_lane(from_mm=[[18.8, 1.0]], to_mm=[[15, 50]], edge_mm=[[5, 0], [20, 50]], offset_mm=0.5)])[0],
                       ring, "lanes[1]")

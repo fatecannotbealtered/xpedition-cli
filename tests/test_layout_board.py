@@ -643,6 +643,11 @@ class PlaneHatchTest(unittest.TestCase):
         self.assertEqual([(layer, rows[0], rows[1]) for layer, _w, rows in ties][:3],
                          [(3, [15.0, 15.0], [9.7, 14.3]), (3, [30.0, 30.0], [9.7, 14.3]), (3, [45.0, 45.0], [9.7, 14.3])])
 
+    def test_a_tie_that_turns_counts_as_one_trace_per_run_and_arc(self):
+        # Layout keeps a path's straight runs and arcs as traces of their own: the count the read-back finds
+        turned = [(0.0, -0.3, 0.0), (0.0, 1.0, 0.0), (5.0, 1.0, 5.0), (0.2, 2.5, 0.0), (0.4, 3.3, 0.0)]
+        self.assertEqual((B._segments(turned), B._segments([(0.0, 0.0, 0.0), (0.0, 4.0, 0.0)])), (3, 1))
+
     def test_bend_parts_need_bend_zones_along_one_axis(self):
         with self.assertRaises(AdapterError) as none:
             B.bend_parts([])

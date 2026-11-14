@@ -103,6 +103,12 @@ class FanoutTest(unittest.TestCase):
         self.assertIn("31 of GND", fan.loose)  # the near row's ground pins reach no via now
         self.assertEqual(fan.exits["N1"], [((1.35, NEAR_Y), 3)])
 
+    def test_beyond_puts_the_vias_outside_the_connector_without_a_keepout(self):
+        fan = FO.plan(_connector(), (2.0, 50.0), 0.2, 0.1, 0.1, 1, {"GND"}, set(), 0.1, beyond=True)
+        line = FAR_Y - 0.275 - 0.1 - 0.2
+        self.assertTrue(fan.vias and all(abs(y - line) < 1e-9 for _net, (_x, y) in fan.vias))  # none between the rows
+        self.assertIn("31 of GND", fan.loose)
+
     def test_a_connector_at_an_angle_is_fanned_out_along_its_own_rows(self):
         c, s = math.cos(math.radians(20.0)), math.sin(math.radians(20.0))
 

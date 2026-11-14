@@ -3,9 +3,11 @@
 Layout makes a plane shape's copper only where a pad, trace or via of its net on its layer touches
 the shape. A band hatched over a bend zone on an inner ground layer touches none: no via may stand
 in a bend zone and nothing else runs there, so the band stays empty while the solid shapes beside
-it are poured. A tie is a straight trace of the net across the band, square to it as bend zones
-want, reaching into the solid copper on both sides: it gives the band something to touch and joins
-it to its net.
+it are poured. A tie is a trace of the net across the band, square to each side it crosses as bend
+zones want, reaching into the solid copper on both sides: it gives the band something to touch and
+joins it to its net. It runs straight where the band's two crossed sides are parallel; where they
+lie at an angle, such as a zone over the turn of an arm, it turns from the one to the other in one
+arc too wide to count as a turn in the zone.
 
 The ties stand at a quarter, the half and three quarters of the band's length, each moved to the
 nearest spot where it clears other nets' copper on its layer, best where it does not lie straight
@@ -23,6 +25,7 @@ from .shapes import box_disc, box_polygon, inside, point_segment, segment_box, s
 
 Point = tuple[float, float]
 Box = tuple[float, float, float, float]
+Row = tuple[float, float, float]  # a tie's (x, y, r) rows as Layout draws them (``trace_plan.drawn``)
 EXTEND_MM = 0.3  # how far a tie reaches past the band into the copper beside it
 SHARES = (0.25, 0.5, 0.75)
 STEP_MM = 0.1
@@ -55,7 +58,7 @@ def _crossings(zone: Box, along_x: bool, layer: int, copper: TP.Copper) -> list[
 
 
 def ties(zone: Box, along_x: bool, net: str, layer: int, width: float, copper: TP.Copper,
-         clear: Callable[[Point, Point], bool]) -> list[tuple[Point, Point]] | None:
+         clear: Callable[[Point, Point], bool]) -> list[list[Row]] | None:
     """The ties across a band that runs along x (``along_x``) or y, or None where the band touches
     the net on its layer already and needs none. ``clear`` says whether a tie clears other nets'
     copper and keeps inside the board."""
@@ -85,8 +88,12 @@ def ties(zone: Box, along_x: bool, net: str, layer: int, width: float, copper: T
                 break
         if found:
             chosen.append(found[0])
-            out.append((found[1], found[2]))
+            out.append(_straight(found[1], found[2]))
     return out
+
+
+def _straight(a: Point, b: Point) -> list[Row]:
+    return [(a[0], a[1], 0.0), (b[0], b[1], 0.0)]
 
 
 def touches_polygon(zone: list[Point], net: str, layer: int, copper: TP.Copper) -> bool:
@@ -103,7 +110,7 @@ def touches_polygon(zone: list[Point], net: str, layer: int, copper: TP.Copper) 
 
 
 def ties_across(zone: list[Point], net: str, layer: int, width: float, copper: TP.Copper,
-                clear: Callable[[Point, Point], bool], run: Point | None = None) -> list[tuple[Point, Point]] | None:
+                clear: Callable[[Point, Point], bool], run: Point | None = None) -> list[list[Row]] | None:
     """The ties across a zone that lies at a slant, a convex polygon: each running ``run``, the way
     traces cross the zone (along the sides it shares with the board's edges), or else square to its
     long sides, at a quarter, the half and three quarters of its width, moved to the nearest spot that
@@ -142,6 +149,71 @@ def ties_across(zone: list[Point], net: str, layer: int, width: float, copper: T
             a, b = at(t, near), at(t, far)
             if clear(a, b):
                 chosen.append(t)
-                out.append((a, b))
+                out.append(_straight(a, b))
                 break
     return out
+
+
+def ties_turning(zone: list[Point], sides: tuple[tuple[Point, Point], tuple[Point, Point]], net: str, layer: int, width: float,
+                 copper: TP.Copper, clear: Callable[[Point, Point], bool]) -> list[list[Row]] | None:
+    """The ties across a zone whose two crossed ``sides``, taken in the zone's order, lie at an angle
+    to each other: each leaves the first square to it, turns in one arc and leaves the second square
+    to it, at a quarter, the half and three quarters of the way along them, moved to the nearest spot
+    that clears; None where the zone touches the net on its layer already."""
+    if touches_polygon(zone, net, layer, copper):
+        return None
+    (a1, b1), (a2, b2) = sides if _signed_area(zone) > 0 else ((sides[1][1], sides[1][0]), (sides[0][1], sides[0][0]))
+    # counter-clockwise, the sides run opposite ways around the zone: a share of the first matches one minus that share of the second
+    d1, d2 = _inward(a1, b1), _inward(a2, b2)
+    d2 = (-d2[0], -d2[1])  # leaving through the second side
+    shortest = min(math.dist(a1, b1), math.dist(a2, b2))
+    reach = 1 / 8
+    step = STEP_MM / shortest
+    chosen: list[float] = []
+    out: list[list[Row]] = []
+    for share in SHARES:
+        spots = [share] + [share + sign * k * step for k in range(1, int(math.floor(reach / step)) + 1) for sign in (1, -1)]
+        for f in spots:
+            if any(abs(f - c) * shortest < 1.0 for c in chosen):
+                continue
+            tie = _turned((a1[0] + f * (b1[0] - a1[0]), a1[1] + f * (b1[1] - a1[1])), d1,
+                          (a2[0] + (1 - f) * (b2[0] - a2[0]), a2[1] + (1 - f) * (b2[1] - a2[1])), d2)
+            if tie is None:
+                continue
+            path = TP.sampled(*tie)
+            if all(clear(p, q) for p, q in zip(path, path[1:], strict=False)):
+                chosen.append(f)
+                out.append(TP.drawn(*tie))
+                break
+    return out
+
+
+def _signed_area(polygon: list[Point]) -> float:
+    return sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(polygon, polygon[1:] + polygon[:1], strict=True)) / 2
+
+
+def _inward(a: Point, b: Point) -> Point:
+    """The unit normal of side a-b into a counter-clockwise zone."""
+    length = math.dist(a, b) or 1.0
+    return -(b[1] - a[1]) / length, (b[0] - a[0]) / length
+
+
+def _turned(start: Point, enter: Point, end: Point, leave: Point) -> tuple[list[Point], list[float]] | None:
+    """A tie entering at ``start`` along ``enter`` and leaving at ``end`` along ``leave``, each reaching
+    ``EXTEND_MM`` past its side: its corners and radii, the turn rounded with half the shorter
+    straight run as its tangent, or None where the two runs do not meet ahead of both ends."""
+    det = enter[0] * leave[1] - enter[1] * leave[0]
+    if abs(det) < 1e-9:
+        return None
+    w = (end[0] - start[0], end[1] - start[1])
+    t1 = (w[0] * leave[1] - w[1] * leave[0]) / det
+    t2 = (enter[0] * w[1] - enter[1] * w[0]) / det
+    if t1 <= 0 or t2 <= 0:
+        return None
+    corner = (start[0] + t1 * enter[0], start[1] + t1 * enter[1])
+    turn = math.acos(max(-1.0, min(1.0, enter[0] * leave[0] + enter[1] * leave[1])))
+    radius = min(t1, t2) / 2 / math.tan(turn / 2)
+    if radius < BM.BEND_ARC_MM:
+        return None
+    return ([(start[0] - EXTEND_MM * enter[0], start[1] - EXTEND_MM * enter[1]), corner,
+             (end[0] + EXTEND_MM * leave[0], end[1] + EXTEND_MM * leave[1])], [0.0, radius, 0.0])

@@ -1491,8 +1491,20 @@ def read_keys(doc: Any, path: str, targets: list[str], fields: list[str], store:
 
     sizes = {"components": 2, "planes": (3, 4), "nets": 2, "traces": (2, 3), "vias": 2, "solder-mask": 3, "cover-layer": 3,
              "mounting-holes": 2, "refdes": 2, "silkscreen-text": 3, "keepouts": 4}
+    rules = [t for t in targets if (fragment(t, path) or [None])[0] == "constraints"]
+    if rules:  # the constraints a constraint import changed, which the board keeps once it is saved
+        from .layout_rules import read_board
+
+        try:
+            found = read_board(doc, path, rules, fields)
+            observed.update(found["observed"])
+            unreadable.update(found["unreadable"])
+        except Exception:  # noqa: BLE001 - the project database cannot be read
+            unreadable.update(fields)
     for target in targets:
         parts = fragment(target, path)
+        if parts and parts[0] == "constraints":
+            continue
         reader = readers.get(parts[0]) if parts else None
         size = sizes.get(parts[0], 1) if parts else 1
         if reader is None or parts is None or len(parts) not in (size if isinstance(size, tuple) else (size,)):

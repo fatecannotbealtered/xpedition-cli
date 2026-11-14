@@ -222,7 +222,7 @@ class ConstraintImportTest(unittest.TestCase):
             ctx = context("constraint import", {"file": rules_file(folder, USB)})
             preview = LR.ConstraintImport().preview(ctx)
             facts = LR.ConstraintImport().run(ctx, Progress())
-            self.assertEqual((facts["change"], facts["persistence"]), ("applied", "saved"))
+            self.assertEqual((facts["change"], facts["persistence"]), ("applied", "unchanged"))  # Layout keeps them with the board
             self.assertEqual(facts["result"]["net_classes_created"], ["USB"])
             self.assertEqual(facts["result"]["differential_pairs_created"], ["A_N,A_P"])
             self.assertTrue(facts["result"]["loaded"])
@@ -232,6 +232,19 @@ class ConstraintImportTest(unittest.TestCase):
             targets = sorted({c["target"] for c in preview["changes"]})
             fields = sorted({c["field"] for c in preview["changes"]})
             back = LR.ConstraintImport().read_back(context("constraint import", {"file": "x"}, targets=targets, fields=fields))
+        self.assertEqual(back["unreadable"], [])
+        for change in preview["changes"]:
+            self.assertEqual(back["observed"][change["target"]][change["field"]], change["after"], change)
+
+    def test_the_save_reads_the_constraints_back_too(self) -> None:
+        # the import leaves them unsaved with the board: the next doc save lists them and reads them from the saved board
+        with Session() as session, tempfile.TemporaryDirectory() as folder:
+            ctx = context("constraint import", {"file": rules_file(folder, USB)})
+            preview = LR.ConstraintImport().preview(ctx)
+            LR.ConstraintImport().run(ctx, Progress())
+            targets = sorted({c["target"] for c in preview["changes"]})
+            fields = sorted({c["field"] for c in preview["changes"]})
+            back = L.read_keys(session.doc, BOARD, targets, fields)
         self.assertEqual(back["unreadable"], [])
         for change in preview["changes"]:
             self.assertEqual(back["observed"][change["target"]][change["field"]], change["after"], change)

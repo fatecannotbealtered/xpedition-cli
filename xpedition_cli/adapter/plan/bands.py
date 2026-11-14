@@ -94,8 +94,16 @@ def keep_side(polygon: list[Point], a: Point, b: Point, left: bool) -> list[list
 
 
 def counter_clockwise(polygon: list[Point]) -> list[Point]:
-    area = sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(polygon, polygon[1:] + polygon[:1], strict=True))
-    return polygon if area > 0 else polygon[::-1]
+    """The polygon counter-clockwise, without a point repeated, such as its first again at its end:
+    a side of no length gives no line to keep a side of."""
+    points: list[Point] = []
+    for point in polygon:
+        if not points or math.dist(points[-1], point) > 1e-9:
+            points.append(point)
+    while len(points) > 1 and math.dist(points[0], points[-1]) <= 1e-9:
+        points.pop()
+    area = sum(p[0] * q[1] - q[0] * p[1] for p, q in zip(points, points[1:] + points[:1], strict=True))
+    return points if area > 0 else points[::-1]
 
 
 def inside(polygon: list[Point], zone: list[Point]) -> list[list[Point]]:
@@ -148,9 +156,14 @@ def reaching(zone: list[Point], shape: list[Point], reach: float, near: float = 
     out = []
     for i, point in enumerate(ring):
         before, after = (i - 1) % count, i  # the sides that meet at this corner
-        if moved[before] and moved[after]:
+        if moved[before] and moved[after]:  # where the two moved sides meet: twice as far out at a square corner, as far on a straight run
             n1, n2 = normal(before), normal(after)
-            out.append((point[0] + (n1[0] + n2[0]) * reach, point[1] + (n1[1] + n2[1]) * reach))
+            dot = n1[0] * n2[0] + n1[1] * n2[1]
+            if dot < -1.0 + 1e-6:  # the two sides fold back onto each other, as in a zone drawn as a line: out along the first
+                out.append((point[0] + n1[0] * reach, point[1] + n1[1] * reach))
+                continue
+            meet = reach / (1.0 + dot)
+            out.append((point[0] + (n1[0] + n2[0]) * meet, point[1] + (n1[1] + n2[1]) * meet))
         elif moved[before] or moved[after]:
             n = normal(before if moved[before] else after)
             kept = sides[after] if moved[before] else sides[before]
@@ -167,16 +180,21 @@ def reaching(zone: list[Point], shape: list[Point], reach: float, near: float = 
     return out
 
 
+def crossed_sides(zone: list[Point], shape: list[Point], near: float = 1.0) -> list[tuple[Point, Point]]:
+    """The sides of a zone that traces cross: those inside the shape, not along its edge (the ones
+    ``reaching`` moves out), in the zone's own order."""
+    return [(a, b) for a, b in zip(zone, zone[1:] + zone[:1], strict=True)
+            if not all(_gap(p, shape) <= near for p in (a, b, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)))]
+
+
 def edge_run(zone: list[Point], shape: list[Point], near: float = 1.0) -> Point | None:
-    """The way traces cross a zone, square to the sides they cross: the sides that lie inside the
-    shape, not along its edge (those ``reaching`` moves out); None when every side runs along it."""
-    best, run = 0.0, None
-    for a, b in zip(zone, zone[1:] + zone[:1], strict=True):
-        if all(_gap(p, shape) <= near for p in (a, b, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))):
-            continue
-        if math.dist(a, b) > best:
-            best, run = math.dist(a, b), (-(b[1] - a[1]), b[0] - a[0])
-    return run
+    """The way traces cross a zone, square to the longest side they cross; None when every side
+    runs along the shape's edge."""
+    sides = crossed_sides(zone, shape, near)
+    if not sides:
+        return None
+    a, b = max(sides, key=lambda side: math.dist(*side))
+    return -(b[1] - a[1]), b[0] - a[0]
 
 
 def area(polygon: list[Point]) -> float:

@@ -519,6 +519,8 @@ def board_facts(doc: Any, path: str, full: bool = False) -> tuple[dict[str, Any]
         model = board_model(doc, full=True, status=status) if L.geometry_scale(doc) is not None else None
     else:
         model = _quietly(lambda: board_model(doc, full=False, status=status)) if status is not None else None
+    if model is not None:  # the pairs the design defines, not every two nets named like a pair, as pcb check measures them
+        model["differential_pairs"] = _quietly(lambda: defined_pairs(doc, path), None)
     scale = L.geometry_scale(doc)
     unavailable = {"available": False, "reason": UNIT_NOTE if scale is None else "The geometry could not be read."}
     blocked = _quietly(lambda: keepouts(doc, scale, geometry=True), [])
@@ -813,7 +815,10 @@ def check_board(app: Any, doc: Any, pid: int | None, path: str, output: str | No
         if model is None:
             raise AdapterError("E_UNSUPPORTED", "The board geometry could not be read, so the requirements were not measured; the board "
                                "must count in mils or mm and have an outline.", dispatch_state="not_started")
-        bends = [tuple(z["extents_mm"]) for z in board_metrics.bend_zones(model)]
+        bends = [[(float(x), float(y)) for x, y in z["polygon_mm"]] if z.get("polygon_mm") else
+                 [(z["extents_mm"][0], z["extents_mm"][1]), (z["extents_mm"][2], z["extents_mm"][1]),
+                  (z["extents_mm"][2], z["extents_mm"][3]), (z["extents_mm"][0], z["extents_mm"][3])]
+                 for z in board_metrics.bend_zones(model)]
         flagged = _quietly(lambda: with_copper(doc, [dict(row) for row in model.get("planes") or []]), [])
         model = {**model, "planes": [{**row, "generated": row.get("copper")} for row in flagged]}
         model.update(requirement_facts(doc, requirements))

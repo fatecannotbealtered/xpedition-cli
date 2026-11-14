@@ -19,10 +19,10 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-213212-component-get.json#normal",
+      "evidence": "live:docs/evidence/2026-11-14-064822-component-get.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-13-213212-component-get.json#normal",
-        "project": "live:docs/evidence/2026-11-13-213122-component-get.json#normal"
+        "board": "live:docs/evidence/2026-11-14-064822-component-get.json#normal",
+        "project": "live:docs/evidence/2026-11-14-064732-component-get.json#normal"
       }
     },
     {
@@ -48,7 +48,7 @@
         "exit": 2,
         "code": "E_USAGE"
       },
-      "evidence": "live:docs/evidence/2026-11-13-203351-component-get.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-14-054338-component-get.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -70,7 +70,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-13-203351-component-get.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-14-054338-component-get.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -88,7 +88,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-13-210453-component-get.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-14-061824-component-get.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -118,7 +118,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-13-203112-component-get.json#busy"
+      "evidence": "live:docs/evidence/2026-11-14-054102-component-get.json#busy"
     },
     {
       "row": "dialog",
@@ -138,7 +138,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-203528-component-get.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-14-054516-component-get.json#dialog"
     },
     {
       "row": "disconnect",
@@ -176,7 +176,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-202630-component-get.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-14-053608-component-get.json#unsaved"
     },
     {
       "row": "read_back_mismatch",

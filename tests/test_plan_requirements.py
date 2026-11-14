@@ -110,6 +110,13 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(row["no_room"]["count"], 1)
         self.assertEqual((row["no_room"]["length_mm"], row["no_room"]["share_pct"]), (6.0, 60.0))  # 6 of the line's 10 mm
         self.assertEqual((row["no_room"]["without_via"], row["no_room"]["without_via_mm"]), (0, 0.0))
+        part_way = GD.Obstacles(TP.Copper(layer_count=2), TP.Plan(traces=[TP.Trace("A", 1, 0.1, [(1.25, 5.5), (1.25, 8.5)]),
+                                                                         TP.Trace("B", 1, 0.1, [(0.75, 5.5), (0.75, 8.5)])],
+                                                                 vias=[TP.Via("GND", (1.0, y), "V", 0.2) for y in (1, 3, 5)]), RULES)
+        row = RQ.measure(model, requirement, [], part_way)[0]
+        self.assertFalse(row["ok"])  # no room for 3.5 mm past the last via, then room again: the spot further on is named
+        self.assertTrue(row["worst"][0]["vias_fit_at_mm"])
+        self.assertGreater(row["worst"][0]["vias_fit_at_mm"][0][1], 8.5)
         hemmed = GD.Obstacles(TP.Copper(layer_count=2), TP.Plan(traces=[TP.Trace("A", 1, 0.1, [(1.25, 0.0), (1.25, 12.0)]),
                                                                        TP.Trace("B", 1, 0.1, [(0.75, 0.0), (0.75, 12.0)])]), RULES)
         bare = RQ.measure({"traces": model["traces"], "vias": []}, requirement, [], hemmed)[0]
@@ -138,7 +145,7 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(len(GD.contacts(back, [0.2, 0.2], (8.0, 0.28), 0.2)), 1)
 
     def test_plane_on_each_layer_and_hatched_over_the_bends(self):
-        bend = (0.0, 10.0, 10.0, 12.0)
+        bend = [(0.0, 10.0), (10.0, 10.0), (10.0, 12.0), (0.0, 12.0)]
         planes = [{"net": "GND", "layer": 1, "hatch": "solid", "extents_mm": [0, 0, 10, 10]},
                   {"net": "GND", "layer": 1, "hatch": "diagonal", "extents_mm": [0, 10, 10, 12]},
                   {"net": "GND", "layer": 2, "hatch": "solid", "extents_mm": [0, 0, 10, 40]}]
@@ -155,8 +162,21 @@ class MeasureTest(unittest.TestCase):
         hatched = [{"net": "GND", "layer": 1, "hatch": "diagonal", "extents_mm": [0, 10, 5, 12]},
                    {"net": "GND", "layer": 1, "hatch": "diagonal", "extents_mm": [5, 10, 10, 12]}]  # a band cut in two
         row = RQ.measure({"planes": hatched}, parsed({"kind": "plane", "net": "GND", "layers": [1], "hatched_in_bends": True}),
-                         [(0.0, 10.0, 10.0, 12.0)])[0]
+                         [[(0.0, 10.0), (10.0, 10.0), (10.0, 12.0), (0.0, 12.0)]])[0]
         self.assertTrue(row["ok"])
+        # a zone at a slant: the solid head beside it overlaps its band, not its own outline
+        slanted = [(0.0, 10.0), (10.0, 10.0), (10.0, 11.0), (0.0, 14.0)]
+        head = {"net": "GND", "layer": 1, "hatch": "solid", "extents_mm": [0, 11, 10, 20],
+                "shape": {"path": [[10, 11, 0], [10, 20, 0], [0, 20, 0], [0, 14, 0], [10, 11, 0]]}}
+        band = {"net": "GND", "layer": 1, "hatch": "diagonal", "extents_mm": [0, 10, 10, 14],
+                "shape": {"path": [[0, 10, 0], [10, 10, 0], [10, 11, 0], [0, 14, 0], [0, 10, 0]]}}
+        row = RQ.measure({"planes": [head, band]}, parsed({"kind": "plane", "net": "GND", "layers": [1], "hatched_in_bends": True}),
+                         [slanted])[0]
+        self.assertTrue(row["ok"], row["worst"])
+        solid = {**head, "shape": {"path": [[10, 10.5, 0], [10, 20, 0], [0, 20, 0], [0, 12, 0], [10, 10.5, 0]]}}  # reaching into it
+        row = RQ.measure({"planes": [solid, band]}, parsed({"kind": "plane", "net": "GND", "layers": [1], "hatched_in_bends": True}),
+                         [slanted])[0]
+        self.assertEqual([r["problem"] for r in row["worst"]], ["solid copper over the bend zone"])
         row = RQ.measure({"traces": [trace("GND", [(0, 0), (0, 9)])]}, parsed({"kind": "via_pitch", "net": "GND", "max_mm": 2}), [])[0]
         self.assertIsNone(row["ok"])
         self.assertIn("not known", row["reason"])

@@ -219,12 +219,20 @@ class ViaCreateTest(unittest.TestCase):
 
     def test_a_via_in_a_bend_zone_is_refused(self):
         outline = [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)]
-        flex = ST.Board(outline=outline, planes={2: [outline], 3: [outline]}, bends=[(4.0, 0.0, 6.0, 5.0)])
+        flex = ST.Board(outline=outline, planes={2: [outline], 3: [outline]}, bends=[[(4.0, 0.0), (6.0, 0.0), (6.0, 5.0), (4.0, 5.0)]])
         with world(FakeApp(self.doc)), mock.patch.object(E, "_stitch_board", lambda doc, net: flex):
             blocked = E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 5.0, "y_mm": 1.0}))
             grid = E.ViaCreate().preview(context("via create", {"net": "GND", "pitch_mm": 1.0}))
         self.assertIn("in a bend zone", blocked["blocked_by"][0])
         self.assertIn("in a bend zone", grid["action"])
+
+    def test_a_via_asked_for_beside_a_bend_zone_stands(self):
+        # the tool's own vias keep 1 mm from a bend zone; one asked for at a place only stays out of it
+        outline = [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)]
+        flex = ST.Board(outline=outline, planes={2: [outline], 3: [outline]}, bends=[[(4.0, 0.0), (6.0, 0.0), (6.0, 5.0), (4.0, 5.0)]])
+        with world(FakeApp(self.doc)), mock.patch.object(E, "_stitch_board", lambda doc, net: flex):
+            beside = E.ViaCreate().preview(context("via create", {"net": "GND", "x_mm": 3.5, "y_mm": 1.0}))
+        self.assertFalse(beside.get("blocked_by"))
 
     def test_one_via_and_one_that_cannot_stand(self):
         with world(FakeApp(self.doc)):
@@ -667,6 +675,20 @@ class TraceCreateTest(unittest.TestCase):
         self.assertEqual((lane["from"], lane["layer"]), ("lanes[1]", 3))  # each line with its plan entry and points
         self.assertEqual(lane["points_mm"][0], [20.4, 20.0])
         self.assertEqual([v["from"] for v in written["vias"]][:2], ["vias[0]", "vias[1]"])
+
+    def test_a_lane_with_a_neck_widens_only_itself_not_the_other_lanes_of_its_net(self):
+        plan = {"vias": [{"net": "GND", "at_mm": at, "padstack": "VIA_D0.2_P0.4"} for at in ([20, 20], [30, 20], [24, 25], [26, 25])],
+                "lanes": [{"net": "GND", "layer": 3, "width_mm": 0.3, "neck_width_mm": 0.1, "from_mm": [[20, 20]], "to_mm": [[30, 20]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 5},
+                          {"net": "GND", "layer": 3, "width_mm": 0.1, "from_mm": [[24, 25]], "to_mm": [[26, 25]],
+                           "edge_mm": [[2, 40], [48, 40]], "offset_mm": 6}]}
+        out = Path(self.plan_file(plan)).with_name("necks.json")
+        with world(FakeApp(self.doc)), mock.patch.object(E.L, "find_net",
+                                                         lambda doc, name: SimpleNamespace(Name=name, NumberOfOpens=0, IsRouted=True)):
+            E.TraceCheck().read(context("trace check", {"file": self.plan_file(plan), "output": str(out)}))
+        written = json.loads(out.read_text(encoding="utf-8"))["plan"]["traces"]
+        self.assertEqual({t["width_mm"] for t in written if t["from"] == "lanes[1]"}, {0.1})  # the narrow lane of the net stays narrow
+        self.assertEqual({t["width_mm"] for t in written if t["from"] == "lanes[0]"}, {0.3})  # the neck as wide as its lane where it clears
 
     def test_a_guard_end_with_no_via_of_its_own_joins_a_ground_via_nearby(self):
         plan = {"vias": [{"net": "A", "at_mm": [20, 20], "padstack": "VIA_D0.2_P0.4"},

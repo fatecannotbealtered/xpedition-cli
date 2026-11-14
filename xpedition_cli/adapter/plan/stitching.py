@@ -5,8 +5,9 @@ net has a plane shape on at least two layers. A grid point without room moves to
 spot within half the pitch, so a board crossed by traces still gets a via wherever there is room. It must keep the rules' clearances: to
 every pad (Layout refuses a via close to a pad of its own net too), to the traces of other nets,
 to every via and hole, out of every keepout of vias on any layer, ``CUTOUT_CLEARANCE_MM`` to every cutout (an internal contour, such as a
-slot for a screw), and the margin to the board outline. On a flex board no via stands in a bend
-zone, where bending would crack it. The adapter reads the board into the
+slot for a screw), and the margin to the board outline. No via stands under a part's placement
+outline, which Layout's DRC reports as a via under a part, and on a flex board none stands in a bend
+zone, where bending would crack it, or within ``BEND_VIA_MARGIN_MM`` of one. The adapter reads the board into the
 shapes below, in mm; this module only does the geometry.
 """
 from __future__ import annotations
@@ -16,6 +17,7 @@ from dataclasses import dataclass, field
 
 from . import PlanError
 from .shapes import flatten, inside, point_segment
+from .board_metrics import BEND_VIA_MARGIN_MM
 
 Point = tuple[float, float]
 MAX_POINTS = 2000  # a grid this dense is a pitch mistake
@@ -34,7 +36,8 @@ class Board:
     holes: list[tuple[float, float, float]] = field(default_factory=list)  # (x, y, diameter)
     planes: dict[int, list[list[Point]]] = field(default_factory=dict)  # the net's plane shapes by layer
     cutouts: list[list[Point]] = field(default_factory=list)  # internal contours: slots and cutouts
-    bends: list[tuple[float, float, float, float]] = field(default_factory=list)  # a flex board's bend zones, which take no vias
+    bends: list[list[Point]] = field(default_factory=list)  # a flex board's bend zones, each its own outline, which take no vias
+    bodies: list[list[Point]] = field(default_factory=list)  # the parts' placement outlines, which take no stitching via
     keepouts: list[list[Point]] = field(default_factory=list)  # keepouts of vias on any layer, which a via passes through
     boxes: list[tuple[float, float, float, float]] = field(default_factory=list)  # each trace's extents, filled by ``free``
 
@@ -100,15 +103,18 @@ def grid(outline: list[Point], pitch: float, margin: float, region: tuple[float 
     return [p for p in points if inside(p, outline) and edge_distance(p, outline) >= margin - 1e-9]
 
 
-def in_bend(point: Point, radius: float, bends: list[tuple[float, float, float, float]]) -> bool:
-    """Whether a via of ``radius`` at ``point`` reaches into a bend zone."""
-    return any(x0 - radius < point[0] < x1 + radius and y0 - radius < point[1] < y1 + radius for x0, y0, x1, y1 in bends)
+def reaches(point: Point, radius: float, shapes: list[list[Point]]) -> bool:
+    """Whether a via of ``radius`` at ``point`` reaches into one of the shapes, such as a bend zone."""
+    return any(inside(point, shape) or distance_to_polygon(point, shape) < radius - 1e-9 for shape in shapes if len(shape) >= 3)
 
 
-def free(point: Point, net: str, radius: float, board: Board, clear: Clearances) -> str | None:
-    """Why a via of ``radius`` cannot stand at ``point``, or None when it can."""
-    if in_bend(point, radius, board.bends):
+def free(point: Point, net: str, radius: float, board: Board, clear: Clearances, bend_margin: float = BEND_VIA_MARGIN_MM) -> str | None:
+    """Why a via of ``radius`` cannot stand at ``point``, or None when it can. The tool's own vias
+    keep ``bend_margin`` from a bend zone; one asked for at a place, none."""
+    if reaches(point, radius + bend_margin, board.bends):
         return "in a bend zone"
+    if reaches(point, radius, board.bodies):
+        return "under a part"
     if any(distance_to_polygon(point, keepout) < radius - 1e-9 for keepout in board.keepouts if len(keepout) >= 3):
         return "in a via keepout"
     for pad in board.pads:

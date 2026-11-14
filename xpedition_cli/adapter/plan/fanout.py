@@ -16,7 +16,8 @@ fanned out in its own frame, its rows along x, and the result turned back.
 
 Keepouts count: where a keepout of vias, or one of traces on the pad layer, closes the gap
 between the rows (a connector whose mating part covers it, say), the far row's vias stand in one
-line beyond the far row instead, each run's via moved along the line as little as the vias'
+line beyond the far row instead, outside the connector's body, as they do when asked (``beyond``,
+where no via may stand under the connector), each run's via moved along the line as little as the vias'
 spacing allows, and a stub leaves the pad outwards to it. The near row's pins of a plane net then
 reach no via; they are listed as loose.
 
@@ -120,7 +121,7 @@ def _turned(point: Point, cos: float, sin: float) -> Point:
 def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via_to_via: float, layer: int,
          plane_nets: set[str], skip: set[str], stub_width: float, give_way: set[str] | None = None,
          only: set[str] | None = None, lift: dict[str, int] | None = None,
-         keepouts: list[tuple[str, list[Point]]] | None = None) -> Fanout:
+         keepouts: list[tuple[str, list[Point]]] | None = None, beyond: bool = False) -> Fanout:
     """The fan-out of one connector towards ``body``, its far row changing to ``layer``. The pins of
     a net in ``skip`` are left to the caller: no via, no join pin to pin; with ``only``, so are those
     of every net neither in it nor a plane net. A far pin of a net in ``give_way`` gets no via where
@@ -128,11 +129,12 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
     in ``lift`` whose layer there is not the pads' changes to it through a via past the near row.
     A connector at an angle is fanned out in its own frame and the result turned back. ``keepouts``
     are ("via", polygon) for a keepout of vias on any layer and ("trace", polygon) for one of traces
-    on the pads' layer."""
+    on the pads' layer. With ``beyond`` the far row's vias stand beyond it, outside the connector's
+    body, as a keepout between the rows makes them."""
     angle = row_angle(pins)
     if angle == 0.0:
         return _plan(pins, body, via_radius, via_to_pad, via_to_via, layer, plane_nets, skip, stub_width, give_way, only, lift,
-                     keepouts)
+                     keepouts, beyond)
     back, there = (math.cos(angle), math.sin(angle)), (math.cos(-angle), math.sin(-angle))
     local = []
     for pin in pins:
@@ -143,7 +145,7 @@ def plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via
         local.append(Pin(pin.number, pin.net, _turned(pin.at, *there), box, pin.layer, corners))
     turned_keepouts = [(kind, [_turned(q, *there) for q in poly]) for kind, poly in keepouts or []]
     out = _plan(local, _turned(body, *there), via_radius, via_to_pad, via_to_via, layer, plane_nets, skip, stub_width, give_way,
-                only, lift, turned_keepouts)
+                only, lift, turned_keepouts, beyond)
     out.traces = [(net, lay, width, [_turned(q, *back) for q in points]) for net, lay, width, points in out.traces]
     out.vias = [(net, _turned(at, *back)) for net, at in out.vias]
     out.exits = {net: [(_turned(at, *back), lay) for at, lay in spots] for net, spots in out.exits.items()}
@@ -206,7 +208,7 @@ def _spread(ideal: list[float], need: float) -> list[float]:
 def _plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, via_to_via: float, layer: int,
           plane_nets: set[str], skip: set[str], stub_width: float, give_way: set[str] | None = None,
           only: set[str] | None = None, lift: dict[str, int] | None = None,
-          keepouts: list[tuple[str, list[Point]]] | None = None) -> Fanout:
+          keepouts: list[tuple[str, list[Point]]] | None = None, beyond: bool = False) -> Fanout:
     """The fan-out of a connector whose rows run along x or y."""
     give_way = give_way or set()
     lift = lift or {}
@@ -252,7 +254,7 @@ def _plan(pins: list[Pin], body: Point, via_radius: float, via_to_pad: float, vi
             runs[-1].append(index)
         else:
             runs.append([index])
-    closed = any(_blocked([spot(i, far[i].at[along])], via_radius, via_keepouts)
+    closed = beyond or any(_blocked([spot(i, far[i].at[along])], via_radius, via_keepouts)
                  or _blocked([far[i].at, spot(i, far[i].at[along])], stub_width / 2, trace_keepouts)
                  for i, pin in enumerate(far) if not no_connect(pin.net) and pin.net not in skip)
     if closed:

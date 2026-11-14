@@ -1,6 +1,6 @@
 {
   "tool": "xpedition-cli",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "commands": [
     {
       "path": "project get",
@@ -1743,7 +1743,7 @@
         {
           "name": "--file",
           "type": "path",
-          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, lanes, traces that follow an edge of the board outline at offset_mm, fanouts, two-row connectors whose far row the tool takes through vias between the rows, guards, ground traces beside lanes, and rings, ground traces round the outline, both with vias along them, in board coordinates.",
+          "summary": "The routing plan (JSON): traces with net, layer, width_mm and points_mm, vias with net, at_mm and padstack, lanes, traces that follow an edge of the board outline at offset_mm, fanouts, two-row connectors whose far row the tool takes through vias between the rows or beyond the far row, guards, ground traces beside lanes, and rings, ground traces round the outline, both with vias along them, in board coordinates.",
           "required": true
         },
         {
@@ -2065,7 +2065,7 @@
         {
           "name": "--pitch",
           "type": "quantity",
-          "summary": "The stitching grid's pitch, such as 2mm.",
+          "summary": "The stitching grid's pitch, such as 2mm; no grid via stands under a part or in a bend zone.",
           "quantity": "length"
         },
         {

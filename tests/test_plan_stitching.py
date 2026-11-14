@@ -38,10 +38,21 @@ class GridTest(unittest.TestCase):
 
 class StitchTest(unittest.TestCase):
     def test_no_via_stands_in_a_bend_zone(self):
-        plan = S.stitch("GND", 0.2, board(bends=[(3.0, 0.0, 5.0, 5.0)]), CLEAR, 1.0, 0.0)
+        plan = S.stitch("GND", 0.2, board(bends=[[(3.0, 0.0), (5.0, 0.0), (5.0, 5.0), (3.0, 5.0)]]), CLEAR, 1.0, 0.0)
         self.assertTrue(plan.points)
         self.assertTrue(all(not 2.8 < x < 5.2 for x, _y in plan.points))  # the zone and the via's radius beside it
         self.assertGreater(plan.dropped.get("in a bend zone", 0), 0)
+        slanted = [(3.0, 0.0), (5.0, 0.0), (7.0, 5.0), (5.0, 5.0)]  # a zone at a slant: its own outline keeps them out, not its band
+        plan = S.stitch("GND", 0.2, board(bends=[slanted]), CLEAR, 1.0, 0.0)
+        self.assertTrue(plan.points)
+        self.assertFalse([p for p in plan.points if S.reaches(p, 0.2, [slanted])])
+
+    def test_no_stitching_via_stands_under_a_part(self):
+        body = [(2.0, 1.0), (6.0, 1.0), (6.0, 3.0), (2.0, 3.0)]  # a connector's placement outline
+        plan = S.stitch("GND", 0.2, board(bodies=[body]), CLEAR, 1.0, 0.0)
+        self.assertTrue(plan.points)
+        self.assertFalse([p for p in plan.points if S.reaches(p, 0.2, [body])])
+        self.assertGreater(plan.dropped.get("under a part", 0), 0)
 
     def test_no_via_stands_in_a_keepout_of_vias(self):
         keepout = [(6.0, 0.0), (10.0, 0.0), (10.0, 5.0), (6.0, 5.0)]
@@ -51,6 +62,12 @@ class StitchTest(unittest.TestCase):
         plan = S.stitch("GND", 0.2, b, CLEAR, 1.0, 0.0)
         self.assertTrue(plan.points)
         self.assertTrue(all(x <= 6.0 - 0.2 + 1e-9 for x, _y in plan.points))
+
+    def test_the_margin_from_a_bend_zone_is_the_tools_own(self):
+        b = board(bends=[[(3.0, 0.0), (5.0, 0.0), (5.0, 5.0), (3.0, 5.0)]])
+        self.assertEqual(S.free((2.5, 2.5), "GND", 0.2, b, CLEAR), "in a bend zone")  # within the margin the tool keeps
+        self.assertIsNone(S.free((2.5, 2.5), "GND", 0.2, b, CLEAR, bend_margin=0.0))  # outside the zone itself
+        self.assertEqual(S.free((2.9, 2.5), "GND", 0.2, b, CLEAR, bend_margin=0.0), "in a bend zone")
 
     def test_points_keep_clear_of_pads_other_traces_vias_and_holes(self):
         b = board(pads=[S.polygon(circle=[5.0, 2.5, 0.3])], traces=[([(0.0, 1.0), (10.0, 1.0)], 0.1, "SIG"),

@@ -66,6 +66,8 @@ SUMMARY_KEYS = (
 PAIR_ENDS = (("P", ("N", "M")), ("+", ("-",)))  # the last character of a pair's first net, and of its second by preference
 SKEW_LIMIT_MM = 0.127  # 5 mil between a pair's two lengths
 SQUARE_TOLERANCE = 5.0  # degrees a trace may cross a bend zone off square
+BEND_VIA_MARGIN_MM = 1.0  # a via nearer a bend zone than this is listed: folding strains the board most next to it
+BEND_ARC_MM = 1.0  # an arc this wide or wider, met by its runs along its tangents, is a curve a bend zone takes, not a turn
 INSIDE_EPSILON = 0.01  # mm a point lies inside a zone's edge to count as in it
 EDGE_APART_MM = 1000.0  # crossings of a bend zone's different edges are kept this far apart when compared
 POUR_ROOM_MM = 0.15  # another net's copper this close to a spot leaves a pour no copper there: its clearance and a sliver
@@ -862,6 +864,9 @@ def bend_zones(model: dict[str, Any]) -> list[dict[str, Any]]:
         zones.append((box, along_x, named, polygon))
     out = []
     for box, along_x, named, polygon in sorted(zones, key=lambda z: z[0]):
+        if polygon:  # the band cut at the zone's middle may not hold the whole outline of a zone at a slant
+            box = (min(box[0], *(q[0] for q in polygon)), min(box[1], *(q[1] for q in polygon)),
+                   max(box[2], *(q[0] for q in polygon)), max(box[3], *(q[1] for q in polygon)))
         row: dict[str, Any] = {"extents_mm": [round(v, 3) for v in box], "along": "x" if along_x else "y", "marked_by": sorted(named)}
         if polygon:
             row["polygon_mm"] = [[round(x, 3), round(y, 3)] for x, y in polygon]
@@ -972,11 +977,40 @@ def _clipped(a: Point, b: Point, zone: Rect) -> tuple[Point, Point] | None:
     return (a[0] + dx * t0, a[1] + dy * t0), (a[0] + dx * t1, a[1] + dy * t1)
 
 
-def _turn(before: Point, vertex: Point, after: Point) -> float:
-    """How many degrees a path turns at a vertex; 0 when it runs straight on."""
-    first = math.atan2(vertex[1] - before[1], vertex[0] - before[0])
-    second = math.atan2(after[1] - vertex[1], after[0] - vertex[0])
-    return abs(math.degrees((second - first + math.pi) % (2 * math.pi) - math.pi))
+def _path_turns(trace: dict[str, Any]) -> list[tuple[Point, float]]:
+    """Where a trace turns and by how many degrees: each corner where two of its runs meet off their
+    tangents, and the middle of each arc narrower than ``BEND_ARC_MM``. An arc at least that wide,
+    joined along its tangents, curves without turning anywhere."""
+    rows = [(float(r[0]), float(r[1]), float(r[2]) if len(r) > 2 else 0.0) for r in trace.get("path") or []]
+    pieces: list[tuple[Point, Point, Point, Point]] = []  # start, end, direction leaving the start, direction reaching the end
+    turns: list[tuple[Point, float]] = []
+    i = 0
+    while i < len(rows) - 1:
+        a = (rows[i][0], rows[i][1])
+        if i + 2 < len(rows) and rows[i + 1][2]:
+            (cx, cy, r), b = rows[i + 1], (rows[i + 2][0], rows[i + 2][1])
+            sign = -1.0 if r > 0 else 1.0  # a positive radius runs clockwise
+            radius = math.hypot(a[0] - cx, a[1] - cy)
+            if radius > 1e-9:
+                pieces.append((a, b, (-sign * (a[1] - cy) / radius, sign * (a[0] - cx) / radius),
+                               (-sign * (b[1] - cy) / radius, sign * (b[0] - cx) / radius)))
+                sweep = math.degrees(math.acos(max(-1.0, min(1.0, ((a[0] - cx) * (b[0] - cx) + (a[1] - cy) * (b[1] - cy)) / radius ** 2))))
+                if radius < BEND_ARC_MM and sweep > ACUTE_TOLERANCE:
+                    mid = math.atan2(a[1] - cy + b[1] - cy, a[0] - cx + b[0] - cx)
+                    turns.append(((cx + radius * math.cos(mid), cy + radius * math.sin(mid)), sweep))
+            i += 2
+            continue
+        b = (rows[i + 1][0], rows[i + 1][1])
+        length = math.dist(a, b)
+        if length > 1e-9:
+            u = ((b[0] - a[0]) / length, (b[1] - a[1]) / length)
+            pieces.append((a, b, u, u))
+        i += 1
+    for (_a, at, _u, reach), (_b, _c, leave, _v) in zip(pieces, pieces[1:], strict=False):
+        degrees = math.degrees(math.acos(max(-1.0, min(1.0, reach[0] * leave[0] + reach[1] * leave[1]))))
+        if degrees > ACUTE_TOLERANCE:
+            turns.append((at, degrees))
+    return turns
 
 
 def _via_at(via: dict[str, Any]) -> Point:
@@ -1005,15 +1039,19 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
             if _in_zone(at, (zone, shapes[zone]), 0.0):
                 findings.append(_rule("bend_via", "high", f"via at {_at(at)} in the bend zone {_zone_text(zone)}, which takes no vias",
                                       net=via.get("net"), at=list(at)))
+            elif _zone_gap(at, zone, shapes[zone]) < BEND_VIA_MARGIN_MM:
+                findings.append(_rule("bend_via_near", "low", f"via at {_at(at)} within {BEND_VIA_MARGIN_MM:g} mm of the bend zone "
+                                      f"{_zone_text(zone)}, where folding strains the board most next to it", net=via.get("net"),
+                                      at=list(at)))
     crossing: dict[Rect, list[tuple[int, str, float, float]]] = {zone: [] for zone in zones}
     ends: dict[tuple[Rect, str, int, Point], set[float]] = {}
     turns: dict[tuple[Rect, str, int], Point] = {}
     angles: dict[tuple[Rect, str, int], float] = {}
     for trace in model.get("traces") or []:
-        points = _trace_points(trace)
+        points, path_turns = _trace_points(trace), _path_turns(trace)
         net, layer, width = str(trace.get("net") or ""), int(trace.get("layer") or 0), float(trace.get("width") or 0.0)
         for zone in zones:
-            turned, off = _crossing(points, net, layer, width, zone, along[zone], crossing[zone], shapes[zone])
+            turned, off = _crossing(points, path_turns, net, layer, width, zone, along[zone], crossing[zone], shapes[zone])
             if turned is not None:
                 turns.setdefault((zone, net, layer), turned)
             if off > SQUARE_TOLERANCE:
@@ -1033,8 +1071,10 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
             findings.append(_rule("bend_width", "medium", f"trace width changes, {text} mm, at {_at(at)} on layer {layer} inside the "
                                   f"bend zone {_zone_text(zone)}", net=net, at=list(at)))
     for zone, rows in crossing.items():
-        meshed = _meshed(model, zone)  # a trace of a net hatched over the zone on its layer is part of that mesh
-        rows = [row for row in rows if (row[1], row[0]) not in meshed]
+        # a trace of a net hatched over the zone on an inner layer, such as a plane's tie, is part of that mesh near the
+        # middle of the stack; on an outer layer a ground line is a conductor like any other
+        meshed, outer = _meshed(model, zone), {1, int(model.get("layers") or 2)}
+        rows = [row for row in rows if (row[1], row[0]) not in meshed or row[0] in outer]
         stacked = sorted({(la, na, lb, nb) for (la, na, ca, wa), (lb, nb, cb, wb) in combinations(sorted(rows), 2)
                           if la != lb and abs(ca - cb) < (wa + wb) / 2})
         if stacked:
@@ -1053,6 +1093,14 @@ def flex_rules(model: dict[str, Any]) -> list[dict[str, Any]]:
     return findings
 
 
+def _zone_gap(point: Point, zone: Rect, polygon: list[Point] | None) -> float:
+    """How far a point outside a bend zone lies from it: from its own outline, else its band."""
+    if polygon is None:
+        dx, dy = max(zone[0] - point[0], 0.0, point[0] - zone[2]), max(zone[1] - point[1], 0.0, point[1] - zone[3])
+        return math.hypot(dx, dy)
+    return min(_point_segment(point, polygon[i], polygon[(i + 1) % len(polygon)]) for i in range(len(polygon)))
+
+
 def _meshed(model: dict[str, Any], zone: Rect) -> set[tuple[str, int]]:
     """The nets and layers whose hatched plane shapes cover the bend zone."""
     area = max((zone[2] - zone[0]) * (zone[3] - zone[1]), 1e-9)
@@ -1066,14 +1114,14 @@ def _meshed(model: dict[str, Any], zone: Rect) -> set[tuple[str, int]]:
     return {key for key, value in covered.items() if value >= 0.9 * area}
 
 
-def _crossing(points: list[Point], net: str, layer: int, width: float, zone: Rect, along_x: bool,
+def _crossing(points: list[Point], turns: list[tuple[Point, float]], net: str, layer: int, width: float, zone: Rect, along_x: bool,
               rows: list[tuple[int, str, float, float]], polygon: list[Point] | None = None) -> tuple[Point | None, float]:
     """Where one trace first turns inside one bend zone, or None, and how many degrees off square
     it runs across it at most; each square run is added to ``rows`` as (layer, net, where it
     crosses, width). A band that runs along x is crossed in y. A zone with its own outline is
-    crossed square to the edge the trace passes through, which may lie at an angle."""
-    turned = next((v for b, v, a in zip(points, points[1:], points[2:], strict=False)
-                   if _in_zone(v, (zone, polygon)) and _turn(b, v, a) > ACUTE_TOLERANCE), None)
+    crossed square to the edge the trace passes through, which may lie at an angle. ``turns`` are
+    the trace's turns (``_path_turns``)."""
+    turned = next((at for at, degrees in turns if _in_zone(at, (zone, polygon)) and degrees > ACUTE_TOLERANCE), None)
     if polygon is not None:
         off = 0.0
         for a, b in zip(points, points[1:], strict=False):

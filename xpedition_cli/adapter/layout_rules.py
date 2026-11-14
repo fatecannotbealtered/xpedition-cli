@@ -3,9 +3,10 @@
 Layout's own automation reads the rules but cannot change them. Constraint Manager's automation
 server ``ConstraintsAuto``, an in-process COM server, loads the board's side of the project's
 constraints (``DesignContext`` 2, the layout context), changes them, and writes them into the
-project database when it unloads, before any ``doc save``. ``ProjectIntegration.LoadCES`` then
-makes Layout load them (Layout Automation Reference, Project Integration). So an import reports
-``persistence: saved`` and is not one of the board's unsaved changes (DCLI-058).
+project database when it unloads. ``ProjectIntegration.LoadCES`` then makes Layout load them
+(Layout Automation Reference, Project Integration). Layout keeps them with the board, though:
+closing it unsaved takes them back. So an import reports ``persistence: unchanged``, is one of the
+board's unsaved changes, and ``doc save`` reads its keys back from the saved board (DCLI-058).
 
 The board's side alone is changed: the schematic's side keeps its rules, and a later
 ``SynchCES`` carries over only what changed on the schematic's side. An import is refused while
@@ -321,7 +322,8 @@ class ConstraintImport(base.Handler):
         counts = (f"{len(plan.new_classes)} new net classes, {len(plan.moves)} nets moved, {len(plan.new_pairs)} new differential "
                   f"pairs, {len(plan.new_rules)} new clearance rules, {len(plan.changes)} changes in all")
         return base.preview(f"Change the board's side of the constraints as the rules file says ({counts}), write them into the "
-                            "project database, then load them into Layout. The schematic's side keeps its rules.",
+                            "project database, then load them into Layout. They last once the board is saved (doc save): closing it "
+                            "unsaved takes them back. The schematic's side keeps its rules.",
                             target, _changes(path, plan, state), blocked_by=plan.blocked or None)
 
     def run(self, ctx: Context, progress: Any) -> dict[str, Any]:
@@ -347,7 +349,8 @@ class ConstraintImport(base.Handler):
                 loaded = load_into_layout(doc)
             except Exception as exc:  # noqa: BLE001 - the rules are written; Layout did not load them
                 return {**L.failed_step(exc, "loading the constraints into Layout", done), "persistence": "saved"}
-            return base.facts("applied", "saved", result={
+            # written into the project database, but Layout holds them with the board: closing it unsaved takes them back
+            return base.facts("applied", "unchanged", result={
                 "changes": len(plan.changes), "net_classes_created": plan.new_classes, "nets_moved": len(plan.moves),
                 "differential_pairs_created": [R.pair_name(p) for p in plan.new_pairs],
                 "clearance_rules_created": plan.new_rules, "loaded": bool(loaded)})
@@ -358,15 +361,18 @@ class ConstraintImport(base.Handler):
         path = ctx.document_path()
         targets = list(ctx.request.get("targets") or [])
         fields = list(ctx.request.get("fields") or [])
-        prj, design_name = board_project(path)
+        return L.in_layout(ctx, lambda app, doc: read_board(doc, path, targets, fields), budget_s=L.READ_BUDGET_S,
+                           what="reading the constraints back")
 
-        def work(app: Any, doc: Any) -> dict[str, Any]:
-            state = load_state(doc)
-            with ces_design(prj, design_name) as design:
-                current = read_current(design, _layer_count(doc))
-            return read_keys(current, state, path, targets, fields)
 
-        return L.in_layout(ctx, work, budget_s=L.READ_BUDGET_S, what="reading the constraints back")
+def read_board(doc: Any, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:
+    """The fields of the constraint target keys on an open board, as the import's read-back and the
+    save's read them: from the project database and Layout's load state."""
+    prj, design_name = board_project(path)
+    state = load_state(doc)
+    with ces_design(prj, design_name) as design:
+        current = read_current(design, _layer_count(doc))
+    return read_keys(current, state, path, targets, fields)
 
 
 def read_keys(current: R.Current, state: str, path: str, targets: list[str], fields: list[str]) -> dict[str, Any]:

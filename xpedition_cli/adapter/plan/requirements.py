@@ -42,10 +42,12 @@ from typing import Any
 from . import PlanError, board_metrics
 from . import guards as GD
 from . import lanes as LN
+from .shapes import flatten, inside, point_segment
 
 LISTED = 3  # the worst places each result lists; the counts are whole
 GUARD_SHORT_MM = 2.0  # a guarded net's stretch on a layer shorter than this, such as a stub at a connector, is left out
 STEP_MM = 0.1  # a line is measured in pieces this long
+PITCH_SHORT_MM = 0.01  # a via named for a gap stands this much short of the pitch, so the gaps it leaves measure within it
 ROOM_MM = 0.04  # a via counts as fitting a gap only with this much to spare, so that laying vias LAY_STEP_MM apart finds every spot this finds
 END_JOIN_MM = 1e-3  # trace ends this close are one point
 KEYS = {
@@ -171,9 +173,9 @@ def _checked(kind: str, values: dict[str, Any], what: str) -> dict[str, Any]:
 # ------------------------------------------------------------------ measuring
 
 
-def measure(model: dict[str, Any], requirements: list[Requirement], bends: list[Box],
+def measure(model: dict[str, Any], requirements: list[Requirement], bends: list[list[Point]],
             obstacles: GD.Obstacles | None = None, via_radius: float | None = None) -> list[dict[str, Any]]:
-    """Each requirement's result on ``model``. ``obstacles``, all the board's copper, tells where a via
+    """Each requirement's result on ``model``; ``bends`` are the bend zones, each its own outline. ``obstacles``, all the board's copper, tells where a via
     could still stand along a gap a ``via_pitch`` requirement finds too long, on the trace's line or
     off it as far as a via along a guard may stand; the spots one requirement names keep clear of
     each other, so that they can all be taken together, and ``obstacles`` is left as it was.
@@ -205,7 +207,7 @@ def listed(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _guard(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _guard(model: dict[str, Any], values: dict[str, Any], _bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     traces = model.get("traces") or []
     known = {str(t.get("net") or "") for t in traces}
     rows: list[dict[str, Any]] = []
@@ -233,7 +235,7 @@ def _near_trace(p: Point, layer: int, cells: dict[tuple[int, int, int], list[tup
     return False
 
 
-def _ring(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _ring(model: dict[str, Any], values: dict[str, Any], _bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     outline = (model.get("outline") or [{}])[0].get("path") or []
     if len(outline) < 3:
         raise PlanError("E_UNSUPPORTED", "the board has no outline to measure a ring along")
@@ -263,7 +265,7 @@ def _ring(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obs
     return {"ok": lowest >= need - 1e-9, "measured_pct": lowest, "needed_pct": need, "layers": per_layer, "worst": gaps}
 
 
-def _via_padstack(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _via_padstack(model: dict[str, Any], values: dict[str, Any], _bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     nets = set(values["nets"]) if values["nets"] else None
     vias = [v for v in model.get("vias") or [] if nets is None or v.get("net") in nets]
     wrong = [v for v in vias if v.get("padstack") != values["padstack"]]
@@ -321,8 +323,9 @@ def _length(points: list[Point]) -> float:
     return sum(math.dist(a, b) for a, b in zip(points, points[1:], strict=False))
 
 
-def _in_box(p: Point, boxes: list[Box], grow: float) -> bool:
-    return any(x0 - grow < p[0] < x1 + grow and y0 - grow < p[1] < y1 + grow for x0, y0, x1, y1 in boxes)
+def _in_zone(p: Point, zones: list[list[Point]], grow: float) -> bool:
+    return any(len(zone) >= 3 and (inside(p, zone) or min(point_segment(p, zone[i], zone[(i + 1) % len(zone)]) for i in range(len(zone))) < grow)
+               for zone in zones)
 
 
 def _turn(walker: GD.Walker, distance: float) -> Point:
@@ -349,7 +352,7 @@ def _covers(ends: dict[tuple[int, int], list[Point]], p: Point, radius: float) -
                for j in range(math.floor(p[1] - radius), math.floor(p[1] + radius) + 1) for end in ends.get((i, j), ()))
 
 
-def _via_pitch(model: dict[str, Any], values: dict[str, Any], bends: list[Box], obstacles: GD.Obstacles | None,
+def _via_pitch(model: dict[str, Any], values: dict[str, Any], bends: list[list[Point]], obstacles: GD.Obstacles | None,
                radius: float | None) -> dict[str, Any]:
     net, pitch = values["net"], values["max_mm"]
     if obstacles is None:
@@ -396,19 +399,27 @@ def _via_pitch(model: dict[str, Any], values: dict[str, Any], bends: list[Box], 
                     items = obstacles._near([base], GD.REACH_MM + radius + ROOM_MM + max(offsets))
                     for off in offsets:  # on the line, or off it as far as a via along it may stand
                         p = (base[0] - uy * off, base[1] + ux * off)
-                        if (not _in_box(p, bends, radius + ROOM_MM) and obstacles.via_clear(p, net, radius + ROOM_MM, items)
+                        if (not _in_zone(p, bends, radius + ROOM_MM + board_metrics.BEND_VIA_MARGIN_MM)
+                                and obstacles.via_clear(p, net, radius + ROOM_MM, items)
                                 and not _covers(ends, p, radius + ROOM_MM) and all(math.dist(p, t) >= spacing for t in taken)):
                             return p
                     return None
 
-                # every via the gap needs: each as far along as the pitch allows from the last, where one fits
+                # every via the gap needs: each as far along as the pitch allows from the last, where one fits; where none
+                # fits within the pitch, such as over a bend zone or under a part, the next where one fits further on
                 start, first = a, max(a + radius, low)
                 while b - start > pitch + 1e-6:
-                    at, spot = min(start + pitch, b - radius, high), None
+                    at, spot = min(start + pitch - PITCH_SHORT_MM, b - radius, high), None
                     while at >= max(first, start + STEP_MM) - 1e-9 and spot is None:
                         spot = fits(at)
                         if spot is None:
                             at -= STEP_MM
+                    if spot is None:
+                        at = start + pitch
+                        while at <= min(b - radius, high) + 1e-9 and spot is None:
+                            spot = fits(at)
+                            if spot is None:
+                                at += STEP_MM
                     if spot is None:
                         break
                     spots.append(spot)
@@ -437,7 +448,7 @@ def _overlap(a: Box, b: Box) -> float:
     return w * h if w > 0 and h > 0 else 0.0
 
 
-def _plane(model: dict[str, Any], values: dict[str, Any], bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _plane(model: dict[str, Any], values: dict[str, Any], bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     if "planes" not in model:
         return {"ok": None, "reason": "the planes are poured after the plan is drawn; pcb check measures this"}
     shapes = [p for p in model["planes"] if p.get("net") == values["net"] and p.get("extents_mm")]
@@ -452,14 +463,43 @@ def _plane(model: dict[str, Any], values: dict[str, Any], bends: list[Box], _obs
             continue
         if not values["hatched_in_bends"]:
             continue
-        for box in bends:
-            area = (box[2] - box[0]) * (box[3] - box[1])
-            hatched = sum(_overlap(tuple(p["extents_mm"]), box) for p in mine if p.get("hatch") not in (None, "solid")) >= 0.9 * area
-            solid = any(p.get("hatch") == "solid" and _overlap(tuple(p["extents_mm"]), box) > 0.1 * area for p in mine)
-            if not hatched or solid:
-                problems.append({"layer": layer, "problem": "the bend zone is not hatched" if not hatched else "solid copper over the bend zone",
-                                 "at_mm": _xy(((box[0] + box[2]) / 2, (box[1] + box[3]) / 2))})
+        solid = [_outline_of(p) for p in mine if p.get("hatch") in (None, "solid")]
+        hatched = [_outline_of(p) for p in mine if p.get("hatch") not in (None, "solid")]
+        for zone in bends:
+            samples = _samples(zone)
+            in_solid = [q for q in samples if any(inside(q, shape) for shape in solid)]
+            in_hatch = sum(1 for q in samples if any(inside(q, shape) for shape in hatched))
+            if in_hatch < HATCH_SHARE * len(samples):
+                problems.append({"layer": layer, "problem": "the bend zone is not hatched", "at_mm": _xy(_mean(samples))})
+            elif len(in_solid) > SOLID_SHARE * len(samples):
+                problems.append({"layer": layer, "problem": "solid copper over the bend zone", "at_mm": _xy(_mean(in_solid))})
     return {"ok": not problems, "count": len(values["layers"]), "failed": len(problems), "worst": problems}
+
+
+HATCH_SHARE = 0.5  # a bend zone counts as hatched where hatched copper covers this share of it; the pour keeps off the board's edges
+SOLID_SHARE = 0.05  # and as solid where solid copper covers more than this share, beyond where the two meet at its edge
+SAMPLES_ACROSS = 24  # a zone is looked at on a grid of about this many points across its longer side
+
+
+def _outline_of(plane: dict[str, Any]) -> list[Point]:
+    """A plane shape's own outline, or the rectangle of its extents when the model has none."""
+    path = (plane.get("shape") or {}).get("path")
+    if path:
+        return flatten([(float(r[0]), float(r[1]), float(r[2]) if len(r) > 2 else 0.0) for r in path])
+    x0, y0, x1, y1 = (float(v) for v in plane["extents_mm"])
+    return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+def _samples(zone: list[Point]) -> list[Point]:
+    x0, y0, x1, y1 = _box_of(zone)
+    step = max(x1 - x0, y1 - y0) / SAMPLES_ACROSS or 1.0
+    points = [(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step) for i in range(math.ceil((x1 - x0) / step))
+              for j in range(math.ceil((y1 - y0) / step))]
+    return [q for q in points if inside(q, zone)] or [_mean(zone)]
+
+
+def _mean(points: list[Point]) -> Point:
+    return sum(q[0] for q in points) / len(points), sum(q[1] for q in points) / len(points)
 
 
 def _xy(p: Any) -> list[float]:
@@ -471,7 +511,7 @@ def _box_of(points: list[Any]) -> Box:
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def _opening(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _opening(model: dict[str, Any], values: dict[str, Any], _bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     if "openings" not in model:
         return {"ok": None, "reason": "the openings come after the plan is drawn and poured; pcb check measures this"}
     if values["at"] == "ears":
@@ -510,7 +550,7 @@ def _opening(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _
     return {"ok": not worst, "count": len(places), "failed": len(worst), "worst": worst}
 
 
-def _text(model: dict[str, Any], values: dict[str, Any], _bends: list[Box], _obstacles: Any, _radius: Any) -> dict[str, Any]:
+def _text(model: dict[str, Any], values: dict[str, Any], _bends: list[list[Point]], _obstacles: Any, _radius: Any) -> dict[str, Any]:
     if "board_texts" not in model:
         return {"ok": None, "reason": "the text comes after the plan is drawn; pcb check measures this"}
     place = f"user:{values['user_layer']}" if values["user_layer"] else values["side"]

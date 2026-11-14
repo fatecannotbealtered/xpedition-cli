@@ -25,6 +25,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from . import board_metrics
 from . import trace_plan as TP
 from .lanes import Lane, _fitted, _jogged, edge_chain, offset_chain
 from .stitching import CUTOUT_CLEARANCE_MM
@@ -429,6 +430,9 @@ class Obstacles:
             self.add_trace(trace.net, trace.layer, trace.width, path, arcs)
         for via in plan.vias:
             self.add_via(via.net, via.at, via.radius)
+        self.bodies = [poly for poly in getattr(copper, "bodies", None) or [] if len(poly) >= 3]  # parts, which the vias it places keep out of
+        self.body_boxes = [(min(p[0] for p in poly), min(p[1] for p in poly), max(p[0] for p in poly), max(p[1] for p in poly))
+                           for poly in self.bodies]
         self.keepouts = [(kind, layer, poly, (min(q[0] for q in poly), min(q[1] for q in poly), max(q[0] for q in poly),
                                               max(q[1] for q in poly)))
                          for kind, layer, poly in getattr(copper, "keepouts", None) or [] if len(poly) >= 3]
@@ -507,7 +511,7 @@ class Obstacles:
         border = self.border
         if border is None:
             return True
-        return border.near(point, reach) >= reach - 1e-9 and border.encloses(point)
+        return border.near(point, reach + TP.BORDER_TOUCH_MM) >= reach + TP.BORDER_TOUCH_MM and border.encloses(point)
 
     def piece_clear(self, a: Point, b: Point, net: str, layer: int, width: float, slack: float = TP.CLEARANCE_TOLERANCE,
                     sag: float = 0.0, border: bool = True) -> bool:
@@ -520,7 +524,8 @@ class Obstacles:
         # both ends inside and the whole piece clear of the border's line: a long piece, such as a tie across a bend
         # zone, may leave the border between its ends where the outline turns
         if border and not (self._within(a, width / 2) and self._within(b, width / 2) and
-                           (self.border is None or self.border.piece_near(a, b, width / 2) >= width / 2 - 1e-9)):
+                           (self.border is None or
+                            self.border.piece_near(a, b, width / 2 + TP.BORDER_TOUCH_MM) >= width / 2 + TP.BORDER_TOUCH_MM)):
             return False
         if self.holes and (self._in_hole(a) or self._in_hole(b)):
             return False
@@ -587,10 +592,21 @@ class Obstacles:
                 out.append((name, round(gap, 4), round(need, 4)))
         return out
 
+    def _under_part(self, at: Point, radius: float) -> bool:
+        """Whether a via of ``radius`` at ``at`` reaches under a part's placement outline."""
+        for body, (x0, y0, x1, y1) in zip(self.bodies, self.body_boxes, strict=True):
+            if at[0] < x0 - radius or at[0] > x1 + radius or at[1] < y0 - radius or at[1] > y1 + radius:
+                continue
+            if inside(at, body) or min(point_segment(at, body[i], body[(i + 1) % len(body)]) for i in range(len(body))) < radius:
+                return True
+        return False
+
     def via_blockers(self, at: Point, net: str, radius: float) -> list[tuple[str, float, float]]:
         """What a via at ``at`` comes closer to than the rules allow, on any layer: each blocker's name,
         the clearance left and the clearance needed."""
         out: list[tuple[str, float, float]] = []
+        if self._under_part(at, radius):
+            out.append(("a part's placement outline", round(-radius, 4), 0.0))
         if not self._within(at, radius):
             edge = min(self.border.near(at, REACH_MM), REACH_MM) if self.border is not None else 0.0
             enclosed = self.border is None or self.border.encloses(at)
@@ -639,13 +655,15 @@ class Obstacles:
         return False
 
     def via_clear(self, at: Point, net: str, radius: float, items: list[_Item] | None = None) -> bool:
-        """Whether a via lies inside the border and clears every pad (its own net's too), every other
-        net's trace and every via, on every layer. ``items`` may hold the copper near it already
+        """Whether a via lies inside the border, under no part, and clears every pad (its own net's too),
+        every other net's trace and every via, on every layer. ``items`` may hold the copper near it already
         (``_near`` of a point within reach), for several spots tried around one point."""
         if not self._within(at, radius) or (self.holes and self._in_hole(at)):
             return False
         if self._in_keepout(at, at, None, radius):
             return False
+        if self._under_part(at, radius):
+            return False  # under a part, which Layout's DRC reports
         for item in self._near([at], REACH_MM + radius) if items is None else items:
             if item.kind == "cutout":
                 if point_segment(at, *item.geometry) < CUTOUT_CLEARANCE_MM + radius + VIA_MARGIN_MM:
@@ -800,7 +818,7 @@ def end_vias(stretch: list[Point], net: str, radius: float, reach: float, obstac
             base, (ux, uy) = _at_length(stretch, where), _direction(stretch, where)
             for off in aside or [0.0]:
                 spot = (round(base[0] - side * uy * off, 4), round(base[1] + side * ux * off, 4))
-                if any(x0 - radius < spot[0] < x1 + radius and y0 - radius < spot[1] < y1 + radius for x0, y0, x1, y1 in bends):
+                if in_bend(spot, radius, bends):
                     continue
                 if obstacles.via_clear(spot, net, radius):
                     obstacles.add_via(net, spot, radius)
@@ -892,7 +910,7 @@ def vias_along(stretch: list[Point], net: str, radius: float, pitch: float, obst
         items = obstacles._near([base], REACH_MM + radius + spread)  # the copper near every spot tried here
         for off in offsets:
             point = (round(base[0] - side * uy * off, 4), round(base[1] + side * ux * off, 4))
-            if any(x0 - radius < point[0] < x1 + radius and y0 - radius < point[1] < y1 + radius for x0, y0, x1, y1 in bends):
+            if in_bend(point, radius, bends):
                 continue
             if any(in_pad_box(seam, point, radius) and math.dist(seam, point) >= END_SNAP_MM for seam in seams):
                 continue
@@ -1102,7 +1120,7 @@ def end_spots(chain: Chain, start: float, end: float, net: str, radius: float, r
                 base, (ux, uy) = _at_length(chain.line, where), _direction(chain.line, where)
                 for off in aside or [0.0]:
                     spot = (round(base[0] - side * uy * off, 4), round(base[1] + side * ux * off, 4))
-                    if any(x0 - radius < spot[0] < x1 + radius and y0 - radius < spot[1] < y1 + radius for x0, y0, x1, y1 in bends):
+                    if in_bend(spot, radius, bends):
                         continue
                     if not obstacles.via_clear(spot, net, radius) or obstacles.covers_end(spot, net, radius):
                         continue
@@ -1132,6 +1150,24 @@ JOIN_STRAIGHT = 8  # a free end tries straight paths to this many of the nearest
 WALL_CHORD_MM = 1e-4  # a path beside a signal is offset from its arcs taken as chords this close: off chords of 2 um it fell 1.7 um short
 MAZE_NODES = 2000  # the grid points one search may expand
 _DIRECTIONS = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+
+
+def in_bend(point: Point, radius: float, bends: list[tuple[float, float, float, float]]) -> bool:
+    """Whether a via of ``radius`` at ``point`` comes nearer a bend zone than ``board_metrics.BEND_VIA_MARGIN_MM``."""
+    reach = radius + board_metrics.BEND_VIA_MARGIN_MM
+    return any(x0 - reach < point[0] < x1 + reach and y0 - reach < point[1] < y1 + reach for x0, y0, x1, y1 in bends)
+
+
+CUT_BACK_MM = 2.0  # a line's end is cut back at most this far to leave a join without a hairpin
+CUT_STEP_MM = 0.1  # in steps of this much
+
+
+def heads_back(outward: Point, path: list[Point]) -> bool:
+    """Whether a join leaves its end turning back over the line, at a sharper corner than square."""
+    if len(path) < 2:
+        return False
+    first = (path[1][0] - path[0][0], path[1][1] - path[0][1])
+    return first[0] * outward[0] + first[1] * outward[1] < -1e-9 * (math.hypot(*first) or 1.0)
 
 
 def join(end: Point, outward: Point, net: str, layer: int, width: float, obstacles: Obstacles,
@@ -1194,14 +1230,39 @@ def join(end: Point, outward: Point, net: str, layer: int, width: float, obstacl
             done = index + 1
             for target in near:
                 if travelled + math.dist(b, target) <= reach and _path_clear([b, target], net, layer, width, obstacles):
-                    return _onto(end, _simplified([*_upto(beside, done), target]))
+                    path = _pulled(_onto(end, _simplified([*_upto(beside, done), target])), net, layer, width, obstacles)
+                    if not _hairpin(outward, path):
+                        return path
         if done:  # where the line beside stops, such as at the signal's via, a search goes on from it
             start = _upto(beside, done)
             rest = _maze(start[-1], net, layer, width, obstacles, [t for t in near if travelled + math.dist(start[-1], t) <= reach],
                          reach - travelled)
             if rest:
-                return _onto(end, _simplified([*start[:-1], *rest]))
-    return _maze(end, net, layer, width, obstacles, near, reach)
+                path = _pulled(_onto(end, _simplified([*start[:-1], *rest])), net, layer, width, obstacles)
+                if not _hairpin(outward, path):
+                    return path
+    path = _maze(end, net, layer, width, obstacles, near, reach)
+    return None if path is None or _hairpin(outward, path) else path
+
+
+def _pulled(path: list[Point], net: str, layer: int, width: float, obstacles: Obstacles) -> list[Point]:
+    """The path with every point it can skip left out: from each point on, straight to the farthest
+    point a straight piece reaches clear, so a walk beside a wall in short steps and its jogs go."""
+    out, i = [path[0]], 0
+    while i < len(path) - 1:
+        j = len(path) - 1
+        while j > i + 1 and not _path_clear([path[i], path[j]], net, layer, width, obstacles):
+            j -= 1
+        out.append(path[j])
+        i = j
+    return out
+
+
+def _hairpin(outward: Point, path: list[Point]) -> bool:
+    """Whether a join turns sharper than square anywhere: off the line's end, or at a corner of its own,
+    a corner pcb check lists as acute."""
+    ways = [outward, *((b[0] - a[0], b[1] - a[1]) for a, b in zip(path, path[1:], strict=False) if math.dist(a, b) > 1e-9)]
+    return any(u[0] * v[0] + u[1] * v[1] < -1e-9 * (math.hypot(*u) * math.hypot(*v) or 1.0) for u, v in zip(ways, ways[1:], strict=False))
 
 
 def _onto(end: Point, path: list[Point]) -> list[Point]:
@@ -1462,7 +1523,7 @@ def via_spot(line: list[Point], net: str, radius: float, obstacles: Obstacles,
         at += VIA_SHIFT_MM
         for off in aside or [0.0]:
             spot = (base[0] - uy * off, base[1] + ux * off)
-            if any(x0 - radius < spot[0] < x1 + radius and y0 - radius < spot[1] < y1 + radius for x0, y0, x1, y1 in bends):
+            if in_bend(spot, radius, bends):
                 continue
             if obstacles.via_clear(spot, net, radius) and not obstacles.covers_end(spot, net, radius):
                 return (round(spot[0], 4), round(spot[1], 4))
@@ -1483,7 +1544,7 @@ def why_no_via(line: list[Point], net: str, radius: float, obstacles: Obstacles,
         at += VIA_SHIFT_MM
         for off in aside or [0.0]:
             spot = (base[0] - uy * off, base[1] + ux * off)
-            if any(x0 - radius < spot[0] < x1 + radius and y0 - radius < spot[1] < y1 + radius for x0, y0, x1, y1 in bends):
+            if in_bend(spot, radius, bends):
                 continue
             found = obstacles.via_blockers(spot, net, radius)
             covered = obstacles.covered_end(spot, net, radius)

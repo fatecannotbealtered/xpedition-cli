@@ -33,6 +33,11 @@ SNAP_MM = 0.005  # points of a lane this close are one: a hair of a segment betw
 ON_LINE_MM = 1e-3  # a point this close to a lane's line is on it: a real outline's straight edge is straight to a few tenths of a micrometre
 KEYS = ("net", "layer", "width_mm", "edge_mm", "offset_mm")
 FANOUT_CORNER_MM = 0.2  # the radius of the turn where a fan-out leaves the connector
+BEND_ROUND_SHARE = 0.45  # a sharp corner of the outline in a bend zone is rounded over at most this share of each run beside it
+BEND_ROUND_MAX_MM = 20.0  # with at most this radius
+BEND_ROUND_SAG_MM = 0.01  # and at a corner turning away from the board, an arc that lies at most this far outside the corner
+ZONE_SLACK_MM = 0.01  # a corner this close to a bend zone's outline lies in it
+FIT_MARGIN_MM = 0.01  # arcs made smaller to fit a segment leave this much of it: a point read back a hair off still fits them, and the piece left is long enough that its direction reads true
 
 
 @dataclass
@@ -222,11 +227,15 @@ def outline_corners(rows: list[tuple[float, float, float]]) -> list[Corner]:
     return _straightened(ring, closed=True)
 
 
-def sharpened(ring: list[Corner], bends: list[tuple[float, float, float, float]]) -> list[Corner]:
+def sharpened(ring: list[Corner], bends: list[tuple[float, float, float, float]],
+              zones: list[list[Point]] | None = None) -> list[Corner]:
     """The ring with each rounded notch, a corner where the outline turns away from the board's
     inside, made sharp where its arc reaches a bend zone. Lanes, guards and rings then run straight
     on to the end of its edges and turn about the point where the edges meet, so they cross the
-    bend zone straight and turn outside it, still evenly spaced."""
+    bend zone straight and turn outside it, still evenly spaced. Given the zones' own outlines, each
+    sharp corner of the outline inside a zone, such as where a flex arm drawn as straight runs curves
+    to meet its head, is rounded with the widest arc that fits: what follows the edge then curves
+    there about the arc's centre, evenly spaced, and turns at no corner inside the zone."""
     if not bends or len(ring) < 3:
         return ring
     points = [c[0] for c in ring]
@@ -242,9 +251,50 @@ def sharpened(ring: list[Corner], bends: list[tuple[float, float, float, float]]
             continue  # it turns towards the inside: a corner, not a notch
         reach = radius * math.tan(math.acos(max(-1.0, min(1.0, u0[0] * u1[0] + u0[1] * u1[1]))) / 2)
         ends = ((corner[0] - u0[0] * reach, corner[1] - u0[1] * reach), (corner[0] + u1[0] * reach, corner[1] + u1[1] * reach))
-        if any(z[0] - NOTCH_SLACK_MM <= x <= z[2] + NOTCH_SLACK_MM and z[1] - NOTCH_SLACK_MM <= y <= z[3] + NOTCH_SLACK_MM
-               for x, y in ends for z in bends):
+        if zones:  # a zone's own outline, which a slanted zone's band does not cover
+            reached = any(_in_zones(end, zones, NOTCH_SLACK_MM) for end in ends)
+        else:
+            reached = any(z[0] - NOTCH_SLACK_MM <= x <= z[2] + NOTCH_SLACK_MM and z[1] - NOTCH_SLACK_MM <= y <= z[3] + NOTCH_SLACK_MM
+                          for x, y in ends for z in bends)
+        if reached:
             out[i] = (corner, 0.0)
+    return _rounded(out, [radius > 0 for _corner, radius in ring], zones, area > 0) if zones else out
+
+
+def _in_zones(point: Point, zones: list[list[Point]], slack: float) -> bool:
+    """Whether a point lies in one of the zones' outlines, or within ``slack`` of one."""
+    return any(TP.inside(point, zone) or min(TP.point_segment(point, zone[k], zone[(k + 1) % len(zone)]) for k in range(len(zone)))
+               <= slack for zone in zones if len(zone) >= 3)
+
+
+def _rounded(ring: list[Corner], arcs: list[bool], zones: list[list[Point]], counter_clockwise: bool) -> list[Corner]:
+    """The ring with each sharp corner inside one of the ``zones`` that was no arc of the outline
+    (``arcs``) rounded: its arc takes at most ``BEND_ROUND_SHARE`` of a run it shares with another
+    such corner, and of any other run what the arc at its far end leaves. At a corner where the
+    outline turns away from the board, the arc lies outside the corner, nearer what follows the
+    edge on the inside: there it lies at most ``BEND_ROUND_SAG_MM`` from it."""
+    points = [c[0] for c in ring]
+    count = len(points)
+
+    def turn(i: int) -> float:
+        u0, u1 = _unit(points[i - 1], points[i]), _unit(points[i], points[(i + 1) % count])
+        return math.acos(max(-1.0, min(1.0, u0[0] * u1[0] + u0[1] * u1[1])))
+
+    chosen = {i for i, (p, radius) in enumerate(ring)
+              if radius == 0 and not arcs[i] and 1e-6 < turn(i) < math.pi - 1e-3 and _in_zones(p, zones, ZONE_SLACK_MM)}
+    out = list(ring)
+    for i in sorted(chosen):
+        rooms = []
+        for j in ((i - 1) % count, (i + 1) % count):
+            run = math.dist(points[i], points[j])
+            if j in chosen:
+                rooms.append(run * BEND_ROUND_SHARE)
+            else:
+                rooms.append(max(run - ring[j][1] * math.tan(turn(j) / 2), 0.0) * 2 * BEND_ROUND_SHARE)
+        radius = min(min(rooms) / math.tan(turn(i) / 2), BEND_ROUND_MAX_MM)
+        if (_cross(_unit(points[i - 1], points[i]), _unit(points[i], points[(i + 1) % count])) > 0) != counter_clockwise:
+            radius = min(radius, BEND_ROUND_SAG_MM / (1 / math.cos(turn(i) / 2) - 1))
+        out[i] = (points[i], radius)
     return out
 
 
@@ -442,8 +492,8 @@ def _fitted(points: list[Point], radii: list[float], free: list[bool]) -> list[f
             if need <= room + 1e-9 or not give:
                 continue
             fine = False
-            spare = room - sum(cuts[k] for k in (i, i + 1) if k not in give)
-            scale = max(spare, 0.0) / sum(cuts[k] for k in give) * (1 - 1e-9)
+            spare = room - sum(cuts[k] for k in (i, i + 1) if k not in give) - FIT_MARGIN_MM
+            scale = max(spare, 0.0) / sum(cuts[k] for k in give)
             for k in give:
                 radii[k], cuts[k] = radii[k] * scale, cuts[k] * scale
         if fine:
@@ -584,6 +634,11 @@ def expand(lane: Lane, ring: list[Corner], what: str, fanouts: dict[str, FO.Fano
         if beyond and abs(_cross(u, (point[0] - a[0], point[1] - a[1]))) > ON_LINE_MM:
             raise TP._error(f"{what} leaves for its lane or returns from it beyond the ends of its edge, off the lane's line; put the "
                             "points of edge_mm at or beyond where the lane joins and leaves the edge, or the point on the lane's line")
+        if beyond:  # on the line run on past the edge's end: the lane turns there, not at the end
+            if i == 0:
+                on = point
+            else:
+                off = point
     corners: list[tuple[Point, float, bool]] = [(p, r, False) for p, r in lane.start]
     corners.append((on, lane.radius, True))
     corners += [(p, r, False) for p, r in lane_corners[s + 1:e + 1]]
@@ -592,9 +647,15 @@ def expand(lane: Lane, ring: list[Corner], what: str, fanouts: dict[str, FO.Fano
     merged: list[tuple[Point, float, bool]] = []
     for point, radius, free in corners:
         if merged and math.dist(merged[-1][0], point) < SNAP_MM:  # such as a given point a hair off the lane's line
-            merged[-1] = (merged[-1][0], max(merged[-1][1], radius), merged[-1][2] or free)
+            # the point on the lane's line stays, unless the other is the lane's end: a line a hair off its offset runs at a slant
+            keep = point if free and len(merged) > 1 else merged[-1][0]
+            merged[-1] = (keep, max(merged[-1][1], radius), merged[-1][2] or free)
             continue
         merged.append((point, radius, free))
+    # a point on a straight run, such as where the edge ends short of where the lane leaves its line, is no corner:
+    # left in, it cuts the run beside an arc into a piece shorter than the arc needs
+    merged = [c for i, c in enumerate(merged) if i in (0, len(merged) - 1) or c[1] > 0 or c[2]
+              or _interior([merged[i - 1][0], c[0], merged[i + 1][0]], 1) < math.pi - 1e-9]
     points = [c[0] for c in merged]
     radii = [c[1] for c in merged]
     radii[0] = radii[-1] = 0.0
@@ -767,7 +828,8 @@ def widened(trace: TP.Trace, width: float, clear: Callable[[Point, Point, float]
                 kept_r.append(piece.radii[j])
         kept_p.append(piece.points[-1])
         kept_r.append(0.0)
-        piece.points, piece.radii = kept_p, kept_r
+        # a piece cut where an arc ends holds that arc to the micrometre: fitted again, so a hair over does not refuse it
+        piece.points, piece.radii = kept_p, _fitted(kept_p, kept_r, [True] * len(kept_p))
     return [piece for piece in out if TP.length(piece) > 1e-6]
 
 
@@ -788,6 +850,8 @@ def necked(lane: Lane, trace: TP.Trace) -> list[TP.Trace]:
                 kept_p.append(point)
                 kept_r.append(radius)
         kept_r[0] = kept_r[-1] = 0.0
+        # a piece cut where an arc ends holds that arc to the micrometre: fitted again, so a hair over does not refuse it
+        kept_r = _fitted(kept_p, kept_r, [True] * len(kept_p))
         return TP.Trace(lane.net, lane.layer, width, kept_p, kept_r, origin=trace.origin)
 
     on = arcs[first][2] if arcs[first] else points[first]  # the end of the turn onto the line

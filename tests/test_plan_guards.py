@@ -78,6 +78,15 @@ class GuardTest(unittest.TestCase):
         self.assertIn("a cutout", [name for name, _gap, _need in wide.via_blockers((10.0, 10.0), "GND", 0.2)])
         self.assertTrue(wide.via_clear((25.0, 10.0), "GND", 0.2))
 
+    def test_a_via_under_a_part_is_refused_and_says_so(self):
+        copper = TP.Copper(layer_count=3)
+        copper.bodies = [[(2.0, 2.0), (6.0, 2.0), (6.0, 4.0), (2.0, 4.0)]]  # a connector's placement outline
+        found = GD.Obstacles(copper, TP.Plan(), RULES)
+        self.assertFalse(found.via_clear((4.0, 3.0), "GND", 0.2))
+        self.assertIn("a part's placement outline", [name for name, _gap, _need in found.via_blockers((4.0, 3.0), "GND", 0.2)])
+        self.assertFalse(found.via_clear((6.1, 3.0), "GND", 0.2))  # beside it, its pad reaching under
+        self.assertTrue(found.via_clear((6.3, 3.0), "GND", 0.2))
+
     def test_guards_and_their_vias_keep_out_of_keepouts(self):
         strip = [(2.0, 0.0), (3.0, 0.0), (3.0, 20.0), (2.0, 20.0)]
         copper = TP.Copper(layer_count=3, keepouts=[("trace", 1, strip), ("via", None, [(10.0, 0.0), (12.0, 0.0), (12.0, 20.0), (10.0, 20.0)])])
@@ -94,9 +103,9 @@ class GuardTest(unittest.TestCase):
         trimmed, spots = GD.end_vias(stretch, "GND", 0.2, 1.0, obstacles(), bend)
         self.assertEqual(spots, [(1.0, 15.0)])  # none within 1 mm of the end in the bend; one at the other end
         self.assertEqual(trimmed, stretch)
-        trimmed, spots = GD.end_vias(stretch, "GND", 0.2, 2.0, obstacles(), bend)
-        self.assertEqual(spots[0], (1.0, 6.2))  # the first spot past the zone, the stretch cut back to it
-        self.assertEqual(trimmed[0], (1.0, 6.2))
+        trimmed, spots = GD.end_vias(stretch, "GND", 0.2, 3.0, obstacles(), bend)
+        self.assertEqual(spots[0], (1.0, 7.2))  # the first spot the margin from the zone allows, the stretch cut back to it
+        self.assertAlmostEqual(trimmed[0][1], 7.2)
 
     def test_a_free_end_joins_the_nearest_copper_of_its_net_by_a_clear_path(self):
         end, outward = (1.0, 5.0), (0.0, -1.0)  # an end pointing down
@@ -299,11 +308,26 @@ class RingTest(unittest.TestCase):
         line, left = GD.ring_line(LN.outline_corners(BOARD), 0.3)
         border = [(0.2, 0.2), (9.8, 0.2), (9.8, 39.8), (0.2, 39.8)]
         found = GD.Obstacles(TP.Copper(layer_count=3), TP.Plan(), RULES, border)
-        self.assertEqual(len(GD.runs(line, "GND", 1, 0.2, found, 1.0, closed=True)), 1)  # 0.1 mm wide either side of 0.3: inside
-        self.assertEqual(GD.runs(line, "GND", 1, 0.3, found, 1.0, closed=True), [])  # 0.15 mm either side reaches past it
+        self.assertEqual(len(GD.runs(line, "GND", 1, 0.19, found, 1.0, closed=True)), 1)  # 0.095 mm either side of 0.3: inside
+        self.assertEqual(GD.runs(line, "GND", 1, 0.2, found, 1.0, closed=True), [])  # an edge on the border reaches past it for DRC
         vias = GD.vias_along([(0.3, 5.0), (0.3, 30.0)], "GND", 0.2, 5.0, found, [], [0.0, 0.1, 0.26], left=False)
         self.assertTrue(vias)
-        self.assertTrue(all(abs(x - 0.4) < 1e-6 for x, _y in vias))  # moved inwards until the pad keeps inside the border
+        self.assertTrue(all(abs(x - 0.56) < 1e-6 for x, _y in vias))  # moved inwards until the pad keeps off the border
+
+    def test_a_via_of_the_tool_stands_under_no_part(self):
+        copper = TP.Copper(layer_count=3, bodies=[[(0.0, 4.0), (2.0, 4.0), (2.0, 8.0), (0.0, 8.0)]])  # a part over the line
+        found = GD.Obstacles(copper, TP.Plan(), RULES)
+        self.assertFalse(found.via_clear((1.0, 6.0), "GND", 0.2))
+        self.assertFalse(found.via_clear((1.0, 8.1), "GND", 0.2))  # its pad would reach under the part
+        self.assertTrue(found.via_clear((1.0, 8.3), "GND", 0.2))
+
+    def test_a_join_that_turns_back_sharper_than_square_is_a_hairpin(self):
+        self.assertTrue(GD._hairpin((1.0, 0.0), [(0.0, 0.0), (1.0, 0.2), (0.4, -0.5)]))  # out, then back past square
+        self.assertTrue(GD._hairpin((1.0, 0.0), [(0.0, 0.0), (-1.0, 0.5)]))  # back over the line it ends
+        self.assertFalse(GD._hairpin((1.0, 0.0), [(0.0, 0.0), (1.0, 1.0), (1.0, 3.0)]))
+        found = GD.Obstacles(TP.Copper(layer_count=3), TP.Plan(), RULES)
+        steps = [(0.0, 0.0), (0.1, 0.01), (0.2, -0.01), (0.3, 0.0), (2.0, 0.0)]  # a walk in short jogs, nothing in its way
+        self.assertEqual(GD._pulled(steps, "GND", 1, 0.1, found), [(0.0, 0.0), (2.0, 0.0)])
 
     def test_a_long_piece_that_leaves_the_border_between_its_ends_is_refused(self):
         notched = [(0.0, 0.0), (10.0, 0.0), (10.0, 2.0), (2.0, 2.0), (2.0, 3.0), (10.0, 3.0), (10.0, 10.0), (0.0, 10.0)]

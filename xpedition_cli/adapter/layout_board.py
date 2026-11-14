@@ -1015,10 +1015,15 @@ def band_ties(doc: Any, path: str, net: str, layer: int, width: float,
         for piece in pieces:
             xs, ys = [p[0] for p in piece], [p[1] for p in piece]
             box = (min(xs), min(ys), max(xs), max(ys))
-            square = bands.edge_run(piece, edge) if edge else None
-            found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, square)
-            if found == [] and square is not None:  # nothing fits square to it: along the board's edges instead
-                found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, (-square[1], square[0]))
+            sides = bands.crossed_sides(piece, edge) if edge else []
+            found = None
+            if len(sides) == 2 and _apart(*sides) > board_metrics.SQUARE_TOLERANCE:  # over the turn of an arm: ties that turn with it
+                found = bend_ties.ties_turning(piece, (sides[0], sides[1]), net, layer, tie_width, copper, clear)
+            if not found:
+                square = bands.edge_run(piece, edge) if edge else None
+                found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, square)
+                if found == [] and square is not None:  # nothing fits square to it: along the board's edges instead
+                    found = bend_ties.ties_across(piece, net, layer, tie_width, copper, clear, (-square[1], square[0]))
             if found is not None:
                 out.append((box, found))
     else:
@@ -1029,6 +1034,20 @@ def band_ties(doc: Any, path: str, net: str, layer: int, width: float,
                 out.append((box, found))
     traces = sum(1 for lay, name, _w, _p in copper.traces if name == net and lay == layer)
     return out, tie_width, traces
+
+
+def _segments(rows: list[tuple[float, float, float]]) -> int:
+    """How many traces Layout keeps for a path of (x, y, r) rows: one per straight run and per arc,
+    whose centre row carries the radius."""
+    return len(rows) - 1 - sum(1 for row in rows if row[2])
+
+
+def _apart(first: tuple[tuple[float, float], tuple[float, float]], second: tuple[tuple[float, float], tuple[float, float]]) -> float:
+    """The degrees between the directions of two sides."""
+    u = (first[1][0] - first[0][0], first[1][1] - first[0][1])
+    v = (second[1][0] - second[0][0], second[1][1] - second[0][1])
+    cosine = abs(u[0] * v[0] + u[1] * v[1]) / ((math.hypot(*u) * math.hypot(*v)) or 1.0)
+    return math.degrees(math.acos(min(1.0, cosine)))
 
 
 def _shapes_without_copper(doc: Any, net: str, layer: int) -> int:
@@ -1236,17 +1255,20 @@ class PlaneCreate(L.ReadsBack):
             tied, tie_width, before = L.in_layout(ctx, lambda app, doc: band_ties(doc, path, net, layer, width or 0.0, hatched_pieces),
                                                   budget_s=L.READ_BUDGET_S, what="reading the copper in the bend zones")
             count = sum(len(found) for _box, found in tied)
+            segments = sum(_segments(rows) for _box, found in tied for rows in found)
             ties = ""
             if tied:
                 ties = (f" {len(tied)} bend zone(s) hold nothing of {net} on layer {layer} for their band to touch, and Layout makes a "
-                        f"shape's copper only where its net touches it: {count} straight {tie_width:g} mm trace(s) of {net} cross them "
-                        "into the copper beside them.")
+                        f"shape's copper only where its net touches it: {count} {tie_width:g} mm trace(s) of {net} cross them, square to "
+                        "the sides they cross, into the copper beside them.")
+                if segments > count:
+                    ties += f" Layout keeps each straight run and arc of a tie that turns as a trace of its own: {segments} in all."
                 if count:
                     from .layout_edit import trace_key
 
                     domain = trace_key(net, layer)
                     targets.append(base.target(path, "trace", domain, label=f"{net} traces on layer {layer}"))
-                    changes.append(base.change(base.key(path, domain), "count", before, before + count))
+                    changes.append(base.change(base.key(path, domain), "count", before, before + segments))
                 if any(not found for _box, found in tied):
                     ties += " A zone where no trace fits stays without copper; pcb check lists it."
             return base.preview(f"Pour {net} on layer {layer} in {len(parts)} bands across the board: a {hatch} hatch of "
@@ -1337,9 +1359,9 @@ class PlaneCreate(L.ReadsBack):
                     doc.TransactionStart(0)
                     try:
                         for _box, found in zones:
-                            for a, b in found:
-                                doc.PutTrace(layer, net_object, tie_width, 2, [[a[0], b[0]], [a[1], b[1]], [0.0, 0.0]], None, 0,
-                                             L.UNIT_MM)
+                            for rows in found:
+                                doc.PutTrace(layer, net_object, tie_width, len(rows), [[r[0] for r in rows], [r[1] for r in rows],
+                                                                                       [r[2] for r in rows]], None, 0, L.UNIT_MM)
                     except Exception as exc:  # noqa: BLE001 - classified
                         return L.failed_step(exc, "tying a band to its copper", [f"the plane shape over {p['region']}" for p in poured])
                     finally:
