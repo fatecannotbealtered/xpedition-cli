@@ -772,16 +772,19 @@ WRITES_KEPT = 50  # the tool's writes on a board remembered for doc undo, the la
 
 def remember_write(store: Any, session: Any, path: str, command: str, changes: list[dict[str, Any]], changed: bool = True,
                    operation_id: str | None = None) -> None:
-    """A write on the board in a Layout session, with its operation, the changes its preview listed
-    and whether it changed anything: doc undo takes the writes back in turn, the latest first. A
-    write that changed nothing is kept too, for a runtime that names no write it undoes and takes
-    the last one whatever it changed; it takes nothing back."""
+    """A write on the board in a Layout session, with its operation and the changes its preview
+    listed: doc undo takes the writes back in turn, the latest first. A write that changed nothing
+    left no step on Layout's Undo stack and is not kept; the runtime never names one to undo."""
     key = _writes_key(session, path)
     try:
-        writes = store.get(key, [])
-        entry = {"command": command, "changes": changes, "changed": changed, "operation_id": operation_id}
-        if store.get(_cleared_key(session, path)):  # this write cleared Layout's Undo stack: nothing before it can be undone
+        cleared = store.get(_cleared_key(session, path))
+        if cleared:
             store.delete(_cleared_key(session, path))
+        if not changed:
+            return
+        writes = store.get(key, [])
+        entry = {"command": command, "changes": changes, "operation_id": operation_id}
+        if cleared:  # this write cleared Layout's Undo stack: nothing before it can be undone
             writes, entry["cleared"] = [], True
         store.set(key, ((writes if isinstance(writes, list) else []) + [entry])[-WRITES_KEPT:])
     except Exception:  # noqa: BLE001 - not remembered: doc undo then refuses rather than guesses
@@ -821,27 +824,21 @@ def undo(ctx: base.Context) -> dict[str, Any]:
     writes = ctx.store.get(key, [])
     writes = [w for w in writes if isinstance(w, dict)] if isinstance(writes, list) else []
     undoes = ctx.request.get("undoes") or {}
-    if undoes.get("operation_id"):  # the runtime names the write: writes that changed nothing above it hold no step of Layout's
-        while writes and not writes[-1].get("changed", True):
-            writes.pop()
     if not writes:
         raise AdapterError("E_UNSUPPORTED", "Layout's Undo stack holds no write of this tool on this board since it was opened, so "
                            "doc undo cannot take anything back; change it back with the command that set it.",
                            dispatch_state="not_started")
-    if undoes.get("operation_id") and writes[-1].get("operation_id") not in (None, undoes["operation_id"]):
-        raise AdapterError("E_CONFLICT", f"The last step of Layout's Undo on this board is {writes[-1].get('command')} "
-                           f"({writes[-1].get('operation_id')}), not {undoes.get('command')} ({undoes['operation_id']}), so doc undo "
-                           "would take back another change; nothing was sent.", dispatch_state="not_started",
-                           conflict="application_state")
     command = writes[-1].get("command")
+    if writes[-1].get("operation_id") != undoes.get("operation_id"):
+        raise AdapterError("E_CONFLICT", f"The last step of Layout's Undo on this board is {command} "
+                           f"({writes[-1].get('operation_id')}), not {undoes.get('command')} ({undoes.get('operation_id')}), so "
+                           "doc undo would take back another change; nothing was sent.", dispatch_state="not_started",
+                           conflict="application_state")
     if writes[-1].get("cleared"):
         raise AdapterError("E_UNSUPPORTED", f"The tool's last write on this board, {command}, made a net's first plane on a layer, "
                            "which clears Layout's Undo stack, so doc undo can take back neither it nor anything before it; delete "
                            "the plane with plane delete, or change the rest back with the commands that set it.",
                            dispatch_state="not_started")
-    if not writes[-1].get("changed", True):
-        ctx.store.set(key, writes[:-1])  # it changed nothing: nothing to take back, and Layout's Undo stack holds no step of it
-        return base.facts("not_applied", "unchanged")
     if command not in UNDOABLE:
         raise AdapterError("E_UNSUPPORTED", f"The tool's last write on this board, {command}, leaves no step on Layout's Undo stack, "
                            "so doc undo cannot take it back; change it back with the command that set it.",

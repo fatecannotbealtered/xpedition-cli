@@ -45,6 +45,8 @@ class Verification:
 class WriteSpec:
     """One write call. Subclasses say how to target, preview, apply and verify it."""
 
+    capability: str | None = None  # the adapter capability that sends the write, checked before the preview
+
     def __init__(self, run: Run, command: Command) -> None:
         self.run = run
         self.command = command
@@ -152,6 +154,8 @@ class WriteSpec:
 
 class DomainWrite(WriteSpec):
     """A domain write, done through the adapter's preview, apply and read_back."""
+
+    capability = "apply"
 
     def __init__(self, run: Run, command: Command) -> None:
         super().__init__(run, command)
@@ -416,6 +420,74 @@ def slim_result(run: Run, result: Any) -> Any:
     return result
 
 
+def shorten_record(run: Run, item: dict[str, Any], room: int) -> bool:
+    """Shorten an operation record or a job too long to show within ``room`` characters, so that
+    it still shows: its preview as a confirmation's, then its receipt, its result, then the longest
+    lists in it, such as the targets of a batch, and last everything but what says what happened
+    (DCLI-008, DCLI-035, DCLI-220). True when it was shortened."""
+
+    def fits() -> bool:
+        return len(_compact(item)) <= room
+
+    if fits():
+        return False
+    preview = item.get("preview")
+    changes = preview.get("changes") if isinstance(preview, dict) else None
+    while isinstance(changes, list) and changes and not fits():
+        changes.pop()
+        preview["changes_truncated"] = True
+    details = item.get("details")
+    if not fits() and isinstance(details, dict) and isinstance(item.get("receipt"), dict):
+        details.pop("receipt", None)  # an ended job's error repeats the job's receipt
+    if not fits() and isinstance(item.get("receipt"), dict):
+        receipt = item["receipt"] = slim_receipt(run, item["receipt"])
+        receipt.pop("notes", None)
+        mismatched = set(receipt.get("mismatched", []))
+        observed = receipt.get("observed")
+        if not fits() and isinstance(observed, dict):
+            receipt["observed"] = {k: v for k, v in observed.items() if k in mismatched or any(m.startswith(k) for m in mismatched)}
+    if not fits() and "result" in item:
+        item["result"] = slim_result(run, item["result"])
+        if not fits():
+            del item["result"]
+    while not fits():
+        # A batch names its targets in the record, the preview and the receipt.
+        longest = max(_lists(item), key=lambda v: len(_compact(v)), default=None)
+        if longest is None:
+            break
+        del longest[max(1, len(longest) // 2):]
+    while not fits():
+        rest = [k for k in item if k not in _RECORD_CORE]
+        if not rest:
+            break
+        del item[max(rest, key=lambda k: len(_compact(item[k])))]
+    return True
+
+
+# What an operation record or a job keeps however short it gets: what ran and how it ended.
+_RECORD_CORE = {"operation_id", "command", "effects", "tier", "scope_id", "state", "planned_at", "dispatched_at",
+                "finished_at", "batch", "output", "id", "cancel_requested", "started_at", "ok", "code", "message", "action"}
+
+
+def _compact(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _lists(value: Any) -> list[list[Any]]:
+    """Every list inside the value that holds more than one item."""
+    out: list[list[Any]] = []
+    stack = [value]
+    while stack:
+        v = stack.pop()
+        if isinstance(v, list):
+            if len(v) > 1:
+                out.append(v)
+            stack.extend(v)
+        elif isinstance(v, dict):
+            stack.extend(v.values())
+    return out
+
+
 def worker_argv(run: Run) -> list[str]:
     """The current call as arguments, with the targets the runtime chose, for a worker to run again."""
     call = run.call
@@ -496,6 +568,12 @@ class Engine:
         # A confirming call looks its token up first (DCLI-056, step 1).
         token_record = self.lookup_token() if call.confirm else None
         spec.prepare()
+        session = spec.where.session["id"] if spec.where.session else None
+        if spec.capability and not run.backend.has(spec.capability, session):
+            # Neither a preview nor a token promises a write that cannot be sent (DCLI-260).
+            where = f"the instance of session {session}" if session else "this tool's adapter"
+            raise DriverError("E_UNSUPPORTED", f"{where[0].upper()}{where[1:]} has no {spec.capability} capability, "
+                                               f"so {command.path} cannot run there; nothing was sent.")
         pv = spec.preview()
         self.take_raises(spec, pv)
         targets = self._targets(spec, pv)

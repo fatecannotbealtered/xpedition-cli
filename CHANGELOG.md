@@ -21,10 +21,12 @@ All notable changes to xpedition-cli are recorded here, in the Keep a Changelog 
 - `pcb check` judges a bend zone that lies at a slant by its shape and the edge each trace crosses, and its guard requirement counts a ground pour beside a trace.
 - A Layout output dialog left open points at the knowledge entry `layout-output-setups`, which now says to press Cancel.
 - The routing plan's guards move with lanes that jog at one place; a lane ending on a pin runs straight along the pad until clear of its row's pads before it turns; a lane leaving a fan-out turns onto its line more steeply where a 45 degree turn would fall in a bend zone; a lane's fan-out stubs are as wide as the lane wherever that clears; a join pin to pin is no wider than its net class allows.
+- The notes of `trace check` and `trace create` name two lanes of one layer that end in the other order than they lie on their lines, which must cross there.
 - Every reason `trace check` and `trace create` give ends with the plan's entry the copper comes from and the place, and `trace check --output` writes the plan as worked out, each trace and via with its number, points and entry.
 - A failing `via_pitch` gap lists every via it needs, `vias_fit_at_mm`, in place of one spot.
 - `plane create --bends` hatches a bend zone at a slant by its own shape, the parts of the board beside it left solid, and ties each hatched piece square to the sides it shares with the solid copper, or along the board's edges where nothing fits so.
 - `pcb check` and the plan's notes judge pair lengths only on the differential pairs the design defines, by name only when it defines none; `pcb get` `metrics.widths` gives each net's narrowest and widest trace.
+- Built on tool-driver-cli-spec 1.3.1. `doc undo` takes back the tool's latest write that changed the board, which the runtime names; a write that changed nothing leaves no step to take back, and when Layout's last step is another write's, `doc undo` refuses with `E_CONFLICT` and sends nothing.
 - `component move --to-marks` marks the other fits on the same spot (`same_spot`), which show that the marks do not say where pin 1 goes; the knowledge entry `layout-placement-drc` explains the marks Batch DRC then reports under the part.
 
 ### Fixed

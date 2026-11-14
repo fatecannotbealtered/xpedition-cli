@@ -1,0 +1,781 @@
+{
+  "tool": "xpedition-cli",
+  "tool_version": "1.5.0",
+  "date": "2026-11-13",
+  "agent": "Claude Code 2.1.322",
+  "model": "claude-opus-5-5",
+  "simulated": false,
+  "platform": "windows",
+  "targets": [
+    "file:///D:/driver-work/xpedition-cli/evals/"
+  ],
+  "questions": [
+    {
+      "scenario": "scoped_change",
+      "id": "board-in-new-layout",
+      "passed": true,
+      "notes": "Start Layout with a board, report the board's layers and outline, then quit that Layout.",
+      "sha256": "af8be5ea6b03b0b16bef2bb1dd5b086ee94fc2fd483b54c1bd2f8b67b843f9d9",
+      "commands": [
+        "session open",
+        "session get",
+        "pcb get",
+        "session close"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb get",
+        "reference",
+        "session close",
+        "session list",
+        "session open"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-open-prompts.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "skills/"
+      ],
+      "fingerprint": "260f22d9a240d135c80c9deaf4e631bafce6ebd50c733596dc7b507738c687f4"
+    },
+    {
+      "scenario": "read_answer",
+      "id": "board-rules-read",
+      "passed": true,
+      "notes": "Answer questions about a board's net classes and the central library's vias by reading them, and",
+      "sha256": "8c8c55388cd575f42bb2c62543c95abdbaa50e81022e840ee19afd3b9f2adcad",
+      "commands": [
+        "constraint get",
+        "padstack list",
+        "pcb get"
+      ],
+      "ran": [
+        "constraint get",
+        "doc list",
+        "doctor",
+        "padstack list",
+        "project get",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/layout-impedance-from-fab-table.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "7dc930b0ba41b0b6f0f3d38ea8829d5c7f9bc8b8cf410056b49952467c263867"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "bom-against-earlier",
+      "passed": true,
+      "notes": "Check the bill of materials, write it to a file and say what changed since an earlier BOM.",
+      "sha256": "c8733fdfdc4718122ddd8707ce256837a4a0beff64fb41e3631d8be65945ba02",
+      "commands": [
+        "bom check",
+        "bom export"
+      ],
+      "ran": [
+        "bom check",
+        "bom export",
+        "component list",
+        "doctor",
+        "knowledge list",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "5cfbb887cd0f4912c0c0ee3204ccb0af79d013c9c1274eef0d684cdf7defe166"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "draw-and-check-schematic",
+      "passed": true,
+      "notes": "Draw the schematic from the design file when the user explicitly asks for it, save it, check it,",
+      "sha256": "b0f7739a2be4575cd9167824b44c1e0e5507a52e16b2dcf613917c9642a65f5a",
+      "commands": [
+        "session list",
+        "doc list",
+        "schematic create",
+        "job get",
+        "doc save",
+        "schematic check"
+      ],
+      "ran": [
+        "doc list",
+        "doc save",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "reference",
+        "schematic check",
+        "schematic create",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-one-instance-only.md",
+        "knowledge/designer-pin-on-wire-corner.md",
+        "knowledge/designer-pin-types-and-erc.md",
+        "knowledge/designer-power-symbols.md",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/designer-symbol-cache.md",
+        "skills/"
+      ],
+      "fingerprint": "d5b8bd517851ae1a19373a35f7d26ab16f265f98b74f8b8a1f303b1de848cfef"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "export-schematic-pdf",
+      "passed": true,
+      "notes": "Export the open schematic to a PDF and report its sheets, components and nets.",
+      "sha256": "f4f565e67af8dabbc8ac4f56caf858f32ea60134e851344b26fa311b7658b27c",
+      "commands": [
+        "schematic get",
+        "schematic export"
+      ],
+      "ran": [
+        "doctor",
+        "reference",
+        "schematic export",
+        "schematic get",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/designer-chinese-text-in-pdf.md",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "skills/"
+      ],
+      "fingerprint": "d2df7eeec0532376d84cfb5dd7f368e0754028323da0aba95e8f2a4266a8416e"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "fabrication-package",
+      "passed": true,
+      "notes": "Write the fabrication package of the open board, follow its long job to the end, and report the",
+      "sha256": "aaaf891aa530fd75f77aad6158c9d24531afc5fbd499b2489c89bfd4993a0df7",
+      "commands": [
+        "pcb export",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "operation get",
+        "pcb export",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-drillprefs-held.md",
+        "knowledge/layout-output-setups.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "skills/"
+      ],
+      "fingerprint": "3beff0ae9b17529b107482fa295ba74c39b296ef055d9b6d2d5c6495a5c791a0"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "ground-a-spring-and-name",
+      "passed": true,
+      "notes": "Pour ground on the bottom of a flex board, open the bottom mask over the largest spot in a stretch of",
+      "sha256": "ce226b6404068bfbc688e8b72dfdf8bdbf502e31be4e1cefc47dfca8502362b4",
+      "commands": [
+        "pcb get",
+        "plane create",
+        "solder-mask create",
+        "silkscreen-text create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "reference",
+        "session list",
+        "silkscreen-text create",
+        "solder-mask create"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-fine-pitch-clearance.md",
+        "knowledge/layout-flex-bend-and-stiffener.md",
+        "knowledge/layout-plane-draft-state.md",
+        "knowledge/layout-plane-hatch.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-silkscreen-text.md",
+        "knowledge/layout-solder-mask-openings.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "skills/"
+      ],
+      "fingerprint": "ab6f1683c835f2d17e3a4fab7e1db013c93c6412eb4c31fb77a84547310652ea"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "guard-a-flex-pair",
+      "passed": true,
+      "notes": "Route two differential pairs across a flex board with ground guards beside them, to a reviewer's",
+      "sha256": "d0b598924bf6dbe9c94f25a068382c1066726145e12d03bbd39d2d747f1414e6",
+      "commands": [
+        "pcb get",
+        "component get",
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "plane create",
+        "trace check",
+        "trace create",
+        "via create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component get",
+        "constraint get",
+        "constraint import",
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "padstack create",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/layout-fine-pitch-clearance.md",
+        "knowledge/layout-flex-bend-and-stiffener.md",
+        "knowledge/layout-flex-connector-bus.md",
+        "knowledge/layout-impedance-from-fab-table.md",
+        "knowledge/layout-plane-draft-state.md",
+        "knowledge/layout-plane-hatch.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-router-via-from-net-class.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "ae772a8041f6b4f5555e9581d987811e08269c75be00271b80e97d345b313e3d"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "lay-out-board",
+      "passed": true,
+      "notes": "Lay out the open board: forward annotation, outline, placement, a GND plane and routing, then the",
+      "sha256": "28bb42562b11fb73dd676969a3f67d8266ac72183f9057e7bddd8aeff156ae55",
+      "commands": [
+        "forward-annotation run",
+        "job get",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "pcb check"
+      ],
+      "ran": [
+        "doctor",
+        "forward-annotation run",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb update",
+        "placement run",
+        "plane create",
+        "router run",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-one-instance-only.md",
+        "knowledge/forward-annotation-in-synch.md",
+        "knowledge/forward-annotation-keeps-old-cells.md",
+        "knowledge/layout-fine-pitch-clearance.md",
+        "knowledge/layout-flex-bend-and-stiffener.md",
+        "knowledge/layout-open-prompts.md",
+        "knowledge/layout-placement-drc.md",
+        "knowledge/layout-plane-draft-state.md",
+        "knowledge/layout-plane-hatch.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-unplaced-parts-invisible.md",
+        "knowledge/layout-via-near-pad.md",
+        "knowledge/xpedition-ascii-paths-only.md",
+        "knowledge/xpedition-basics.md",
+        "knowledge/xpedition-external-edits-not-tracked.md",
+        "knowledge/xpedition-license-sign-in.md",
+        "knowledge/xpedition-start-through-launcher.md",
+        "knowledge/xpedition-template-library-is-empty.md",
+        "knowledge/xpedition-troubleshooting.md",
+        "skills/"
+      ],
+      "fingerprint": "7813b021e2686e93dcc6806c9bf9580e02491571ee7622d42eeb42d5c50d6c94"
+    },
+    {
+      "scenario": "knowledge_lookup",
+      "id": "library-value-rule",
+      "passed": true,
+      "notes": "A question only the knowledge base answers: what the parts database keeps of a part's Value.",
+      "sha256": "65f8116e8177882d5694f15772f53847d0b06c8cd2a7a48941bdefa4adefc30f",
+      "commands": [
+        "knowledge search",
+        "knowledge get"
+      ],
+      "ran": [
+        "knowledge get",
+        "knowledge list",
+        "knowledge search"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-chinese-text-in-pdf.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/library-part-value-is-numeric.md",
+        "knowledge/prj-cell-library-list.md",
+        "knowledge/xpedition-external-edits-not-tracked.md",
+        "knowledge/xpedition-license-sign-in.md",
+        "knowledge/xpedition-troubleshooting.md",
+        "skills/"
+      ],
+      "fingerprint": "8f13344d9a94763c9d42a37fec962d2c297fc7cdd7dd8c8802ecd55367323567"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "new-project-with-parts",
+      "passed": true,
+      "notes": "Create a project from a template and add the sample parts to its central library, then report",
+      "sha256": "262e2e67f3428d09ad642ea3c124eac9508bf972dc453d6f508bbd1bf4bb3df4",
+      "commands": [
+        "doc create",
+        "part create",
+        "part get"
+      ],
+      "ran": [
+        "doc create",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "part create",
+        "reference"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/cell-pin-count-must-match.md",
+        "knowledge/library-converter-rules.md",
+        "knowledge/library-part-value-is-numeric.md",
+        "knowledge/xpedition-ascii-paths-only.md",
+        "skills/"
+      ],
+      "fingerprint": "6a343bf5b01618ed9177b405eda94b6309cbcbe019dcf4118fdc2ed246e706f3"
+    },
+    {
+      "scenario": "separate_save",
+      "id": "outline-then-save",
+      "passed": true,
+      "notes": "Open a board, change its outline, then save it as a separate step and close it: the file changes",
+      "sha256": "a5d72b83a0c20fead182d9713d06405afbcf8aa971da03927a5c8ddbd3ff8843",
+      "commands": [
+        "doc open",
+        "pcb update",
+        "doc get",
+        "doc save",
+        "doc close"
+      ],
+      "ran": [
+        "doc close",
+        "doc get",
+        "doc open",
+        "doc save",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "pcb update",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "skills/"
+      ],
+      "fingerprint": "8e8c31fe078d13db363661d193044ce3a0aa7b67f183d4c4c5b099792fc5a32b"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "package-and-create-board",
+      "passed": true,
+      "notes": "Package the drawn schematic and create the board from a layout template, then report where the",
+      "sha256": "04b039a09dd6ece9d533fcb0c1b94ffd81d80012860637f5468c5ecc40d7cab5",
+      "commands": [
+        "packager run",
+        "pcb create",
+        "project get"
+      ],
+      "ran": [
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "packager run",
+        "pcb create",
+        "reference"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/cell-pin-count-must-match.md",
+        "knowledge/designer-one-instance-only.md",
+        "knowledge/forward-annotation-keeps-old-cells.md",
+        "knowledge/layout-placement-drc.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-unplaced-parts-invisible.md",
+        "knowledge/prj-cell-library-list.md",
+        "knowledge/xpedition-ascii-paths-only.md",
+        "knowledge/xpedition-basics.md",
+        "knowledge/xpedition-external-edits-not-tracked.md",
+        "knowledge/xpedition-license-sign-in.md",
+        "knowledge/xpedition-start-through-launcher.md",
+        "knowledge/xpedition-template-library-is-empty.md",
+        "knowledge/xpedition-troubleshooting.md",
+        "skills/"
+      ],
+      "fingerprint": "99fcd6a7404d6437cd7c116f717b2eea7dbdf907d5be6c4b966c6fd9df4c02cb"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "power-class-and-via",
+      "passed": true,
+      "notes": "Put the power nets in a net class of their own width, route only that class, and give their vias",
+      "sha256": "c7f9cdbb069c293c2441ed4e755dba49c1047edb4baefda0aac7e9815eb1780b",
+      "commands": [
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "router run",
+        "via update",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "constraint get",
+        "constraint import",
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "padstack create",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "project get",
+        "reference",
+        "router run",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-fine-pitch-clearance.md",
+        "knowledge/layout-impedance-from-fab-table.md",
+        "knowledge/layout-router-via-from-net-class.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "da97aa0f7d2cf4cfceb7556645121bd5d115ccfb87a36738ea5e526994905490"
+    },
+    {
+      "scenario": "read_answer",
+      "id": "project-library-read",
+      "passed": true,
+      "notes": "Answer questions about a project and its central library by reading them, and change nothing.",
+      "sha256": "c744a8d22ede8b00ff22de469d5dfab9ec4cec71b0a4978c9d554056d3726b4e",
+      "commands": [
+        "project get",
+        "part list",
+        "part get"
+      ],
+      "ran": [
+        "doctor",
+        "part get",
+        "part list",
+        "project get",
+        "reference"
+      ],
+      "guidance": [
+        "knowledge/cell-pin-count-must-match.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "6b33b9ef352a9b69393ab9043cdf162532f9b43c953dc24b4114e229fe837d94"
+    },
+    {
+      "scenario": "read_answer",
+      "id": "read-schematic-connections",
+      "passed": true,
+      "notes": "Answer questions about the schematic's components and nets by reading them, and change nothing.",
+      "sha256": "4dea255d437315fa5a763cda286fe641b87ab34a10ca558ff294cb993b4156cb",
+      "commands": [
+        "component list",
+        "component get",
+        "net list",
+        "net get"
+      ],
+      "ran": [
+        "component get",
+        "component list",
+        "doc list",
+        "doctor",
+        "net get",
+        "net list",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "skills/"
+      ],
+      "fingerprint": "9b9934d852699979c302f7455b9bf1d77f6e0b20ce494b5e9d0eb5430a778fb5"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "route-a-flex",
+      "passed": true,
+      "notes": "Route two differential pairs across a flex board between its two connectors, with two ground",
+      "sha256": "d017a694b594b04ae4937763f6c742fa913e6400bcb389d0cdf713504dea5657",
+      "commands": [
+        "pcb get",
+        "component get",
+        "constraint get",
+        "constraint import",
+        "padstack list",
+        "padstack create",
+        "plane create",
+        "trace create",
+        "via create",
+        "pcb check",
+        "job get"
+      ],
+      "ran": [
+        "component get",
+        "constraint import",
+        "doc list",
+        "doctor",
+        "job get",
+        "keepout create",
+        "knowledge get",
+        "knowledge list",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "plane create",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create",
+        "via create"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/layout-fine-pitch-clearance.md",
+        "knowledge/layout-flex-bend-and-stiffener.md",
+        "knowledge/layout-flex-connector-bus.md",
+        "knowledge/layout-impedance-from-fab-table.md",
+        "knowledge/layout-plane-draft-state.md",
+        "knowledge/layout-plane-hatch.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-router-via-from-net-class.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "2a52bd87df9279aa379ae2d4f630440a983fdf059591eb1ef1086759556a4e90"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "route-one-trace",
+      "passed": true,
+      "notes": "Draw one planned trace between two named pins, as wide as the net's class allows, around the",
+      "sha256": "b917a5a76da0376902850f5652e667748abe1dbc7a91057e7a583e9fdf92093c",
+      "commands": [
+        "component get",
+        "constraint get",
+        "trace create",
+        "pcb get"
+      ],
+      "ran": [
+        "component get",
+        "component list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb get",
+        "reference",
+        "session list",
+        "trace check",
+        "trace create"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/layout-impedance-from-fab-table.md",
+        "knowledge/layout-trace-end-on-a-via.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "skills/"
+      ],
+      "fingerprint": "0099d966e3f65c25c757cdcfda4fd449c46ffdf761ed1129c1d291a509178144"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "stitch-and-expose",
+      "passed": true,
+      "notes": "Pour a second GND plane, stitch the two with vias, bare a patch of GND copper and draw the board;",
+      "sha256": "6a884b3e249a189dcc8d50c61ef300f0462da963102feb06fe006209bae3d53c",
+      "commands": [
+        "plane create",
+        "via create",
+        "solder-mask create",
+        "pcb render",
+        "job get",
+        "pcb get"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "job get",
+        "knowledge get",
+        "knowledge list",
+        "pcb check",
+        "pcb render",
+        "plane create",
+        "reference",
+        "session list",
+        "solder-mask create",
+        "via create"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-plane-draft-state.md",
+        "knowledge/layout-plane-hatch.md",
+        "knowledge/layout-pour-after-routing.md",
+        "knowledge/layout-router-via-from-net-class.md",
+        "knowledge/layout-solder-mask-openings.md",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "knowledge/layout-via-near-pad.md",
+        "skills/"
+      ],
+      "fingerprint": "c9f7bf60024f9db978f5b395842ff1cb60cc301be212b579d368098f73afaa62"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "take-back-copper",
+      "passed": true,
+      "notes": "Take back copper work: delete the traces and vias of two nets, a plane and a soldermask opening,",
+      "sha256": "552451d7c4e4b2e5f574a5806f1b51b2547773117d15550305371eb3b29c0327",
+      "commands": [
+        "trace delete",
+        "via delete",
+        "plane delete",
+        "solder-mask delete",
+        "pcb get"
+      ],
+      "ran": [
+        "doc list",
+        "doctor",
+        "knowledge list",
+        "plane delete",
+        "reference",
+        "session list",
+        "solder-mask delete",
+        "trace delete",
+        "via delete"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/layout-trace-widths-through-cm.md",
+        "skills/"
+      ],
+      "fingerprint": "81403ca4e8b3ba30d45d9557686ab89084d8e430b39a8c7e83319f524105a5cd"
+    },
+    {
+      "scenario": "scoped_change",
+      "id": "tidy-board",
+      "passed": true,
+      "notes": "Tidy a placed board by named changes: one part to the bottom at a position, a mounting hole in",
+      "sha256": "1be837db9013031e5491c6ebe0e1abac81a47fc22f50e7c16d8ca1e487db8a9d",
+      "commands": [
+        "component list",
+        "component move",
+        "padstack list",
+        "mounting-hole create",
+        "mounting-hole delete",
+        "mounting-hole list",
+        "refdes move"
+      ],
+      "ran": [
+        "component list",
+        "component move",
+        "doctor",
+        "job get",
+        "knowledge list",
+        "mounting-hole create",
+        "mounting-hole delete",
+        "mounting-hole list",
+        "padstack list",
+        "pcb check",
+        "pcb get",
+        "project get",
+        "refdes move",
+        "reference",
+        "session list"
+      ],
+      "guidance": [
+        "knowledge index",
+        "knowledge/designer-reopen-after-sheet-changes.md",
+        "knowledge/layout-placement-drc.md",
+        "knowledge/library-converter-rules.md",
+        "skills/"
+      ],
+      "fingerprint": "4a0d09c26cd9692871446753e39dd7daa4982dc664d3161dfc3a4e84db0946f2"
+    }
+  ]
+}

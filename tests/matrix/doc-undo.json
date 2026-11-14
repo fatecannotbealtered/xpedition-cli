@@ -17,7 +17,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-170428-doc-undo.json#normal"
+      "evidence": "live:docs/evidence/2026-11-13-211740-doc-undo.json#normal"
     },
     {
       "row": "empty",
@@ -63,7 +63,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170422-doc-undo.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-211734-doc-undo.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -78,7 +78,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165423-doc-undo.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-210540-doc-undo.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -98,7 +98,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-13-163306-doc-undo.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-13-204517-doc-undo.json#conflict"
     },
     {
       "row": "no_scope",
@@ -118,7 +118,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170422-doc-undo.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-13-211734-doc-undo.json#no_scope"
     },
     {
       "row": "busy",
@@ -136,7 +136,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170032-doc-undo.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-214531-doc-undo.json#busy"
     },
     {
       "row": "dialog",
@@ -154,7 +154,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170247-doc-undo.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-211603-doc-undo.json#dialog"
     },
     {
       "row": "disconnect",
@@ -188,7 +188,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-170434-doc-undo.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-211747-doc-undo.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -208,7 +208,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170444-doc-undo.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-13-211757-doc-undo.json#read_back_mismatch"
     }
   ]
 }

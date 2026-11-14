@@ -19,9 +19,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-170811-constraint-import.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-212115-constraint-import.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-13-170811-constraint-import.json#normal"
+        "board": "live:docs/evidence/2026-11-13-212115-constraint-import.json#normal"
       }
     },
     {
@@ -42,7 +42,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-170821-constraint-import.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-212125-constraint-import.json#empty"
     },
     {
       "row": "invalid_input",
@@ -64,7 +64,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170802-constraint-import.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-212105-constraint-import.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -86,7 +86,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170802-constraint-import.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-212105-constraint-import.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -104,7 +104,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165409-constraint-import.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-210526-constraint-import.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -126,7 +126,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-13-171338-constraint-import.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-13-212640-constraint-import.json#conflict"
     },
     {
       "row": "no_scope",
@@ -148,7 +148,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170802-constraint-import.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-13-212105-constraint-import.json#no_scope"
     },
     {
       "row": "busy",
@@ -168,7 +168,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165730-constraint-import.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-214345-constraint-import.json#busy"
     },
     {
       "row": "dialog",
@@ -188,7 +188,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170149-constraint-import.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-211501-constraint-import.json#dialog"
     },
     {
       "row": "disconnect",
@@ -226,7 +226,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-170857-constraint-import.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-212201-constraint-import.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -248,7 +248,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170843-constraint-import.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-13-212147-constraint-import.json#read_back_mismatch"
     }
   ]
 }

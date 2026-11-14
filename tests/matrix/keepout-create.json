@@ -27,9 +27,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-164748-keepout-create.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-210014-keepout-create.json#normal",
       "kind_evidence": {
-        "board": "live:docs/evidence/2026-11-13-164748-keepout-create.json#normal"
+        "board": "live:docs/evidence/2026-11-13-210014-keepout-create.json#normal"
       }
     },
     {
@@ -58,7 +58,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-164752-keepout-create.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-210017-keepout-create.json#empty"
     },
     {
       "row": "invalid_input",
@@ -88,7 +88,7 @@
         "exit": 2,
         "code": "E_VALIDATION"
       },
-      "evidence": "live:docs/evidence/2026-11-13-164744-keepout-create.json#invalid_input"
+      "evidence": "live:docs/evidence/2026-11-13-210010-keepout-create.json#invalid_input"
     },
     {
       "row": "not_found",
@@ -118,7 +118,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-13-164744-keepout-create.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-210010-keepout-create.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -144,7 +144,7 @@
         "exit": 2,
         "code": "E_AMBIGUOUS"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165528-keepout-create.json#ambiguous"
+      "evidence": "live:docs/evidence/2026-11-13-210645-keepout-create.json#ambiguous"
     },
     {
       "row": "conflict",
@@ -174,7 +174,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165218-keepout-create.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-13-210329-keepout-create.json#conflict"
     },
     {
       "row": "no_scope",
@@ -204,7 +204,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-13-164744-keepout-create.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-13-210010-keepout-create.json#no_scope"
     },
     {
       "row": "busy",
@@ -232,7 +232,7 @@
         "exit": 7,
         "code": "E_BUSY"
       },
-      "evidence": "live:docs/evidence/2026-11-13-165919-keepout-create.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-211221-keepout-create.json#busy"
     },
     {
       "row": "dialog",
@@ -260,7 +260,7 @@
         "exit": 9,
         "code": "E_HUMAN_REQUIRED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-170226-keepout-create.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-211542-keepout-create.json#dialog"
     },
     {
       "row": "disconnect",
@@ -314,7 +314,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-164755-keepout-create.json#unsaved"
+      "evidence": "live:docs/evidence/2026-11-13-210021-keepout-create.json#unsaved"
     },
     {
       "row": "read_back_mismatch",
@@ -344,7 +344,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-164802-keepout-create.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-13-210028-keepout-create.json#read_back_mismatch"
     }
   ]
 }

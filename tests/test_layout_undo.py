@@ -77,13 +77,11 @@ class UndoTest(unittest.TestCase):
             L.undo(_context(self.store, "doc undo"))  # taken back already: nothing left
         self.assertEqual(nothing.exception.data["code"], "E_UNSUPPORTED")
 
-    def test_a_write_that_changed_nothing_is_taken_back_as_nothing(self):
+    def test_a_write_that_changed_nothing_leaves_no_step_to_take_back(self):
         L.remember_write(self.store, SESSION, BOARD, "via create", [base.change(base.key(BOARD, "/vias/GND"), "count", 74, 75)])
-        L.remember_write(self.store, SESSION, BOARD, "component move", [], changed=False)  # the runtime's last record
+        L.remember_write(self.store, SESSION, BOARD, "component move", [], changed=False)  # no step of Layout's
         with world(self.app):
-            self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "not_applied")
-            self.assertEqual(self.app.Gui.commands, [])  # no Undo step of it to take back
-            self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "applied")  # then the via create
+            self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "applied")  # the via create
         self.assertEqual(self.app.Gui.commands, [L.ID_EDIT_UNDO])
 
     def test_a_first_plane_on_a_layer_clears_what_undo_can_take_back(self):
@@ -99,7 +97,17 @@ class UndoTest(unittest.TestCase):
         with world(self.app):
             self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "applied")
 
-    def test_a_runtime_that_names_the_write_it_undoes_is_held_to_it(self):
+    def test_a_first_plane_that_poured_nothing_clears_nothing(self):
+        L.remember_write(self.store, SESSION, BOARD, "via create", [])
+        L.undo_cleared(self.store, SESSION, BOARD)
+        L.remember_write(self.store, SESSION, BOARD, "plane create", [], changed=False)  # it made no plane
+        L.remember_write(self.store, SESSION, BOARD, "trace create", [])
+        with world(self.app):
+            self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "applied")  # the trace create
+            self.assertEqual(L.undo(_context(self.store, "doc undo"))["change"], "applied")  # and the via create before it
+        self.assertEqual(self.app.Gui.commands, [L.ID_EDIT_UNDO, L.ID_EDIT_UNDO])
+
+    def test_undo_is_held_to_the_write_the_runtime_names(self):
         L.remember_write(self.store, SESSION, BOARD, "via create", [], operation_id="op_a")
         L.remember_write(self.store, SESSION, BOARD, "component move", [], changed=False, operation_id="op_b")  # no step of Layout's
         ctx = base.Context(self.store, {"command": "doc undo", "inputs": {}, "session": SESSION, "document": BOARD,
@@ -110,7 +118,7 @@ class UndoTest(unittest.TestCase):
         self.assertEqual(self.app.Gui.commands, [])
         ctx.request["undoes"] = {"operation_id": "op_a", "command": "via create"}
         with world(self.app):
-            self.assertEqual(L.undo(ctx)["change"], "applied")  # past the write that changed nothing, to the one named
+            self.assertEqual(L.undo(ctx)["change"], "applied")
         self.assertEqual(self.app.Gui.commands, [L.ID_EDIT_UNDO])
 
     def test_undo_refuses_a_write_that_left_no_undo_step(self):

@@ -12,7 +12,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-160752-session-list.json#normal"
+      "evidence": "live:docs/evidence/2026-11-13-201418-session-list.json#normal"
     },
     {
       "row": "empty",
@@ -28,7 +28,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-160752-session-list.json#empty"
+      "evidence": "live:docs/evidence/2026-11-13-201418-session-list.json#empty"
     },
     {
       "row": "invalid_input",
@@ -79,7 +79,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-165819-session-list.json#busy"
+      "evidence": "live:docs/evidence/2026-11-13-211118-session-list.json#busy"
     },
     {
       "row": "dialog",
@@ -92,7 +92,7 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-162230-session-list.json#dialog"
+      "evidence": "live:docs/evidence/2026-11-13-203518-session-list.json#dialog"
     },
     {
       "row": "disconnect",

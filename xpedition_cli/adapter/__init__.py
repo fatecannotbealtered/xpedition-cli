@@ -164,7 +164,7 @@ class Adapter(BaseAdapter):
         if request.get("document") and ref is not None and ref.kind == base.LAYOUT and facts.get("dispatch_state") != "not_started":
             from . import layout
 
-            # every write that went through, a change or not: doc undo takes back the runtime's last one
+            # a write that changed the board is one step of Layout's Undo, which doc undo takes back
             layout.remember_write(self.store, request["session"], request["document"], handler.command, kept.get("changes", []),
                                   changed=sessions.changed(facts), operation_id=request.get("operation_id"))
         if request.get("session"):

@@ -657,6 +657,46 @@ def resolve_pins(lanes: list[Lane], pins: dict[str, Point | list[Point]]) -> Non
                 lane.end, lane.to_ref, lane.slants = corners[::-1], None, (lane.slants[0], True)
 
 
+def swapped(traces: list[TP.Trace]) -> list[str]:
+    """Two lanes of one layer that reach their lines in the other order than they lie at an end, such
+    as two pins that two connectors put in opposite orders: from that end to their lines they must
+    cross. Each such pair once, with where, before the check finds them crossing or too close."""
+    ends = []
+    for trace in traces:
+        if trace.joins is None or len(trace.points) < 3:
+            continue
+        first, last = trace.joins
+        points = trace.points
+        # from each end straight to where it joins its line, then on along the line to its next corner
+        start = [points[0], points[first], points[min(first + 1, len(points) - 1)]]
+        finish = [points[-1], points[last], points[max(last - 1, 0)]]
+        ends.append((trace, [start, finish]))
+    notes = []
+    for i, (a, ways_a) in enumerate(ends):
+        for b, ways_b in ends[i + 1:]:
+            if a.layer != b.layer or a.net == b.net:
+                continue
+            for way_a, way_b in zip(ways_a, ways_b, strict=True):
+                if not any(_crossing(p, q, r, t) for p, q in zip(way_a, way_a[1:], strict=False)
+                           for r, t in zip(way_b, way_b[1:], strict=False) if math.dist(p, q) > 1e-6 and math.dist(r, t) > 1e-6):
+                    continue
+                p = way_a[0]
+                notes.append(f"{a.origin} ({a.net}) and {b.origin} ({b.net}) lie in one order where they end near ({p[0]:.3f}, "
+                             f"{p[1]:.3f}) mm and in the other on their lines, so on layer {a.layer} they must cross there: put one "
+                             "on another layer through vias, or swap their distances from the edge")
+                break
+    return notes
+
+
+def _crossing(p: Point, q: Point, r: Point, t: Point) -> bool:
+    """Whether segments p-q and r-t cross each other, not just touch at an end."""
+    def side(a: Point, b: Point, c: Point) -> float:
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    d1, d2, d3, d4 = side(p, q, r), side(p, q, t), side(r, t, p), side(r, t, q)
+    return d1 * d2 < -1e-12 and d3 * d4 < -1e-12
+
+
 WIDEN_STEP_MM = 0.05  # a neck is tested at the lane's width in pieces this long
 WIDEN_MIN_MM = 0.1  # a stretch at the lane's width shorter than this stays at the neck's: no width changes a hair apart
 

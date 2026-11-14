@@ -1889,10 +1889,11 @@ def _lanes_laid(doc: Any, path: str, plan: TP.Plan, lanes: list[LN.Lane], copper
         except AdapterError:  # a board without its project's rules: the default clearance
             LN.stagger(lanes + list(guard_lanes or []), DEFAULT_CLEARANCE_MM)
     try:
-        laid = [piece for index, lane in enumerate(lanes)
-                for piece in LN.necked(lane, LN.expand(copy.copy(lane), ring, f"lanes[{index}]", fanouts, clearance, zones))]
+        expanded = [LN.expand(copy.copy(lane), ring, f"lanes[{index}]", fanouts, clearance, zones) for index, lane in enumerate(lanes)]
+        laid = [piece for lane, trace in zip(lanes, expanded, strict=True) for piece in LN.necked(lane, trace)]
     except PlanError as exc:
         raise AdapterError(exc.code, exc.message, dispatch_state="not_started") from None
+    plan = TP.Plan(traces=plan.traces, vias=plan.vias, notes=plan.notes + LN.swapped(expanded))
     traces = plan.traces + laid
     # a lane's fan-out stubs, and its neck, as wide as the lane wherever that clears
     full = {lane.net: lane.width for lane in lanes}

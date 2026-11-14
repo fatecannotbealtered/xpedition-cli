@@ -82,6 +82,18 @@ class ExpandTest(unittest.TestCase):
         points = [(round(x, 4), round(y, 4)) for x, y in LN.expand(cleared, ring, "lanes[0]").points]
         self.assertEqual(points[-3:], [(2.0, 90.4), (3.0, 91.4), (3.0, 92.0)])  # straight out of the row, then 45 degrees
 
+    def test_two_lanes_whose_ends_lie_in_the_other_order_are_named(self):
+        ring = LN.outline_corners(_rows(0, 0, 20, 100, 1))
+        lanes = LN.parse([_lane(net="A", offset_mm=2, from_mm=[[6, 5]], to_mm=[[2, 95]]),
+                          _lane(net="B", offset_mm=3, from_mm=[[5, 4]], to_mm=[[3, 95]])])  # A's pin right of B's, A's line left
+        traces = [LN.expand(lane, ring, f"lanes[{i}]") for i, lane in enumerate(lanes)]
+        notes = LN.swapped(traces)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("lanes[0] (A) and lanes[1] (B) lie in one order where they end near (6.000, 5.000) mm", notes[0])
+        kept = LN.parse([_lane(net="A", offset_mm=2, from_mm=[[5, 4]], to_mm=[[2, 95]]),
+                         _lane(net="B", offset_mm=3, from_mm=[[6, 5]], to_mm=[[3, 95]])])  # in order: no crossing
+        self.assertEqual(LN.swapped([LN.expand(lane, ring, f"lanes[{i}]") for i, lane in enumerate(kept)]), [])
+
     def test_the_jogs_of_a_band_start_one_after_another(self):
         band = LN.parse([_lane(net=net, width_mm=0.15, offset_mm=d, from_mm=[[d, 5]], to_mm=[[d + 1, 95]],
                                jogs=[{"at_mm": [0, 50], "offset_mm": d + 1}]) for net, d in (("A", 1.0), ("B", 1.3))])

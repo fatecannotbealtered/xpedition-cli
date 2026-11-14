@@ -15,9 +15,9 @@
       "actual": {
         "exit": 0
       },
-      "evidence": "live:docs/evidence/2026-11-13-162455-packager-run.json#normal",
+      "evidence": "live:docs/evidence/2026-11-13-203759-packager-run.json#normal",
       "kind_evidence": {
-        "project": "live:docs/evidence/2026-11-13-162455-packager-run.json#normal"
+        "project": "live:docs/evidence/2026-11-13-203759-packager-run.json#normal"
       }
     },
     {
@@ -60,7 +60,7 @@
         "exit": 3,
         "code": "E_NOT_FOUND"
       },
-      "evidence": "live:docs/evidence/2026-11-13-162436-packager-run.json#not_found"
+      "evidence": "live:docs/evidence/2026-11-13-203735-packager-run.json#not_found"
     },
     {
       "row": "ambiguous",
@@ -83,7 +83,7 @@
         "exit": 6,
         "code": "E_CONFLICT"
       },
-      "evidence": "live:docs/evidence/2026-11-13-161304-packager-run.json#conflict"
+      "evidence": "live:docs/evidence/2026-11-13-202531-packager-run.json#conflict"
     },
     {
       "row": "no_scope",
@@ -101,7 +101,7 @@
         "exit": 4,
         "code": "E_FORBIDDEN"
       },
-      "evidence": "live:docs/evidence/2026-11-13-162436-packager-run.json#no_scope"
+      "evidence": "live:docs/evidence/2026-11-13-203735-packager-run.json#no_scope"
     },
     {
       "row": "busy",
@@ -139,7 +139,7 @@
         "exit": 1,
         "code": "E_VERIFY_FAILED"
       },
-      "evidence": "live:docs/evidence/2026-11-13-162447-packager-run.json#read_back_mismatch"
+      "evidence": "live:docs/evidence/2026-11-13-203749-packager-run.json#read_back_mismatch"
     }
   ]
 }
